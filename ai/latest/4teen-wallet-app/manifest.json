@@ -1,17 +1,20 @@
 {
-  "generatedAt": "2026-04-07T20:01:04.225Z",
+  "generatedAt": "2026-04-07T22:49:04.086Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "cf9ae1810d4f8350298ad7e4df1a137a6472bef7",
-    "shortHash": "cf9ae18",
-    "subject": "feat: add initial boot loading screen",
+    "hash": "ba7af575d7d4b571d6b042ed7839cb35242f6d55",
+    "shortHash": "ba7af57",
+    "subject": "feat: add local UI icons for mobile shell",
     "author": "info14fourteen-creator",
-    "date": "2026-04-08T01:00:50+05:00"
+    "date": "2026-04-08T03:48:51+05:00"
   },
   "changedFiles": [
-    "A\tapps/mobile/app/index.tsx"
+    "A\tapps/mobile/assets/icons/ui/close.svg",
+    "A\tapps/mobile/assets/icons/ui/menu.svg",
+    "A\tapps/mobile/assets/icons/ui/scan.svg",
+    "A\tapps/mobile/assets/icons/ui/search.svg"
   ],
   "activeFiles": [
     {
@@ -67,6 +70,22 @@
       "count": 1
     },
     {
+      "file": "apps/mobile/assets/icons/ui/close.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/menu.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/scan.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/search.svg",
+      "count": 1
+    },
+    {
       "file": "apps/mobile/assets/images/android-icon-background.png",
       "count": 1
     },
@@ -117,22 +136,6 @@
     {
       "file": "apps/mobile/components/hello-wave.tsx",
       "count": 1
-    },
-    {
-      "file": "apps/mobile/components/parallax-scroll-view.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/components/themed-text.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/components/themed-view.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/components/ui/collapsible.tsx",
-      "count": 1
     }
   ],
   "todoCount": 10,
@@ -161,6 +164,10 @@
     "apps/mobile/app/(tabs)/index.tsx",
     "apps/mobile/app/index.tsx",
     "apps/mobile/app/modal.tsx",
+    "apps/mobile/assets/icons/ui/close.svg",
+    "apps/mobile/assets/icons/ui/menu.svg",
+    "apps/mobile/assets/icons/ui/scan.svg",
+    "apps/mobile/assets/icons/ui/search.svg",
     "apps/mobile/components/external-link.tsx",
     "apps/mobile/components/haptic-tab.tsx",
     "apps/mobile/components/hello-wave.tsx",
