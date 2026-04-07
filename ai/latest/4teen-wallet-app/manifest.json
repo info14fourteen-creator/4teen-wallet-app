@@ -1,0 +1,187 @@
+{
+  "generatedAt": "2026-04-07T16:44:08.654Z",
+  "repository": "info14fourteen-creator/4teen-wallet-app",
+  "branch": "main",
+  "repoName": "4teen-wallet-app",
+  "lastCommit": {
+    "hash": "996d513c37d9f52110f5307aa4059f38bc692f6c",
+    "shortHash": "996d513",
+    "subject": "chore: add wallet AI bundle snapshot automation",
+    "author": "info14fourteen-creator",
+    "date": "2026-04-07T21:43:58+05:00"
+  },
+  "changedFiles": [
+    "A\t.github/workflows/build-wallet-ai-bundle.yml",
+    "A\tscripts/build-wallet-ai-bundles.mjs"
+  ],
+  "activeFiles": [
+    {
+      "file": ".github/workflows/build-wallet-ai-bundle.yml",
+      "count": 1
+    },
+    {
+      "file": ".github/workflows/ci.yml",
+      "count": 1
+    },
+    {
+      "file": ".gitignore",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/.gitignore",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/.vscode/extensions.json",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/.vscode/settings.json",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app.json",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/_layout.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/(tabs)/_layout.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/(tabs)/explore.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/(tabs)/index.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/modal.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/images/android-icon-background.png",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/images/android-icon-foreground.png",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/images/android-icon-monochrome.png",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/images/favicon.png",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/images/icon.png",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/images/partial-react-logo.png",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/images/react-logo.png",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/images/react-logo@2x.png",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/images/react-logo@3x.png",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/images/splash-icon.png",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/components/external-link.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/components/haptic-tab.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/components/hello-wave.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/components/parallax-scroll-view.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/components/themed-text.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/components/themed-view.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/components/ui/collapsible.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/components/ui/icon-symbol.ios.tsx",
+      "count": 1
+    }
+  ],
+  "todoCount": 10,
+  "snapshotFiles": [
+    "00_AI_MAP.md",
+    "01_PROJECT_OVERVIEW.md",
+    "02_BUILD_AND_TOOLING.md",
+    "03_APP_STRUCTURE.md",
+    "04_NAVIGATION_AND_SCREENS.md",
+    "05_WALLET_CORE.md",
+    "06_UI_AND_COMPONENTS.md",
+    "07_CONFIG_AND_NATIVE.md",
+    "08_RECENT_CHANGES.md",
+    "09_ACTIVE_FILES.md",
+    "10_OPEN_TODO_SURFACE.md"
+  ],
+  "sourceFilesIncluded": [
+    "package.json",
+    ".github/workflows/build-wallet-ai-bundle.yml",
+    ".github/workflows/ci.yml",
+    "scripts/build-wallet-ai-bundles.mjs",
+    "apps/mobile/app.json",
+    "apps/mobile/app/_layout.tsx",
+    "apps/mobile/app/(tabs)/_layout.tsx",
+    "apps/mobile/app/(tabs)/explore.tsx",
+    "apps/mobile/app/(tabs)/index.tsx",
+    "apps/mobile/app/modal.tsx",
+    "apps/mobile/components/external-link.tsx",
+    "apps/mobile/components/haptic-tab.tsx",
+    "apps/mobile/components/hello-wave.tsx",
+    "apps/mobile/components/parallax-scroll-view.tsx",
+    "apps/mobile/components/themed-text.tsx",
+    "apps/mobile/components/themed-view.tsx",
+    "apps/mobile/components/ui/collapsible.tsx",
+    "apps/mobile/components/ui/icon-symbol.ios.tsx",
+    "apps/mobile/components/ui/icon-symbol.tsx",
+    "apps/mobile/constants/theme.ts",
+    "apps/mobile/eslint.config.js",
+    "apps/mobile/hooks/use-color-scheme.ts",
+    "apps/mobile/hooks/use-color-scheme.web.ts",
+    "apps/mobile/hooks/use-theme-color.ts",
+    "apps/mobile/package.json",
+    "apps/mobile/README.md",
+    "apps/mobile/scripts/reset-project.js",
+    "apps/mobile/tsconfig.json",
+    "pnpm-workspace.yaml",
+    "turbo.json"
+  ],
+  "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
+  "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"
+}
