@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../theme/tokens';
@@ -9,8 +9,10 @@ import AppHeader, {
   APP_MENU_TOP_GAP,
 } from './app-header';
 
-import InfoIcon from '../../assets/icons/ui/info_btn.svg';
+import WalletIcon from '../../assets/icons/ui/wallet_btn.svg';
 import SettingsIcon from '../../assets/icons/ui/setings_btn.svg';
+import AddressIcon from '../../assets/icons/ui/address_btn.svg';
+import InfoIcon from '../../assets/icons/ui/info_btn.svg';
 
 type MenuSheetProps = {
   open: boolean;
@@ -27,11 +29,6 @@ export default function MenuSheet({ open, onClose }: MenuSheetProps) {
     setTimeout(() => router.push(path as any), 120);
   };
 
-  const stub = () => {
-    onClose();
-    setTimeout(() => router.push('/ui-lab' as any), 120);
-  };
-
   return (
     <View pointerEvents="box-none" style={styles.root}>
       <Pressable style={styles.overlay} onPress={onClose} />
@@ -43,46 +40,31 @@ export default function MenuSheet({ open, onClose }: MenuSheetProps) {
       </View>
 
       <View style={styles.sheet}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          bounces={true}
-        >
-          <View style={styles.sectionBlock}>
-            <Text style={ui.sectionEyebrow}>Wallet</Text>
-            <MenuItem label="Home" onPress={() => go('/ui-lab')} />
-            <MenuItem label="Create Wallet" onPress={stub} />
-            <MenuItem label="Import Wallet" onPress={stub} />
-            <MenuItem
-              label="Settings"
-              onPress={stub}
-              leftIcon={<SettingsIcon width={18} height={18} />}
-            />
-          </View>
+        <View style={styles.menuBlock}>
+          <MenuItem
+            label="Wallet Management"
+            onPress={() => go('/wallets')}
+            icon={<WalletIcon width={20} height={20} />}
+          />
 
-          <View style={styles.sectionBlock}>
-            <Text style={ui.sectionEyebrow}>Ecosystem</Text>
-            <MenuItem label="Direct Buy" onPress={stub} />
-            <MenuItem label="Swap" onPress={stub} />
-            <MenuItem label="Unlock Timeline" onPress={stub} />
-            <MenuItem label="Liquidity" onPress={stub} />
-            <MenuItem label="Ambassador" onPress={stub} />
-            <MenuItem label="Airdrop" onPress={stub} />
-          </View>
+          <MenuItem
+            label="Address Book"
+            onPress={() => go('/address-book')}
+            icon={<AddressIcon width={20} height={20} />}
+          />
 
-          <View style={styles.sectionBlock}>
-            <Text style={ui.sectionEyebrow}>Info</Text>
-            <MenuItem
-              label="About Us"
-              onPress={() => go('/about')}
-              leftIcon={<InfoIcon width={18} height={18} />}
-              showArrow
-            />
-            <MenuItem label="Terms of Service" onPress={() => go('/terms')} />
-            <MenuItem label="4TEEN Whitepaper" onPress={() => go('/whitepaper')} />
-          </View>
-        </ScrollView>
+          <MenuItem
+            label="Settings"
+            onPress={() => go('/settings')}
+            icon={<SettingsIcon width={20} height={20} />}
+          />
+
+          <MenuItem
+            label="About Us"
+            onPress={() => go('/about')}
+            icon={<InfoIcon width={20} height={20} />}
+          />
+        </View>
       </View>
     </View>
   );
@@ -91,24 +73,24 @@ export default function MenuSheet({ open, onClose }: MenuSheetProps) {
 function MenuItem({
   label,
   onPress,
-  leftIcon,
-  showArrow = false,
+  icon,
 }: {
   label: string;
   onPress: () => void;
-  leftIcon?: React.ReactNode;
-  showArrow?: boolean;
+  icon: React.ReactNode;
 }) {
   return (
-    <TouchableOpacity activeOpacity={0.85} style={styles.item} onPress={onPress}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      style={styles.item}
+      onPress={onPress}
+    >
       <View style={styles.itemLeft}>
-        {leftIcon ? <View style={styles.iconWrap}>{leftIcon}</View> : null}
+        <View style={styles.iconWrap}>{icon}</View>
         <Text style={ui.actionLabel}>{label}</Text>
       </View>
 
-      {showArrow ? (
-        <Ionicons name="chevron-forward" size={18} color={colors.accent} />
-      ) : null}
+      <Ionicons name="chevron-forward" size={18} color={colors.accent} />
     </TouchableOpacity>
   );
 }
@@ -154,31 +136,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderTopWidth: 1,
     borderTopColor: colors.lineSoft,
-    zIndex: 2,
   },
 
-  scroll: {
-    flex: 1,
-  },
-
-  scrollContent: {
+  menuBlock: {
     paddingHorizontal: spacing[4],
-    paddingTop: spacing[5],
-    paddingBottom: spacing[7],
-    gap: spacing[5],
-  },
-
-  sectionBlock: {
-    gap: 10,
+    paddingTop: spacing[6],
+    gap: 14,
   },
 
   item: {
-    minHeight: 46,
-    borderRadius: radius.sm,
+    minHeight: 56,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -187,13 +159,13 @@ const styles = StyleSheet.create({
   itemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 14,
     flex: 1,
   },
 
   iconWrap: {
-    width: 18,
-    height: 18,
+    width: 22,
+    height: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
