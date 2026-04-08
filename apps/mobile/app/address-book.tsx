@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,7 @@ import AppHeader, {
 } from '../src/ui/app-header';
 import MenuSheet from '../src/ui/menu-sheet';
 import SubmenuHeader from '../src/ui/submenu-header';
+import ExpandChevron from '../src/ui/expand-chevron';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 
@@ -52,6 +54,13 @@ export default function AddressBookScreen() {
   const [address, setAddress] = useState('');
 
   const addressValid = useMemo(() => isValidTronAddress(address), [address]);
+
+  const handlePaste = async () => {
+    const text = await Clipboard.getStringAsync();
+    if (text) {
+      setAddress(text.trim());
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -97,7 +106,7 @@ export default function AddressBookScreen() {
                       autoCorrect={false}
                     />
 
-                    <TouchableOpacity activeOpacity={0.85} style={styles.pasteButton}>
+                    <TouchableOpacity activeOpacity={0.85} style={styles.pasteButton} onPress={handlePaste}>
                       <Ionicons name="clipboard-outline" size={16} color={colors.accent} />
                       <Text style={styles.pasteText}>Paste</Text>
                     </TouchableOpacity>
@@ -157,7 +166,7 @@ function ExpandableHeader({
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.headerRow} onPress={onPress}>
       <Text style={ui.actionLabel}>{label}</Text>
-      <Text style={styles.chevron}>{open ? '⌄' : '›'}</Text>
+      <ExpandChevron open={open} />
     </TouchableOpacity>
   );
 }
@@ -195,12 +204,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-
-  chevron: {
-    color: colors.accent,
-    fontSize: 24,
-    lineHeight: 24,
   },
 
   form: {

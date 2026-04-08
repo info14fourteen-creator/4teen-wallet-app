@@ -105,12 +105,8 @@ export default function WalletsScreen() {
               style={styles.addWalletRow}
               onPress={() => router.push('/ui-lab')}
             >
-              <View style={styles.addWalletLeft}>
-                <AddWalletIcon width={20} height={20} />
-                <Text style={ui.actionLabel}>Add Wallet</Text>
-              </View>
-
-              <ExpandChevron open={false} />
+              <Text style={ui.actionLabel}>Add Wallet</Text>
+              <AddWalletIcon width={20} height={20} />
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -246,12 +242,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-
-  addWalletLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
   },
 
   stubRow: {
