@@ -1,6 +1,5 @@
 import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../theme/tokens';
 import { ui } from '../theme/ui';
 import AppHeader, {
@@ -8,6 +7,7 @@ import AppHeader, {
   APP_HEADER_TOP_PADDING,
   APP_MENU_TOP_GAP,
 } from './app-header';
+import ExpandChevron from './expand-chevron';
 
 import WalletIcon from '../../assets/icons/ui/wallet_btn.svg';
 import SettingsIcon from '../../assets/icons/ui/setings_btn.svg';
@@ -90,7 +90,7 @@ function MenuItem({
         <Text style={ui.actionLabel}>{label}</Text>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+      <ExpandChevron open={false} />
     </TouchableOpacity>
   );
 }

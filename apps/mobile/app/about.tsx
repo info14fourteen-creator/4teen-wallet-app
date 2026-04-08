@@ -17,6 +17,7 @@ import AppHeader, {
 } from '../src/ui/app-header';
 import MenuSheet from '../src/ui/menu-sheet';
 import SubmenuHeader from '../src/ui/submenu-header';
+import ExpandChevron from '../src/ui/expand-chevron';
 import { colors, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { getVersionString } from '../src/config/app-version';
@@ -179,7 +180,7 @@ function ActionRow({
       ) : icon === 'external' ? (
         <Ionicons name="open-outline" size={18} color={colors.accent} />
       ) : (
-        <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+        <ExpandChevron open={false} />
       )}
     </TouchableOpacity>
   );

@@ -9,8 +9,11 @@ import AppHeader, {
 } from '../src/ui/app-header';
 import MenuSheet from '../src/ui/menu-sheet';
 import SubmenuHeader from '../src/ui/submenu-header';
+import ExpandChevron from '../src/ui/expand-chevron';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
+
+import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
 
 type WalletItem = {
   id: string;
@@ -80,7 +83,7 @@ export default function WalletsScreen() {
                       <Text style={styles.meta}>Create Date: {wallet.created}</Text>
                     </View>
 
-                    <Text style={styles.chevron}>{expanded ? '⌄' : '›'}</Text>
+                    <ExpandChevron open={expanded} />
                   </TouchableOpacity>
 
                   {expanded ? (
@@ -102,9 +105,12 @@ export default function WalletsScreen() {
               style={styles.addWalletRow}
               onPress={() => router.push('/ui-lab')}
             >
-              <Text style={styles.addWalletPlus}>+</Text>
-              <Text style={ui.actionLabel}>Add Wallet</Text>
-              <Text style={styles.chevron}>›</Text>
+              <View style={styles.addWalletLeft}>
+                <AddWalletIcon width={20} height={20} />
+                <Text style={ui.actionLabel}>Add Wallet</Text>
+              </View>
+
+              <ExpandChevron open={false} />
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -119,7 +125,7 @@ function StubRow({ label }: { label: string }) {
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.stubRow}>
       <Text style={ui.actionLabel}>{label}</Text>
-      <Text style={styles.chevron}>›</Text>
+      <ExpandChevron open={false} />
     </TouchableOpacity>
   );
 }
@@ -239,14 +245,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
   },
 
-  addWalletPlus: {
-    color: colors.accent,
-    fontSize: 24,
-    lineHeight: 24,
-    fontFamily: 'Sora_700Bold',
+  addWalletLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 
   stubRow: {
@@ -259,11 +264,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-
-  chevron: {
-    color: colors.accent,
-    fontSize: 24,
-    lineHeight: 24,
   },
 });
