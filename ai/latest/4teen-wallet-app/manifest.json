@@ -1,22 +1,79 @@
 {
-  "generatedAt": "2026-04-07T22:49:04.086Z",
+  "generatedAt": "2026-04-08T03:40:40.439Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "ba7af575d7d4b571d6b042ed7839cb35242f6d55",
-    "shortHash": "ba7af57",
-    "subject": "feat: add local UI icons for mobile shell",
+    "hash": "66f29134f213e677cf24d2d497d376491b267d89",
+    "shortHash": "66f2913",
+    "subject": "feat: stabilize mobile shell and refresh AI bundle snapshot",
     "author": "info14fourteen-creator",
-    "date": "2026-04-08T03:48:51+05:00"
+    "date": "2026-04-08T08:40:18+05:00"
   },
   "changedFiles": [
-    "A\tapps/mobile/assets/icons/ui/close.svg",
-    "A\tapps/mobile/assets/icons/ui/menu.svg",
-    "A\tapps/mobile/assets/icons/ui/scan.svg",
-    "A\tapps/mobile/assets/icons/ui/search.svg"
+    "M\tapps/mobile/app/_layout.tsx",
+    "A\tapps/mobile/app/about.tsx",
+    "A\tapps/mobile/app/font-lab.tsx",
+    "M\tapps/mobile/app/index.tsx",
+    "A\tapps/mobile/app/terms.tsx",
+    "A\tapps/mobile/app/ui-lab.tsx",
+    "A\tapps/mobile/app/whitepaper.tsx",
+    "M\tapps/mobile/assets/icons/ui/close.svg",
+    "A\tapps/mobile/assets/icons/ui/info_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/logo_white.svg",
+    "M\tapps/mobile/assets/icons/ui/menu.svg",
+    "M\tapps/mobile/assets/icons/ui/search.svg",
+    "A\tapps/mobile/assets/icons/ui/setings_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/socials/discord_social.svg",
+    "A\tapps/mobile/assets/icons/ui/socials/facebook_social.svg",
+    "A\tapps/mobile/assets/icons/ui/socials/github_social.svg",
+    "A\tapps/mobile/assets/icons/ui/socials/instagram_social.svg",
+    "A\tapps/mobile/assets/icons/ui/socials/telegram_social.svg",
+    "A\tapps/mobile/assets/icons/ui/socials/threads_social.svg",
+    "A\tapps/mobile/assets/icons/ui/socials/tiktok_social.svg",
+    "A\tapps/mobile/assets/icons/ui/socials/whatsapp_social.svg",
+    "A\tapps/mobile/assets/icons/ui/socials/x_social.svg",
+    "A\tapps/mobile/assets/icons/ui/socials/youtube_social.svg",
+    "A\tapps/mobile/metro.config.js",
+    "M\tapps/mobile/package.json",
+    "A\tapps/mobile/scripts/update-version.mjs",
+    "A\tapps/mobile/src/config/app-version.ts",
+    "A\tapps/mobile/src/notice/notice-provider.tsx",
+    "A\tapps/mobile/src/theme/tokens.ts",
+    "A\tapps/mobile/src/theme/ui.ts",
+    "A\tapps/mobile/src/ui/app-header.tsx",
+    "A\tapps/mobile/src/ui/foundation.tsx",
+    "A\tapps/mobile/src/ui/menu-sheet.tsx",
+    "A\tapps/mobile/src/ui/submenu-header.tsx",
+    "A\tapps/mobile/src/ui/top-chrome.tsx",
+    "A\tapps/mobile/svg.d.ts",
+    "M\tpnpm-lock.yaml"
   ],
   "activeFiles": [
+    {
+      "file": "apps/mobile/app/_layout.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/index.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/close.svg",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/menu.svg",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/search.svg",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/package.json",
+      "count": 2
+    },
     {
       "file": ".github/workflows/build-wallet-ai-bundle.yml",
       "count": 1
@@ -46,10 +103,6 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/_layout.tsx",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/app/(tabs)/_layout.tsx",
       "count": 1
     },
@@ -62,7 +115,11 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/index.tsx",
+      "file": "apps/mobile/app/about.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/font-lab.tsx",
       "count": 1
     },
     {
@@ -70,11 +127,23 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/icons/ui/close.svg",
+      "file": "apps/mobile/app/terms.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/icons/ui/menu.svg",
+      "file": "apps/mobile/app/ui-lab.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/whitepaper.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/info_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/logo_white.svg",
       "count": 1
     },
     {
@@ -82,63 +151,27 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/icons/ui/search.svg",
+      "file": "apps/mobile/assets/icons/ui/setings_btn.svg",
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/images/android-icon-background.png",
+      "file": "apps/mobile/assets/icons/ui/socials/discord_social.svg",
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/images/android-icon-foreground.png",
+      "file": "apps/mobile/assets/icons/ui/socials/facebook_social.svg",
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/images/android-icon-monochrome.png",
+      "file": "apps/mobile/assets/icons/ui/socials/github_social.svg",
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/images/favicon.png",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/images/icon.png",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/images/partial-react-logo.png",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/images/react-logo.png",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/images/react-logo@2x.png",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/images/react-logo@3x.png",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/images/splash-icon.png",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/components/external-link.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/components/haptic-tab.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/components/hello-wave.tsx",
+      "file": "apps/mobile/assets/icons/ui/socials/instagram_social.svg",
       "count": 1
     }
   ],
-  "todoCount": 10,
+  "todoCount": 11,
   "snapshotFiles": [
     "00_AI_MAP.md",
     "01_PROJECT_OVERVIEW.md",
@@ -162,12 +195,30 @@
     "apps/mobile/app/(tabs)/_layout.tsx",
     "apps/mobile/app/(tabs)/explore.tsx",
     "apps/mobile/app/(tabs)/index.tsx",
+    "apps/mobile/app/about.tsx",
+    "apps/mobile/app/font-lab.tsx",
     "apps/mobile/app/index.tsx",
     "apps/mobile/app/modal.tsx",
+    "apps/mobile/app/terms.tsx",
+    "apps/mobile/app/ui-lab.tsx",
+    "apps/mobile/app/whitepaper.tsx",
     "apps/mobile/assets/icons/ui/close.svg",
+    "apps/mobile/assets/icons/ui/info_btn.svg",
+    "apps/mobile/assets/icons/ui/logo_white.svg",
     "apps/mobile/assets/icons/ui/menu.svg",
     "apps/mobile/assets/icons/ui/scan.svg",
     "apps/mobile/assets/icons/ui/search.svg",
+    "apps/mobile/assets/icons/ui/setings_btn.svg",
+    "apps/mobile/assets/icons/ui/socials/discord_social.svg",
+    "apps/mobile/assets/icons/ui/socials/facebook_social.svg",
+    "apps/mobile/assets/icons/ui/socials/github_social.svg",
+    "apps/mobile/assets/icons/ui/socials/instagram_social.svg",
+    "apps/mobile/assets/icons/ui/socials/telegram_social.svg",
+    "apps/mobile/assets/icons/ui/socials/threads_social.svg",
+    "apps/mobile/assets/icons/ui/socials/tiktok_social.svg",
+    "apps/mobile/assets/icons/ui/socials/whatsapp_social.svg",
+    "apps/mobile/assets/icons/ui/socials/x_social.svg",
+    "apps/mobile/assets/icons/ui/socials/youtube_social.svg",
     "apps/mobile/components/external-link.tsx",
     "apps/mobile/components/haptic-tab.tsx",
     "apps/mobile/components/hello-wave.tsx",
@@ -182,9 +233,21 @@
     "apps/mobile/hooks/use-color-scheme.ts",
     "apps/mobile/hooks/use-color-scheme.web.ts",
     "apps/mobile/hooks/use-theme-color.ts",
+    "apps/mobile/metro.config.js",
     "apps/mobile/package.json",
     "apps/mobile/README.md",
     "apps/mobile/scripts/reset-project.js",
+    "apps/mobile/scripts/update-version.mjs",
+    "apps/mobile/src/config/app-version.ts",
+    "apps/mobile/src/notice/notice-provider.tsx",
+    "apps/mobile/src/theme/tokens.ts",
+    "apps/mobile/src/theme/ui.ts",
+    "apps/mobile/src/ui/app-header.tsx",
+    "apps/mobile/src/ui/foundation.tsx",
+    "apps/mobile/src/ui/menu-sheet.tsx",
+    "apps/mobile/src/ui/submenu-header.tsx",
+    "apps/mobile/src/ui/top-chrome.tsx",
+    "apps/mobile/svg.d.ts",
     "apps/mobile/tsconfig.json",
     "pnpm-workspace.yaml",
     "turbo.json"

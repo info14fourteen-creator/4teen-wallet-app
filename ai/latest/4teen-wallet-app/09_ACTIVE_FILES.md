@@ -1,16 +1,22 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-04-07T22:49:04.086Z
+Generated: 2026-04-08T03:40:40.439Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: ba7af575d7d4b571d6b042ed7839cb35242f6d55
-Short commit: ba7af57
-Commit subject: feat: add local UI icons for mobile shell
+Last commit: 66f29134f213e677cf24d2d497d376491b267d89
+Short commit: 66f2913
+Commit subject: feat: stabilize mobile shell and refresh AI bundle snapshot
 Commit author: info14fourteen-creator
-Commit date: 2026-04-08T03:48:51+05:00
+Commit date: 2026-04-08T08:40:18+05:00
 
 ## Most frequently changed files in last 20 commits
 
+- 2x :: apps/mobile/app/_layout.tsx
+- 2x :: apps/mobile/app/index.tsx
+- 2x :: apps/mobile/assets/icons/ui/close.svg
+- 2x :: apps/mobile/assets/icons/ui/menu.svg
+- 2x :: apps/mobile/assets/icons/ui/search.svg
+- 2x :: apps/mobile/package.json
 - 1x :: .github/workflows/build-wallet-ai-bundle.yml
 - 1x :: .github/workflows/ci.yml
 - 1x :: .gitignore
@@ -18,26 +24,20 @@ Commit date: 2026-04-08T03:48:51+05:00
 - 1x :: apps/mobile/.vscode/extensions.json
 - 1x :: apps/mobile/.vscode/settings.json
 - 1x :: apps/mobile/app.json
-- 1x :: apps/mobile/app/_layout.tsx
 - 1x :: apps/mobile/app/(tabs)/_layout.tsx
 - 1x :: apps/mobile/app/(tabs)/explore.tsx
 - 1x :: apps/mobile/app/(tabs)/index.tsx
-- 1x :: apps/mobile/app/index.tsx
+- 1x :: apps/mobile/app/about.tsx
+- 1x :: apps/mobile/app/font-lab.tsx
 - 1x :: apps/mobile/app/modal.tsx
-- 1x :: apps/mobile/assets/icons/ui/close.svg
-- 1x :: apps/mobile/assets/icons/ui/menu.svg
+- 1x :: apps/mobile/app/terms.tsx
+- 1x :: apps/mobile/app/ui-lab.tsx
+- 1x :: apps/mobile/app/whitepaper.tsx
+- 1x :: apps/mobile/assets/icons/ui/info_btn.svg
+- 1x :: apps/mobile/assets/icons/ui/logo_white.svg
 - 1x :: apps/mobile/assets/icons/ui/scan.svg
-- 1x :: apps/mobile/assets/icons/ui/search.svg
-- 1x :: apps/mobile/assets/images/android-icon-background.png
-- 1x :: apps/mobile/assets/images/android-icon-foreground.png
-- 1x :: apps/mobile/assets/images/android-icon-monochrome.png
-- 1x :: apps/mobile/assets/images/favicon.png
-- 1x :: apps/mobile/assets/images/icon.png
-- 1x :: apps/mobile/assets/images/partial-react-logo.png
-- 1x :: apps/mobile/assets/images/react-logo.png
-- 1x :: apps/mobile/assets/images/react-logo@2x.png
-- 1x :: apps/mobile/assets/images/react-logo@3x.png
-- 1x :: apps/mobile/assets/images/splash-icon.png
-- 1x :: apps/mobile/components/external-link.tsx
-- 1x :: apps/mobile/components/haptic-tab.tsx
-- 1x :: apps/mobile/components/hello-wave.tsx
+- 1x :: apps/mobile/assets/icons/ui/setings_btn.svg
+- 1x :: apps/mobile/assets/icons/ui/socials/discord_social.svg
+- 1x :: apps/mobile/assets/icons/ui/socials/facebook_social.svg
+- 1x :: apps/mobile/assets/icons/ui/socials/github_social.svg
+- 1x :: apps/mobile/assets/icons/ui/socials/instagram_social.svg
