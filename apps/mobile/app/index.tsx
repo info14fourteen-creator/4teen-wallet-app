@@ -1,101 +1,102 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { colors, fontFamilies, spacing, typography } from '../src/theme/tokens';
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function BootScreen() {
   const router = useRouter();
-
+  const progressAnim = useRef(new Animated.Value(0)).current;
   const [progress, setProgress] = useState(0);
-  const animatedWidth = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    let value = 0;
+    let mounted = true;
 
-    const interval = setInterval(() => {
-      value += Math.random() * 5;
+    const animate = (value: number, duration: number) =>
+      new Promise<void>((resolve) => {
+        Animated.timing(progressAnim, {
+          toValue: value,
+          duration,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: false,
+        }).start(() => resolve());
+      });
 
-      if (value < 99) {
-        setProgress(Math.floor(value));
-        animate(value);
-      } else if (value < 114) {
-        value += 1.5;
-        setProgress(Math.min(114, Math.floor(value)));
-        animate(value);
+    const setVal = async (value: number, duration: number) => {
+      if (!mounted) return;
+      setProgress(value);
+      await animate(value, duration);
+    };
+
+    const run = async () => {
+      for (let i = 0; i <= 70; i += 7) await setVal(i, 50);
+      for (let i = 73; i <= 99; i += 3) await setVal(i, 70);
+
+      await wait(120);
+
+      for (let i = 100; i <= 107; i++) await setVal(i, 100);
+      await wait(160);
+      for (let i = 108; i <= 114; i++) await setVal(i, 120);
+
+      await wait(220);
+
+      if (mounted) {
+        router.replace('/ui-lab');
       }
+    };
 
-      if (value >= 114) {
-        clearInterval(interval);
+    void run();
 
-        setTimeout(() => {
-          // временно всегда ведем на welcome
-          router.replace('/create-wallet');
-        }, 400);
-      }
-    }, 80);
+    return () => {
+      mounted = false;
+    };
+  }, [progressAnim, router]);
 
-    return () => clearInterval(interval);
-  }, []);
+  const color = progress >= 100 ? colors.accent : colors.offWhite;
 
-  const animate = (val: number) => {
-    Animated.timing(animatedWidth, {
-      toValue: val,
-      duration: 80,
-      useNativeDriver: false,
-    }).start();
-  };
-
-  const isOver = progress >= 99;
+  const width = progressAnim.interpolate({
+    inputRange: [0, 114],
+    outputRange: ['0%', '100%'],
+  });
 
   return (
-    <View style={styles.container}>
-      <Text style={[styles.percent, isOver && styles.orange]}>
-        {progress}%
-      </Text>
+    <View style={styles.screen}>
+      <View style={styles.center}>
+        <Text style={[styles.percent, { color }]}>
+          {progress}%
+        </Text>
 
-      <View style={styles.lineWrapper}>
-        <Animated.View
-          style={[
-            styles.line,
-            isOver && styles.orangeBg,
-            {
-              width: animatedWidth.interpolate({
-                inputRange: [0, 114],
-                outputRange: ['0%', '100%'],
-              }),
-            },
-          ]}
-        />
+        <View style={styles.track}>
+          <Animated.View style={[styles.fill, { width, backgroundColor: color }]} />
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: 'rgb(26,26,26)',
+    backgroundColor: colors.bgBoot,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  center: {
+    width: '76%',
     alignItems: 'center',
   },
   percent: {
-    fontSize: 42,
-    color: 'rgb(242,242,242)',
-    marginBottom: 20,
-    fontWeight: '500',
+    fontSize: typography.bootPercent,
+    fontFamily: fontFamilies.display,
+    marginBottom: spacing[2],
+    letterSpacing: 0,
   },
-  orange: {
-    color: 'rgb(255,105,0)',
-  },
-  lineWrapper: {
-    width: '70%',
+  track: {
+    width: '100%',
     height: 2,
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
-  line: {
+  fill: {
     height: 2,
-    backgroundColor: 'rgb(242,242,242)',
-  },
-  orangeBg: {
-    backgroundColor: 'rgb(255,105,0)',
   },
 });
