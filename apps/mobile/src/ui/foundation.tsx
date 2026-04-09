@@ -6,7 +6,6 @@ import {
   fontFamilies,
   layout,
   radius,
-  shadows,
   spacing,
   typography,
 } from '../theme/tokens';
@@ -132,14 +131,14 @@ const styles = StyleSheet.create({
   main: {
     flex: 1,
     justifyContent: 'center',
-    gap: layout.contentGap,
+    gap: 20,
   },
   bottom: {
     paddingTop: spacing[4],
     paddingBottom: layout.bottomOffset,
   },
   hero: {
-    gap: layout.heroGap,
+    gap: 16,
   },
   eyebrow: {
     color: colors.accent,
@@ -169,8 +168,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.md,
     padding: spacing[4],
-    gap: layout.cardGap,
-    ...shadows.card,
+    gap: 14,
   },
   cardTitle: {
     color: colors.white,
