@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, fontFamilies, spacing, typography } from '../src/theme/tokens';
+import { hasPasscode } from '../src/security/local-auth';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -41,9 +42,16 @@ export default function BootScreen() {
 
       await wait(220);
 
-      if (mounted) {
-        router.replace('/ui-lab');
+      const protectedApp = await hasPasscode();
+
+      if (!mounted) return;
+
+      if (protectedApp) {
+        router.replace('/unlock');
+        return;
       }
+
+      router.replace('/ui-lab');
     };
 
     void run();

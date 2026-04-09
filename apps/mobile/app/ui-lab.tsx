@@ -9,6 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
@@ -94,6 +95,7 @@ const slides: Slide[] = [
 ];
 
 export default function UiLab() {
+  const router = useRouter();
   const { width, height } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -308,11 +310,19 @@ export default function UiLab() {
             },
           ]}
         >
-          <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={styles.primaryButton}
+            onPress={() => router.push('/create-wallet')}
+          >
             <Text style={ui.buttonLabel}>Create Wallet</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity activeOpacity={0.9} style={styles.secondaryButton}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={styles.secondaryButton}
+            onPress={() => router.push('/import-wallet')}
+          >
             <Text style={ui.buttonLabel}>Import Wallet</Text>
           </TouchableOpacity>
         </View>
