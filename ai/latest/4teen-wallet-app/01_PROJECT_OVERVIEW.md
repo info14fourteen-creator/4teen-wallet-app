@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-09T14:21:23.087Z
+Generated: 2026-04-09T14:46:21.942Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: eaabbdc0b75bb2eca377f96b2422a927a9c602ab
-Short commit: eaabbdc
-Commit subject: chore: update wallet AI bundle [skip ci]
-Commit author: github-actions[bot]
-Commit date: 2026-04-08T03:40:40Z
+Last commit: 9fc00d589d689358d77f4d1ac76fdb3abcc65a8c
+Short commit: 9fc00d5
+Commit subject: chore: save current mobile wallet app state
+Commit author: info14fourteen-creator
+Commit date: 2026-04-09T19:44:51+05:00
 
 ## Curated project tree
 
@@ -25,14 +25,33 @@ Commit date: 2026-04-08T03:40:40Z
         - index.tsx
       - _layout.tsx
       - about.tsx
+      - address-book.tsx
+      - confirm-passcode.tsx
+      - create-passcode.tsx
+      - create-wallet.tsx
+      - enable-biometrics.tsx
       - font-lab.tsx
+      - home.tsx
+      - import-private-key.tsx
+      - import-seed.tsx
+      - import-wallet.tsx
+      - import-watch-only.tsx
       - index.tsx
       - modal.tsx
+      - select-wallet.tsx
+      - settings.tsx
       - terms.tsx
       - ui-lab.tsx
+      - unlock.tsx
+      - wallets.tsx
       - whitepaper.tsx
     - assets/
       - icons/
+        - footer/
+          - airdrop_footer.svg
+          - ambassador_footer.svg
+          - buy_footer.svg
+          - swap_footer.svg
         - ui/
           - socials/
             - discord_social.svg
@@ -45,13 +64,21 @@ Commit date: 2026-04-08T03:40:40Z
             - whatsapp_social.svg
             - x_social.svg
             - youtube_social.svg
+          - add_wallet_btn.svg
+          - address_btn.svg
+          - backspace_btn.svg
+          - biologin_btn.svg
           - close.svg
+          - footer_menu.svg
           - info_btn.svg
           - logo_white.svg
           - menu.svg
+          - open_down_btn.svg
+          - open_right_btn.svg
           - scan.svg
           - search.svg
           - setings_btn.svg
+          - wallet_btn.svg
     - components/
       - ui/
         - collapsible.tsx
@@ -75,17 +102,34 @@ Commit date: 2026-04-08T03:40:40Z
     - src/
       - config/
         - app-version.ts
+        - tron.ts
       - notice/
         - notice-provider.tsx
+      - security/
+        - local-auth.ts
+      - services/
+        - tron/
+          - api.ts
+          - fourteen-price.ts
+          - index.ts
+        - wallet/
+          - import.ts
+          - index.ts
+          - storage.ts
       - theme/
         - tokens.ts
         - ui.ts
       - ui/
         - app-header.tsx
+        - expand-chevron.tsx
+        - footer-nav.tsx
         - foundation.tsx
         - menu-sheet.tsx
+        - numeric-keypad.tsx
         - submenu-header.tsx
         - top-chrome.tsx
+      - wallet/
+        - wallet-session.tsx
     - app.json
     - eslint.config.js
     - metro.config.js
@@ -93,6 +137,10 @@ Commit date: 2026-04-08T03:40:40Z
     - README.md
     - svg.d.ts
     - tsconfig.json
+- docs/
+  - ai-snapshots/
+    - 2026-04-09-wallet-home-wired.md
+    - 2026-04-09-wallet-import-state.md
 - scripts/
   - build-wallet-ai-bundles.mjs
 - package.json
@@ -102,7 +150,252 @@ Commit date: 2026-04-08T03:40:40Z
 
 ## Included files
 
+- docs/ai-snapshots/2026-04-09-wallet-home-wired.md
+- docs/ai-snapshots/2026-04-09-wallet-import-state.md
 - package.json
+
+---
+
+## FILE PATH
+
+`docs/ai-snapshots/2026-04-09-wallet-home-wired.md`
+
+## FILE CONTENT
+
+```md
+# 4TEEN Wallet App - AI Snapshot
+Date: 2026-04-09
+
+## Current focus
+Real wallet import, local wallet persistence, wallet selection, and home screen wallet rendering are now wired together.
+
+## What is working now
+- `apps/mobile/src/services/wallet/storage.ts`
+  - stores wallet metadata in AsyncStorage
+  - stores mnemonic/private key secrets in SecureStore
+  - supports:
+    - `listWallets()`
+    - `saveWallet()`
+    - `getWalletById()`
+    - `getWalletByAddress()`
+    - `setActiveWalletId()`
+    - `getActiveWalletId()`
+    - `getActiveWallet()`
+    - `getWalletSecret()`
+
+- `apps/mobile/src/services/wallet/import.ts`
+  - supports:
+    - `normalizeMnemonicInput()`
+    - `getMnemonicSuggestions()`
+    - `normalizePrivateKey()`
+    - `isValidPrivateKey()`
+    - `isValidTronAddress()`
+    - `importWalletFromMnemonic()`
+    - `importWalletFromPrivateKey()`
+    - `importWalletFromWatchOnly()`
+  - mnemonic import derives wallet through TronWeb
+  - private key import derives TRON address locally
+  - watch-only import saves validated address without secret material
+
+- `apps/mobile/src/services/wallet/index.ts`
+  - exports wallet import and wallet storage services
+
+## UI state
+- `apps/mobile/app/import-wallet.tsx`
+  - routes correctly into real import flows
+  - signing imports remain behind passcode flow
+  - watch-only remains lighter
+
+- `apps/mobile/app/import-seed.tsx`
+  - supports 12/24 word switch
+  - supports full clipboard paste
+  - supports numbered mnemonic cleanup
+  - splits words into fields automatically
+  - shows sticky suggestions via notice layer
+  - imports wallet for real through `importWalletFromMnemonic(...)`
+
+- `apps/mobile/app/import-private-key.tsx`
+  - validates private key
+  - imports wallet for real through `importWalletFromPrivateKey(...)`
+
+- `apps/mobile/app/import-watch-only.tsx`
+  - validates TRON address
+  - saves wallet for real through `importWalletFromWatchOnly(...)`
+
+- `apps/mobile/app/select-wallet.tsx`
+  - loads real stored wallets
+  - reads active wallet id
+  - allows selecting active wallet
+  - returns to `/home`
+
+- `apps/mobile/app/wallets.tsx`
+  - loads real stored wallets
+  - shows active wallet state
+  - routes user into wallet selection flow
+
+- `apps/mobile/app/home.tsx`
+  - loads active wallet from storage
+  - if no wallet exists, shows empty state
+  - if wallet exists, loads live chain snapshot with:
+    - wallet name
+    - wallet address
+    - wallet kind
+    - TRX balance
+    - TRC20 assets
+  - asset list renders token logos when available
+
+## Important architecture notes
+- Production TRON requests must go through backend proxy.
+- API keys must not live inside the mobile client in production.
+- Current client-side TRON service is acceptable only as temporary development wiring.
+- Duplicate experimental wallet store file was removed:
+  - `apps/mobile/src/services/wallet/store.ts`
+
+## Next recommended task
+Move TRON data fetching behind backend proxy and then:
+1. replace direct TronGrid / TronScan client calls
+2. keep `home.tsx` logic but point it at proxy-backed wallet snapshot service
+3. later add 4TEEN price override from Sun.io quote flow
+
+## Important files
+- `apps/mobile/src/services/wallet/storage.ts`
+- `apps/mobile/src/services/wallet/import.ts`
+- `apps/mobile/src/services/wallet/index.ts`
+- `apps/mobile/app/import-seed.tsx`
+- `apps/mobile/app/import-private-key.tsx`
+- `apps/mobile/app/import-watch-only.tsx`
+- `apps/mobile/app/select-wallet.tsx`
+- `apps/mobile/app/wallets.tsx`
+- `apps/mobile/app/home.tsx`
+- `apps/mobile/src/services/tron/api.ts`
+- `apps/mobile/src/services/tron/fourteen-price.ts`
+```
+
+---
+
+## FILE PATH
+
+`docs/ai-snapshots/2026-04-09-wallet-import-state.md`
+
+## FILE CONTENT
+
+```md
+# 4TEEN Wallet App - AI Snapshot
+Date: 2026-04-09
+
+## Current focus
+Implement real wallet import and local wallet persistence before wiring real wallet data into home.tsx.
+
+## What was completed
+- Added local wallet storage service:
+  - `apps/mobile/src/services/wallet/storage.ts`
+  - stores wallet metadata in AsyncStorage
+  - stores mnemonic/private key secrets in SecureStore
+  - supports:
+    - `listWallets()`
+    - `saveWallet()`
+    - `getWalletById()`
+    - `getWalletByAddress()`
+    - `setActiveWalletId()`
+    - `getActiveWalletId()`
+    - `getActiveWallet()`
+    - `getWalletSecret()`
+
+- Added wallet import service:
+  - `apps/mobile/src/services/wallet/import.ts`
+  - supports:
+    - `normalizeMnemonicInput()`
+    - `getMnemonicSuggestions()`
+    - `normalizePrivateKey()`
+    - `isValidPrivateKey()`
+    - `isValidTronAddress()`
+    - `importWalletFromMnemonic()`
+    - `importWalletFromPrivateKey()`
+    - `importWalletFromWatchOnly()`
+  - mnemonic import uses `TronWeb.fromMnemonic(...)`
+  - private key import derives TRON address locally
+  - watch-only import saves validated address without secrets
+
+- Added wallet barrel export:
+  - `apps/mobile/src/services/wallet/index.ts`
+
+- Import flows updated:
+  - `apps/mobile/app/import-wallet.tsx`
+  - `apps/mobile/app/import-seed.tsx`
+  - `apps/mobile/app/import-private-key.tsx`
+  - `apps/mobile/app/import-watch-only.tsx`
+
+- Passcode / biometrics flow improved:
+  - `apps/mobile/app/create-passcode.tsx`
+  - `apps/mobile/app/confirm-passcode.tsx`
+  - `apps/mobile/app/enable-biometrics.tsx`
+  - `apps/mobile/app/unlock.tsx`
+  - passcode screens now use reusable numeric keypad
+  - biometric enable screen uses `disableDeviceFallback: true`
+
+- Added reusable numeric keypad:
+  - `apps/mobile/src/ui/numeric-keypad.tsx`
+
+- UI / navigation cleanup:
+  - `apps/mobile/src/ui/app-header.tsx`
+  - burger menu remains burger on pages where it should remain burger
+  - back navigation handled by submenu header, not by hijacking burger icon
+  - `apps/mobile/src/ui/submenu-header.tsx`
+  - `apps/mobile/src/ui/foundation.tsx` fixed for current tokens/layout
+
+- Wallet pages are no longer fake placeholders:
+  - `apps/mobile/app/wallets.tsx`
+  - `apps/mobile/app/select-wallet.tsx`
+  - next step is to wire them to real stored wallets if not already finalized in current branch
+
+## Current known architecture decisions
+- TronScan and TronGrid requests must go through backend proxy in production.
+- API keys must not live in the mobile client in production.
+- For now local import/storage work is priority.
+- `home.tsx` still needs final wiring to:
+  - `getActiveWallet()`
+  - `getWalletSnapshot(address)`
+  so imported wallets actually render on the main screen.
+
+## Important files
+- `apps/mobile/src/services/wallet/storage.ts`
+- `apps/mobile/src/services/wallet/import.ts`
+- `apps/mobile/src/services/wallet/index.ts`
+- `apps/mobile/app/import-seed.tsx`
+- `apps/mobile/app/import-private-key.tsx`
+- `apps/mobile/app/import-watch-only.tsx`
+- `apps/mobile/app/home.tsx`
+- `apps/mobile/app/wallets.tsx`
+- `apps/mobile/app/select-wallet.tsx`
+- `apps/mobile/src/services/tron/api.ts`
+- `apps/mobile/src/services/tron/fourteen-price.ts`
+
+## Next task
+Wire `home.tsx` to active stored wallet and real chain snapshot:
+1. load `getActiveWallet()`
+2. if no active wallet -> show empty state
+3. if active wallet exists -> call `getWalletSnapshot(activeWallet.address)`
+4. show:
+   - wallet name
+   - full address with copy
+   - TRX balance
+   - TRC20 assets
+5. later add 4TEEN pricing override via Sun.io quote code
+
+## Notes
+- Seed phrase screen:
+  - supports paste of numbered mnemonic
+  - distributes phrase into fields
+  - suggestions are shown via notice layer
+- Private key screen:
+  - must really import and persist wallet, not just navigate
+- Watch-only screen:
+  - must really save wallet and set it active
+
+
+## Snapshot commit
+- b1af20e
+```
 
 ---
 

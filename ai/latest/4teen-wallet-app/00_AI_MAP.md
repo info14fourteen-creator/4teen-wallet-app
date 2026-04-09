@@ -1,13 +1,13 @@
 # 4teen-wallet-app — AI MAP
 
-Generated: 2026-04-09T14:21:23.086Z
+Generated: 2026-04-09T14:46:21.941Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: eaabbdc0b75bb2eca377f96b2422a927a9c602ab
-Short commit: eaabbdc
-Commit subject: chore: update wallet AI bundle [skip ci]
-Commit author: github-actions[bot]
-Commit date: 2026-04-08T03:40:40Z
+Last commit: 9fc00d589d689358d77f4d1ac76fdb3abcc65a8c
+Short commit: 9fc00d5
+Commit subject: chore: save current mobile wallet app state
+Commit author: info14fourteen-creator
+Commit date: 2026-04-09T19:44:51+05:00
 
 ## Snapshot files
 
@@ -39,14 +39,33 @@ Commit date: 2026-04-08T03:40:40Z
         - index.tsx
       - _layout.tsx
       - about.tsx
+      - address-book.tsx
+      - confirm-passcode.tsx
+      - create-passcode.tsx
+      - create-wallet.tsx
+      - enable-biometrics.tsx
       - font-lab.tsx
+      - home.tsx
+      - import-private-key.tsx
+      - import-seed.tsx
+      - import-wallet.tsx
+      - import-watch-only.tsx
       - index.tsx
       - modal.tsx
+      - select-wallet.tsx
+      - settings.tsx
       - terms.tsx
       - ui-lab.tsx
+      - unlock.tsx
+      - wallets.tsx
       - whitepaper.tsx
     - assets/
       - icons/
+        - footer/
+          - airdrop_footer.svg
+          - ambassador_footer.svg
+          - buy_footer.svg
+          - swap_footer.svg
         - ui/
           - socials/
             - discord_social.svg
@@ -59,13 +78,21 @@ Commit date: 2026-04-08T03:40:40Z
             - whatsapp_social.svg
             - x_social.svg
             - youtube_social.svg
+          - add_wallet_btn.svg
+          - address_btn.svg
+          - backspace_btn.svg
+          - biologin_btn.svg
           - close.svg
+          - footer_menu.svg
           - info_btn.svg
           - logo_white.svg
           - menu.svg
+          - open_down_btn.svg
+          - open_right_btn.svg
           - scan.svg
           - search.svg
           - setings_btn.svg
+          - wallet_btn.svg
     - components/
       - ui/
         - collapsible.tsx
@@ -89,17 +116,34 @@ Commit date: 2026-04-08T03:40:40Z
     - src/
       - config/
         - app-version.ts
+        - tron.ts
       - notice/
         - notice-provider.tsx
+      - security/
+        - local-auth.ts
+      - services/
+        - tron/
+          - api.ts
+          - fourteen-price.ts
+          - index.ts
+        - wallet/
+          - import.ts
+          - index.ts
+          - storage.ts
       - theme/
         - tokens.ts
         - ui.ts
       - ui/
         - app-header.tsx
+        - expand-chevron.tsx
+        - footer-nav.tsx
         - foundation.tsx
         - menu-sheet.tsx
+        - numeric-keypad.tsx
         - submenu-header.tsx
         - top-chrome.tsx
+      - wallet/
+        - wallet-session.tsx
     - app.json
     - eslint.config.js
     - metro.config.js
@@ -107,6 +151,10 @@ Commit date: 2026-04-08T03:40:40Z
     - README.md
     - svg.d.ts
     - tsconfig.json
+- docs/
+  - ai-snapshots/
+    - 2026-04-09-wallet-home-wired.md
+    - 2026-04-09-wallet-import-state.md
 - scripts/
   - build-wallet-ai-bundles.mjs
 - package.json

@@ -1,39 +1,48 @@
 # 4teen-wallet-app — RECENT CHANGES
 
-Generated: 2026-04-09T14:21:23.089Z
+Generated: 2026-04-09T14:46:21.943Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: eaabbdc0b75bb2eca377f96b2422a927a9c602ab
-Short commit: eaabbdc
-Commit subject: chore: update wallet AI bundle [skip ci]
-Commit author: github-actions[bot]
-Commit date: 2026-04-08T03:40:40Z
+Last commit: 9fc00d589d689358d77f4d1ac76fdb3abcc65a8c
+Short commit: 9fc00d5
+Commit subject: chore: save current mobile wallet app state
+Commit author: info14fourteen-creator
+Commit date: 2026-04-09T19:44:51+05:00
 
 ## Files changed in last commit
 
-- M	ai/latest/4teen-wallet-app.zip
-- M	ai/latest/4teen-wallet-app/00_AI_MAP.md
-- M	ai/latest/4teen-wallet-app/01_PROJECT_OVERVIEW.md
-- M	ai/latest/4teen-wallet-app/02_BUILD_AND_TOOLING.md
-- M	ai/latest/4teen-wallet-app/03_APP_STRUCTURE.md
-- M	ai/latest/4teen-wallet-app/04_NAVIGATION_AND_SCREENS.md
-- M	ai/latest/4teen-wallet-app/05_WALLET_CORE.md
-- M	ai/latest/4teen-wallet-app/06_UI_AND_COMPONENTS.md
-- M	ai/latest/4teen-wallet-app/07_CONFIG_AND_NATIVE.md
-- M	ai/latest/4teen-wallet-app/08_RECENT_CHANGES.md
-- M	ai/latest/4teen-wallet-app/09_ACTIVE_FILES.md
-- M	ai/latest/4teen-wallet-app/10_OPEN_TODO_SURFACE.md
-- M	ai/latest/4teen-wallet-app/manifest.json
+- M	apps/mobile/app.json
+- M	apps/mobile/app/address-book.tsx
+- A	apps/mobile/app/create-wallet.tsx
+- M	apps/mobile/app/index.tsx
+- M	apps/mobile/app/ui-lab.tsx
+- A	apps/mobile/assets/icons/footer/airdrop_footer.svg
+- A	apps/mobile/assets/icons/footer/ambassador_footer.svg
+- A	apps/mobile/assets/icons/footer/buy_footer.svg
+- A	apps/mobile/assets/icons/footer/swap_footer.svg
+- A	apps/mobile/assets/icons/ui/add_wallet_btn.svg
+- A	apps/mobile/assets/icons/ui/address_btn.svg
+- A	apps/mobile/assets/icons/ui/backspace_btn.svg
+- A	apps/mobile/assets/icons/ui/biologin_btn.svg
+- A	apps/mobile/assets/icons/ui/footer_menu.svg
+- A	apps/mobile/assets/icons/ui/wallet_btn.svg
+- M	apps/mobile/package.json
+- A	apps/mobile/src/config/tron.ts
+- A	apps/mobile/src/ui/footer-nav.tsx
+- A	apps/mobile/src/wallet/wallet-session.tsx
+- M	apps/mobile/tsconfig.json
+- A	docs/ai-snapshots/2026-04-09-wallet-import-state.md
+- M	pnpm-lock.yaml
 
 ## Recent commits
 
+- 9fc00d5 | 2026-04-09 | chore: save current mobile wallet app state
+- c20eb41 | 2026-04-09 | feat: wire real wallet import selection and home snapshot
+- 21361fe | 2026-04-09 | feat: wire wallet import flows and local wallet storage
+- 5d6efb5 | 2026-04-09 | fix: wire paste action and update add wallet row icon
+- 455acd9 | 2026-04-09 | refactor: align mobile action arrows and wallet add button
+- 76a130f | 2026-04-09 | refactor: use local expand chevron icons in mobile UI
+- 5926058 | 2026-04-09 | feat: refine wallet management and address book flows
+- 048d303 | 2026-04-09 | chore: update wallet AI bundle [skip ci]
 - eaabbdc | 2026-04-08 | chore: update wallet AI bundle [skip ci]
 - 66f2913 | 2026-04-08 | feat: stabilize mobile shell and refresh AI bundle snapshot
-- d7ab30e | 2026-04-07 | chore: update wallet AI bundle [skip ci]
-- ba7af57 | 2026-04-08 | feat: add local UI icons for mobile shell
-- 573e98b | 2026-04-07 | chore: update wallet AI bundle [skip ci]
-- cf9ae18 | 2026-04-08 | feat: add initial boot loading screen
-- 49391e7 | 2026-04-07 | chore: update wallet AI bundle [skip ci]
-- 996d513 | 2026-04-07 | chore: add wallet AI bundle snapshot automation
-- f4a80e2 | 2026-04-07 | fix: remove npm lockfile
-- aac80ff | 2026-04-07 | chore: initialize monorepo and expo mobile app

@@ -1,37 +1,74 @@
 {
-  "generatedAt": "2026-04-09T14:21:23.090Z",
+  "generatedAt": "2026-04-09T14:46:21.944Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "eaabbdc0b75bb2eca377f96b2422a927a9c602ab",
-    "shortHash": "eaabbdc",
-    "subject": "chore: update wallet AI bundle [skip ci]",
-    "author": "github-actions[bot]",
-    "date": "2026-04-08T03:40:40Z"
+    "hash": "9fc00d589d689358d77f4d1ac76fdb3abcc65a8c",
+    "shortHash": "9fc00d5",
+    "subject": "chore: save current mobile wallet app state",
+    "author": "info14fourteen-creator",
+    "date": "2026-04-09T19:44:51+05:00"
   },
   "changedFiles": [
-    "M\tai/latest/4teen-wallet-app.zip",
-    "M\tai/latest/4teen-wallet-app/00_AI_MAP.md",
-    "M\tai/latest/4teen-wallet-app/01_PROJECT_OVERVIEW.md",
-    "M\tai/latest/4teen-wallet-app/02_BUILD_AND_TOOLING.md",
-    "M\tai/latest/4teen-wallet-app/03_APP_STRUCTURE.md",
-    "M\tai/latest/4teen-wallet-app/04_NAVIGATION_AND_SCREENS.md",
-    "M\tai/latest/4teen-wallet-app/05_WALLET_CORE.md",
-    "M\tai/latest/4teen-wallet-app/06_UI_AND_COMPONENTS.md",
-    "M\tai/latest/4teen-wallet-app/07_CONFIG_AND_NATIVE.md",
-    "M\tai/latest/4teen-wallet-app/08_RECENT_CHANGES.md",
-    "M\tai/latest/4teen-wallet-app/09_ACTIVE_FILES.md",
-    "M\tai/latest/4teen-wallet-app/10_OPEN_TODO_SURFACE.md",
-    "M\tai/latest/4teen-wallet-app/manifest.json"
+    "M\tapps/mobile/app.json",
+    "M\tapps/mobile/app/address-book.tsx",
+    "A\tapps/mobile/app/create-wallet.tsx",
+    "M\tapps/mobile/app/index.tsx",
+    "M\tapps/mobile/app/ui-lab.tsx",
+    "A\tapps/mobile/assets/icons/footer/airdrop_footer.svg",
+    "A\tapps/mobile/assets/icons/footer/ambassador_footer.svg",
+    "A\tapps/mobile/assets/icons/footer/buy_footer.svg",
+    "A\tapps/mobile/assets/icons/footer/swap_footer.svg",
+    "A\tapps/mobile/assets/icons/ui/add_wallet_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/address_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/backspace_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/biologin_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/footer_menu.svg",
+    "A\tapps/mobile/assets/icons/ui/wallet_btn.svg",
+    "M\tapps/mobile/package.json",
+    "A\tapps/mobile/src/config/tron.ts",
+    "A\tapps/mobile/src/ui/footer-nav.tsx",
+    "A\tapps/mobile/src/wallet/wallet-session.tsx",
+    "M\tapps/mobile/tsconfig.json",
+    "A\tdocs/ai-snapshots/2026-04-09-wallet-import-state.md",
+    "M\tpnpm-lock.yaml"
   ],
   "activeFiles": [
     {
+      "file": "apps/mobile/app/wallets.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/package.json",
+      "count": 4
+    },
+    {
       "file": "apps/mobile/app/_layout.tsx",
-      "count": 2
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/address-book.tsx",
+      "count": 3
     },
     {
       "file": "apps/mobile/app/index.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/src/ui/menu-sheet.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app.json",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/about.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/ui-lab.tsx",
       "count": 2
     },
     {
@@ -47,7 +84,11 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/package.json",
+      "file": "apps/mobile/src/ui/foundation.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/tsconfig.json",
       "count": 2
     },
     {
@@ -75,10 +116,6 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app.json",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/app/(tabs)/_layout.tsx",
       "count": 1
     },
@@ -91,7 +128,19 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/about.tsx",
+      "file": "apps/mobile/app/confirm-passcode.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/create-passcode.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/create-wallet.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/enable-biometrics.tsx",
       "count": 1
     },
     {
@@ -99,51 +148,11 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/modal.tsx",
+      "file": "apps/mobile/app/home.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/app/terms.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/ui-lab.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/whitepaper.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/info_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/logo_white.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/scan.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/setings_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/socials/discord_social.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/socials/facebook_social.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/socials/github_social.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/socials/instagram_social.svg",
+      "file": "apps/mobile/app/import-private-key.tsx",
       "count": 1
     }
   ],
@@ -162,6 +171,8 @@
     "10_OPEN_TODO_SURFACE.md"
   ],
   "sourceFilesIncluded": [
+    "docs/ai-snapshots/2026-04-09-wallet-home-wired.md",
+    "docs/ai-snapshots/2026-04-09-wallet-import-state.md",
     "package.json",
     ".github/workflows/build-wallet-ai-bundle.yml",
     ".github/workflows/ci.yml",
@@ -172,16 +183,41 @@
     "apps/mobile/app/(tabs)/explore.tsx",
     "apps/mobile/app/(tabs)/index.tsx",
     "apps/mobile/app/about.tsx",
+    "apps/mobile/app/address-book.tsx",
+    "apps/mobile/app/confirm-passcode.tsx",
+    "apps/mobile/app/create-passcode.tsx",
+    "apps/mobile/app/create-wallet.tsx",
+    "apps/mobile/app/enable-biometrics.tsx",
     "apps/mobile/app/font-lab.tsx",
+    "apps/mobile/app/home.tsx",
+    "apps/mobile/app/import-private-key.tsx",
+    "apps/mobile/app/import-seed.tsx",
+    "apps/mobile/app/import-wallet.tsx",
+    "apps/mobile/app/import-watch-only.tsx",
     "apps/mobile/app/index.tsx",
     "apps/mobile/app/modal.tsx",
+    "apps/mobile/app/select-wallet.tsx",
+    "apps/mobile/app/settings.tsx",
     "apps/mobile/app/terms.tsx",
     "apps/mobile/app/ui-lab.tsx",
+    "apps/mobile/app/unlock.tsx",
+    "apps/mobile/app/wallets.tsx",
     "apps/mobile/app/whitepaper.tsx",
+    "apps/mobile/assets/icons/footer/airdrop_footer.svg",
+    "apps/mobile/assets/icons/footer/ambassador_footer.svg",
+    "apps/mobile/assets/icons/footer/buy_footer.svg",
+    "apps/mobile/assets/icons/footer/swap_footer.svg",
+    "apps/mobile/assets/icons/ui/add_wallet_btn.svg",
+    "apps/mobile/assets/icons/ui/address_btn.svg",
+    "apps/mobile/assets/icons/ui/backspace_btn.svg",
+    "apps/mobile/assets/icons/ui/biologin_btn.svg",
     "apps/mobile/assets/icons/ui/close.svg",
+    "apps/mobile/assets/icons/ui/footer_menu.svg",
     "apps/mobile/assets/icons/ui/info_btn.svg",
     "apps/mobile/assets/icons/ui/logo_white.svg",
     "apps/mobile/assets/icons/ui/menu.svg",
+    "apps/mobile/assets/icons/ui/open_down_btn.svg",
+    "apps/mobile/assets/icons/ui/open_right_btn.svg",
     "apps/mobile/assets/icons/ui/scan.svg",
     "apps/mobile/assets/icons/ui/search.svg",
     "apps/mobile/assets/icons/ui/setings_btn.svg",
@@ -195,6 +231,7 @@
     "apps/mobile/assets/icons/ui/socials/whatsapp_social.svg",
     "apps/mobile/assets/icons/ui/socials/x_social.svg",
     "apps/mobile/assets/icons/ui/socials/youtube_social.svg",
+    "apps/mobile/assets/icons/ui/wallet_btn.svg",
     "apps/mobile/components/external-link.tsx",
     "apps/mobile/components/haptic-tab.tsx",
     "apps/mobile/components/hello-wave.tsx",
@@ -215,14 +252,26 @@
     "apps/mobile/scripts/reset-project.js",
     "apps/mobile/scripts/update-version.mjs",
     "apps/mobile/src/config/app-version.ts",
+    "apps/mobile/src/config/tron.ts",
     "apps/mobile/src/notice/notice-provider.tsx",
+    "apps/mobile/src/security/local-auth.ts",
+    "apps/mobile/src/services/tron/api.ts",
+    "apps/mobile/src/services/tron/fourteen-price.ts",
+    "apps/mobile/src/services/tron/index.ts",
+    "apps/mobile/src/services/wallet/import.ts",
+    "apps/mobile/src/services/wallet/index.ts",
+    "apps/mobile/src/services/wallet/storage.ts",
     "apps/mobile/src/theme/tokens.ts",
     "apps/mobile/src/theme/ui.ts",
     "apps/mobile/src/ui/app-header.tsx",
+    "apps/mobile/src/ui/expand-chevron.tsx",
+    "apps/mobile/src/ui/footer-nav.tsx",
     "apps/mobile/src/ui/foundation.tsx",
     "apps/mobile/src/ui/menu-sheet.tsx",
+    "apps/mobile/src/ui/numeric-keypad.tsx",
     "apps/mobile/src/ui/submenu-header.tsx",
     "apps/mobile/src/ui/top-chrome.tsx",
+    "apps/mobile/src/wallet/wallet-session.tsx",
     "apps/mobile/svg.d.ts",
     "apps/mobile/tsconfig.json",
     "pnpm-workspace.yaml",
