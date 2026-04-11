@@ -20,7 +20,7 @@ import SubmenuHeader from '../src/ui/submenu-header';
 import ExpandChevron from '../src/ui/expand-chevron';
 import { colors, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
-import { getVersionString } from '../src/config/app-version';
+import { getBuildString, getVersionString } from '../src/config/app-version';
 import { useNotice } from '../src/notice/notice-provider';
 
 import LogoWhite from '../assets/icons/ui/logo_white.svg';
@@ -117,7 +117,10 @@ export default function AboutScreen() {
 
           <View style={styles.versionRow}>
             <Text style={ui.versionLine}>
-              VERSION {getVersionString()}
+              VERSION {getVersionString().toUpperCase()}
+            </Text>
+            <Text style={styles.buildLine}>
+              BUILD {getBuildString()}
             </Text>
           </View>
 
@@ -224,6 +227,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 22,
+    gap: 4,
+  },
+
+  buildLine: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.4,
   },
 
   card: {

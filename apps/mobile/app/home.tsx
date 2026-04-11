@@ -22,6 +22,7 @@ import AppHeader, {
   APP_HEADER_TOP_PADDING,
 } from '../src/ui/app-header';
 import MenuSheet from '../src/ui/menu-sheet';
+import AddressQrModal from '../src/ui/address-qr-modal';
 import { colors, layout, spacing } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
 import {
@@ -45,12 +46,6 @@ import SettingsMiniIcon from '../assets/icons/ui/setings_btn.svg';
 import PreferencesIcon from '../assets/icons/ui/preferences_btn.svg';
 import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
 
-function formatWalletKind(kind: WalletMeta['kind']) {
-  if (kind === 'mnemonic') return 'Seed Phrase';
-  if (kind === 'private-key') return 'Private Key';
-  return 'Watch-Only';
-}
-
 export default function HomeScreen() {
   const router = useRouter();
   const notice = useNotice();
@@ -60,6 +55,8 @@ export default function HomeScreen() {
   const pagerRef = useRef<ScrollView>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [qrVisible, setQrVisible] = useState(false);
+  const [qrWallet, setQrWallet] = useState<WalletMeta | null>(null);
   const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
   const [activeWallet, setActiveWallet] = useState<WalletMeta | null>(null);
   const [portfolio, setPortfolio] = useState<WalletPortfolioSnapshot | null>(null);
@@ -72,7 +69,7 @@ export default function HomeScreen() {
   const cardWidth = Math.max(width - layout.screenPaddingX * 2, 1);
   const contentBottomInset = 44 + Math.max(insets.bottom, 6);
 
-  const walletCards = aggregate?.items ?? [];
+  const walletCards = useMemo(() => aggregate?.items ?? [], [aggregate]);
 
   const showWatchOnlyNotice = useCallback(() => {
     notice.showSuccessNotice(
@@ -90,29 +87,25 @@ export default function HomeScreen() {
     [notice]
   );
 
-  const handleShowQrNotice = useCallback(
+  const openQrModal = useCallback(
     (wallet?: WalletMeta | null) => {
-      if (!wallet) return;
-
-      notice.showAckNotice(
-        `Wallet address\n${wallet.address}`,
-        [
-          {
-            label: 'Copy',
-            onPress: () => {
-              void handleCopyAddress(wallet.address);
-            },
-          },
-          {
-            label: 'Close',
-            onPress: () => {},
-          },
-        ],
-        'update'
-      );
+      if (!wallet?.address) return;
+      notice.hideNotice();
+      setQrWallet(wallet);
+      setQrVisible(true);
     },
-    [handleCopyAddress, notice]
+    [notice]
   );
+
+  const closeQrModal = useCallback(() => {
+    setQrVisible(false);
+  }, []);
+
+  const handleCopyQrAddress = useCallback(async () => {
+    if (!qrWallet?.address) return;
+    await Clipboard.setStringAsync(qrWallet.address);
+    notice.showSuccessNotice('Wallet address copied.', 2200);
+  }, [notice, qrWallet?.address]);
 
   const load = useCallback(
     async (preferredWalletId?: string) => {
@@ -221,14 +214,27 @@ export default function HomeScreen() {
 
   const handleHomeAction = useCallback(
     (label: string) => {
-      if (activeWallet?.kind === 'watch-only' && (label === 'Send' || label === 'Receive')) {
+      if (label === 'Receive') {
+        if (activeWallet?.kind === 'watch-only') {
+          notice.showErrorNotice(
+            'Make sure you have full access to this wallet. You will not be able to send anything from a watch-only wallet.',
+            3200
+          );
+          return;
+        }
+
+        openQrModal(activeWallet);
+        return;
+      }
+
+      if (activeWallet?.kind === 'watch-only' && label === 'Send') {
         showWatchOnlyNotice();
         return;
       }
 
       notice.showNeutralNotice(`${label} is coming soon.`, 2200);
     },
-    [activeWallet?.kind, notice, showWatchOnlyNotice]
+    [activeWallet, notice, openQrModal, showWatchOnlyNotice]
   );
 
   const handleOpenToken = useCallback(
@@ -243,9 +249,8 @@ export default function HomeScreen() {
     [router]
   );
 
-  const assets: PortfolioAsset[] = portfolio?.assets ?? [];
-
   const sortedAssets = useMemo(() => {
+    const assets: PortfolioAsset[] = portfolio?.assets ?? [];
     const next = [...assets];
 
     if (assetSortMode === 'value') {
@@ -260,7 +265,7 @@ export default function HomeScreen() {
       a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
     );
     return next;
-  }, [assets, assetSortMode]);
+  }, [assetSortMode, portfolio]);
 
   const handleToggleAssetSort = useCallback(() => {
     setAssetSortMode((prev) => {
@@ -374,7 +379,7 @@ export default function HomeScreen() {
 
                           <TouchableOpacity
                             activeOpacity={0.85}
-                            onPress={() => handleShowQrNotice(wallet)}
+                            onPress={() => openQrModal(wallet)}
                             style={styles.iconActionButton}
                           >
                             <QrIcon width={18} height={18} />
@@ -530,10 +535,19 @@ export default function HomeScreen() {
         </ScrollView>
 
         <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+
+        <AddressQrModal
+          visible={qrVisible}
+          walletName={qrWallet?.name}
+          address={qrWallet?.address}
+          onClose={closeQrModal}
+          onCopy={() => {
+            void handleCopyQrAddress();
+          }}
+        />
       </View>
     </SafeAreaView>
   );
-
 }
 
 function ActionButton({
@@ -796,7 +810,7 @@ const styles = StyleSheet.create({
   },
 
   actionMiddleSlot: {
-    flex: 1,
+    width: 72,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -860,35 +874,35 @@ const styles = StyleSheet.create({
   },
 
   assetsHeaderLeftButton: {
-    width: 32,
-    height: 24,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   assetsHeaderRightButton: {
-    width: 32,
-    height: 24,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   assetList: {
-    gap: 12,
+    gap: 10,
+    paddingBottom: spacing[3],
   },
 
   assetRow: {
-    minHeight: 76,
-    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
+    minHeight: 72,
   },
 
   assetLeft: {
@@ -896,28 +910,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     flex: 1,
+    paddingRight: 12,
   },
 
   assetLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
 
   assetFallbackLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,105,0,0.12)',
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255,105,0,0.12)',
+    borderWidth: 1,
+    borderColor: colors.line,
   },
 
   assetFallbackText: {
     color: colors.accent,
-    fontSize: 14,
+    fontSize: 15,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
   },
@@ -929,8 +945,8 @@ const styles = StyleSheet.create({
 
   assetName: {
     color: colors.white,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 15,
+    lineHeight: 20,
     fontFamily: 'Sora_700Bold',
   },
 
@@ -944,12 +960,13 @@ const styles = StyleSheet.create({
   assetRight: {
     alignItems: 'flex-end',
     gap: 4,
+    flexShrink: 0,
   },
 
   assetValue: {
     color: colors.white,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 15,
+    lineHeight: 20,
     fontFamily: 'Sora_700Bold',
   },
 
@@ -957,24 +974,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
-  },
-
-  manageButton: {
-    minHeight: 52,
-    marginTop: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    backgroundColor: 'rgba(255,105,0,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
-  },
-
-  manageButtonText: {
-    color: colors.accent,
-    fontSize: 14,
-    lineHeight: 18,
-    fontFamily: 'Sora_700Bold',
   },
 });

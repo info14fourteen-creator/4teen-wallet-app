@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,7 +33,7 @@ export default function UnlockScreen() {
     if (full) {
       void handlePasscodeSubmit();
     }
-  }, [full]);
+  }, [full, handlePasscodeSubmit]);
 
   const loadBiometricsState = async () => {
     const enabled = await getBiometricsEnabled();
@@ -54,7 +54,7 @@ export default function UnlockScreen() {
     setBiometricsLabel('Biometrics');
   };
 
-  const handlePasscodeSubmit = async () => {
+  const handlePasscodeSubmit = useCallback(async () => {
     const ok = await verifyPasscode(digits);
 
     if (!ok) {
@@ -64,7 +64,7 @@ export default function UnlockScreen() {
     }
 
     router.replace('/home');
-  };
+  }, [digits, router]);
 
   const handleBiometricUnlock = async () => {
     if (!biometricsEnabled) return;

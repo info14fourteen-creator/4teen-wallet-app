@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -25,6 +25,7 @@ import AppHeader, {
 import MenuSheet from '../src/ui/menu-sheet';
 
 const AUTO_INTERVAL = 5200;
+const UI_LAB_BOTTOM_SAFE_SPACE = 44;
 
 type SegmentTone = 'normal' | 'orange' | 'green' | 'red';
 
@@ -178,29 +179,31 @@ export default function UiLab() {
     setActiveIndex(index);
   };
 
-  const startAutoScroll = () => {
+  const startAutoScroll = useCallback(() => {
+    const slideCount = slides.length;
+
     if (timerRef.current) clearInterval(timerRef.current);
 
     timerRef.current = setInterval(() => {
       setActiveIndex((prev) => {
-        const next = prev + 1 >= slides.length ? 0 : prev + 1;
+        const next = prev + 1 >= slideCount ? 0 : prev + 1;
         scrollRef.current?.scrollTo({ x: next * pageSize, animated: true });
         return next;
       });
     }, AUTO_INTERVAL);
-  };
+  }, [pageSize]);
 
-  const stopAutoScroll = () => {
+  const stopAutoScroll = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-  };
+  }, []);
 
   useEffect(() => {
     startAutoScroll();
     return () => stopAutoScroll();
-  }, [pageSize]);
+  }, [startAutoScroll, stopAutoScroll]);
 
   const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = event.nativeEvent.contentOffset.x;
@@ -306,7 +309,7 @@ export default function UiLab() {
             styles.bottom,
             {
               paddingTop: dynamic.bottomTopPadding,
-              paddingBottom: dynamic.bottomBottomPadding,
+              paddingBottom: dynamic.bottomBottomPadding + UI_LAB_BOTTOM_SAFE_SPACE,
             },
           ]}
         >

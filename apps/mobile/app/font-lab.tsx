@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
+import { getBuildString, getVersionString } from '../src/config/app-version';
 
 const SAMPLE_HEADING = '4TEEN Wallet Typography Sample';
 const SAMPLE_TEXT =
@@ -33,7 +34,8 @@ export default function FontLabScreen() {
       <View style={styles.block}>
         <Text style={ui.muted}>Muted / Meta</Text>
         <Text style={ui.titleSm}>{SAMPLE_HEADING}</Text>
-        <Text style={ui.versionLine}>VERSION 0.0.7-ALPHA.1</Text>
+        <Text style={ui.versionLine}>VERSION {getVersionString().toUpperCase()}</Text>
+        <Text style={styles.buildLine}>BUILD {getBuildString()}</Text>
       </View>
     </ScrollView>
   );
@@ -55,5 +57,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[4],
     borderBottomWidth: 1,
     borderBottomColor: colors.lineSoft,
+  },
+  buildLine: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.4,
   },
 });

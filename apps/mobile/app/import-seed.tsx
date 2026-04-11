@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -43,7 +43,7 @@ export default function ImportSeedScreen() {
   const [walletName, setWalletName] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const filledCount = useMemo(
     () => words.filter((item) => item.trim().length > 0).length,
@@ -74,7 +74,7 @@ export default function ImportSeedScreen() {
       })),
       'neutral'
     );
-  }, [activeIndex, notice, suggestions]);
+  }, [activeIndex, applySuggestion, notice, suggestions]);
 
   const focusIndex = (index: number | null) => {
     if (index === null) return;
@@ -145,7 +145,7 @@ export default function ImportSeedScreen() {
     });
   };
 
-  const applySuggestion = (word: string) => {
+  const applySuggestion = useCallback((word: string) => {
     if (activeIndex === null) return;
 
     setWords((prev) => {
@@ -163,7 +163,7 @@ export default function ImportSeedScreen() {
     }
 
     focusIndex(nextIndex);
-  };
+  }, [activeIndex, notice, wordCount]);
 
   const handlePastePhrase = async () => {
     const text = await Clipboard.getStringAsync();

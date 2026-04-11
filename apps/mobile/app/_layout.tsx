@@ -1,6 +1,5 @@
 import { Stack } from 'expo-router';
-import { usePathname } from 'expo-router';
-import FooterNav, { FOOTER_NAV_RESERVED_SPACE } from '../src/ui/footer-nav';
+import FooterNav from '../src/ui/footer-nav';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
@@ -12,7 +11,6 @@ import { NoticeProvider } from '../src/notice/notice-provider';
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const pathname = usePathname();
   const [loaded] = useFonts({
     Sora_600SemiBold,
     Sora_700Bold,
@@ -37,14 +35,17 @@ export default function RootLayout() {
           },
         }}
       >
-<Stack.Screen name="index" options={{ contentStyle: { backgroundColor: "rgb(10,10,10)", paddingBottom: 0 } }} />
+        <Stack.Screen
+          name="index"
+          options={{ contentStyle: { backgroundColor: 'rgb(10,10,10)', paddingBottom: 0 } }}
+        />
         <Stack.Screen name="ui-lab" />
         <Stack.Screen name="about" />
         <Stack.Screen name="terms" />
         <Stack.Screen name="whitepaper" />
       </Stack>
 
-          <FooterNav />
+      <FooterNav />
       <StatusBar style="light" />
     </NoticeProvider>
   );
