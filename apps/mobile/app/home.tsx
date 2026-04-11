@@ -226,7 +226,7 @@ export default function HomeScreen() {
         return;
       }
 
-      notice.showNeutralNotice(`${label} will be available here soon.`, 2200);
+      notice.showNeutralNotice(`${label} is coming soon.`, 2200);
     },
     [activeWallet?.kind, notice, showWatchOnlyNotice]
   );
@@ -266,7 +266,7 @@ export default function HomeScreen() {
     setAssetSortMode((prev) => {
       const next = prev === 'name' ? 'value' : 'name';
       notice.showNeutralNotice(
-        next === 'name' ? 'Asset sorting: name' : 'Asset sorting: value',
+        next === 'name' ? 'Assets are now sorted by name.' : 'Assets are now sorted by value.',
         1800
       );
       return next;
@@ -440,13 +440,16 @@ export default function HomeScreen() {
             <View style={styles.actionEdgeSlot}>
               <ActionButton icon="arrow-up-outline" label="Send" onPress={() => handleHomeAction('Send')} />
             </View>
+
             <View style={styles.actionMiddleSlot}>
               <ActionButton icon="arrow-down-outline" label="Receive" onPress={() => handleHomeAction('Receive')} />
             </View>
+
             <View style={styles.actionMiddleSlot}>
               <ActionButton icon="time-outline" label="History" onPress={() => handleHomeAction('History')} />
             </View>
-            <View style={styles.actionEdgeSlot}>
+
+            <View style={styles.actionEdgeSlotRight}>
               <ActionButton icon="grid-outline" label="More" onPress={() => handleHomeAction('More')} />
             </View>
           </View>
@@ -530,6 +533,7 @@ export default function HomeScreen() {
       </View>
     </SafeAreaView>
   );
+
 }
 
 function ActionButton({
@@ -582,22 +586,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
-    minHeight: 32,
-    marginBottom: 12,
+    minHeight: 24,
+    marginBottom: 10,
   },
 
   walletAssetMainButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    minHeight: 32,
+    height: 24,
     alignSelf: 'flex-start',
   },
 
   walletAssetAddButton: {
-    width: 32,
-    height: 32,
+    width: 24,
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -608,7 +611,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.45,
-    textAlignVertical: 'center',
   },
 
   walletCardSection: {
@@ -776,31 +778,35 @@ const styles = StyleSheet.create({
 
   actionsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 0,
     marginBottom: 14,
   },
 
   actionEdgeSlot: {
-    flex: 1,
+    width: 72,
     alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+
+  actionEdgeSlotRight: {
+    width: 72,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
 
   actionMiddleSlot: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
 
   actionButton: {
-    flex: 1,
-    minHeight: 64,
+    width: 72,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 8,
-    paddingBottom: 8,
-    backgroundColor: 'transparent',
-    gap: 2,
+    minHeight: 64,
+    paddingVertical: 8,
   },
 
   actionIconWrap: {
