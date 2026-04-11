@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,12 +37,18 @@ import { FOOTER_NAV_RESERVED_SPACE } from '../src/ui/footer-nav';
 import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
 import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
 import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
+import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
+import DeclineIcon from '../assets/icons/ui/decline_btn.svg';
 
 function formatWalletKind(kind: WalletMeta['kind']) {
   if (kind === 'mnemonic') return 'Seed Phrase';
   if (kind === 'private-key') return 'Private Key';
   return 'Watch-Only';
 }
+
+const MAX_WALLET_NAME_LENGTH = 18;
+const REMOVE_HOLD_MS = 7000;
+const REMOVE_DISPLAY_MAX = 114;
 
 export default function WalletsScreen() {
   const router = useRouter();
@@ -53,9 +61,32 @@ export default function WalletsScreen() {
   const [draftName, setDraftName] = useState('');
   const [activeWalletId, setActiveWalletIdState] = useState<string | null>(null);
   const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [removalWalletId, setRemovalWalletId] = useState<string | null>(null);
+  const [removalProgress, setRemovalProgress] = useState(0);
+
+  const removalStartedAtRef = useRef<number | null>(null);
+  const removalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const removalCompletedRef = useRef(false);
 
   const contentBottomInset =
     FOOTER_NAV_RESERVED_SPACE + Math.max(insets.bottom, 6) + spacing[4];
+
+  const clearRemovalTimer = useCallback(() => {
+    if (removalTimerRef.current) {
+      clearInterval(removalTimerRef.current);
+      removalTimerRef.current = null;
+    }
+  }, []);
+
+  const resetRemovalState = useCallback(() => {
+    clearRemovalTimer();
+    removalStartedAtRef.current = null;
+    removalCompletedRef.current = false;
+    setRemovalWalletId(null);
+    setRemovalProgress(0);
+  }, [clearRemovalTimer]);
 
   const load = useCallback(async () => {
     try {
@@ -72,11 +103,26 @@ export default function WalletsScreen() {
     }
   }, [notice]);
 
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
   useFocusEffect(
     useCallback(() => {
       void load();
     }, [load])
   );
+
+  useEffect(() => {
+    return () => {
+      clearRemovalTimer();
+    };
+  }, [clearRemovalTimer]);
 
   const wallets = aggregate?.items ?? [];
 
@@ -98,63 +144,82 @@ export default function WalletsScreen() {
     }
   };
 
-  const handleRemoveWallet = (wallet: WalletMeta) => {
-    notice.showAckNotice(
-      `Remove "${wallet.name}" from this device?`,
-      [
-        {
-          label: 'Remove',
-          onPress: () => {
-            void (async () => {
-              try {
-                await removeWallet(wallet.id);
+  const handleRemoveConfirmed = useCallback(
+    async (wallet: WalletMeta) => {
+      try {
+        await removeWallet(wallet.id);
 
-                if (expandedWalletId === wallet.id) {
-                  setExpandedWalletId(null);
-                }
+        if (expandedWalletId === wallet.id) {
+          setExpandedWalletId(null);
+        }
 
-                if (editingWalletId === wallet.id) {
-                  setEditingWalletId(null);
-                  setDraftName('');
-                }
+        if (editingWalletId === wallet.id) {
+          setEditingWalletId(null);
+          setDraftName('');
+        }
 
-                await load();
-                notice.showSuccessNotice('Wallet removed from this device.', 2400);
-              } catch (error) {
-                console.error(error);
-                notice.showErrorNotice('Failed to remove wallet.', 2600);
-              }
-            })();
-          },
-        },
-        {
-          label: 'Cancel',
-          onPress: () => {},
-        },
-      ],
-      'error'
-    );
+        resetRemovalState();
+        await load();
+        notice.showSuccessNotice('Wallet removed from this device.', 2400);
+      } catch (error) {
+        console.error(error);
+        resetRemovalState();
+        notice.showErrorNotice('Failed to remove wallet.', 2600);
+      }
+    },
+    [editingWalletId, expandedWalletId, load, notice, resetRemovalState]
+  );
+
+  const handleRemovePress = useCallback(() => {
+    notice.showNeutralNotice('To delete, press and hold.', 2200);
+  }, [notice]);
+
+  const handleRemovePressIn = useCallback(
+    (wallet: WalletMeta) => {
+      clearRemovalTimer();
+      removalCompletedRef.current = false;
+      removalStartedAtRef.current = Date.now();
+      setRemovalWalletId(wallet.id);
+      setRemovalProgress(0);
+
+      removalTimerRef.current = setInterval(() => {
+        const startedAt = removalStartedAtRef.current;
+        if (!startedAt) return;
+
+        const elapsed = Date.now() - startedAt;
+        const fraction = Math.max(0, Math.min(1, elapsed / REMOVE_HOLD_MS));
+        const displayProgress = Math.round(fraction * REMOVE_DISPLAY_MAX);
+
+        setRemovalProgress(displayProgress);
+
+        if (fraction >= 1 && !removalCompletedRef.current) {
+          removalCompletedRef.current = true;
+          clearRemovalTimer();
+          void handleRemoveConfirmed(wallet);
+        }
+      }, 50);
+    },
+    [clearRemovalTimer, handleRemoveConfirmed]
+  );
+
+  const handleRemovePressOut = useCallback(() => {
+    if (removalCompletedRef.current) {
+      return;
+    }
+
+    resetRemovalState();
+  }, [resetRemovalState]);
+
+  const handleRenameStart = (wallet: WalletMeta) => {
+    resetRemovalState();
+    setExpandedWalletId(wallet.id);
+    setEditingWalletId(wallet.id);
+    setDraftName(wallet.name);
   };
 
-  const handleRenamePrompt = (wallet: WalletMeta) => {
-    notice.showAckNotice(
-      `Change wallet name for "${wallet.name}"?`,
-      [
-        {
-          label: 'Change',
-          onPress: () => {
-            setExpandedWalletId(wallet.id);
-            setEditingWalletId(wallet.id);
-            setDraftName(wallet.name);
-          },
-        },
-        {
-          label: 'Cancel',
-          onPress: () => {},
-        },
-      ],
-      'neutral'
-    );
+  const handleRenameCancel = () => {
+    setEditingWalletId(null);
+    setDraftName('');
   };
 
   const handleRenameSave = async (walletId: string) => {
@@ -162,6 +227,14 @@ export default function WalletsScreen() {
 
     if (!nextName) {
       notice.showErrorNotice('Wallet name is required.', 2200);
+      return;
+    }
+
+    if (nextName.length > MAX_WALLET_NAME_LENGTH) {
+      notice.showErrorNotice(
+        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
+        2600
+      );
       return;
     }
 
@@ -188,7 +261,16 @@ export default function WalletsScreen() {
           style={styles.scroll}
           contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
           showsVerticalScrollIndicator={false}
-          bounces={false}
+          bounces
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+              progressBackgroundColor={colors.bg}
+            />
+          }
         >
           <SubmenuHeader title="WALLET MANAGEMENT" onBack={() => router.back()} />
 
@@ -205,32 +287,41 @@ export default function WalletsScreen() {
             </Text>
           </View>
 
-          <View style={styles.block}>
-            <Text style={ui.sectionEyebrow}>Wallets</Text>
+          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>Wallets</Text>
 
-            {wallets.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No wallets added</Text>
-                <Text style={styles.emptyText}>
-                  Import or create a wallet to start managing it here.
-                </Text>
-              </View>
-            ) : (
-              wallets.map((item) => {
+          {wallets.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No wallets added</Text>
+              <Text style={styles.emptyText}>
+                Import or create a wallet to start managing it here.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.walletList}>
+              {wallets.map((item) => {
                 const wallet = item.wallet;
                 const expanded = expandedWalletId === wallet.id;
                 const active = activeWalletId === wallet.id;
                 const balanceDisplay = item.portfolio?.totalBalanceDisplay ?? '$0.00';
                 const editing = editingWalletId === wallet.id;
+                const removing = removalWalletId === wallet.id;
+                const removalFillWidth = `${Math.min(
+                  100,
+                  (removalProgress / REMOVE_DISPLAY_MAX) * 100
+                )}%`;
+                const removalProgressColor =
+                  removalProgress >= REMOVE_DISPLAY_MAX ? colors.white : colors.red;
 
                 return (
                   <View key={wallet.id} style={styles.walletGroup}>
                     <TouchableOpacity
                       activeOpacity={0.9}
                       style={[styles.walletRow, active && styles.walletRowActive]}
-                      onPress={() =>
-                        setExpandedWalletId((prev) => (prev === wallet.id ? null : wallet.id))
-                      }
+                      onPress={() => {
+                        resetRemovalState();
+                        setExpandedWalletId((prev) => (prev === wallet.id ? null : wallet.id));
+                        setEditingWalletId((prev) => (prev === wallet.id ? prev : null));
+                      }}
                     >
                       <View style={styles.walletText}>
                         <View style={styles.walletTitleRow}>
@@ -258,50 +349,49 @@ export default function WalletsScreen() {
 
                     {expanded ? (
                       <View style={styles.moreBlock}>
-                        <Text style={ui.sectionEyebrow}>More</Text>
-
                         <StubRow
-                          label="Select Wallet"
+                          label="Open Wallet"
                           onPress={() => void handleSelectWallet(wallet)}
                         />
 
-                        <StubRow
-                          label="Wallet Name"
-                          onPress={() => handleRenamePrompt(wallet)}
-                        />
-
                         {editing ? (
-                          <View style={styles.renameCard}>
+                          <View style={styles.renameInlineRow}>
                             <TextInput
                               value={draftName}
-                              onChangeText={setDraftName}
+                              onChangeText={(value) =>
+                                setDraftName(value.slice(0, MAX_WALLET_NAME_LENGTH))
+                              }
                               placeholder="Wallet name"
                               placeholderTextColor={colors.textDim}
                               style={styles.renameInput}
+                              autoFocus
+                              maxLength={MAX_WALLET_NAME_LENGTH}
+                              returnKeyType="done"
+                              onSubmitEditing={() => void handleRenameSave(wallet.id)}
                             />
 
-                            <View style={styles.renameActions}>
-                              <TouchableOpacity
-                                activeOpacity={0.9}
-                                style={styles.renameSaveButton}
-                                onPress={() => void handleRenameSave(wallet.id)}
-                              >
-                                <Text style={styles.renameSaveText}>Save</Text>
-                              </TouchableOpacity>
+                            <TouchableOpacity
+                              activeOpacity={0.85}
+                              style={styles.renameIconButton}
+                              onPress={handleRenameCancel}
+                            >
+                              <DeclineIcon width={18} height={18} />
+                            </TouchableOpacity>
 
-                              <TouchableOpacity
-                                activeOpacity={0.9}
-                                style={styles.renameCancelButton}
-                                onPress={() => {
-                                  setEditingWalletId(null);
-                                  setDraftName('');
-                                }}
-                              >
-                                <Text style={styles.renameCancelText}>Cancel</Text>
-                              </TouchableOpacity>
-                            </View>
+                            <TouchableOpacity
+                              activeOpacity={0.85}
+                              style={styles.renameIconButton}
+                              onPress={() => void handleRenameSave(wallet.id)}
+                            >
+                              <ConfirmIcon width={18} height={18} />
+                            </TouchableOpacity>
                           </View>
-                        ) : null}
+                        ) : (
+                          <StubRow
+                            label="Rename Wallet"
+                            onPress={() => handleRenameStart(wallet)}
+                          />
+                        )}
 
                         <StubRow
                           label="Back Up Private Key"
@@ -322,29 +412,31 @@ export default function WalletsScreen() {
                           }
                         />
 
-                        <TouchableOpacity
-                          activeOpacity={0.9}
-                          style={styles.removeButton}
-                          onPress={() => handleRemoveWallet(wallet)}
-                        >
-                          <Text style={styles.removeButtonText}>Remove Wallet</Text>
-                        </TouchableOpacity>
+                        <RemoveHoldRow
+                          active={removing}
+                          progress={removalProgress}
+                          fillWidth={removalFillWidth}
+                          progressColor={removalProgressColor}
+                          onPress={handleRemovePress}
+                          onPressIn={() => handleRemovePressIn(wallet)}
+                          onPressOut={handleRemovePressOut}
+                        />
                       </View>
                     ) : null}
                   </View>
                 );
-              })
-            )}
+              })}
+            </View>
+          )}
 
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={styles.addWalletRow}
-              onPress={() => router.push('/ui-lab')}
-            >
-              <Text style={ui.actionLabel}>Add Wallet</Text>
-              <AddWalletIcon width={20} height={20} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={styles.addWalletRow}
+            onPress={() => router.push('/ui-lab')}
+          >
+            <Text style={ui.actionLabel}>Add Wallet</Text>
+            <AddWalletIcon width={20} height={20} />
+          </TouchableOpacity>
         </ScrollView>
 
         <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -365,6 +457,47 @@ function StubRow({
       <Text style={ui.actionLabel}>{label}</Text>
       <OpenRightIcon width={18} height={18} />
     </TouchableOpacity>
+  );
+}
+
+function RemoveHoldRow({
+  active,
+  progress,
+  fillWidth,
+  progressColor,
+  onPress,
+  onPressIn,
+  onPressOut,
+}: {
+  active: boolean;
+  progress: number;
+  fillWidth: string;
+  progressColor: string;
+  onPress: () => void;
+  onPressIn: () => void;
+  onPressOut: () => void;
+}) {
+  return (
+    <Pressable
+      style={styles.removeHoldRow}
+      onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+    >
+      <>
+        {active ? <View style={[styles.removeHoldFill, { width: fillWidth }]} /> : null}
+        <Text style={[styles.destructiveLabel, active && styles.removeHoldLabelActive]}>
+          Remove Wallet
+        </Text>
+        {active ? (
+          <Text style={[styles.removeHoldProgress, { color: progressColor }]}>
+            {progress}%
+          </Text>
+        ) : (
+          <OpenRightIcon width={18} height={18} />
+        )}
+      </>
+    </Pressable>
   );
 }
 
@@ -436,13 +569,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
 
-  block: {
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    borderRadius: radius.md,
-    padding: 16,
-    gap: 12,
+  sectionEyebrowOutside: {
+    marginBottom: 12,
   },
 
   emptyState: {
@@ -469,16 +597,20 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
 
+  walletList: {
+    gap: 14,
+  },
+
   walletGroup: {
-    gap: 10,
+    gap: 8,
   },
 
   walletRow: {
     minHeight: 86,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
+    borderColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'transparent',
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -488,8 +620,8 @@ const styles = StyleSheet.create({
   },
 
   walletRowActive: {
-    borderColor: colors.lineStrong,
-    backgroundColor: 'rgba(255,105,0,0.05)',
+    borderColor: 'rgba(255,105,0,0.16)',
+    backgroundColor: 'rgba(255,105,0,0.03)',
   },
 
   walletText: {
@@ -527,101 +659,81 @@ const styles = StyleSheet.create({
   },
 
   moreBlock: {
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
-    padding: 12,
-    gap: 10,
+    gap: 2,
+    paddingHorizontal: 2,
   },
 
   stubRow: {
     minHeight: 48,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 14,
+    paddingHorizontal: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: 'transparent',
   },
 
-  renameCard: {
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.surfaceSoft,
-    padding: 12,
+  destructiveLabel: {
+    color: colors.red,
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  renameInlineRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
 
   renameInput: {
-    minHeight: 48,
+    flex: 1,
+    minHeight: 44,
     borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
+    borderWidth: 0,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     paddingHorizontal: 14,
     color: colors.white,
     fontFamily: 'Sora_600SemiBold',
   },
 
-  renameActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-
-  renameSaveButton: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: radius.sm,
-    backgroundColor: colors.accent,
+  renameIconButton: {
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  renameSaveText: {
-    color: colors.bg,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: 'Sora_700Bold',
-  },
-
-  renameCancelButton: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  renameCancelText: {
-    color: colors.white,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: 'Sora_700Bold',
-  },
-
-  removeButton: {
+  removeHoldRow: {
     minHeight: 48,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(255,77,77,0.35)',
-    backgroundColor: 'rgba(255,77,77,0.12)',
+    overflow: 'hidden',
+    paddingHorizontal: 4,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
+    justifyContent: 'space-between',
+    backgroundColor: 'transparent',
+    position: 'relative',
   },
 
-  removeButtonText: {
-    color: colors.red,
-    fontSize: 13,
-    lineHeight: 16,
+  removeHoldFill: {
+    position: 'absolute',
+    left: 4,
+    bottom: 6,
+    height: 1,
+    backgroundColor: colors.red,
+    opacity: 0.95,
+    borderRadius: radius.pill,
+  },
+
+  removeHoldLabelActive: {
+    color: colors.white,
+  },
+
+  removeHoldProgress: {
+    fontSize: 14,
+    lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    zIndex: 2,
   },
 
   addWalletRow: {
@@ -634,6 +746,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 4,
+    marginTop: 16,
   },
 });

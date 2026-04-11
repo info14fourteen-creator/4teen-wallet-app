@@ -321,6 +321,10 @@ type TronscanTrc20TransferItem = {
   contractRet?: string;
   finalResult?: string;
   revert?: boolean;
+  trigger_info?: {
+    method?: string;
+    methodName?: string;
+  };
   tokenInfo?: {
     tokenId?: string;
     tokenAbbr?: string;
@@ -335,6 +339,12 @@ type TronscanTrc20TransferResponse = {
   total?: number;
   rangeTotal?: number;
   token_transfers?: TronscanTrc20TransferItem[];
+};
+
+type TronscanTrc20TransferWithStatusResponse = {
+  total?: number;
+  rangeTotal?: number;
+  data?: TronscanTrc20TransferItem[];
 };
 
 function buildUrl(
@@ -1185,22 +1195,23 @@ export async function getTokenHistoryPage(
       };
     }
 
-    const response = await tronscanFetch<TronscanTrc20TransferResponse>(
-      '/token_trc20/transfers',
+    const response = await tronscanFetch<TronscanTrc20TransferWithStatusResponse>(
+      '/token_trc20/transfers-with-status',
       {
         limit,
         start,
-        contract_address: tokenId,
-        relatedAddress: walletAddress,
-        confirm: 'true',
-        sort: '-timestamp',
+        trc20Id: tokenId,
+        address: walletAddress,
+        direction: 0,
+        db_version: 0,
+        reverse: 'true',
       }
     );
 
     const items = buildTrc20TransferHistoryItems(
       walletAddress,
       decimals,
-      response.token_transfers ?? [],
+      response.data ?? [],
       addressBook
     );
 

@@ -60,7 +60,16 @@ export default function ImportSeedScreen() {
 
   const suggestions = useMemo(() => getMnemonicSuggestions(activeValue), [activeValue]);
 
-  useEffect(() => {
+  const applySuggestion = useCallback((word: string) => {
+    if (activeIndex === null) return;
+
+    setWords((prev) => {
+      const next = [...prev];
+      next[activeIndex] = word;
+      return next;
+    });
+
+useEffect(() => {
     if (activeIndex === null || suggestions.length === 0) {
       notice.hideNotice();
       return;
@@ -145,15 +154,7 @@ export default function ImportSeedScreen() {
     });
   };
 
-  const applySuggestion = useCallback((word: string) => {
-    if (activeIndex === null) return;
-
-    setWords((prev) => {
-      const next = [...prev];
-      next[activeIndex] = word;
-      return next;
-    });
-
+  
     const nextIndex = activeIndex + 1 < wordCount ? activeIndex + 1 : null;
     setActiveIndex(nextIndex);
 

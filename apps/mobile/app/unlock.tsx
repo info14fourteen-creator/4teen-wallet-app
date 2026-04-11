@@ -29,7 +29,10 @@ export default function UnlockScreen() {
     void loadBiometricsState();
   }, []);
 
-  useEffect(() => {
+  const handlePasscodeSubmit = useCallback(async () => {
+    const ok = await verifyPasscode(digits);
+
+useEffect(() => {
     if (full) {
       void handlePasscodeSubmit();
     }
@@ -54,9 +57,7 @@ export default function UnlockScreen() {
     setBiometricsLabel('Biometrics');
   };
 
-  const handlePasscodeSubmit = useCallback(async () => {
-    const ok = await verifyPasscode(digits);
-
+  
     if (!ok) {
       setError('Wrong passcode.');
       setDigits('');

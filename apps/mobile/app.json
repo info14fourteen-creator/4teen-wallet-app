@@ -12,6 +12,7 @@
     ],
     "android": {
       "softwareKeyboardLayoutMode": "resize"
-    }
+    },
+    "scheme": "fourteenwallet"
   }
 }
