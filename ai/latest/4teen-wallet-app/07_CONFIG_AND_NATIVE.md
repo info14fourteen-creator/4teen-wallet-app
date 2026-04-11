@@ -1,13 +1,13 @@
 # 4teen-wallet-app — CONFIG AND NATIVE
 
-Generated: 2026-04-11T20:25:33.243Z
+Generated: 2026-04-11T22:38:45.242Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 907d3a275a8c5292b68e1c4496eddefc81106a98
-Short commit: 907d3a2
-Commit subject: feat: add wallet QR modal and stabilize versioning
+Last commit: 15c49cfcf8131d97bdbeea41e20c8b3c55118e3c
+Short commit: 15c49cf
+Commit subject: refactor: polish wallet selection and management flows
 Commit author: info14fourteen-creator
-Commit date: 2026-04-12T01:25:14+05:00
+Commit date: 2026-04-12T03:38:36+05:00
 
 ## Included files
 

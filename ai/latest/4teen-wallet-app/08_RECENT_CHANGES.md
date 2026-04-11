@@ -1,35 +1,29 @@
 # 4teen-wallet-app — RECENT CHANGES
 
-Generated: 2026-04-11T20:25:33.243Z
+Generated: 2026-04-11T22:38:45.242Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 907d3a275a8c5292b68e1c4496eddefc81106a98
-Short commit: 907d3a2
-Commit subject: feat: add wallet QR modal and stabilize versioning
+Last commit: 15c49cfcf8131d97bdbeea41e20c8b3c55118e3c
+Short commit: 15c49cf
+Commit subject: refactor: polish wallet selection and management flows
 Commit author: info14fourteen-creator
-Commit date: 2026-04-12T01:25:14+05:00
+Commit date: 2026-04-12T03:38:36+05:00
 
 ## Files changed in last commit
 
 - M	apps/mobile/app.json
-- M	apps/mobile/app/select-wallet.tsx
+- M	apps/mobile/app/import-seed.tsx
+- M	apps/mobile/app/unlock.tsx
 - M	apps/mobile/app/wallets.tsx
-- A	apps/mobile/assets/icons/ui/copy_btn.svg
-- A	apps/mobile/assets/icons/ui/preferences_btn.svg
-- A	apps/mobile/assets/icons/ui/qr_btn.svg
-- A	apps/mobile/assets/icons/ui/share_btn.svg
-- A	apps/mobile/assets/icons/ui/watch_only_btn.svg
-- M	apps/mobile/package.json
-- A	apps/mobile/src/services/address-book.ts
-- M	apps/mobile/src/services/wallet/index.ts
-- A	apps/mobile/src/services/wallet/portfolio.ts
-- M	apps/mobile/src/services/wallet/storage.ts
-- A	apps/mobile/src/ui/KeyboardView.tsx
-- M	apps/mobile/src/ui/footer-nav.tsx
-- M	pnpm-lock.yaml
+- A	apps/mobile/assets/icons/ui/confirm_btn.svg
+- A	apps/mobile/assets/icons/ui/decline_btn.svg
+- M	apps/mobile/src/services/tron/api.ts
 
 ## Recent commits
 
+- 15c49cf | 2026-04-12 | refactor: polish wallet selection and management flows
+- bcbfd93 | 2026-04-12 | refactor: align select wallet screen with wallet management
+- 6756699 | 2026-04-11 | chore: update wallet AI bundle [skip ci]
 - 907d3a2 | 2026-04-12 | feat: add wallet QR modal and stabilize versioning
 - 84edf1c | 2026-04-12 | feat: add wallet QR modal and stabilize versioning
 - 6dce59d | 2026-04-12 | fix: refine home eyebrow actions and sort notices
@@ -37,6 +31,3 @@ Commit date: 2026-04-12T01:25:14+05:00
 - 988ab46 | 2026-04-09 | chore: update wallet AI bundle [skip ci]
 - 9fc00d5 | 2026-04-09 | chore: save current mobile wallet app state
 - c20eb41 | 2026-04-09 | feat: wire real wallet import selection and home snapshot
-- 21361fe | 2026-04-09 | feat: wire wallet import flows and local wallet storage
-- 5d6efb5 | 2026-04-09 | fix: wire paste action and update add wallet row icon
-- 455acd9 | 2026-04-09 | refactor: align mobile action arrows and wallet add button
