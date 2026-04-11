@@ -57,7 +57,7 @@ export default function FooterNav() {
   };
 
   const circleRadius = 30;
-  const lineY = 24; // немного выше поднял линии
+  const lineY = 24;
   const linePadding = 18;
 
   const onCenterPress = () => {
@@ -68,7 +68,7 @@ export default function FooterNav() {
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <View style={[styles.host, { paddingBottom: Math.max(insets.bottom, 6) }]}>
         <View style={styles.shell} onLayout={handleLayout}>
-          {barWidth > 0 && (
+          {barWidth > 0 ? (
             <Svg style={styles.linesSvg} width={barWidth} height={FOOTER_NAV_HEIGHT}>
               <Defs>
                 <LinearGradient id="fadeLeft" x1="100%" y1="0%" x2="0%" y2="0%">
@@ -80,6 +80,7 @@ export default function FooterNav() {
                   <Stop offset="100%" stopColor={colors.accent} stopOpacity="0" />
                 </LinearGradient>
               </Defs>
+
               <Line
                 x1={barWidth / 2 - circleRadius}
                 y1={lineY}
@@ -99,7 +100,7 @@ export default function FooterNav() {
                 strokeLinecap="round"
               />
             </Svg>
-          )}
+          ) : null}
 
           <View style={styles.row}>
             <FooterButton Icon={AirdropIcon} label="AIRDROP" />
@@ -137,7 +138,9 @@ function FooterButton({ Icon, label }: any) {
 const styles = StyleSheet.create({
   host: {
     position: 'absolute',
-    left: 0, right: 0, bottom: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     height: FOOTER_NAV_RESERVED_SPACE,
     backgroundColor: colors.bg,
     justifyContent: 'flex-end',
@@ -149,7 +152,9 @@ const styles = StyleSheet.create({
   },
   linesSvg: {
     position: 'absolute',
-    top: 0, left: 0, right: 0,
+    top: 0,
+    left: 0,
+    right: 0,
   },
   row: {
     flexDirection: 'row',
@@ -178,28 +183,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   circle: {
-    width: 60, height: 60, borderRadius: 30,
-    borderWidth: 1.5, borderColor: colors.accent,
-    justifyContent: 'center', alignItems: 'center',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: colors.bg,
   },
   dot: {
-    width: 12, height: 12, borderRadius: 6,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
   dotOnline: {
     backgroundColor: colors.green,
-    shadowColor: colors.green, shadowRadius: 10, shadowOpacity: 0.8,
+    shadowColor: colors.green,
+    shadowRadius: 10,
+    shadowOpacity: 0.8,
   },
   dotOffline: {
     backgroundColor: colors.red,
-    shadowColor: colors.red, shadowRadius: 10, shadowOpacity: 0.8,
+    shadowColor: colors.red,
+    shadowRadius: 10,
+    shadowOpacity: 0.8,
   },
   logo: {
-    width: 32, height: 32, resizeMode: 'contain',
+    width: 32,
+    height: 32,
+    resizeMode: 'contain',
   },
   centerLabel: {
-    marginTop: 4, fontSize: 9,
+    marginTop: 4,
+    fontSize: 9,
     fontFamily: 'Sora_600SemiBold',
-    color: colors.accent, textAlign: 'center',
+    color: colors.accent,
+    textAlign: 'center',
   },
 });

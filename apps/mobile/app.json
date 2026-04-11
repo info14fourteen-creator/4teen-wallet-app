@@ -9,6 +9,9 @@
           "faceIDPermission": "Allow 4TEEN Wallet to use Face ID."
         }
       ]
-    ]
+    ],
+    "android": {
+      "softwareKeyboardLayoutMode": "resize"
+    }
   }
 }

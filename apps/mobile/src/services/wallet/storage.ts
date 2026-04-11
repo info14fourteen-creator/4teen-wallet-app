@@ -128,3 +128,54 @@ export async function getActiveWallet(): Promise<WalletMeta | null> {
   if (!id) return null;
   return getWalletById(id);
 }
+
+export async function renameWallet(id: string, nextName: string): Promise<WalletMeta> {
+  const name = nextName.trim();
+
+  if (!name) {
+    throw new Error('Wallet name is required.');
+  }
+
+  const current = await listWallets();
+  const index = current.findIndex((item) => item.id === id);
+
+  if (index === -1) {
+    throw new Error('Wallet not found.');
+  }
+
+  const updated: WalletMeta = {
+    ...current[index],
+    name,
+  };
+
+  const next = [...current];
+  next[index] = updated;
+
+  await AsyncStorage.setItem(WALLET_LIST_KEY, JSON.stringify(next));
+
+  return updated;
+}
+
+export async function removeWallet(id: string): Promise<void> {
+  const current = await listWallets();
+  const target = current.find((item) => item.id === id);
+
+  if (!target) {
+    throw new Error('Wallet not found.');
+  }
+
+  const next = current.filter((item) => item.id !== id);
+
+  await AsyncStorage.setItem(WALLET_LIST_KEY, JSON.stringify(next));
+  await SecureStore.deleteItemAsync(buildSecretKey(id));
+
+  const activeId = await getActiveWalletId();
+
+  if (activeId === id) {
+    if (next.length > 0) {
+      await setActiveWalletId(next[0].id);
+    } else {
+      await AsyncStorage.removeItem(ACTIVE_WALLET_ID_KEY);
+    }
+  }
+}

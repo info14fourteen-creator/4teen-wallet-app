@@ -138,7 +138,7 @@ export default function SelectWalletScreen() {
             <TouchableOpacity
               activeOpacity={0.9}
               style={styles.addWalletRow}
-              onPress={() => router.push('/import-wallet')}
+              onPress={() => router.push("/ui-lab")}
             >
               <Text style={ui.actionLabel}>Add Wallet</Text>
               <AddWalletIcon width={20} height={20} />
