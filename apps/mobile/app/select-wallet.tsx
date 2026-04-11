@@ -1,7 +1,14 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AppHeader, {
   APP_HEADER_HEIGHT,
@@ -14,48 +21,74 @@ import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import {
   getActiveWalletId,
-  listWallets,
   setActiveWalletId,
   type WalletMeta,
 } from '../src/services/wallet/storage';
+import {
+  getAllWalletPortfolios,
+  type WalletPortfolioAggregate,
+} from '../src/services/wallet/portfolio';
+import { FOOTER_NAV_RESERVED_SPACE } from '../src/ui/footer-nav';
 
 import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
 import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
 
-function formatKind(value: WalletMeta['kind']) {
-  if (value === 'mnemonic') return 'Seed Phrase';
-  if (value === 'private-key') return 'Private Key';
+function formatWalletKind(kind: WalletMeta['kind']) {
+  if (kind === 'mnemonic') return 'Seed Phrase';
+  if (kind === 'private-key') return 'Private Key';
   return 'Watch-Only';
 }
 
 export default function SelectWalletScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const insets = useSafeAreaInsets();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [wallets, setWallets] = useState<WalletMeta[]>([]);
   const [activeWalletId, setActiveWalletIdState] = useState<string | null>(null);
+  const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadWallets = useCallback(async () => {
+  const contentBottomInset =
+    FOOTER_NAV_RESERVED_SPACE + Math.max(insets.bottom, 6) + spacing[4];
+
+  const load = useCallback(async () => {
     try {
-      const [items, activeId] = await Promise.all([
-        listWallets(),
+      const [activeId, nextAggregate] = await Promise.all([
         getActiveWalletId(),
+        getAllWalletPortfolios(),
       ]);
 
-      setWallets(items);
       setActiveWalletIdState(activeId);
+      setAggregate(nextAggregate);
     } catch (error) {
       console.error(error);
       notice.showErrorNotice('Failed to load wallets.', 2600);
     }
   }, [notice]);
 
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
   useFocusEffect(
     useCallback(() => {
-      void loadWallets();
-    }, [loadWallets])
+      void load();
+    }, [load])
   );
+
+  const wallets = aggregate?.items ?? [];
+
+  const totalDeltaStyle = useMemo(() => {
+    if (aggregate?.totalDeltaTone === 'green') return styles.deltaPositive;
+    if (aggregate?.totalDeltaTone === 'red') return styles.deltaNegative;
+    return styles.deltaNeutral;
+  }, [aggregate?.totalDeltaTone]);
 
   const handleSelectWallet = async (wallet: WalletMeta) => {
     try {
@@ -78,72 +111,91 @@ export default function SelectWalletScreen() {
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
           showsVerticalScrollIndicator={false}
+          bounces
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+              progressBackgroundColor={colors.bg}
+            />
+          }
         >
           <SubmenuHeader title="SELECT WALLET" onBack={() => router.back()} />
 
           <View style={styles.summaryCard}>
-            <Text style={ui.eyebrow}>Available Wallets</Text>
-            <Text style={styles.summaryValue}>{wallets.length}</Text>
-            <Text style={styles.delta}>
-              {wallets.length > 0
-                ? 'Tap a wallet to make it active'
-                : 'No wallets available yet'}
+            <Text style={ui.eyebrow}>Total Assets</Text>
+            <Text style={styles.summaryValue}>
+              {aggregate?.totalBalanceDisplay ?? '$0.00'}
+            </Text>
+            <Text style={[styles.delta, totalDeltaStyle]}>
+              {aggregate?.totalDeltaDisplay ?? '$0.00 (0.00%)'}
+            </Text>
+            <Text style={styles.summaryHint}>
+              Tap any wallet below to open it immediately.
             </Text>
           </View>
 
-          <View style={styles.block}>
-            <Text style={ui.sectionEyebrow}>Wallet List</Text>
+          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>
+            Select Wallet
+          </Text>
 
-            {wallets.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No wallets available</Text>
-                <Text style={styles.emptyText}>
-                  Add or import a wallet first, then select it here.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.walletList}>
-                {wallets.map((wallet) => {
-                  const active = wallet.id === activeWalletId;
+          {wallets.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No wallets available</Text>
+              <Text style={styles.emptyText}>
+                Add or import a wallet first, then select it here.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.walletList}>
+              {wallets.map((item) => {
+                const wallet = item.wallet;
+                const active = wallet.id === activeWalletId;
+                const balanceDisplay = item.portfolio?.totalBalanceDisplay ?? '$0.00';
 
-                  return (
-                    <TouchableOpacity
-                      key={wallet.id}
-                      activeOpacity={0.9}
-                      style={[styles.walletRow, active && styles.walletRowActive]}
-                      onPress={() => void handleSelectWallet(wallet)}
-                    >
-                      <View style={styles.walletText}>
-                        <View style={styles.walletTitleRow}>
-                          <Text style={styles.walletName}>{wallet.name}</Text>
-                          {active ? <Text style={styles.activeBadge}>ACTIVE</Text> : null}
-                        </View>
-
-                        <Text style={styles.walletAddress} numberOfLines={1} ellipsizeMode="middle">
-                          {wallet.address}
-                        </Text>
-
-                        <Text style={styles.meta}>{formatKind(wallet.kind)}</Text>
+                return (
+                  <TouchableOpacity
+                    key={wallet.id}
+                    activeOpacity={0.9}
+                    style={[styles.walletRow, active && styles.walletRowActive]}
+                    onPress={() => void handleSelectWallet(wallet)}
+                  >
+                    <View style={styles.walletText}>
+                      <View style={styles.walletTitleRow}>
+                        <Text style={ui.actionLabel}>{wallet.name}</Text>
+                        {active ? <Text style={styles.activeBadge}>ACTIVE</Text> : null}
                       </View>
 
-                      <OpenRightIcon width={18} height={18} />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+                      <Text style={styles.meta}>Balance: {balanceDisplay}</Text>
+                      <Text style={styles.meta}>Type: {formatWalletKind(wallet.kind)}</Text>
+                      <Text
+                        style={styles.address}
+                        numberOfLines={1}
+                        ellipsizeMode="middle"
+                      >
+                        {wallet.address}
+                      </Text>
+                    </View>
 
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={styles.addWalletRow}
-              onPress={() => router.push("/ui-lab")}
-            >
-              <Text style={ui.actionLabel}>Add Wallet</Text>
-              <AddWalletIcon width={20} height={20} />
-            </TouchableOpacity>
-          </View>
+                    <OpenRightIcon width={18} height={18} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={styles.addWalletRow}
+            onPress={() => router.push('/ui-lab')}
+          >
+            <Text style={ui.actionLabel}>Add Wallet</Text>
+            <AddWalletIcon width={20} height={20} />
+          </TouchableOpacity>
         </ScrollView>
 
         <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -176,7 +228,6 @@ const styles = StyleSheet.create({
 
   content: {
     paddingTop: 14,
-    paddingBottom: spacing[7],
   },
 
   summaryCard: {
@@ -197,20 +248,32 @@ const styles = StyleSheet.create({
   },
 
   delta: {
-    color: colors.textDim,
     fontSize: 14,
     lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
   },
 
-  block: {
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    borderRadius: radius.md,
-    padding: 16,
-    marginBottom: 18,
-    gap: 12,
+  deltaPositive: {
+    color: colors.green,
+  },
+
+  deltaNegative: {
+    color: colors.red,
+  },
+
+  deltaNeutral: {
+    color: colors.textDim,
+  },
+
+  summaryHint: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  sectionEyebrowOutside: {
+    marginBottom: 12,
   },
 
   emptyState: {
@@ -238,15 +301,15 @@ const styles = StyleSheet.create({
   },
 
   walletList: {
-    gap: 12,
+    gap: 14,
   },
 
   walletRow: {
-    minHeight: 82,
+    minHeight: 86,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
+    borderColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'transparent',
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -256,13 +319,13 @@ const styles = StyleSheet.create({
   },
 
   walletRowActive: {
-    borderColor: colors.lineStrong,
-    backgroundColor: 'rgba(255,105,0,0.05)',
+    borderColor: 'rgba(255,105,0,0.16)',
+    backgroundColor: 'rgba(255,105,0,0.03)',
   },
 
   walletText: {
     flex: 1,
-    gap: 6,
+    gap: 4,
   },
 
   walletTitleRow: {
@@ -272,30 +335,23 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
 
-  walletName: {
-    color: colors.white,
-    fontSize: 16,
-    lineHeight: 20,
-    fontFamily: 'Sora_600SemiBold',
-  },
-
   activeBadge: {
     color: colors.accent,
     fontSize: 11,
     lineHeight: 14,
     fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.35,
+    letterSpacing: 0.4,
   },
 
-  walletAddress: {
+  meta: {
     color: colors.textDim,
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
   },
 
-  meta: {
-    color: colors.textDim,
+  address: {
+    color: colors.textSoft,
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
@@ -311,5 +367,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 16,
   },
 });
