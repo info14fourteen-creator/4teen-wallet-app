@@ -1,17 +1,21 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 
 import AppHeader, {
   APP_HEADER_HEIGHT,
@@ -20,21 +24,26 @@ import AppHeader, {
 import MenuSheet from '../src/ui/menu-sheet';
 import { colors, layout, spacing } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
-import { getActiveWallet, type WalletMeta } from '../src/services/wallet/storage';
-import { getWalletSnapshot, type Trc20Asset } from '../src/services/tron';
+import {
+  getActiveWalletId,
+  setActiveWalletId,
+  type WalletMeta,
+} from '../src/services/wallet/storage';
+import {
+  getAllWalletPortfolios,
+  getWalletPortfolio,
+  type PortfolioAsset,
+  type WalletPortfolioAggregate,
+  type WalletPortfolioSnapshot,
+} from '../src/services/wallet/portfolio';
 
 import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
-
-type AssetRow = {
-  id: string;
-  name: string;
-  symbol: string;
-  amountDisplay: string;
-  valueDisplay: string;
-  deltaDisplay: string;
-  deltaTone: 'green' | 'red' | 'dim';
-  logo?: string;
-};
+import WatchOnlyIcon from '../assets/icons/ui/watch_only_btn.svg';
+import CopyIcon from '../assets/icons/ui/copy_btn.svg';
+import QrIcon from '../assets/icons/ui/qr_btn.svg';
+import SettingsMiniIcon from '../assets/icons/ui/setings_btn.svg';
+import PreferencesIcon from '../assets/icons/ui/preferences_btn.svg';
+import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
 
 function formatWalletKind(kind: WalletMeta['kind']) {
   if (kind === 'mnemonic') return 'Seed Phrase';
@@ -42,122 +51,129 @@ function formatWalletKind(kind: WalletMeta['kind']) {
   return 'Watch-Only';
 }
 
-function formatUsd(value: number) {
-  return value.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatTokenAmount(value: number) {
-  return value.toLocaleString('en-US', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 6,
-  });
-}
-
-function formatDelta(value?: number) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
-  const sign = value > 0 ? '+' : '';
-  return `${sign}${value.toFixed(2)}%`;
-}
-
-function normalizeDeltaTone(value?: number): 'green' | 'red' | 'dim' {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 'dim';
-  if (value > 0) return 'green';
-  if (value < 0) return 'red';
-  return 'dim';
-}
-
-function parseFormattedNumber(input: string) {
-  return Number(input.replace(/,/g, '')) || 0;
-}
-
-function mapTrc20Asset(asset: Trc20Asset): AssetRow {
-  const balanceNumber = parseFormattedNumber(asset.balanceFormatted);
-  const valueInUsd =
-    typeof asset.valueInUsd === 'number' && Number.isFinite(asset.valueInUsd)
-      ? asset.valueInUsd
-      : typeof asset.priceInUsd === 'number' && Number.isFinite(asset.priceInUsd)
-        ? balanceNumber * asset.priceInUsd
-        : 0;
-
-  return {
-    id: asset.tokenId,
-    name: asset.tokenAbbr || asset.tokenName || 'TOKEN',
-    symbol: asset.tokenAbbr || asset.tokenName || 'T',
-    amountDisplay: asset.balanceFormatted,
-    valueDisplay: valueInUsd > 0 ? formatUsd(valueInUsd) : '$0.00',
-    deltaDisplay: formatDelta(asset.priceChange24h),
-    deltaTone: normalizeDeltaTone(asset.priceChange24h),
-    logo: asset.tokenLogo,
-  };
-}
-
 export default function HomeScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+
+  const pagerRef = useRef<ScrollView>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
   const [activeWallet, setActiveWallet] = useState<WalletMeta | null>(null);
+  const [portfolio, setPortfolio] = useState<WalletPortfolioSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
-  const [walletBalanceUsd, setWalletBalanceUsd] = useState('$0.00');
-  const [walletDelta24h, setWalletDelta24h] = useState('— 24h');
-  const [trxBalanceDisplay, setTrxBalanceDisplay] = useState('0');
-  const [assets, setAssets] = useState<AssetRow[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [errorText, setErrorText] = useState('');
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [assetSortMode, setAssetSortMode] = useState<'name' | 'value'>('name');
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setErrorText('');
+  const cardWidth = Math.max(width - layout.screenPaddingX * 2, 1);
+  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
 
-      const wallet = await getActiveWallet();
-      setActiveWallet(wallet);
+  const walletCards = aggregate?.items ?? [];
 
-      if (!wallet) {
-        setWalletBalanceUsd('$0.00');
-        setWalletDelta24h('— 24h');
-        setTrxBalanceDisplay('0');
-        setAssets([]);
-        return;
-      }
-
-      const snapshot = await getWalletSnapshot(wallet.address);
-
-      const trxAsset: AssetRow = {
-        id: 'trx',
-        name: 'TRX',
-        symbol: 'TRX',
-        amountDisplay: formatTokenAmount(snapshot.trx.balanceTrx),
-        valueDisplay: formatUsd(snapshot.trx.valueInUsd || 0),
-        deltaDisplay: formatDelta(snapshot.trx.priceChange24h),
-        deltaTone: normalizeDeltaTone(snapshot.trx.priceChange24h),
-      };
-
-      const trc20Assets = snapshot.trc20Assets.map(mapTrc20Asset);
-
-      const totalUsd =
-        (snapshot.trx.valueInUsd || 0) +
-        trc20Assets.reduce((sum, item) => {
-          const parsed = Number(item.valueDisplay.replace(/[$,]/g, '')) || 0;
-          return sum + parsed;
-        }, 0);
-
-      setWalletBalanceUsd(formatUsd(totalUsd));
-      setWalletDelta24h(`${formatDelta(snapshot.trx.priceChange24h)} 24h`);
-      setTrxBalanceDisplay(formatTokenAmount(snapshot.trx.balanceTrx));
-      setAssets([trxAsset, ...trc20Assets]);
-    } catch (error) {
-      console.error(error);
-      setAssets([]);
-      setErrorText('Failed to load wallet data.');
-      notice.showErrorNotice('Failed to load wallet data.', 2600);
-    } finally {
-      setLoading(false);
-    }
+  const showWatchOnlyNotice = useCallback(() => {
+    notice.showSuccessNotice(
+      'Watch-only wallet. You can view balances and assets here, but sending, signing, and full wallet actions are disabled.',
+      3200
+    );
   }, [notice]);
+
+  const handleCopyAddress = useCallback(
+    async (address?: string) => {
+      if (!address) return;
+      await Clipboard.setStringAsync(address);
+      notice.showSuccessNotice('Wallet address copied.', 2200);
+    },
+    [notice]
+  );
+
+  const handleShowQrNotice = useCallback(
+    (wallet?: WalletMeta | null) => {
+      if (!wallet) return;
+
+      notice.showAckNotice(
+        `Wallet address\n${wallet.address}`,
+        [
+          {
+            label: 'Copy',
+            onPress: () => {
+              void handleCopyAddress(wallet.address);
+            },
+          },
+          {
+            label: 'Close',
+            onPress: () => {},
+          },
+        ],
+        'update'
+      );
+    },
+    [handleCopyAddress, notice]
+  );
+
+  const load = useCallback(
+    async (preferredWalletId?: string) => {
+      try {
+        setLoading(true);
+        setErrorText('');
+
+        const [nextAggregate, storedActiveWalletId] = await Promise.all([
+          getAllWalletPortfolios(),
+          getActiveWalletId(),
+        ]);
+
+        setAggregate(nextAggregate);
+
+        const items = nextAggregate?.items ?? [];
+        if (items.length === 0) {
+          setActiveWallet(null);
+          setPortfolio(null);
+          setCurrentCardIndex(0);
+          return;
+        }
+
+        const resolvedActiveWalletId =
+          preferredWalletId ??
+          storedActiveWalletId ??
+          items[0]?.wallet.id ??
+          null;
+
+        const nextIndex = Math.max(
+          0,
+          items.findIndex((item) => item.wallet.id === resolvedActiveWalletId)
+        );
+
+        const nextActiveItem = items[nextIndex] ?? items[0];
+        const nextActiveWallet = nextActiveItem.wallet;
+
+        setActiveWallet(nextActiveWallet);
+        setCurrentCardIndex(nextIndex);
+
+        const nextPortfolio = await getWalletPortfolio(nextActiveWallet.address);
+        setPortfolio(nextPortfolio);
+      } catch (error) {
+        console.error(error);
+        setPortfolio(null);
+        setErrorText('Failed to load wallet data.');
+        notice.showErrorNotice('Failed to load wallet data.', 2600);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [notice]
+  );
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await load(activeWallet?.id);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [activeWallet?.id, load]);
 
   useFocusEffect(
     useCallback(() => {
@@ -165,21 +181,97 @@ export default function HomeScreen() {
     }, [load])
   );
 
-  const deltaStyle = useMemo(() => {
-    if (walletDelta24h.startsWith('+')) return styles.deltaGreen;
-    if (walletDelta24h.startsWith('-')) return styles.deltaRed;
-    return styles.deltaDim;
-  }, [walletDelta24h]);
+  useEffect(() => {
+    pagerRef.current?.scrollTo({
+      x: currentCardIndex * cardWidth,
+      animated: false,
+    });
+  }, [cardWidth, currentCardIndex]);
 
-  const stub = (label: string) => {
-    notice.showNeutralNotice(`${label} is not wired yet.`, 2200);
-  };
+  const handleWalletCardSnap = useCallback(
+    async (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const nextIndex = Math.round(event.nativeEvent.contentOffset.x / cardWidth);
+      const nextItem = walletCards[nextIndex];
 
-  const handleCopyAddress = async () => {
-    if (!activeWallet) return;
-    await Clipboard.setStringAsync(activeWallet.address);
-    notice.showSuccessNotice('Wallet address copied.', 2200);
-  };
+      if (!nextItem) return;
+
+      setCurrentCardIndex(nextIndex);
+
+      if (nextItem.wallet.id === activeWallet?.id) {
+        return;
+      }
+
+      try {
+        await setActiveWalletId(nextItem.wallet.id);
+        setActiveWallet(nextItem.wallet);
+
+        const nextPortfolio = await getWalletPortfolio(nextItem.wallet.address);
+        setPortfolio(nextPortfolio);
+      } catch (error) {
+        console.error(error);
+        notice.showErrorNotice('Failed to switch wallet.', 2400);
+      }
+    },
+    [activeWallet?.id, cardWidth, notice, walletCards]
+  );
+
+  const handleWalletAssetPress = useCallback(() => {
+    router.push('/select-wallet');
+  }, [router]);
+
+  const handleHomeAction = useCallback(
+    (label: string) => {
+      if (activeWallet?.kind === 'watch-only' && (label === 'Send' || label === 'Receive')) {
+        showWatchOnlyNotice();
+        return;
+      }
+
+      notice.showNeutralNotice(`${label} will be available here soon.`, 2200);
+    },
+    [activeWallet?.kind, notice, showWatchOnlyNotice]
+  );
+
+  const handleOpenToken = useCallback(
+    (asset: PortfolioAsset) => {
+      router.push({
+        pathname: '/token-details',
+        params: {
+          tokenId: asset.id,
+        },
+      });
+    },
+    [router]
+  );
+
+  const assets: PortfolioAsset[] = portfolio?.assets ?? [];
+
+  const sortedAssets = useMemo(() => {
+    const next = [...assets];
+
+    if (assetSortMode === 'value') {
+      next.sort((a, b) => {
+        if (b.valueInUsd !== a.valueInUsd) return b.valueInUsd - a.valueInUsd;
+        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      });
+      return next;
+    }
+
+    next.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    );
+    return next;
+  }, [assets, assetSortMode]);
+
+  const handleToggleAssetSort = useCallback(() => {
+    setAssetSortMode((prev) => {
+      const next = prev === 'name' ? 'value' : 'name';
+      notice.showNeutralNotice(
+        next === 'name' ? 'Asset sorting: name' : 'Asset sorting: value',
+        1800
+      );
+      return next;
+    });
+  }, [notice]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -190,78 +282,209 @@ export default function HomeScreen() {
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
           showsVerticalScrollIndicator={false}
-          bounces={false}
+          bounces
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+              progressBackgroundColor={colors.bg}
+            />
+          }
         >
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={styles.walletAssetRow}
-            onPress={() => router.push('/select-wallet')}
-          >
-            <Text style={styles.walletAssetEyebrow}>WALLET ASSET</Text>
-            <OpenRightIcon width={18} height={18} />
-          </TouchableOpacity>
+          <View style={styles.walletAssetRow}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.walletAssetMainButton}
+              onPress={handleWalletAssetPress}
+            >
+              <Text style={styles.walletAssetEyebrow}>WALLET ASSET</Text>
+              <OpenRightIcon width={18} height={18} />
+            </TouchableOpacity>
 
-          {activeWallet ? (
-            <View style={styles.walletCard}>
-              <Text style={styles.walletName}>{activeWallet.name}</Text>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.walletAssetAddButton}
+              onPress={() => router.push('/ui-lab')}
+            >
+              <AddWalletIcon width={16} height={16} />
+            </TouchableOpacity>
+          </View>
 
-              <View style={styles.addressRow}>
-                <Text style={styles.walletAddress}>{activeWallet.address}</Text>
+          {walletCards.length > 0 ? (
+            <View style={styles.walletCardSection}>
+              <ScrollView
+                ref={pagerRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                bounces={false}
+                overScrollMode="never"
+                onMomentumScrollEnd={handleWalletCardSnap}
+                contentContainerStyle={styles.walletPagerContent}
+              >
+                {walletCards.map((item) => {
+                  const wallet = item.wallet;
+                  const isActive = wallet.id === activeWallet?.id;
 
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={handleCopyAddress}
-                  style={styles.copyButton}
-                >
-                  <Ionicons name="copy-outline" size={17} color={colors.textDim} />
-                </TouchableOpacity>
-              </View>
+                  const balanceDisplay = isActive
+                    ? (portfolio?.totalBalanceDisplay ?? item.portfolio?.totalBalanceDisplay ?? '$0.00')
+                    : (item.portfolio?.totalBalanceDisplay ?? '$0.00');
 
-              <Text style={styles.walletKind}>{formatWalletKind(activeWallet.kind)}</Text>
+                  const deltaDisplay = isActive
+                    ? (portfolio?.totalDeltaDisplay ?? item.portfolio?.totalDeltaDisplay ?? '$0.00 (0.00%)')
+                    : (item.portfolio?.totalDeltaDisplay ?? '$0.00 (0.00%)');
 
-              {loading ? (
-                <View style={styles.loadingWrap}>
-                  <ActivityIndicator color={colors.accent} />
+                  const deltaTone = isActive
+                    ? (portfolio?.totalDeltaTone ?? item.portfolio?.totalDeltaTone)
+                    : item.portfolio?.totalDeltaTone;
+
+                  return (
+                    <View key={wallet.id} style={[styles.walletCardPage, { width: cardWidth }]}>
+                      <View style={styles.walletCard}>
+                        <View style={styles.walletNameRow}>
+                          <Text style={styles.walletName}>{wallet.name}</Text>
+
+                          {wallet.kind === 'watch-only' ? (
+                            <TouchableOpacity
+                              activeOpacity={0.85}
+                              style={styles.watchOnlyButton}
+                              onPress={showWatchOnlyNotice}
+                            >
+                              <WatchOnlyIcon width={18} height={18} />
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+
+                        <View style={styles.addressRow}>
+                          <Text style={styles.walletAddress} numberOfLines={1} ellipsizeMode="middle">
+                            {wallet.address}
+                          </Text>
+
+                          <TouchableOpacity
+                            activeOpacity={0.85}
+                            onPress={() => void handleCopyAddress(wallet.address)}
+                            style={styles.iconActionButton}
+                          >
+                            <CopyIcon width={18} height={18} />
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            activeOpacity={0.85}
+                            onPress={() => handleShowQrNotice(wallet)}
+                            style={styles.iconActionButton}
+                          >
+                            <QrIcon width={18} height={18} />
+                          </TouchableOpacity>
+                        </View>
+
+                        {loading && isActive ? (
+                          <View style={styles.loadingWrap}>
+                            <ActivityIndicator color={colors.accent} />
+                          </View>
+                        ) : (
+                          <>
+                            <Text style={styles.balanceValue}>{balanceDisplay}</Text>
+                            <Text
+                              style={[
+                                styles.balanceDelta,
+                                deltaTone === 'green'
+                                  ? styles.deltaGreen
+                                  : deltaTone === 'red'
+                                    ? styles.deltaRed
+                                    : styles.deltaDim,
+                              ]}
+                            >
+                              {deltaDisplay}
+                            </Text>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+
+              {walletCards.length > 1 ? (
+                <View style={styles.walletDots}>
+                  {walletCards.map((item, index) => (
+                    <View
+                      key={item.wallet.id}
+                      style={[styles.walletDot, index === currentCardIndex && styles.walletDotActive]}
+                    />
+                  ))}
                 </View>
-              ) : (
-                <>
-                  <Text style={styles.balanceValue}>{walletBalanceUsd}</Text>
-                  <Text style={[styles.balanceDelta, deltaStyle]}>{walletDelta24h}</Text>
-                  <Text style={styles.trxHint}>TRX: {trxBalanceDisplay}</Text>
-                </>
-              )}
+              ) : null}
             </View>
           ) : (
             <View style={styles.emptyWalletCard}>
               <Text style={styles.emptyWalletTitle}>No wallet selected</Text>
               <Text style={styles.emptyWalletText}>
-                Select a wallet to load balances, tokens and activity.
+                Add or import a wallet first, then balances, tokens and activity will appear here.
               </Text>
 
               <TouchableOpacity
                 activeOpacity={0.9}
                 style={styles.primaryButton}
-                onPress={() => router.push('/select-wallet')}
+                onPress={() => router.push('/ui-lab')}
               >
-                <Text style={styles.primaryButtonText}>Select Wallet</Text>
+                <Text style={styles.primaryButtonText}>Add Wallet</Text>
               </TouchableOpacity>
             </View>
           )}
 
           <View style={styles.actionsRow}>
-            <ActionButton icon="arrow-up-outline" label="Send" onPress={() => stub('Send')} />
-            <ActionButton icon="arrow-down-outline" label="Receive" onPress={() => stub('Receive')} />
-            <ActionButton icon="time-outline" label="History" onPress={() => stub('History')} />
-            <ActionButton icon="grid-outline" label="More" onPress={() => stub('More')} />
+            <View style={styles.actionEdgeSlot}>
+              <ActionButton icon="arrow-up-outline" label="Send" onPress={() => handleHomeAction('Send')} />
+            </View>
+            <View style={styles.actionMiddleSlot}>
+              <ActionButton icon="arrow-down-outline" label="Receive" onPress={() => handleHomeAction('Receive')} />
+            </View>
+            <View style={styles.actionMiddleSlot}>
+              <ActionButton icon="time-outline" label="History" onPress={() => handleHomeAction('History')} />
+            </View>
+            <View style={styles.actionEdgeSlot}>
+              <ActionButton icon="grid-outline" label="More" onPress={() => handleHomeAction('More')} />
+            </View>
           </View>
 
           {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
+          <View style={styles.assetsHeaderRow}>
+            <View style={styles.assetsHeaderSide}>
+              <Text style={styles.assetsHeaderMiniLabel}>Assets</Text>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.assetsHeaderLeftButton}
+                onPress={handleToggleAssetSort}
+              >
+                <PreferencesIcon width={20} height={20} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.assetsHeaderSide}>
+              <Text style={styles.assetsHeaderMiniLabel}>Manage</Text>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.assetsHeaderRightButton}
+                onPress={() => handleHomeAction('Manage Crypto')}
+              >
+                <SettingsMiniIcon width={20} height={20} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <View style={styles.assetList}>
-            {assets.map((asset) => (
-              <View key={asset.id} style={styles.assetRow}>
+            {sortedAssets.map((asset) => (
+              <TouchableOpacity
+                key={asset.id}
+                activeOpacity={0.9}
+                style={styles.assetRow}
+                onPress={() => handleOpenToken(asset)}
+              >
                 <View style={styles.assetLeft}>
                   {asset.logo ? (
                     <Image
@@ -298,17 +521,9 @@ export default function HomeScreen() {
                     {asset.deltaDisplay}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
-
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={styles.manageButton}
-            onPress={() => stub('Manage Crypto')}
-          >
-            <Text style={styles.manageButtonText}>Manage Crypto</Text>
-          </TouchableOpacity>
         </ScrollView>
 
         <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -329,7 +544,7 @@ function ActionButton({
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.actionButton} onPress={onPress}>
       <View style={styles.actionIconWrap}>
-        <Ionicons name={icon} size={22} color={colors.white} />
+        <Ionicons name={icon} size={30} color={colors.accent} />
       </View>
       <Text style={styles.actionLabel}>{label}</Text>
     </TouchableOpacity>
@@ -361,15 +576,30 @@ const styles = StyleSheet.create({
 
   content: {
     paddingTop: 14,
-    paddingBottom: spacing[7],
   },
 
   walletAssetRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    alignSelf: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    minHeight: 32,
     marginBottom: 12,
+  },
+
+  walletAssetMainButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 32,
+    alignSelf: 'flex-start',
+  },
+
+  walletAssetAddButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   walletAssetEyebrow: {
@@ -378,234 +608,117 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.45,
+    textAlignVertical: 'center',
+  },
+
+  walletCardSection: {
+    marginBottom: 16,
+  },
+
+  walletPagerContent: {
+    alignItems: 'stretch',
+  },
+
+  walletCardPage: {
+    paddingRight: 0,
   },
 
   walletCard: {
-    paddingVertical: 8,
-    marginBottom: 22,
-    gap: 6,
+    backgroundColor: 'rgba(255,105,0,0.08)',
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    borderRadius: 18,
+    padding: 16,
+  },
+
+  walletNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 
   walletName: {
+    flex: 1,
     color: colors.white,
-    fontSize: 24,
+    fontSize: 22,
     lineHeight: 28,
     fontFamily: 'Sora_700Bold',
+  },
+
+  watchOnlyButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginTop: 10,
   },
 
   walletAddress: {
     flex: 1,
     color: colors.textDim,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
   },
 
-  copyButton: {
-    width: 26,
-    height: 26,
+  iconActionButton: {
+    width: 30,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  walletKind: {
+  walletMetaLabel: {
+    marginTop: 8,
     color: colors.accent,
     fontSize: 12,
     lineHeight: 16,
-    fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.35,
-    marginTop: 4,
+    fontFamily: 'Sora_600SemiBold',
   },
 
   loadingWrap: {
-    minHeight: 64,
+    minHeight: 72,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'flex-start',
-    marginTop: 6,
   },
 
   balanceValue: {
+    marginTop: 16,
     color: colors.white,
-    fontSize: 40,
-    lineHeight: 44,
+    fontSize: 32,
+    lineHeight: 38,
     fontFamily: 'Sora_700Bold',
-    marginTop: 4,
   },
 
   balanceDelta: {
-    fontSize: 13,
-    lineHeight: 17,
-    fontFamily: 'Sora_600SemiBold',
-  },
-
-  trxHint: {
-    color: colors.textDim,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-    marginTop: 2,
-  },
-
-  emptyWalletCard: {
-    paddingVertical: 8,
-    marginBottom: 22,
-    gap: 10,
-  },
-
-  emptyWalletTitle: {
-    color: colors.white,
-    fontSize: 24,
-    lineHeight: 28,
-    fontFamily: 'Sora_700Bold',
-  },
-
-  emptyWalletText: {
-    color: colors.textDim,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: 'Sora_600SemiBold',
-    maxWidth: '92%',
-  },
-
-  primaryButton: {
-    alignSelf: 'flex-start',
-    minHeight: 44,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,105,0,0.10)',
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-
-  primaryButtonText: {
-    color: colors.accent,
+    marginTop: 8,
     fontSize: 14,
     lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
   },
 
-  actionsRow: {
+  walletDots: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 24,
-  },
-
-  actionButton: {
-    flex: 1,
-    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
+    marginTop: 12,
   },
 
-  actionIconWrap: {
-    width: 52,
-    height: 52,
+  walletDot: {
+    width: 8,
+    height: 8,
     borderRadius: 999,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
 
-  actionLabel: {
-    color: colors.textSoft,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-  },
-
-  errorText: {
-    color: colors.red,
-    fontSize: 13,
-    lineHeight: 17,
-    fontFamily: 'Sora_600SemiBold',
-    marginBottom: 18,
-  },
-
-  assetList: {
-    gap: 18,
-    marginBottom: 28,
-  },
-
-  assetRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 14,
-  },
-
-  assetLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-
-  assetLogo: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-  },
-
-  assetFallbackLogo: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  assetFallbackText: {
-    color: colors.white,
-    fontSize: 12,
-    lineHeight: 14,
-    fontFamily: 'Sora_700Bold',
-  },
-
-  assetMeta: {
-    gap: 2,
-    flex: 1,
-  },
-
-  assetName: {
-    color: colors.white,
-    fontSize: 20,
-    lineHeight: 24,
-    fontFamily: 'Sora_600SemiBold',
-  },
-
-  assetAmount: {
-    color: colors.textDim,
-    fontSize: 14,
-    lineHeight: 18,
-    fontFamily: 'Sora_600SemiBold',
-  },
-
-  assetRight: {
-    alignItems: 'flex-end',
-    gap: 2,
-  },
-
-  assetValue: {
-    color: colors.white,
-    fontSize: 20,
-    lineHeight: 24,
-    fontFamily: 'Sora_700Bold',
-  },
-
-  assetDelta: {
-    fontSize: 14,
-    lineHeight: 18,
-    fontFamily: 'Sora_600SemiBold',
+  walletDotActive: {
+    backgroundColor: colors.accent,
   },
 
   deltaGreen: {
@@ -620,39 +733,242 @@ const styles = StyleSheet.create({
     color: colors.textDim,
   },
 
-  emptyAssetsBlock: {
-    paddingVertical: 8,
-    marginBottom: 28,
-    gap: 8,
+  emptyWalletCard: {
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
   },
 
-  emptyAssetsTitle: {
+  emptyWalletTitle: {
     color: colors.white,
     fontSize: 20,
-    lineHeight: 24,
-    fontFamily: 'Sora_600SemiBold',
+    lineHeight: 26,
+    fontFamily: 'Sora_700Bold',
   },
 
-  emptyAssetsText: {
+  emptyWalletText: {
+    marginTop: 10,
     color: colors.textDim,
     fontSize: 14,
     lineHeight: 20,
     fontFamily: 'Sora_600SemiBold',
-    maxWidth: '92%',
   },
 
-  manageButton: {
-    minHeight: 48,
-    alignSelf: 'center',
-    paddingHorizontal: 20,
+  primaryButton: {
+    marginTop: 16,
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+
+  primaryButtonText: {
+    color: colors.bg,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 0,
+    marginBottom: 14,
+  },
+
+  actionEdgeSlot: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+
+  actionMiddleSlot: {
+    flex: 1,
+    alignItems: 'center',
+  },
+
+  actionButton: {
+    flex: 1,
+    minHeight: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 8,
+    paddingBottom: 8,
+    backgroundColor: 'transparent',
+    gap: 2,
+  },
+
+  actionIconWrap: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: -6,
+    backgroundColor: 'transparent',
+  },
+
+  actionLabel: {
+    color: colors.white,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
+    marginTop: -2,
+    marginBottom: 2,
+  },
+
+  errorText: {
+    marginBottom: 14,
+    color: colors.red,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  assetsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 0,
+    marginTop: 0,
+    marginBottom: 6,
+  },
+
+  assetsHeaderSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  assetsHeaderMiniLabel: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+  },
+
+  assetsHeaderLeftButton: {
+    width: 32,
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
+  assetsHeaderRightButton: {
+    width: 32,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  assetList: {
+    gap: 12,
+  },
+
+  assetRow: {
+    minHeight: 76,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  assetLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+
+  assetLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+  },
+
+  assetFallbackLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,105,0,0.12)',
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  assetFallbackText: {
+    color: colors.accent,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  assetMeta: {
+    flex: 1,
+    gap: 4,
+  },
+
+  assetName: {
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  assetAmount: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  assetRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+
+  assetValue: {
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  assetDelta: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  manageButton: {
+    minHeight: 52,
+    marginTop: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,105,0,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+
   manageButtonText: {
     color: colors.accent,
-    fontSize: 16,
-    lineHeight: 20,
-    fontFamily: 'Sora_600SemiBold',
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
   },
 });
