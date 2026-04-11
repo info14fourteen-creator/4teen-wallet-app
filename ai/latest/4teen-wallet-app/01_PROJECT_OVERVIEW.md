@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-09T14:46:21.942Z
+Generated: 2026-04-11T20:25:33.242Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 9fc00d589d689358d77f4d1ac76fdb3abcc65a8c
-Short commit: 9fc00d5
-Commit subject: chore: save current mobile wallet app state
+Last commit: 907d3a275a8c5292b68e1c4496eddefc81106a98
+Short commit: 907d3a2
+Commit subject: feat: add wallet QR modal and stabilize versioning
 Commit author: info14fourteen-creator
-Commit date: 2026-04-09T19:44:51+05:00
+Commit date: 2026-04-12T01:25:14+05:00
 
 ## Curated project tree
 
@@ -41,6 +41,7 @@ Commit date: 2026-04-09T19:44:51+05:00
       - select-wallet.tsx
       - settings.tsx
       - terms.tsx
+      - token-details.tsx
       - ui-lab.tsx
       - unlock.tsx
       - wallets.tsx
@@ -69,16 +70,21 @@ Commit date: 2026-04-09T19:44:51+05:00
           - backspace_btn.svg
           - biologin_btn.svg
           - close.svg
+          - copy_btn.svg
           - footer_menu.svg
           - info_btn.svg
           - logo_white.svg
           - menu.svg
           - open_down_btn.svg
           - open_right_btn.svg
+          - preferences_btn.svg
+          - qr_btn.svg
           - scan.svg
           - search.svg
           - setings_btn.svg
+          - share_btn.svg
           - wallet_btn.svg
+          - watch_only_btn.svg
     - components/
       - ui/
         - collapsible.tsx
@@ -115,15 +121,19 @@ Commit date: 2026-04-09T19:44:51+05:00
         - wallet/
           - import.ts
           - index.ts
+          - portfolio.ts
           - storage.ts
+        - address-book.ts
       - theme/
         - tokens.ts
         - ui.ts
       - ui/
+        - address-qr-modal.tsx
         - app-header.tsx
         - expand-chevron.tsx
         - footer-nav.tsx
         - foundation.tsx
+        - KeyboardView.tsx
         - menu-sheet.tsx
         - numeric-keypad.tsx
         - submenu-header.tsx
