@@ -152,7 +152,7 @@ function buildTokenAsset(asset: Trc20Asset): PortfolioAsset {
 
   return buildAsset({
     id: asset.tokenId,
-    name: asset.tokenAbbr || asset.tokenName || 'TOKEN',
+    name: asset.tokenName || asset.tokenAbbr || 'TOKEN',
     symbol: asset.tokenAbbr || asset.tokenName || 'T',
     amount,
     amountDisplay: asset.balanceFormatted,

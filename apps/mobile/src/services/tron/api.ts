@@ -1,9 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   assertTronConfig,
-  TRONGRID_API_KEY,
+  TRONGRID_API_KEYS,
   TRONGRID_BASE_URL,
-  TRONSCAN_API_KEY,
+  TRONSCAN_API_KEYS,
   TRONSCAN_BASE_URL,
 } from '../../config/tron';
 import { getAddressBookMap } from '../address-book';
@@ -28,12 +28,24 @@ export const TRX_CONTRACT = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 export const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 export const FOURTEEN_CONTRACT = 'TMLXiCW2ZAkvjmn79ZXa4vdHX5BE3n9x4A';
 
+const TOKEN_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+const TOKEN_HISTORY_CACHE_PREFIX = 'fourteen_token_history_cache_v9';
+
+const KEY_COOLDOWN_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 20_000;
+const MARKET_CACHE_TTL_MS = 5 * 60 * 1000;
+const CMC_KEY_COOLDOWN_MS = 60_000;
+const TRONSCAN_TOKEN_OVERVIEW_CACHE_TTL_MS = 30 * 60 * 1000;
+
+type ProviderName = 'tronscan' | 'trongrid';
+
 type MarketMeta = {
   priceInUsd?: number;
   priceChange24h?: number;
   logo?: string;
   name?: string;
   symbol?: string;
+  decimals?: number;
   marketCap?: number;
   liquidityUsd?: number;
   volume24h?: number;
@@ -48,10 +60,6 @@ type CachedMarketIndex = {
   trx: MarketMeta;
 };
 
-let marketCache: CachedMarketIndex | null = null;
-
-const TOKEN_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
-const TOKEN_HISTORY_CACHE_PREFIX = 'fourteen_token_history_cache_v4';
 type TokenHistoryCachePayload = {
   savedAt: number;
   items: TokenHistoryItem[];
@@ -59,7 +67,44 @@ type TokenHistoryCachePayload = {
   hasMore: boolean;
 };
 
+type ProviderKeyState = {
+  nextIndex: number;
+  cooldownUntil: number[];
+};
+
+type TokenMetaFallback = {
+  name?: string;
+  symbol?: string;
+  logo?: string;
+  decimals?: number;
+  priceInUsd?: number;
+  priceChange24h?: number;
+  liquidityUsd?: number;
+};
+
+let marketCache: CachedMarketIndex | null = null;
+let marketIndexInflight: Promise<CachedMarketIndex> | null = null;
+let cmcCooldownUntil = 0;
 const tokenHistoryMemoryCache = new Map<string, TokenHistoryCachePayload>();
+const tronscanTokenOverviewMemoryCache = new Map<
+  string,
+  {
+    savedAt: number;
+    data: TokenMetaFallback;
+  }
+>();
+const tronscanTokenOverviewInflight = new Map<string, Promise<TokenMetaFallback>>();
+
+const providerKeyState: Record<ProviderName, ProviderKeyState> = {
+  tronscan: {
+    nextIndex: 0,
+    cooldownUntil: [],
+  },
+  trongrid: {
+    nextIndex: 0,
+    cooldownUntil: [],
+  },
+};
 
 export type TronAccountInfo = {
   address: string;
@@ -112,9 +157,7 @@ export type TokenPoolInfo = {
   address?: string;
 };
 
-export type TokenHistoryDisplayType =
-  | 'RECEIVE'
-  | 'SEND';
+export type TokenHistoryDisplayType = 'RECEIVE' | 'SEND';
 
 export type TokenHistoryItem = {
   id: string;
@@ -190,6 +233,26 @@ type TronscanTokenItem = {
 type TronscanTokensResponse = {
   trc20token_balances?: TronscanTokenItem[];
   data?: TronscanTokenItem[];
+};
+
+type TronscanTokenOverviewItem = {
+  symbol?: string;
+  contract_address?: string;
+  icon_url?: string;
+  decimals?: number | string;
+  name?: string;
+  total_supply?: number | string;
+  market_info?: {
+    priceInUsd?: number | string;
+    gain?: number | string;
+    liquidity?: number | string;
+  };
+};
+
+type TronscanTokenOverviewResponse = {
+  total?: number;
+  rangeTotal?: number;
+  trc20_tokens?: TronscanTokenOverviewItem[];
 };
 
 type RawTrc20Balance = {
@@ -341,16 +404,18 @@ type TronscanTrc20TransferResponse = {
   token_transfers?: TronscanTrc20TransferItem[];
 };
 
-type TronscanTrc20TransferWithStatusResponse = {
-  total?: number;
-  rangeTotal?: number;
-  data?: TronscanTrc20TransferItem[];
-};
+function getProviderBaseUrl(provider: ProviderName) {
+  return provider === 'tronscan' ? TRONSCAN_BASE_URL : TRONGRID_BASE_URL;
+}
+
+function getProviderApiKeys(provider: ProviderName) {
+  return provider === 'tronscan' ? TRONSCAN_API_KEYS : TRONGRID_API_KEYS;
+}
 
 function buildUrl(
   base: string,
   path: string,
-  params?: Record<string, string | number | undefined>
+  params?: Record<string, string | number | boolean | undefined>
 ) {
   const url = new URL(`${base}${path}`);
 
@@ -364,105 +429,77 @@ function buildUrl(
   return url.toString();
 }
 
-async function safeJson<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`HTTP ${response.status}: ${text}`);
-  }
-
-  return response.json() as Promise<T>;
-}
-
-export async function trongridFetch<T>(
-  path: string,
-  params?: Record<string, string | number | undefined>
-): Promise<T> {
-  assertTronConfig();
-
-  const url = buildUrl(TRONGRID_BASE_URL, path, params);
-
-  const response = await fetch(url, {
-    headers: {
-      'TRON-PRO-API-KEY': TRONGRID_API_KEY,
-      Accept: 'application/json',
-    },
-  });
-
-  return safeJson<T>(response);
-}
-
-export async function tronscanFetch<T>(
-  path: string,
-  params?: Record<string, string | number | undefined>
-): Promise<T> {
-  assertTronConfig();
-
-  const url = buildUrl(TRONSCAN_BASE_URL, path, params);
-
-  const response = await fetch(url, {
-    headers: {
-      'TRON-PRO-API-KEY': TRONSCAN_API_KEY,
-      Accept: 'application/json',
-    },
-  });
-
-  return safeJson<T>(response);
-}
-
-async function cmcFetch<T>(
-  path: string,
-  params?: Record<string, string | number | undefined>
-): Promise<T> {
-  if (!CMC_API_KEY) {
-    throw new Error('Missing EXPO_PUBLIC_CMC_API_KEY');
-  }
-
-  const url = buildUrl(CMC_BASE_URL, path, params);
-
-  const response = await fetch(url, {
-    headers: {
-      'X-CMC_PRO_API_KEY': CMC_API_KEY,
-      Accept: 'application/json',
-    },
-  });
-
-  return safeJson<T>(response);
-}
-
-async function cmcDataApiFetch<T>(
-  path: string,
-  params?: Record<string, string | number | undefined>
-): Promise<T> {
-  const url = buildUrl(CMC_DATA_API_BASE_URL, path, params);
-
-  const response = await fetch(url, {
-    headers: {
-      Accept: 'application/json',
-    },
-  });
-
-  return safeJson<T>(response);
-}
-
-async function cmcDapiFetch<T>(
-  path: string,
-  params?: Record<string, string | number | undefined>
-): Promise<T> {
-  const url = buildUrl(CMC_DAPI_BASE_URL, path, params);
-
-  const response = await fetch(url, {
-    headers: {
-      Accept: 'application/json',
-    },
-  });
-
-  return safeJson<T>(response);
-}
-
 function parseNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parsePositiveCount(value: unknown): number | undefined {
+  const parsed = parseNumber(value);
+  if (typeof parsed !== 'number') return undefined;
+  if (parsed < 0) return undefined;
+  return parsed;
+}
+
+function parseRetryDelayMsFromText(text: string) {
+  const secondsMatch = text.match(/(\d+)\s*s/i);
+  if (!secondsMatch) {
+    return KEY_COOLDOWN_MS;
+  }
+
+  const seconds = Number(secondsMatch[1]);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return KEY_COOLDOWN_MS;
+  }
+
+  return seconds * 1000;
+}
+
+function isCmcRateLimitError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return message.includes('HTTP 429');
+}
+
+function isCmcInvalidKeyError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || '');
+  const lower = message.toLowerCase();
+
+  return (
+    message.includes('HTTP 401') &&
+    (message.includes('1001') || lower.includes('api key is invalid'))
+  );
+}
+
+function getSafeCmcCooldownUntil() {
+  return cmcCooldownUntil > Date.now() ? cmcCooldownUntil : 0;
+}
+
+function buildFallbackPerformance(
+  fallback24h?: number
+): TokenPerformancePoint[] {
+  return [
+    { label: '5m', changePercent: undefined },
+    { label: '1h', changePercent: undefined },
+    { label: '4h', changePercent: undefined },
+    { label: '24h', changePercent: fallback24h },
+  ];
+}
+
+function mergeTokenMetaFallbacks(
+  primary?: TokenMetaFallback,
+  secondary?: TokenMetaFallback,
+  tertiary?: TokenMetaFallback
+): TokenMetaFallback {
+  return {
+    name: primary?.name ?? secondary?.name ?? tertiary?.name,
+    symbol: primary?.symbol ?? secondary?.symbol ?? tertiary?.symbol,
+    logo: primary?.logo ?? secondary?.logo ?? tertiary?.logo,
+    decimals: primary?.decimals ?? secondary?.decimals ?? tertiary?.decimals,
+    priceInUsd: primary?.priceInUsd ?? secondary?.priceInUsd ?? tertiary?.priceInUsd,
+    priceChange24h: primary?.priceChange24h ?? secondary?.priceChange24h ?? tertiary?.priceChange24h,
+    liquidityUsd: primary?.liquidityUsd ?? secondary?.liquidityUsd ?? tertiary?.liquidityUsd,
+  };
 }
 
 function formatTokenBalance(rawBalance: string | number, decimals: number) {
@@ -479,6 +516,30 @@ function formatTokenBalance(rawBalance: string | number, decimals: number) {
 
 function normalizeTokenId(value: string) {
   return String(value || '').trim();
+}
+
+function normalizeAddressKey(value?: string) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isSameAddress(left?: string, right?: string) {
+  const a = normalizeAddressKey(left);
+  const b = normalizeAddressKey(right);
+
+  return !!a && !!b && a === b;
+}
+
+function shortenAddress(value?: string) {
+  const address = String(value || '').trim();
+
+  if (!address) return 'Unknown address';
+  if (address.length < 12) return address;
+
+  return `${address.slice(0, 6)}...${address.slice(-6)}`;
+}
+
+function buildTronscanTxUrl(txHash: string) {
+  return `https://tronscan.org/#/transaction/${txHash}`;
 }
 
 function dedupeBalances(items: RawTrc20Balance[]): RawTrc20Balance[] {
@@ -611,6 +672,373 @@ function buildPools(payload: CmcDexTokenResponse['data'] | undefined): TokenPool
   });
 }
 
+function buildTronscanTokenOverviewFallback(
+  item: TronscanTokenOverviewItem | undefined,
+  knownMeta?: {
+    tokenName: string;
+    tokenAbbr: string;
+    tokenDecimal: number;
+    tokenLogo?: string;
+  } | null
+): TokenMetaFallback {
+  return mergeTokenMetaFallbacks(
+    {
+      name: item?.name,
+      symbol: item?.symbol,
+      logo: item?.icon_url,
+      decimals: parseNumber(item?.decimals),
+      priceInUsd: parseNumber(item?.market_info?.priceInUsd),
+      priceChange24h: parseNumber(item?.market_info?.gain),
+      liquidityUsd: parseNumber(item?.market_info?.liquidity),
+    },
+    {
+      name: knownMeta?.tokenName,
+      symbol: knownMeta?.tokenAbbr,
+      logo: knownMeta?.tokenLogo,
+      decimals: knownMeta?.tokenDecimal,
+    }
+  );
+}
+
+function readTronscanTokenOverviewCache(tokenId: string): TokenMetaFallback | null {
+  const cacheKey = normalizeAddressKey(tokenId);
+  const cached = tronscanTokenOverviewMemoryCache.get(cacheKey);
+
+  if (!cached) {
+    return null;
+  }
+
+  if (Date.now() - cached.savedAt >= TRONSCAN_TOKEN_OVERVIEW_CACHE_TTL_MS) {
+    tronscanTokenOverviewMemoryCache.delete(cacheKey);
+    return null;
+  }
+
+  return cached.data;
+}
+
+function writeTronscanTokenOverviewCache(tokenId: string, data: TokenMetaFallback) {
+  tronscanTokenOverviewMemoryCache.set(normalizeAddressKey(tokenId), {
+    savedAt: Date.now(),
+    data,
+  });
+}
+
+async function getTronscanTokenOverview(tokenId: string): Promise<TokenMetaFallback> {
+  const normalizedTokenId = normalizeTokenId(tokenId);
+  if (!normalizedTokenId) {
+    return {};
+  }
+
+  const cached = readTronscanTokenOverviewCache(normalizedTokenId);
+  if (cached) {
+    return cached;
+  }
+
+  const inflight = tronscanTokenOverviewInflight.get(normalizeAddressKey(normalizedTokenId));
+  if (inflight) {
+    return inflight;
+  }
+
+  const request = (async (): Promise<TokenMetaFallback> => {
+    const knownMeta = getKnownTokenMeta(normalizedTokenId);
+
+    try {
+      const response = await tronscanFetch<TronscanTokenOverviewResponse>('/token_trc20', {
+        contract: normalizedTokenId,
+        showAll: 1,
+        start: 0,
+        limit: 1,
+      });
+
+      const item =
+        (response.trc20_tokens ?? []).find(
+          (entry) => normalizeTokenId(entry.contract_address || '') === normalizedTokenId
+        ) || response.trc20_tokens?.[0];
+
+      const fallback = buildTronscanTokenOverviewFallback(item, knownMeta);
+      writeTronscanTokenOverviewCache(normalizedTokenId, fallback);
+      return fallback;
+    } catch (error) {
+      console.warn('Failed to load Tronscan token overview:', normalizedTokenId, error);
+      const fallback = buildTronscanTokenOverviewFallback(undefined, knownMeta);
+      writeTronscanTokenOverviewCache(normalizedTokenId, fallback);
+      return fallback;
+    }
+  })();
+
+  tronscanTokenOverviewInflight.set(normalizeAddressKey(normalizedTokenId), request);
+
+  try {
+    return await request;
+  } finally {
+    tronscanTokenOverviewInflight.delete(normalizeAddressKey(normalizedTokenId));
+  }
+}
+
+async function getTronscanTokenOverviewMap(tokenIds: string[]): Promise<Record<string, TokenMetaFallback>> {
+  const uniqueTokenIds = Array.from(
+    new Set(
+      tokenIds
+        .map((tokenId) => normalizeTokenId(tokenId))
+        .filter(Boolean)
+    )
+  );
+
+  const entries = await Promise.all(
+    uniqueTokenIds.map(async (tokenId) => {
+      return [tokenId, await getTronscanTokenOverview(tokenId)] as const;
+    })
+  );
+
+  return Object.fromEntries(entries);
+}
+
+function buildTokenHistoryCacheKey(walletAddress: string, tokenId: string) {
+  return `${TOKEN_HISTORY_CACHE_PREFIX}:${normalizeAddressKey(walletAddress)}:${normalizeAddressKey(tokenId)}`;
+}
+
+async function readTokenHistoryCache(cacheKey: string): Promise<TokenHistoryPage | null> {
+  const now = Date.now();
+  const memory = tokenHistoryMemoryCache.get(cacheKey);
+
+  if (memory && now - memory.savedAt < TOKEN_HISTORY_CACHE_TTL_MS) {
+    return {
+      items: memory.items,
+      nextFingerprint: memory.nextFingerprint,
+      hasMore: memory.hasMore,
+    };
+  }
+
+  try {
+    const raw = await AsyncStorage.getItem(cacheKey);
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as TokenHistoryCachePayload;
+
+    if (!parsed || typeof parsed.savedAt !== 'number' || !Array.isArray(parsed.items)) {
+      return null;
+    }
+
+    if (now - parsed.savedAt >= TOKEN_HISTORY_CACHE_TTL_MS) {
+      await AsyncStorage.removeItem(cacheKey);
+      return null;
+    }
+
+    tokenHistoryMemoryCache.set(cacheKey, parsed);
+
+    return {
+      items: parsed.items,
+      nextFingerprint: parsed.nextFingerprint,
+      hasMore: Boolean(parsed.hasMore),
+    };
+  } catch (error) {
+    console.error('Failed to read token history cache:', error);
+    return null;
+  }
+}
+
+async function writeTokenHistoryCache(cacheKey: string, page: TokenHistoryPage): Promise<void> {
+  const payload: TokenHistoryCachePayload = {
+    savedAt: Date.now(),
+    items: page.items,
+    nextFingerprint: page.nextFingerprint,
+    hasMore: page.hasMore,
+  };
+
+  tokenHistoryMemoryCache.set(cacheKey, payload);
+
+  try {
+    await AsyncStorage.setItem(cacheKey, JSON.stringify(payload));
+  } catch (error) {
+    console.error('Failed to write token history cache:', error);
+  }
+}
+
+export async function clearTokenHistoryCache(
+  walletAddress: string,
+  tokenId: string
+): Promise<void> {
+  const cacheKey = buildTokenHistoryCacheKey(walletAddress, tokenId);
+  tokenHistoryMemoryCache.delete(cacheKey);
+
+  try {
+    await AsyncStorage.removeItem(cacheKey);
+  } catch (error) {
+    console.error('Failed to clear token history cache:', error);
+  }
+}
+
+async function fetchWithProviderKeyPool<T>(
+  provider: ProviderName,
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<T> {
+  assertTronConfig();
+
+  const keys = getProviderApiKeys(provider);
+  const baseUrl = getProviderBaseUrl(provider);
+  const state = providerKeyState[provider];
+
+  if (!keys.length) {
+    throw new Error(`No API keys configured for ${provider}`);
+  }
+
+  if (state.cooldownUntil.length !== keys.length) {
+    state.cooldownUntil = new Array(keys.length).fill(0);
+  }
+
+  const now = Date.now();
+  const orderedIndexes = Array.from({ length: keys.length }, (_, offset) => {
+    return (state.nextIndex + offset) % keys.length;
+  });
+
+  const availableIndexes = orderedIndexes.filter((index) => state.cooldownUntil[index] <= now);
+  const fallbackIndexes = availableIndexes.length > 0 ? availableIndexes : orderedIndexes;
+
+  let lastError: Error | null = null;
+
+  for (const index of fallbackIndexes) {
+    const apiKey = keys[index];
+    const url = buildUrl(baseUrl, path, params);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'TRON-PRO-API-KEY': apiKey,
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        const text = await response.text();
+
+        if (response.status === 429) {
+          state.cooldownUntil[index] = Date.now() + parseRetryDelayMsFromText(text);
+        }
+
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
+
+      state.nextIndex = (index + 1) % keys.length;
+      state.cooldownUntil[index] = 0;
+
+      return (await response.json()) as T;
+    } catch (error) {
+      clearTimeout(timeout);
+
+      lastError =
+        error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'Unknown request error');
+
+      if (String(lastError.message).toLowerCase().includes('aborted')) {
+        state.cooldownUntil[index] = Date.now() + 5_000;
+      }
+
+      console.warn(`[${provider}] request failed with key #${index + 1}:`, lastError.message);
+    }
+  }
+
+  throw lastError || new Error(`All ${provider} keys failed`);
+}
+
+export async function tronscanFetch<T>(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<T> {
+  return fetchWithProviderKeyPool<T>('tronscan', path, params);
+}
+
+export async function trongridFetch<T>(
+  path: string,
+  params?: Record<string, string | number | boolean | undefined>
+): Promise<T> {
+  return fetchWithProviderKeyPool<T>('trongrid', path, params);
+}
+
+async function cmcFetch<T>(
+  path: string,
+  params?: Record<string, string | number | undefined>
+): Promise<T> {
+  if (!CMC_API_KEY) {
+    throw new Error('Missing EXPO_PUBLIC_CMC_API_KEY');
+  }
+
+  const activeCooldownUntil = getSafeCmcCooldownUntil();
+  if (activeCooldownUntil) {
+    throw new Error(`HTTP 429: CMC cooldown active until ${activeCooldownUntil}`);
+  }
+
+  const url = buildUrl(CMC_BASE_URL, path, params);
+
+  const response = await fetch(url, {
+    headers: {
+      'X-CMC_PRO_API_KEY': CMC_API_KEY,
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+
+    if (response.status === 429) {
+      cmcCooldownUntil = Date.now() + CMC_KEY_COOLDOWN_MS;
+    }
+
+    throw new Error(`HTTP ${response.status}: ${text}`);
+  }
+
+  cmcCooldownUntil = 0;
+  return response.json() as Promise<T>;
+}
+
+async function cmcDataApiFetch<T>(
+  path: string,
+  params?: Record<string, string | number | undefined>
+): Promise<T> {
+  const url = buildUrl(CMC_DATA_API_BASE_URL, path, params);
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`HTTP ${response.status}: ${text}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function cmcDapiFetch<T>(
+  path: string,
+  params?: Record<string, string | number | undefined>
+): Promise<T> {
+  const url = buildUrl(CMC_DAPI_BASE_URL, path, params);
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`HTTP ${response.status}: ${text}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 async function getTrxMarketMeta(): Promise<MarketMeta> {
   try {
     const payload = await cmcDataApiFetch<CmcDetailLiteResponse>(
@@ -649,15 +1077,11 @@ async function getTrxMarketMeta(): Promise<MarketMeta> {
   try {
     const detailLite = await cmcDataApiFetch<CmcDetailLiteResponse>(
       '/data-api/v3/cryptocurrency/detail/lite',
-      {
-        id: TRX_CMC_ID,
-      }
+      { id: TRX_CMC_ID }
     );
 
     detailLitePrice = parseNumber(detailLite.data?.statistics?.price);
-    detailLiteChange24h = parseNumber(
-      detailLite.data?.statistics?.priceChangePercentage24h
-    );
+    detailLiteChange24h = parseNumber(detailLite.data?.statistics?.priceChangePercentage24h);
     detailLiteMcap = parseNumber(detailLite.data?.statistics?.marketCap);
   } catch {}
 
@@ -709,12 +1133,9 @@ async function getTrxMarketMeta(): Promise<MarketMeta> {
     };
   }
 
-  const fallback = await cmcFetch<CmcProQuoteResponse>(
-    '/v2/cryptocurrency/quotes/latest',
-    {
-      id: TRX_CMC_ID,
-    }
-  );
+  const fallback = await cmcFetch<CmcProQuoteResponse>('/v2/cryptocurrency/quotes/latest', {
+    id: TRX_CMC_ID,
+  });
 
   const data = fallback.data?.[String(TRX_CMC_ID)];
   const usd = data?.quote?.USD;
@@ -754,6 +1175,7 @@ async function getDexTokenMarketMeta(
   return {
     name: data?.n || fallback.name,
     symbol: data?.sym || fallback.symbol,
+    decimals: parseNumber(data?.dec),
     priceInUsd: parseNumber(data?.p),
     priceChange24h: buildPerformance(data?.sts)[3]?.changePercent,
     marketCap: parseNumber(data?.mcap),
@@ -768,77 +1190,169 @@ async function getDexTokenMarketMeta(
   };
 }
 
-async function getMarketIndex(): Promise<CachedMarketIndex> {
+async function getMarketIndex(
+  requestedContracts: string[] = [],
+  marketFallbacks: Record<string, TokenMetaFallback> = {}
+): Promise<CachedMarketIndex> {
   const now = Date.now();
+  const cacheIsFresh = Boolean(marketCache && marketCache.expiresAt > now);
 
-  if (marketCache && marketCache.expiresAt > now) {
+  const normalizedContracts = Array.from(
+    new Set(
+      requestedContracts
+        .map((value) => normalizeTokenId(value))
+        .filter((value) => value && value !== TRX_TOKEN_ID && value !== TRX_CONTRACT)
+    )
+  );
+
+  if (
+    cacheIsFresh &&
+    marketCache &&
+    normalizedContracts.every((tokenId) => tokenId in marketCache.byContract)
+  ) {
     return marketCache;
   }
 
-  const [trxMeta, usdtMeta, fourteenMeta] = await Promise.all([
-    getTrxMarketMeta().catch(
-      (): MarketMeta => ({
-        name: 'TRON',
-        symbol: TRX_SYMBOL,
-        logo: TRX_LOGO,
-        performance: [
-          { label: '5m', changePercent: undefined },
-          { label: '1h', changePercent: undefined },
-          { label: '4h', changePercent: undefined },
-          { label: '24h', changePercent: undefined },
-        ],
-        pools: [],
-      })
-    ),
-    getDexTokenMarketMeta(USDT_CONTRACT, {
-      name: 'Tether USDt',
-      symbol: USDT_SYMBOL,
-      logo: USDT_LOGO,
-    }).catch(
-      (): MarketMeta => ({
-        name: 'Tether USDt',
-        symbol: USDT_SYMBOL,
-        logo: USDT_LOGO,
-        performance: [
-          { label: '5m', changePercent: undefined },
-          { label: '1h', changePercent: undefined },
-          { label: '4h', changePercent: undefined },
-          { label: '24h', changePercent: undefined },
-        ],
-        pools: [],
-      })
-    ),
-    getDexTokenMarketMeta(FOURTEEN_CONTRACT, {
-      name: '4teen',
-      symbol: FOURTEEN_SYMBOL,
-      logo: FOURTEEN_LOGO,
-    }).catch(
-      (): MarketMeta => ({
-        name: '4teen',
-        symbol: FOURTEEN_SYMBOL,
-        logo: FOURTEEN_LOGO,
-        performance: [
-          { label: '5m', changePercent: undefined },
-          { label: '1h', changePercent: undefined },
-          { label: '4h', changePercent: undefined },
-          { label: '24h', changePercent: undefined },
-        ],
-        pools: [],
-      })
-    ),
-  ]);
+  if (marketIndexInflight) {
+    const inflightResult = await marketIndexInflight;
+    if (normalizedContracts.every((tokenId) => tokenId in inflightResult.byContract)) {
+      return inflightResult;
+    }
+  }
 
-  const next: CachedMarketIndex = {
-    expiresAt: now + 60_000,
-    trx: trxMeta,
-    byContract: {
-      [USDT_CONTRACT]: usdtMeta,
-      [FOURTEEN_CONTRACT]: fourteenMeta,
-    },
+  const run = async (): Promise<CachedMarketIndex> => {
+    const refreshedNow = Date.now();
+    const refreshedCacheIsFresh = Boolean(marketCache && marketCache.expiresAt > refreshedNow);
+
+    if (
+      refreshedCacheIsFresh &&
+      marketCache &&
+      normalizedContracts.every((tokenId) => tokenId in marketCache.byContract)
+    ) {
+      return marketCache;
+    }
+
+    const trxMeta =
+      refreshedCacheIsFresh && marketCache
+        ? marketCache.trx
+        : await getTrxMarketMeta().catch((error): MarketMeta => {
+            if (!isCmcInvalidKeyError(error) && !isCmcRateLimitError(error)) {
+              console.error('Failed to load TRX market meta:', error);
+            }
+
+            return {
+              name: 'TRON',
+              symbol: TRX_SYMBOL,
+              logo: TRX_LOGO,
+              performance: buildFallbackPerformance(),
+              pools: [],
+            };
+          });
+
+    const byContract: Record<string, MarketMeta> =
+      refreshedCacheIsFresh && marketCache ? { ...marketCache.byContract } : {};
+
+    if (!refreshedCacheIsFresh) {
+      const [usdtMeta, fourteenMeta] = await Promise.all([
+        getDexTokenMarketMeta(USDT_CONTRACT, {
+          name: 'Tether USDt',
+          symbol: USDT_SYMBOL,
+          logo: USDT_LOGO,
+        }).catch(
+          (): MarketMeta => ({
+            name: 'Tether USDt',
+            symbol: USDT_SYMBOL,
+            decimals: 6,
+            logo: USDT_LOGO,
+            performance: buildFallbackPerformance(),
+            pools: [],
+          })
+        ),
+        getDexTokenMarketMeta(FOURTEEN_CONTRACT, {
+          name: '4teen',
+          symbol: FOURTEEN_SYMBOL,
+          logo: FOURTEEN_LOGO,
+        }).catch(
+          (): MarketMeta => ({
+            name: '4teen',
+            symbol: FOURTEEN_SYMBOL,
+            decimals: 6,
+            logo: FOURTEEN_LOGO,
+            performance: buildFallbackPerformance(),
+            pools: [],
+          })
+        ),
+      ]);
+
+      byContract[USDT_CONTRACT] = usdtMeta;
+      byContract[FOURTEEN_CONTRACT] = fourteenMeta;
+    }
+
+    const missingContracts = normalizedContracts.filter((tokenId) => !(tokenId in byContract));
+
+    if (missingContracts.length > 0) {
+      const loaded = await Promise.all(
+        missingContracts.map(async (tokenId) => {
+          const known = getKnownTokenMeta(tokenId);
+          const fallback = mergeTokenMetaFallbacks(marketFallbacks[tokenId], {
+            name: known?.tokenName,
+            symbol: known?.tokenAbbr,
+            logo: known?.tokenLogo,
+            decimals: known?.tokenDecimal,
+          });
+
+          const fallbackMeta: MarketMeta = {
+            name: fallback.name || tokenId,
+            symbol: fallback.symbol || tokenId.slice(0, 6),
+            decimals: fallback.decimals,
+            logo: fallback.logo,
+            priceInUsd: fallback.priceInUsd,
+            priceChange24h: fallback.priceChange24h,
+            liquidityUsd: fallback.liquidityUsd,
+            performance: buildFallbackPerformance(fallback.priceChange24h),
+            pools: [],
+          };
+
+          try {
+            const dexMeta = await getDexTokenMarketMeta(tokenId, {
+              name: fallbackMeta.name || tokenId,
+              symbol: fallbackMeta.symbol || tokenId.slice(0, 6),
+              logo: fallbackMeta.logo,
+            });
+
+            return [tokenId, { ...fallbackMeta, ...dexMeta }] as const;
+          } catch (error) {
+            if (!isCmcInvalidKeyError(error) && !isCmcRateLimitError(error)) {
+              console.error('Failed to load CMC dex token meta:', tokenId, error);
+            }
+
+            return [tokenId, fallbackMeta] as const;
+          }
+        })
+      );
+
+      for (const [tokenId, meta] of loaded) {
+        byContract[tokenId] = meta;
+      }
+    }
+
+    const next: CachedMarketIndex = {
+      expiresAt: refreshedNow + MARKET_CACHE_TTL_MS,
+      trx: trxMeta,
+      byContract,
+    };
+
+    marketCache = next;
+    return next;
   };
 
-  marketCache = next;
-  return next;
+  marketIndexInflight = run();
+
+  try {
+    return await marketIndexInflight;
+  } finally {
+    marketIndexInflight = null;
+  }
 }
 
 async function getTrongridAccount(address: string): Promise<TrongridAccountItem | null> {
@@ -870,99 +1384,38 @@ function extractTrc20BalancesFromTrongrid(item: TrongridAccountItem | null): Raw
   return dedupeBalances(balances);
 }
 
-function buildTronscanTxUrl(txHash: string) {
-  return `https://tronscan.org/#/transaction/${txHash}`;
-}
+function buildTokenMetaFallbackMap(
+  rawBalances: RawTrc20Balance[],
+  tronscanIndex: Record<string, TronscanTokenItem>,
+  tokenOverviewMap: Record<string, TokenMetaFallback>
+): Record<string, TokenMetaFallback> {
+  return Object.fromEntries(
+    rawBalances.map((item) => {
+      const tokenId = item.tokenId;
+      const tronscanMeta = tronscanIndex[tokenId];
+      const knownMeta = getKnownTokenMeta(tokenId);
 
-function normalizeAddressKey(value?: string) {
-  return String(value || '').trim().toLowerCase();
-}
+      const merged = mergeTokenMetaFallbacks(
+        tokenOverviewMap[tokenId],
+        {
+          name: tronscanMeta?.tokenName,
+          symbol: tronscanMeta?.tokenAbbr,
+          logo: tronscanMeta?.tokenLogo,
+          decimals: parseNumber(tronscanMeta?.tokenDecimal),
+          priceInUsd: parseNumber(tronscanMeta?.priceInUsd) ?? parseNumber(tronscanMeta?.tokenPriceInUsd),
+          priceChange24h: parseNumber(tronscanMeta?.price_change_24h) ?? parseNumber(tronscanMeta?.priceChange24h),
+        },
+        {
+          name: knownMeta?.tokenName,
+          symbol: knownMeta?.tokenAbbr,
+          logo: knownMeta?.tokenLogo,
+          decimals: knownMeta?.tokenDecimal,
+        }
+      );
 
-function isSameAddress(left?: string, right?: string) {
-  const a = normalizeAddressKey(left);
-  const b = normalizeAddressKey(right);
-
-  return !!a && !!b && a === b;
-}
-
-function shortenAddress(value?: string) {
-  const address = String(value || '').trim();
-
-  if (!address) return 'Unknown address';
-  if (address.length < 12) return address;
-
-  return `${address.slice(0, 6)}...${address.slice(-6)}`;
-}
-
-function buildTokenHistoryCacheKey(walletAddress: string, tokenId: string) {
-  return `${TOKEN_HISTORY_CACHE_PREFIX}:${normalizeAddressKey(walletAddress)}:${normalizeAddressKey(tokenId)}`;
-}
-
-async function readTokenHistoryCache(cacheKey: string): Promise<TokenHistoryPage | null> {
-  const now = Date.now();
-  const memory = tokenHistoryMemoryCache.get(cacheKey);
-
-  if (memory && now - memory.savedAt < TOKEN_HISTORY_CACHE_TTL_MS) {
-    return {
-      items: memory.items,
-      nextFingerprint: memory.nextFingerprint,
-      hasMore: memory.hasMore,
-    };
-  }
-
-  try {
-    const raw = await AsyncStorage.getItem(cacheKey);
-
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw) as TokenHistoryCachePayload;
-
-    if (
-      !parsed ||
-      typeof parsed.savedAt !== 'number' ||
-      !Array.isArray(parsed.items)
-    ) {
-      return null;
-    }
-
-    if (now - parsed.savedAt >= TOKEN_HISTORY_CACHE_TTL_MS) {
-      await AsyncStorage.removeItem(cacheKey);
-      return null;
-    }
-
-    tokenHistoryMemoryCache.set(cacheKey, parsed);
-
-    return {
-      items: parsed.items,
-      nextFingerprint: parsed.nextFingerprint,
-      hasMore: Boolean(parsed.hasMore),
-    };
-  } catch (error) {
-    console.error('Failed to read token history cache:', error);
-    return null;
-  }
-}
-
-async function writeTokenHistoryCache(
-  cacheKey: string,
-  page: TokenHistoryPage
-): Promise<void> {
-  const payload: TokenHistoryCachePayload = {
-    savedAt: Date.now(),
-    items: page.items,
-    nextFingerprint: page.nextFingerprint,
-    hasMore: page.hasMore,
-  };
-
-  tokenHistoryMemoryCache.set(cacheKey, payload);
-
-  try {
-    await AsyncStorage.setItem(cacheKey, JSON.stringify(payload));
-  } catch (error) {
-    console.error('Failed to write token history cache:', error);
-  }
+      return [tokenId, merged];
+    })
+  );
 }
 
 function getCounterpartyAddress(
@@ -990,17 +1443,23 @@ function getCounterpartyAddress(
   return toAddress || fromAddress;
 }
 
-function normalizeTrc20HistoryType(
+function normalizeHistoryType(
   walletAddress: string,
   fromAddress?: string,
   toAddress?: string
 ): 'IN' | 'OUT' | 'SELF' {
-  const wallet = String(walletAddress || '').trim();
-  const from = String(fromAddress || '').trim();
-  const to = String(toAddress || '').trim();
+  if (isSameAddress(fromAddress, walletAddress) && isSameAddress(toAddress, walletAddress)) {
+    return 'SELF';
+  }
 
-  if (from === wallet && to === wallet) return 'SELF';
-  if (to === wallet) return 'IN';
+  if (isSameAddress(toAddress, walletAddress)) {
+    return 'IN';
+  }
+
+  if (isSameAddress(fromAddress, walletAddress)) {
+    return 'OUT';
+  }
+
   return 'OUT';
 }
 
@@ -1023,72 +1482,77 @@ function isTokenHistoryItem(item: TokenHistoryItem | null): item is TokenHistory
   return item !== null;
 }
 
+function dedupeHistoryItems(items: TokenHistoryItem[]) {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    const key = `${item.txHash}:${item.displayType}:${item.amountRaw}`;
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
 function buildTrc20TransferHistoryItems(
   walletAddress: string,
   decimals: number,
   rows: TronscanTrc20TransferItem[],
   addressBook: Record<string, string>
 ): TokenHistoryItem[] {
-  const dedupe = new Set<string>();
+  return dedupeHistoryItems(
+    rows
+      .map((item, index): TokenHistoryItem | null => {
+        const txHash = String(item.transaction_id || `tx-${index}`);
+        const amountRaw = String(item.quant ?? '0');
+        const fromAddress = String(item.from_address || '').trim();
+        const toAddress = String(item.to_address || '').trim();
+        const walletKey = normalizeAddressKey(walletAddress);
 
-  return rows
-    .map((item, index): TokenHistoryItem | null => {
-      const txHash = String(item.transaction_id || `tx-${index}`);
-      const amountRaw = String(item.quant ?? '0');
-      const fromAddress = String(item.from_address || '').trim();
-      const toAddress = String(item.to_address || '').trim();
-      const walletKey = normalizeAddressKey(walletAddress);
+        if (
+          normalizeAddressKey(fromAddress) !== walletKey &&
+          normalizeAddressKey(toAddress) !== walletKey
+        ) {
+          return null;
+        }
 
-      if (
-        normalizeAddressKey(fromAddress) !== walletKey &&
-        normalizeAddressKey(toAddress) !== walletKey
-      ) {
-        return null;
-      }
+        const baseType = normalizeHistoryType(walletAddress, fromAddress, toAddress);
 
-      const baseType = normalizeTrc20HistoryType(walletAddress, fromAddress, toAddress);
+        if (baseType === 'SELF') {
+          return null;
+        }
 
-      if (baseType === 'SELF') {
-        return null;
-      }
+        const displayType: TokenHistoryDisplayType = baseType === 'IN' ? 'RECEIVE' : 'SEND';
+        const counterpartyAddress = getCounterpartyAddress(
+          walletAddress,
+          baseType,
+          fromAddress,
+          toAddress
+        );
+        const counterpartyKey = normalizeAddressKey(counterpartyAddress);
+        const contactName = counterpartyKey ? addressBook[counterpartyKey] : undefined;
 
-      const displayType: TokenHistoryDisplayType = baseType === 'IN' ? 'RECEIVE' : 'SEND';
-      const counterpartyAddress = getCounterpartyAddress(
-        walletAddress,
-        baseType,
-        item.from_address,
-        item.to_address
-      );
-      const counterpartyKey = normalizeAddressKey(counterpartyAddress);
-      const contactName = counterpartyKey ? addressBook[counterpartyKey] : undefined;
-
-      return {
-        id: txHash,
-        txHash,
-        type: baseType,
-        displayType,
-        amountRaw,
-        amountFormatted: formatHistoryAmount(amountRaw, decimals, displayType),
-        timestamp: Number(item.block_ts || 0),
-        from: item.from_address,
-        to: item.to_address,
-        counterpartyAddress,
-        counterpartyLabel: contactName || shortenAddress(counterpartyAddress),
-        isKnownContact: Boolean(contactName),
-        tronscanUrl: buildTronscanTxUrl(txHash),
-      } satisfies TokenHistoryItem;
-    })
-    .filter(isTokenHistoryItem)
-    .filter((item) => {
-      const key = `${item.txHash}:${item.displayType}:${item.amountRaw}`;
-
-      if (dedupe.has(key)) {
-        return false;
-      }
-
-      dedupe.add(key);
-      return true;
-    });
+        return {
+          id: txHash,
+          txHash,
+          type: baseType,
+          displayType,
+          amountRaw,
+          amountFormatted: formatHistoryAmount(amountRaw, decimals, displayType),
+          timestamp: Number(item.block_ts || 0),
+          from: fromAddress,
+          to: toAddress,
+          counterpartyAddress,
+          counterpartyLabel: contactName || shortenAddress(counterpartyAddress),
+          isKnownContact: Boolean(contactName),
+          tronscanUrl: buildTronscanTxUrl(txHash),
+        };
+      })
+      .filter(isTokenHistoryItem)
+  );
 }
 
 function buildTrxTransferHistoryItems(
@@ -1096,68 +1560,71 @@ function buildTrxTransferHistoryItems(
   rows: TronscanTransferItem[],
   addressBook: Record<string, string>
 ): TokenHistoryItem[] {
-  const dedupe = new Set<string>();
+  return dedupeHistoryItems(
+    rows
+      .map((item, index): TokenHistoryItem | null => {
+        const tokenAbbr = String(item.tokenInfo?.tokenAbbr || '').trim().toLowerCase();
+        const tokenName = String(item.tokenInfo?.tokenName || '').trim().toLowerCase();
+        const tokenId = String(item.tokenInfo?.tokenId || '').trim();
+        const decimals = Number(item.tokenInfo?.tokenDecimal ?? 6) || 6;
 
-  return rows
-    .map((item, index): TokenHistoryItem | null => {
-      const tokenAbbr = String(item.tokenInfo?.tokenAbbr || '').trim().toLowerCase();
-      const tokenName = String(item.tokenInfo?.tokenName || '').trim().toLowerCase();
-      const tokenId = String(item.tokenInfo?.tokenId || '').trim();
-      const decimals = Number(item.tokenInfo?.tokenDecimal ?? 6) || 6;
+        if (!(tokenAbbr === 'trx' || tokenName === 'trx' || tokenId === '_')) {
+          return null;
+        }
 
-      if (!(tokenAbbr === 'trx' || tokenName === 'trx' || tokenId === '_')) {
-        return null;
-      }
+        const txHash = String(item.transactionHash || `trx-${index}`);
+        const amountRaw = String(item.amount ?? '0');
+        const fromAddress = String(item.transferFromAddress || '').trim();
+        const toAddress = String(item.transferToAddress || '').trim();
+        const baseType = normalizeHistoryType(walletAddress, fromAddress, toAddress);
 
-      const txHash = String(item.transactionHash || `trx-${index}`);
-      const amountRaw = String(item.amount ?? '0');
-      const baseType = normalizeTrc20HistoryType(
-        walletAddress,
-        item.transferFromAddress,
-        item.transferToAddress
-      );
+        if (baseType === 'SELF') {
+          return null;
+        }
 
-      if (baseType === 'SELF') {
-        return null;
-      }
+        const displayType: TokenHistoryDisplayType = baseType === 'IN' ? 'RECEIVE' : 'SEND';
+        const counterpartyAddress = getCounterpartyAddress(
+          walletAddress,
+          baseType,
+          fromAddress,
+          toAddress
+        );
+        const counterpartyKey = normalizeAddressKey(counterpartyAddress);
+        const contactName = counterpartyKey ? addressBook[counterpartyKey] : undefined;
 
-      const displayType: TokenHistoryDisplayType = baseType === 'IN' ? 'RECEIVE' : 'SEND';
-      const counterpartyAddress = getCounterpartyAddress(
-        walletAddress,
-        baseType,
-        item.transferFromAddress,
-        item.transferToAddress
-      );
-      const counterpartyKey = normalizeAddressKey(counterpartyAddress);
-      const contactName = counterpartyKey ? addressBook[counterpartyKey] : undefined;
+        return {
+          id: txHash,
+          txHash,
+          type: baseType,
+          displayType,
+          amountRaw,
+          amountFormatted: formatHistoryAmount(amountRaw, decimals, displayType),
+          timestamp: Number(item.timestamp || 0),
+          from: fromAddress,
+          to: toAddress,
+          counterpartyAddress,
+          counterpartyLabel: contactName || shortenAddress(counterpartyAddress),
+          isKnownContact: Boolean(contactName),
+          tronscanUrl: buildTronscanTxUrl(txHash),
+        };
+      })
+      .filter(isTokenHistoryItem)
+  );
+}
 
-      return {
-        id: txHash,
-        txHash,
-        type: baseType,
-        displayType,
-        amountRaw,
-        amountFormatted: formatHistoryAmount(amountRaw, decimals, displayType),
-        timestamp: Number(item.timestamp || 0),
-        from: item.transferFromAddress,
-        to: item.transferToAddress,
-        counterpartyAddress,
-        counterpartyLabel: contactName || shortenAddress(counterpartyAddress),
-        isKnownContact: Boolean(contactName),
-        tronscanUrl: buildTronscanTxUrl(txHash),
-      } satisfies TokenHistoryItem;
-    })
-    .filter(isTokenHistoryItem)
-    .filter((item) => {
-      const key = `${item.txHash}:${item.displayType}:${item.amountRaw}`;
+function resolveHasMore(params: {
+  total?: number;
+  start: number;
+  rowsLength: number;
+  limit: number;
+}) {
+  const { total, start, rowsLength, limit } = params;
 
-      if (dedupe.has(key)) {
-        return false;
-      }
+  if (typeof total === 'number') {
+    return start + rowsLength < total;
+  }
 
-      dedupe.add(key);
-      return true;
-    });
+  return rowsLength >= limit;
 }
 
 export async function getTokenHistoryPage(
@@ -1175,7 +1642,7 @@ export async function getTokenHistoryPage(
     if (tokenId === TRX_TOKEN_ID) {
       const response = await tronscanFetch<TronscanTransferResponse>('/transfer', {
         sort: '-timestamp',
-        count: 'true',
+        count: true,
         limit,
         start,
         address: walletAddress,
@@ -1183,10 +1650,16 @@ export async function getTokenHistoryPage(
         filterTokenValue: 1,
       });
 
-      const items = buildTrxTransferHistoryItems(walletAddress, response.data ?? [], addressBook);
-      const total = parseNumber(response.rangeTotal) ?? parseNumber(response.total) ?? items.length;
+      const rows = response.data ?? [];
+      const items = buildTrxTransferHistoryItems(walletAddress, rows, addressBook);
+      const total = parsePositiveCount(response.rangeTotal) ?? parsePositiveCount(response.total);
       const nextStart = start + limit;
-      const hasMore = total > nextStart;
+      const hasMore = resolveHasMore({
+        total,
+        start,
+        rowsLength: rows.length,
+        limit,
+      });
 
       return {
         items,
@@ -1195,29 +1668,27 @@ export async function getTokenHistoryPage(
       };
     }
 
-    const response = await tronscanFetch<TronscanTrc20TransferWithStatusResponse>(
-      '/token_trc20/transfers-with-status',
+    const response = await tronscanFetch<TronscanTrc20TransferResponse>(
+      '/token_trc20/transfers',
       {
-        limit,
+        relatedAddress: walletAddress,
+        contract_address: tokenId,
         start,
-        trc20Id: tokenId,
-        address: walletAddress,
-        direction: 0,
-        db_version: 0,
-        reverse: 'true',
+        limit,
+        reverse: true,
       }
     );
 
-    const items = buildTrc20TransferHistoryItems(
-      walletAddress,
-      decimals,
-      response.data ?? [],
-      addressBook
-    );
-
-    const total = parseNumber(response.rangeTotal) ?? parseNumber(response.total) ?? items.length;
+    const rows = response.token_transfers ?? [];
+    const items = buildTrc20TransferHistoryItems(walletAddress, decimals, rows, addressBook);
+    const total = parsePositiveCount(response.rangeTotal) ?? parsePositiveCount(response.total);
     const nextStart = start + limit;
-    const hasMore = total > nextStart;
+    const hasMore = resolveHasMore({
+      total,
+      start,
+      rowsLength: rows.length,
+      limit,
+    });
 
     return {
       items,
@@ -1274,7 +1745,7 @@ export async function getAccountInfo(address: string): Promise<TronAccountInfo> 
 }
 
 export async function getAccountTrc20Assets(address: string): Promise<Trc20Asset[]> {
-  const [accountItem, tronscanData, marketIndex] = await Promise.all([
+  const [accountItem, tronscanData] = await Promise.all([
     getTrongridAccount(address),
     tronscanFetch<TronscanTokensResponse>('/account/tokens', {
       address,
@@ -1284,32 +1755,48 @@ export async function getAccountTrc20Assets(address: string): Promise<Trc20Asset
       sortType: 0,
       sortBy: 0,
     }).catch((): TronscanTokensResponse => ({})),
-    getMarketIndex(),
   ]);
 
   const rawBalances = extractTrc20BalancesFromTrongrid(accountItem);
   const tronscanIndex = indexTronscanTokens(extractTokenList(tronscanData));
+  const tokenOverviewMap = await getTronscanTokenOverviewMap(rawBalances.map((item) => item.tokenId));
+  const marketFallbacks = buildTokenMetaFallbackMap(rawBalances, tronscanIndex, tokenOverviewMap);
+
+  const marketIndex = await getMarketIndex(
+    rawBalances.map((item) => item.tokenId),
+    marketFallbacks
+  );
 
   return rawBalances.map((item) => {
     const tokenId = item.tokenId;
     const tronscanMeta = tronscanIndex[tokenId];
     const knownMeta = getKnownTokenMeta(tokenId);
+    const fallbackMeta = mergeTokenMetaFallbacks(
+      tokenOverviewMap[tokenId],
+      marketFallbacks[tokenId],
+      mergeTokenMetaFallbacks(
+        {
+          name: tronscanMeta?.tokenName,
+          symbol: tronscanMeta?.tokenAbbr,
+          logo: tronscanMeta?.tokenLogo,
+          decimals: parseNumber(tronscanMeta?.tokenDecimal),
+          priceInUsd: parseNumber(tronscanMeta?.priceInUsd) ?? parseNumber(tronscanMeta?.tokenPriceInUsd),
+          priceChange24h: parseNumber(tronscanMeta?.price_change_24h) ?? parseNumber(tronscanMeta?.priceChange24h),
+        },
+        {
+          name: knownMeta?.tokenName,
+          symbol: knownMeta?.tokenAbbr,
+          logo: knownMeta?.tokenLogo,
+          decimals: knownMeta?.tokenDecimal,
+        }
+      )
+    );
     const marketMeta = marketIndex.byContract[tokenId] ?? {};
 
-    const tokenDecimal =
-      Number(tronscanMeta?.tokenDecimal ?? knownMeta?.tokenDecimal ?? 0) || 0;
-
-    const tokenName =
-      tronscanMeta?.tokenName ?? marketMeta.name ?? knownMeta?.tokenName ?? tokenId;
-
-    const tokenAbbr =
-      tronscanMeta?.tokenAbbr ??
-      marketMeta.symbol ??
-      knownMeta?.tokenAbbr ??
-      tokenId.slice(0, 6);
-
-    const tokenLogo =
-      marketMeta.logo || tronscanMeta?.tokenLogo || knownMeta?.tokenLogo;
+    const tokenDecimal = Number(marketMeta.decimals ?? fallbackMeta.decimals ?? 0) || 0;
+    const tokenName = marketMeta.name ?? fallbackMeta.name ?? tokenId;
+    const tokenAbbr = marketMeta.symbol ?? fallbackMeta.symbol ?? tokenId.slice(0, 6);
+    const tokenLogo = marketMeta.logo || fallbackMeta.logo;
 
     const balanceFormatted = formatTokenBalance(item.balance, tokenDecimal);
     const balanceBase = Number(item.balance) / Math.pow(10, tokenDecimal || 0);
@@ -1318,17 +1805,23 @@ export async function getAccountTrc20Assets(address: string): Promise<Trc20Asset
       marketMeta.priceInUsd ??
       parseNumber(tronscanMeta?.priceInUsd) ??
       parseNumber(tronscanMeta?.tokenPriceInUsd) ??
+      fallbackMeta.priceInUsd ??
       0;
 
+    const marketValueInUsd = balanceBase * priceInUsd;
+
     const valueInUsd =
-      parseNumber(tronscanMeta?.amountInUsd) ??
-      parseNumber(tronscanMeta?.balanceInUsd) ??
-      balanceBase * priceInUsd;
+      typeof marketMeta.priceInUsd === 'number' || typeof fallbackMeta.priceInUsd === 'number'
+        ? marketValueInUsd
+        : parseNumber(tronscanMeta?.amountInUsd) ??
+          parseNumber(tronscanMeta?.balanceInUsd) ??
+          marketValueInUsd;
 
     const priceChange24h =
       marketMeta.priceChange24h ??
       parseNumber(tronscanMeta?.price_change_24h) ??
-      parseNumber(tronscanMeta?.priceChange24h);
+      parseNumber(tronscanMeta?.priceChange24h) ??
+      fallbackMeta.priceChange24h;
 
     return {
       tokenId,
@@ -1381,14 +1874,9 @@ export async function getTokenDetails(
   walletAddress: string,
   tokenId: string
 ): Promise<TokenDetails> {
-  const marketIndex = await getMarketIndex();
-
   if (tokenId === TRX_TOKEN_ID) {
-    const [account, trxPrice] = await Promise.all([
-      getAccountInfo(walletAddress),
-      getTrxPrice(),
-    ]);
-
+    const marketIndex = await getMarketIndex();
+    const [account, trxPrice] = await Promise.all([getAccountInfo(walletAddress), getTrxPrice()]);
     const historyPage = await getTokenHistory(walletAddress, tokenId, 6);
 
     return {
@@ -1410,12 +1898,7 @@ export async function getTokenDetails(
       liquidityUsd: marketIndex.trx.liquidityUsd,
       totalSupply: marketIndex.trx.totalSupply,
       performance:
-        marketIndex.trx.performance || [
-          { label: '5m', changePercent: undefined },
-          { label: '1h', changePercent: undefined },
-          { label: '4h', changePercent: undefined },
-          { label: '24h', changePercent: trxPrice.priceChange24h },
-        ],
+        marketIndex.trx.performance || buildFallbackPerformance(trxPrice.priceChange24h),
       pools: marketIndex.trx.pools || [],
       history: historyPage.items,
       historyNextFingerprint: historyPage.nextFingerprint,
@@ -1430,17 +1913,17 @@ export async function getTokenDetails(
     throw new Error('Token not found in wallet.');
   }
 
-  const marketMeta = marketIndex.byContract[tokenId] ?? {};
+  const marketMeta = marketCache?.byContract[tokenId] ?? {};
   const historyPage = await getTokenHistory(walletAddress, tokenId, asset.tokenDecimal);
 
   return {
     tokenId,
     walletAddress,
-    name: asset.tokenName || marketMeta.name || tokenId,
-    symbol: asset.tokenAbbr || marketMeta.symbol || tokenId.slice(0, 6),
+    name: marketMeta.name || asset.tokenName || tokenId,
+    symbol: marketMeta.symbol || asset.tokenAbbr || tokenId.slice(0, 6),
     address: asset.tokenId,
     decimals: asset.tokenDecimal,
-    logo: asset.tokenLogo || marketMeta.logo,
+    logo: marketMeta.logo || asset.tokenLogo,
     balanceRaw: asset.balance,
     balanceFormatted: asset.balanceFormatted,
     balanceValueUsd: asset.valueInUsd || 0,
@@ -1449,12 +1932,7 @@ export async function getTokenDetails(
     liquidityUsd: marketMeta.liquidityUsd,
     totalSupply: marketMeta.totalSupply,
     performance:
-      marketMeta.performance || [
-        { label: '5m', changePercent: undefined },
-        { label: '1h', changePercent: undefined },
-        { label: '4h', changePercent: undefined },
-        { label: '24h', changePercent: asset.priceChange24h },
-      ],
+      marketMeta.performance || buildFallbackPerformance(asset.priceChange24h),
     pools: marketMeta.pools || [],
     history: historyPage.items,
     historyNextFingerprint: historyPage.nextFingerprint,
