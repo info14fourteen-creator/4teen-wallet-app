@@ -16,7 +16,7 @@ import AppHeader, {
 } from '../src/ui/app-header';
 import MenuSheet from '../src/ui/menu-sheet';
 import SubmenuHeader from '../src/ui/submenu-header';
-import { colors, layout, radius, spacing } from '../src/theme/tokens';
+import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import {
@@ -28,7 +28,6 @@ import {
   getAllWalletPortfolios,
   type WalletPortfolioAggregate,
 } from '../src/services/wallet/portfolio';
-import { FOOTER_NAV_RESERVED_SPACE } from '../src/ui/footer-nav';
 
 import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
 import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
@@ -49,8 +48,7 @@ export default function SelectWalletScreen() {
   const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const contentBottomInset =
-    FOOTER_NAV_RESERVED_SPACE + Math.max(insets.bottom, 6) + spacing[4];
+  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
 
   const load = useCallback(async () => {
     try {
