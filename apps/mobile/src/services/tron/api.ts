@@ -29,7 +29,7 @@ export const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 export const FOURTEEN_CONTRACT = 'TMLXiCW2ZAkvjmn79ZXa4vdHX5BE3n9x4A';
 
 const TOKEN_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
-const TOKEN_HISTORY_CACHE_PREFIX = 'fourteen_token_history_cache_v9';
+const TOKEN_HISTORY_CACHE_PREFIX = 'fourteen_token_history_cache_v10';
 
 const KEY_COOLDOWN_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -80,6 +80,7 @@ type TokenMetaFallback = {
   priceInUsd?: number;
   priceChange24h?: number;
   liquidityUsd?: number;
+  totalSupply?: number;
 };
 
 let marketCache: CachedMarketIndex | null = null;
@@ -499,6 +500,7 @@ function mergeTokenMetaFallbacks(
     priceInUsd: primary?.priceInUsd ?? secondary?.priceInUsd ?? tertiary?.priceInUsd,
     priceChange24h: primary?.priceChange24h ?? secondary?.priceChange24h ?? tertiary?.priceChange24h,
     liquidityUsd: primary?.liquidityUsd ?? secondary?.liquidityUsd ?? tertiary?.liquidityUsd,
+    totalSupply: primary?.totalSupply ?? secondary?.totalSupply ?? tertiary?.totalSupply,
   };
 }
 
@@ -690,6 +692,7 @@ function buildTronscanTokenOverviewFallback(
       priceInUsd: parseNumber(item?.market_info?.priceInUsd),
       priceChange24h: parseNumber(item?.market_info?.gain),
       liquidityUsd: parseNumber(item?.market_info?.liquidity),
+      totalSupply: parseNumber(item?.total_supply_with_decimals) || parseNumber(item?.total_supply),
     },
     {
       name: knownMeta?.tokenName,
@@ -1309,6 +1312,7 @@ async function getMarketIndex(
             priceInUsd: fallback.priceInUsd,
             priceChange24h: fallback.priceChange24h,
             liquidityUsd: fallback.liquidityUsd,
+            totalSupply: fallback.totalSupply,
             performance: buildFallbackPerformance(fallback.priceChange24h),
             pools: [],
           };
@@ -1320,7 +1324,23 @@ async function getMarketIndex(
               logo: fallbackMeta.logo,
             });
 
-            return [tokenId, { ...fallbackMeta, ...dexMeta }] as const;
+            return [
+              tokenId,
+              {
+                name: dexMeta.name ?? fallbackMeta.name,
+                symbol: dexMeta.symbol ?? fallbackMeta.symbol,
+                decimals: dexMeta.decimals ?? fallbackMeta.decimals,
+                logo: dexMeta.logo ?? fallbackMeta.logo,
+                priceInUsd: dexMeta.priceInUsd ?? fallbackMeta.priceInUsd,
+                priceChange24h: dexMeta.priceChange24h ?? fallbackMeta.priceChange24h,
+                marketCap: dexMeta.marketCap ?? fallbackMeta.marketCap,
+                liquidityUsd: dexMeta.liquidityUsd ?? fallbackMeta.liquidityUsd,
+                totalSupply: dexMeta.totalSupply ?? fallbackMeta.totalSupply,
+                volume24h: dexMeta.volume24h ?? fallbackMeta.volume24h,
+                performance: dexMeta.performance ?? fallbackMeta.performance,
+                pools: dexMeta.pools ?? fallbackMeta.pools,
+              },
+            ] as const;
           } catch (error) {
             if (!isCmcInvalidKeyError(error) && !isCmcRateLimitError(error)) {
               console.error('Failed to load CMC dex token meta:', tokenId, error);
