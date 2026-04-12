@@ -26,6 +26,8 @@ import {
   normalizeMnemonicInput,
 } from '../src/services/wallet/import';
 
+const MAX_WALLET_NAME_LENGTH = 18;
+
 function buildWords(count: number) {
   return Array.from({ length: count }, () => '');
 }
@@ -36,6 +38,7 @@ export default function ImportSeedScreen() {
   const backTo = typeof params.backTo === 'string' ? params.backTo : '/import-wallet';
 
   const notice = useNotice();
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [wordCount, setWordCount] = useState<12 | 24>(12);
   const [words, setWords] = useState<string[]>(buildWords(12));
@@ -51,7 +54,11 @@ export default function ImportSeedScreen() {
   );
 
   const allFilled = filledCount === wordCount;
-  const canContinue = allFilled && walletName.trim().length > 0 && !submitting;
+  const canContinue =
+    allFilled &&
+    walletName.trim().length > 0 &&
+    walletName.trim().length <= MAX_WALLET_NAME_LENGTH &&
+    !submitting;
 
   const activeValue =
     activeIndex !== null && activeIndex >= 0 && activeIndex < words.length
@@ -60,121 +67,144 @@ export default function ImportSeedScreen() {
 
   const suggestions = useMemo(() => getMnemonicSuggestions(activeValue), [activeValue]);
 
-  const applySuggestion = useCallback((word: string) => {
-    if (activeIndex === null) return;
+  const focusIndex = useCallback((index: number | null) => {
+    if (index === null) return;
 
-    setWords((prev) => {
-      const next = [...prev];
-      next[activeIndex] = word;
-      return next;
+    requestAnimationFrame(() => {
+      inputRefs.current[index]?.focus();
     });
+  }, []);
 
-useEffect(() => {
-    if (activeIndex === null || suggestions.length === 0) {
+  const handleSwitch = useCallback(
+    (nextCount: 12 | 24) => {
+      if (nextCount === wordCount) return;
+
+      setWordCount(nextCount);
+      setWords(buildWords(nextCount));
+      setActiveIndex(null);
+      notice.hideNotice();
+    },
+    [notice, wordCount]
+  );
+
+  const spreadParsedWords = useCallback(
+    (parsed: string[], startIndex = 0) => {
+      if (parsed.length === 12 || parsed.length === 24) {
+        const count = parsed.length as 12 | 24;
+        const nextWords = buildWords(count).map((_, i) => parsed[i] ?? '');
+
+        setWordCount(count);
+        setWords(nextWords);
+        setActiveIndex(null);
+        notice.hideNotice();
+        return;
+      }
+
+      setWords((prev) => {
+        const next = [...prev];
+        let cursor = startIndex;
+
+        for (const part of parsed) {
+          if (cursor >= next.length) break;
+          next[cursor] = part;
+          cursor += 1;
+        }
+
+        const nextIndex = cursor < wordCount ? cursor : null;
+        setActiveIndex(nextIndex);
+        focusIndex(nextIndex);
+
+        return next;
+      });
+    },
+    [focusIndex, notice, wordCount]
+  );
+
+  const applySuggestion = useCallback(
+    (word: string) => {
+      if (activeIndex === null) return;
+
+      setWords((prev) => {
+        const next = [...prev];
+        next[activeIndex] = word;
+        return next;
+      });
+
+      const nextIndex = activeIndex + 1 < wordCount ? activeIndex + 1 : null;
+      setActiveIndex(nextIndex);
+
+      if (nextIndex === null) {
+        notice.hideNotice();
+        return;
+      }
+
+      focusIndex(nextIndex);
+    },
+    [activeIndex, focusIndex, notice, wordCount]
+  );
+
+  useEffect(() => {
+    if (activeIndex === null || suggestions.length === 0 || !activeValue) {
       notice.hideNotice();
       return;
     }
 
     notice.showAckNotice(
       `Word ${activeIndex + 1} suggestions`,
-      suggestions.map((word) => ({
+      suggestions.slice(0, 6).map((word) => ({
         label: word,
         onPress: () => applySuggestion(word),
       })),
       'neutral'
     );
-  }, [activeIndex, applySuggestion, notice, suggestions]);
 
-  const focusIndex = (index: number | null) => {
-    if (index === null) return;
-    requestAnimationFrame(() => {
-      inputRefs.current[index]?.focus();
-    });
-  };
-
-  const spreadParsedWords = (parsed: string[], startIndex = 0) => {
-    if (parsed.length === 12 || parsed.length === 24) {
-      const nextWords = buildWords(parsed.length as 12 | 24).map((_, i) => parsed[i] ?? '');
-      setWordCount(parsed.length as 12 | 24);
-      setWords(nextWords);
-      setActiveIndex(null);
+    return () => {
       notice.hideNotice();
-      return;
-    }
+    };
+  }, [activeIndex, activeValue, applySuggestion, notice, suggestions]);
 
-    const next = [...words];
-    let cursor = startIndex;
+  const updateWord = useCallback(
+    (index: number, value: string) => {
+      const raw = value.toLowerCase();
 
-    for (const part of parsed) {
-      if (cursor >= next.length) break;
-      next[cursor] = part;
-      cursor += 1;
-    }
+      if (raw.includes(' ') || /\d/.test(raw)) {
+        const parsed = normalizeMnemonicInput(raw);
 
-    setWords(next);
+        if (parsed.length > 1) {
+          spreadParsedWords(parsed, index);
+          return;
+        }
 
-    const nextIndex = cursor < wordCount ? cursor : null;
-    setActiveIndex(nextIndex);
-    focusIndex(nextIndex);
-  };
-
-  const handleSwitch = (nextCount: 12 | 24) => {
-    if (nextCount === wordCount) return;
-    setWordCount(nextCount);
-    setWords(buildWords(nextCount));
-    setActiveIndex(null);
-    notice.hideNotice();
-  };
-
-  const updateWord = (index: number, value: string) => {
-    const raw = value.toLowerCase();
-
-    if (raw.includes(' ') || /\d/.test(raw)) {
-      const parsed = normalizeMnemonicInput(raw);
-
-      if (parsed.length > 1) {
-        spreadParsedWords(parsed, index);
-        return;
+        if (parsed.length === 1) {
+          setWords((prev) => {
+            const next = [...prev];
+            next[index] = parsed[0];
+            return next;
+          });
+          return;
+        }
       }
 
-      if (parsed.length === 1) {
-        setWords((prev) => {
-          const next = [...prev];
-          next[index] = parsed[0];
-          return next;
-        });
-        return;
-      }
-    }
+      setWords((prev) => {
+        const next = [...prev];
+        next[index] = raw.trimStart();
+        return next;
+      });
+    },
+    [spreadParsedWords]
+  );
 
-    setWords((prev) => {
-      const next = [...prev];
-      next[index] = raw.trimStart();
-      return next;
-    });
-  };
-
-  
-    const nextIndex = activeIndex + 1 < wordCount ? activeIndex + 1 : null;
-    setActiveIndex(nextIndex);
-
-    if (nextIndex === null) {
-      notice.hideNotice();
-      return;
-    }
-
-    focusIndex(nextIndex);
-  }, [activeIndex, notice, wordCount]);
-
-  const handlePastePhrase = async () => {
+  const handlePastePhrase = useCallback(async () => {
     const text = await Clipboard.getStringAsync();
     if (!text) return;
 
     const parsed = normalizeMnemonicInput(text);
 
     if (parsed.length === 12 || parsed.length === 24) {
-      const nextWords = buildWords(parsed.length as 12 | 24).map((_, i) => parsed[i] ?? '');
-      setWordCount(parsed.length as 12 | 24);
+      const count = parsed.length as 12 | 24;
+      const nextWords = buildWords(count).map((_, i) => parsed[i] ?? '');
+
+      setWordCount(count);
       setWords(nextWords);
       setActiveIndex(null);
       notice.hideNotice();
@@ -184,14 +214,14 @@ useEffect(() => {
     if (parsed.length > 1) {
       spreadParsedWords(parsed, 0);
     }
-  };
+  }, [notice, spreadParsedWords]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     notice.hideNotice();
     router.replace(backTo as any);
-  };
+  }, [backTo, notice, router]);
 
-  const handleImport = async () => {
+  const handleImport = useCallback(async () => {
     if (!canContinue) return;
 
     try {
@@ -213,7 +243,7 @@ useEffect(() => {
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [canContinue, notice, router, walletName, words]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -261,7 +291,11 @@ useEffect(() => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity activeOpacity={0.9} style={styles.switchButton} onPress={handlePastePhrase}>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.switchButton}
+                onPress={() => void handlePastePhrase()}
+              >
                 <Text style={styles.switchTextActive}>Paste Phrase</Text>
               </TouchableOpacity>
             </View>
@@ -303,10 +337,11 @@ useEffect(() => {
             <Text style={ui.sectionEyebrow}>Wallet Name</Text>
             <TextInput
               value={walletName}
-              onChangeText={setWalletName}
+              onChangeText={(value) => setWalletName(value.slice(0, MAX_WALLET_NAME_LENGTH))}
               placeholder="My imported wallet"
               placeholderTextColor={colors.textDim}
               style={styles.nameInput}
+              maxLength={MAX_WALLET_NAME_LENGTH}
             />
           </View>
 
@@ -314,7 +349,7 @@ useEffect(() => {
             activeOpacity={0.9}
             style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]}
             disabled={!canContinue}
-            onPress={handleImport}
+            onPress={() => void handleImport()}
           >
             <Text style={[ui.buttonLabel, !canContinue && styles.primaryButtonTextDisabled]}>
               {submitting ? 'Importing...' : 'Import Wallet'}
@@ -333,24 +368,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
     paddingTop: APP_HEADER_TOP_PADDING,
   },
+
   headerSlot: {
     height: APP_HEADER_HEIGHT,
     justifyContent: 'center',
   },
+
   scroll: {
     flex: 1,
     backgroundColor: colors.bg,
   },
+
   content: {
     paddingTop: 14,
     paddingBottom: spacing[7],
   },
+
   title: {
     marginTop: 8,
     color: colors.white,
@@ -359,15 +399,18 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
     maxWidth: '96%',
   },
+
   titleAccent: {
     color: colors.accent,
     fontFamily: 'Sora_700Bold',
   },
+
   lead: {
     ...ui.lead,
     marginTop: 14,
     marginBottom: 22,
   },
+
   card: {
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
@@ -376,12 +419,14 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
+
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     width: '100%',
   },
+
   switchButton: {
     flex: 1,
     minHeight: 44,
@@ -393,9 +438,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   switchButtonActive: {
     backgroundColor: 'rgba(255,105,0,0.12)',
   },
+
   switchText: {
     color: colors.textSoft,
     fontSize: 13,
@@ -403,6 +450,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
     textAlign: 'center',
   },
+
   switchTextActive: {
     color: colors.accent,
     fontSize: 13,
@@ -410,6 +458,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
     textAlign: 'center',
   },
+
   helperText: {
     color: colors.textDim,
     fontSize: 12,
@@ -418,11 +467,13 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 14,
   },
+
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
   },
+
   wordCell: {
     width: '47%',
     minHeight: 56,
@@ -435,22 +486,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
   },
+
   wordCellActive: {
     borderColor: colors.lineStrong,
     backgroundColor: 'rgba(255,105,0,0.05)',
   },
+
   wordIndex: {
     color: colors.accent,
     fontSize: 11,
     lineHeight: 14,
     fontFamily: 'Sora_600SemiBold',
   },
+
   wordInput: {
     color: colors.white,
     fontSize: 14,
     lineHeight: 18,
     paddingVertical: 0,
   },
+
   nameInput: {
     minHeight: 52,
     borderRadius: radius.sm,
@@ -460,6 +515,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     color: colors.white,
   },
+
   primaryButton: {
     minHeight: layout.buttonHeight,
     borderRadius: radius.sm,
@@ -469,9 +525,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 6,
   },
+
   primaryButtonDisabled: {
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
+
   primaryButtonTextDisabled: {
     color: colors.textDim,
   },

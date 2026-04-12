@@ -14,91 +14,118 @@ import {
 import BioLoginIcon from '../assets/icons/ui/biologin_btn.svg';
 import BackspaceIcon from '../assets/icons/ui/backspace_btn.svg';
 
-const keypad = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'BIO', '0', 'DELETE'];
+const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'BIO', '0', 'DELETE'] as const;
 
 export default function UnlockScreen() {
   const router = useRouter();
+
   const [digits, setDigits] = useState('');
   const [error, setError] = useState('');
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [biometricsLabel, setBiometricsLabel] = useState('Biometrics');
+  const [submitting, setSubmitting] = useState(false);
 
   const full = useMemo(() => digits.length === 6, [digits]);
 
-  useEffect(() => {
-    void loadBiometricsState();
+  const loadBiometricsState = useCallback(async () => {
+    try {
+      const enabled = await getBiometricsEnabled();
+      setBiometricsEnabled(enabled);
+
+      const supported = await LocalAuthentication.supportedAuthenticationTypesAsync();
+
+      if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+        setBiometricsLabel('Face ID');
+        return;
+      }
+
+      if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+        setBiometricsLabel('Fingerprint');
+        return;
+      }
+
+      setBiometricsLabel('Biometrics');
+    } catch (error) {
+      console.error(error);
+      setBiometricsEnabled(false);
+      setBiometricsLabel('Biometrics');
+    }
   }, []);
 
-  const handlePasscodeSubmit = useCallback(async () => {
-    const ok = await verifyPasscode(digits);
+  useEffect(() => {
+    void loadBiometricsState();
+  }, [loadBiometricsState]);
 
-useEffect(() => {
+  const handlePasscodeSubmit = useCallback(async () => {
+    if (submitting || digits.length !== 6) return;
+
+    try {
+      setSubmitting(true);
+      const ok = await verifyPasscode(digits);
+
+      if (!ok) {
+        setError('Wrong passcode.');
+        setDigits('');
+        return;
+      }
+
+      router.replace('/home');
+    } catch (error) {
+      console.error(error);
+      setError('Failed to verify passcode.');
+      setDigits('');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [digits, router, submitting]);
+
+  useEffect(() => {
     if (full) {
       void handlePasscodeSubmit();
     }
   }, [full, handlePasscodeSubmit]);
 
-  const loadBiometricsState = async () => {
-    const enabled = await getBiometricsEnabled();
-    setBiometricsEnabled(enabled);
+  const handleBiometricUnlock = useCallback(async () => {
+    if (!biometricsEnabled || submitting) return;
 
-    const supported = await LocalAuthentication.supportedAuthenticationTypesAsync();
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Unlock Wallet',
+        fallbackLabel: 'Use Passcode',
+        cancelLabel: 'Cancel',
+      });
 
-    if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-      setBiometricsLabel('Face ID');
-      return;
+      if (!result.success) return;
+
+      router.replace('/home');
+    } catch (error) {
+      console.error(error);
     }
+  }, [biometricsEnabled, router, submitting]);
 
-    if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-      setBiometricsLabel('Fingerprint');
-      return;
-    }
+  const handleKeyPress = useCallback(
+    (key: (typeof KEYPAD)[number]) => {
+      if (submitting) return;
 
-    setBiometricsLabel('Biometrics');
-  };
+      setError('');
 
-  
-    if (!ok) {
-      setError('Wrong passcode.');
-      setDigits('');
-      return;
-    }
+      if (key === 'DELETE') {
+        setDigits((prev) => prev.slice(0, -1));
+        return;
+      }
 
-    router.replace('/home');
-  }, [digits, router]);
+      if (key === 'BIO') {
+        void handleBiometricUnlock();
+        return;
+      }
 
-  const handleBiometricUnlock = async () => {
-    if (!biometricsEnabled) return;
-
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Unlock Wallet',
-      fallbackLabel: 'Use Passcode',
-      cancelLabel: 'Cancel',
-    });
-
-    if (!result.success) return;
-
-    router.replace('/home');
-  };
-
-  const handleKeyPress = (key: string) => {
-    setError('');
-
-    if (key === 'DELETE') {
-      setDigits((prev) => prev.slice(0, -1));
-      return;
-    }
-
-    if (key === 'BIO') {
-      void handleBiometricUnlock();
-      return;
-    }
-
-    setDigits((prev) => {
-      if (prev.length >= 6) return prev;
-      return `${prev}${key}`;
-    });
-  };
+      setDigits((prev) => {
+        if (prev.length >= 6) return prev;
+        return `${prev}${key}`;
+      });
+    },
+    [handleBiometricUnlock, submitting]
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -130,16 +157,17 @@ useEffect(() => {
           </View>
 
           <View style={styles.keypad}>
-            {keypad.map((key, index) => {
+            {KEYPAD.map((key, index) => {
               const disabledBio = key === 'BIO' && !biometricsEnabled;
+              const disabled = disabledBio || submitting;
 
               return (
                 <TouchableOpacity
                   key={`${key}-${index}`}
                   activeOpacity={0.9}
-                  style={[styles.key, disabledBio && styles.keyDisabled]}
+                  style={[styles.key, disabled && styles.keyDisabled]}
                   onPress={() => handleKeyPress(key)}
-                  disabled={disabledBio}
+                  disabled={disabled}
                 >
                   {key === 'BIO' ? (
                     <BioLoginIcon width={22} height={22} />
