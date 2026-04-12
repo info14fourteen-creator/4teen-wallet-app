@@ -20,11 +20,10 @@ import AppHeader, {
 } from '../src/ui/app-header';
 import MenuSheet from '../src/ui/menu-sheet';
 import SubmenuHeader from '../src/ui/submenu-header';
-import { colors, layout, radius, spacing } from '../src/theme/tokens';
+import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import { getActiveWallet } from '../src/services/wallet/storage';
-import { FOOTER_NAV_RESERVED_SPACE } from '../src/ui/footer-nav';
 import {
   clearTokenHistoryCache,
   getTokenDetails,
@@ -156,8 +155,7 @@ export default function TokenDetailsScreen() {
   const [details, setDetails] = useState<TokenDetails | null>(null);
   const [errorText, setErrorText] = useState('');
 
-  const contentBottomInset =
-    FOOTER_NAV_RESERVED_SPACE + Math.max(insets.bottom, 6) + spacing[4];
+  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
 
   const tokenId =
     typeof params.tokenId === 'string'
@@ -546,7 +544,7 @@ export default function TokenDetailsScreen() {
                   </View>
                 )}
 
-                {details.history.length > 0 && details.historyHasMore ? (
+                {details.history.length >= 10 && details.historyHasMore ? (
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.loadMoreButton}
@@ -916,6 +914,7 @@ const styles = StyleSheet.create({
 
   historyBlock: {
     gap: 12,
+    paddingBottom: 20,
   },
 
   historyList: {

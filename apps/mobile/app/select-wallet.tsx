@@ -222,6 +222,7 @@ const styles = StyleSheet.create({
 
   scroll: {
     flex: 1,
+    backgroundColor: colors.bg,
   },
 
   content: {
@@ -366,5 +367,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 16,
+    marginBottom: 20,
   },
 });

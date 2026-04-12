@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,7 +10,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import * as SecureStore from 'expo-secure-store';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import AppHeader, {
@@ -20,9 +19,14 @@ import AppHeader, {
 } from '../src/ui/app-header';
 import MenuSheet from '../src/ui/menu-sheet';
 import SubmenuHeader from '../src/ui/submenu-header';
-import ExpandChevron from '../src/ui/expand-chevron';
-import { colors, layout, radius, spacing } from '../src/theme/tokens';
+import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
+import { useNotice } from '../src/notice/notice-provider';
+
+import AddContactIcon from '../assets/icons/ui/add_contact_btn.svg';
+import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
+import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
+import RemoveContactIcon from '../assets/icons/ui/remove_contact_btn.svg';
 
 type ContactItem = {
   id: string;
@@ -31,6 +35,9 @@ type ContactItem = {
 };
 
 const STORAGE_KEY = 'fourteen_wallet_address_book_v3';
+const MAX_CONTACT_NAME_LENGTH = 18;
+const REMOVE_HOLD_MS = 7000;
+const REMOVE_DISPLAY_MAX = 114;
 
 const defaultContacts: ContactItem[] = [];
 
@@ -40,17 +47,42 @@ function isValidTronAddress(value: string) {
 
 export default function AddressBookScreen() {
   const router = useRouter();
+  const notice = useNotice();
+  const insets = useSafeAreaInsets();
+  const contentBottomInset = 62 + Math.max(insets.bottom, 6);
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [listOpen, setListOpen] = useState(true);
 
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [contacts, setContacts] = useState<ContactItem[]>(defaultContacts);
   const [loaded, setLoaded] = useState(false);
 
+  const [removalContactId, setRemovalContactId] = useState<string | null>(null);
+  const [removalProgress, setRemovalProgress] = useState(0);
+
+  const removalStartedAtRef = useRef<number | null>(null);
+  const removalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const removalCompletedRef = useRef(false);
+
   const addressValid = useMemo(() => isValidTronAddress(address), [address]);
   const canSave = name.trim().length > 0 && addressValid;
+
+  const clearRemovalTimer = useCallback(() => {
+    if (removalTimerRef.current) {
+      clearInterval(removalTimerRef.current);
+      removalTimerRef.current = null;
+    }
+  }, []);
+
+  const resetRemovalState = useCallback(() => {
+    clearRemovalTimer();
+    removalStartedAtRef.current = null;
+    removalCompletedRef.current = false;
+    setRemovalContactId(null);
+    setRemovalProgress(0);
+  }, [clearRemovalTimer]);
 
   useEffect(() => {
     void loadContacts();
@@ -60,6 +92,12 @@ export default function AddressBookScreen() {
     if (!loaded) return;
     void persistContacts(contacts);
   }, [contacts, loaded]);
+
+  useEffect(() => {
+    return () => {
+      clearRemovalTimer();
+    };
+  }, [clearRemovalTimer]);
 
   const loadContacts = async () => {
     try {
@@ -80,6 +118,7 @@ export default function AddressBookScreen() {
     } catch (error) {
       console.error('Failed to load address book', error);
       setContacts(defaultContacts);
+      notice.showErrorNotice('Failed to load address book.', 2600);
     } finally {
       setLoaded(true);
     }
@@ -90,6 +129,7 @@ export default function AddressBookScreen() {
       await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(nextContacts));
     } catch (error) {
       console.error('Failed to save address book', error);
+      notice.showErrorNotice('Failed to save address book.', 2600);
     }
   };
 
@@ -100,17 +140,33 @@ export default function AddressBookScreen() {
     }
   };
 
-  const handleSave = () => {
+  const handleCopy = useCallback(
+    async (value: string) => {
+      await Clipboard.setStringAsync(value);
+      notice.showSuccessNotice('Address copied.', 2200);
+    },
+    [notice]
+  );
+
+  const handleSave = useCallback(() => {
     const trimmedName = name.trim();
     const trimmedAddress = address.trim();
 
     if (!trimmedName) {
-      Alert.alert('Name required', 'Enter a contact name first.');
+      notice.showErrorNotice('Enter a contact name first.', 2200);
+      return;
+    }
+
+    if (trimmedName.length > MAX_CONTACT_NAME_LENGTH) {
+      notice.showErrorNotice(
+        `Contact name must be ${MAX_CONTACT_NAME_LENGTH} characters or less.`,
+        2600
+      );
       return;
     }
 
     if (!isValidTronAddress(trimmedAddress)) {
-      Alert.alert('Invalid address', 'Enter a valid TRON address.');
+      notice.showErrorNotice('Enter a valid TRON address.', 2200);
       return;
     }
 
@@ -119,7 +175,7 @@ export default function AddressBookScreen() {
     );
 
     if (exists) {
-      Alert.alert('Duplicate contact', 'This TRON address is already saved.');
+      notice.showErrorNotice('This TRON address is already saved.', 2400);
       return;
     }
 
@@ -132,23 +188,72 @@ export default function AddressBookScreen() {
     setContacts((prev) => [next, ...prev]);
     setName('');
     setAddress('');
-    setListOpen(true);
     setAddOpen(false);
-  };
+    notice.showSuccessNotice('Contact saved.', 2200);
+  }, [address, contacts, name, notice]);
 
-  const handleCopy = async (value: string) => {
-    await Clipboard.setStringAsync(value);
-    Alert.alert('Copied', 'Address copied to clipboard.');
-  };
+  const handleDeleteConfirmed = useCallback(
+    (id: string) => {
+      setContacts((prev) => prev.filter((item) => item.id !== id));
+      resetRemovalState();
+      notice.showSuccessNotice('Contact removed.', 2200);
+    },
+    [notice, resetRemovalState]
+  );
 
-  const handleDelete = (id: string) => {
-    const next = contacts.filter((item) => item.id !== id);
-    setContacts(next.length > 0 ? next : []);
-  };
+  const handleDeletePress = useCallback(() => {
+    notice.showNeutralNotice('To delete, press and hold.', 2200);
+  }, [notice]);
 
-  const handleSend = (contact: ContactItem) => {
-    Alert.alert('Send Crypto', `Send flow for ${contact.name} will be connected next.`);
-  };
+  const handleDeletePressIn = useCallback(
+    (contactId: string) => {
+      clearRemovalTimer();
+      removalCompletedRef.current = false;
+      removalStartedAtRef.current = Date.now();
+      setRemovalContactId(contactId);
+      setRemovalProgress(0);
+
+      removalTimerRef.current = setInterval(() => {
+        const startedAt = removalStartedAtRef.current;
+        if (!startedAt) return;
+
+        const elapsed = Date.now() - startedAt;
+        const fraction = Math.max(0, Math.min(1, elapsed / REMOVE_HOLD_MS));
+        const displayProgress = Math.round(fraction * REMOVE_DISPLAY_MAX);
+
+        setRemovalProgress(displayProgress);
+
+        if (fraction >= 1 && !removalCompletedRef.current) {
+          removalCompletedRef.current = true;
+          clearRemovalTimer();
+          handleDeleteConfirmed(contactId);
+        }
+      }, 50);
+    },
+    [clearRemovalTimer, handleDeleteConfirmed]
+  );
+
+  const handleDeletePressOut = useCallback(() => {
+    if (removalCompletedRef.current) {
+      return;
+    }
+
+    resetRemovalState();
+  }, [resetRemovalState]);
+
+  const handleSend = useCallback(
+    (contact: ContactItem) => {
+      notice.showNeutralNotice(`Send flow for ${contact.name} is coming soon.`, 2200);
+    },
+    [notice]
+  );
+
+  const addressValidationTone =
+    address.length === 0
+      ? null
+      : addressValid
+        ? styles.headerValidationOk
+        : styles.headerValidationBad;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -159,107 +264,131 @@ export default function AddressBookScreen() {
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
           showsVerticalScrollIndicator={false}
+          bounces
         >
           <SubmenuHeader title="ADDRESS BOOK" onBack={() => router.back()} />
 
-          <View style={styles.block}>
-            <ExpandableHeader
-              label="Add Contact"
-              open={addOpen}
+          <View style={styles.addRowWrap}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.addRow}
               onPress={() => setAddOpen((prev) => !prev)}
-            />
+            >
+              <Text style={ui.actionLabel}>Add Contact</Text>
 
-            {addOpen ? (
-              <View style={styles.form}>
-                <View style={styles.inputWrap}>
-                  <View style={styles.fieldHeaderRow}>
-                    <Text style={ui.sectionEyebrow}>TRON Address</Text>
-                    <Text
-                      style={[
-                        styles.headerValidation,
-                        address.length === 0
-                          ? styles.headerValidationIdle
-                          : addressValid
-                            ? styles.headerValidationOk
-                            : styles.headerValidationBad,
-                      ]}
-                    >
-                      {address.length === 0
-                        ? 'WAITING'
-                        : addressValid
-                          ? 'VALID'
-                          : 'INVALID'}
+              {addOpen ? (
+                <OpenDownIcon width={20} height={20} />
+              ) : (
+                <AddContactIcon width={20} height={20} />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {addOpen ? (
+            <View style={styles.form}>
+              <View style={styles.inputWrap}>
+                <View style={styles.fieldHeaderRow}>
+                  <Text style={ui.sectionEyebrow}>TRON Address</Text>
+
+                  {address.length > 0 ? (
+                    <Text style={[styles.headerValidation, addressValidationTone]}>
+                      {addressValid ? 'VALID' : 'INVALID'}
                     </Text>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.addressField,
-                      address.length > 0 && !addressValid ? styles.addressFieldInvalid : null,
-                    ]}
-                  >
-                    <TextInput
-                      value={address}
-                      onChangeText={setAddress}
-                      placeholder="T..."
-                      placeholderTextColor={colors.textDim}
-                      style={styles.addressInput}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-
-                    <TouchableOpacity activeOpacity={0.85} style={styles.pasteIconButton} onPress={handlePaste}>
-                      <Ionicons name="clipboard-outline" size={18} color={colors.accent} />
-                    </TouchableOpacity>
-                  </View>
+                  ) : null}
                 </View>
 
-                <View style={styles.nameSaveRow}>
-                  <View style={styles.nameInputWrap}>
-                    <Text style={ui.sectionEyebrow}>Name</Text>
-                    <TextInput
-                      value={name}
-                      onChangeText={setName}
-                      placeholder="Contact name"
-                      placeholderTextColor={colors.textDim}
-                      style={styles.input}
-                    />
-                  </View>
+                <View
+                  style={[
+                    styles.addressField,
+                    address.length > 0 && !addressValid ? styles.addressFieldInvalid : null,
+                  ]}
+                >
+                  <TextInput
+                    value={address}
+                    onChangeText={setAddress}
+                    placeholder="T..."
+                    placeholderTextColor={colors.textDim}
+                    style={styles.addressInput}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
 
                   <TouchableOpacity
-                    activeOpacity={0.9}
-                    style={[styles.saveButton, !canSave && styles.saveButtonDisabled]}
-                    onPress={handleSave}
-                    disabled={!canSave}
+                    activeOpacity={0.85}
+                    style={styles.inlineIconButton}
+                    onPress={handlePaste}
                   >
-                    <Text
-                      style={[
-                        styles.saveButtonText,
-                        !canSave && styles.saveButtonTextDisabled,
-                      ]}
-                    >
-                      Save
-                    </Text>
+                    <Ionicons name="clipboard-outline" size={18} color={colors.accent} />
                   </TouchableOpacity>
                 </View>
               </View>
-            ) : null}
-          </View>
 
-          <View style={styles.block}>
-            <ExpandableHeader
-              label="List of Contacts"
-              open={listOpen}
-              onPress={() => setListOpen((prev) => !prev)}
-            />
+              <View style={styles.inputWrap}>
+                <Text style={ui.sectionEyebrow}>Name</Text>
 
-            {listOpen ? (
-              <View style={styles.contactList}>
-                {contacts.map((contact) => (
-                  <View key={contact.id} style={styles.contactCard}>
+                <View style={styles.nameField}>
+                  <TextInput
+                    value={name}
+                    onChangeText={(value) => setName(value.slice(0, MAX_CONTACT_NAME_LENGTH))}
+                    placeholder="Contact name"
+                    placeholderTextColor={colors.textDim}
+                    style={styles.nameInput}
+                    maxLength={MAX_CONTACT_NAME_LENGTH}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSave}
+                  />
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.inlineIconButton}
+                    onPress={handleSave}
+                    disabled={!canSave}
+                  >
+                    <ConfirmIcon width={18} height={18} opacity={canSave ? 1 : 0.35} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          ) : null}
+
+          <View style={styles.contactList}>
+            {contacts.map((contact) => {
+              const removing = removalContactId === contact.id;
+              const removalFillWidth = `${Math.min(
+                100,
+                (removalProgress / REMOVE_DISPLAY_MAX) * 100
+              )}%`;
+              const removalProgressColor =
+                removalProgress >= REMOVE_DISPLAY_MAX ? colors.white : colors.red;
+
+              return (
+                <View key={contact.id} style={styles.contactCard}>
+                  <View style={styles.contactTopRow}>
                     <Text style={styles.contactName}>{contact.name.toUpperCase()}</Text>
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.removeHoldButton}
+                      onPress={handleDeletePress}
+                      onPressIn={() => handleDeletePressIn(contact.id)}
+                      onPressOut={handleDeletePressOut}
+                    >
+                      {removing ? (
+                        <Text style={[styles.removeHoldProgress, { color: removalProgressColor }]}>
+                          {removalProgress}%
+                        </Text>
+                      ) : (
+                        <RemoveContactIcon width={18} height={18} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => void handleCopy(contact.address)}
+                  >
                     <Text
                       style={styles.contactAddress}
                       numberOfLines={1}
@@ -267,28 +396,38 @@ export default function AddressBookScreen() {
                     >
                       {contact.address}
                     </Text>
+                  </TouchableOpacity>
 
-                    <View style={styles.contactActions}>
-                      <TouchableOpacity activeOpacity={0.85} onPress={() => handleCopy(contact.address)} style={styles.actionSlot}>
-                        <Text style={styles.copyAction}>Copy Address</Text>
-                      </TouchableOpacity>
+                  <View style={styles.contactActions}>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => void handleCopy(contact.address)}
+                      style={styles.actionSlot}
+                    >
+                      <Text style={styles.copyAction}>Copy Address</Text>
+                    </TouchableOpacity>
 
-                      <TouchableOpacity activeOpacity={0.85} onPress={() => handleSend(contact)} style={styles.actionSlot}>
-                        <Text style={styles.sendAction}>Send Crypto</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity activeOpacity={0.85} onPress={() => handleDelete(contact.id)} style={styles.actionSlot}>
-                        <Text style={styles.deleteAction}>Delete</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => handleSend(contact)}
+                      style={styles.actionSlot}
+                    >
+                      <Text style={styles.sendAction}>Send Crypto</Text>
+                    </TouchableOpacity>
                   </View>
-                ))}
 
-                {contacts.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>No saved contacts yet.</Text>
+                  <View style={styles.removeStripRow}>
+                    {removing ? (
+                      <View style={[styles.removeHoldFill, { width: removalFillWidth }]} />
+                    ) : null}
                   </View>
-                ) : null}
+                </View>
+              );
+            })}
+
+            {contacts.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No saved contacts yet.</Text>
               </View>
             ) : null}
           </View>
@@ -300,25 +439,11 @@ export default function AddressBookScreen() {
   );
 }
 
-function ExpandableHeader({
-  label,
-  open,
-  onPress,
-}: {
-  label: string;
-  open: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity activeOpacity={0.9} style={styles.headerRow} onPress={onPress}>
-      <Text style={ui.actionLabel}>{label}</Text>
-      <ExpandChevron open={open} />
-    </TouchableOpacity>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
 
   screen: {
     flex: 1,
@@ -327,25 +452,31 @@ const styles = StyleSheet.create({
     paddingTop: APP_HEADER_TOP_PADDING,
   },
 
-  headerSlot: { height: APP_HEADER_HEIGHT, justifyContent: 'center' },
-  scroll: { flex: 1 },
-  content: { paddingTop: 14, paddingBottom: spacing[7], gap: 18 },
-
-  block: {
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    borderRadius: radius.md,
-    padding: 16,
-    gap: 12,
+  headerSlot: {
+    height: APP_HEADER_HEIGHT,
+    justifyContent: 'center',
   },
 
-  headerRow: {
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  content: {
+    paddingTop: 14,
+    gap: 16,
+  },
+
+  addRowWrap: {
+    marginTop: -8,
+  },
+
+  addRow: {
     minHeight: 52,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,105,0,0.08)',
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -354,6 +485,7 @@ const styles = StyleSheet.create({
 
   form: {
     gap: 14,
+    marginTop: -4,
   },
 
   inputWrap: {
@@ -373,26 +505,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  headerValidationIdle: {
-    color: colors.textDim,
-  },
-
   headerValidationOk: {
     color: colors.green,
   },
 
   headerValidationBad: {
     color: colors.red,
-  },
-
-  input: {
-    minHeight: 52,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 14,
-    color: colors.white,
   },
 
   addressField: {
@@ -415,52 +533,33 @@ const styles = StyleSheet.create({
   addressInput: {
     flex: 1,
     color: colors.white,
+    fontFamily: 'Sora_600SemiBold',
   },
 
-  pasteIconButton: {
+  nameField: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.bg,
+    paddingLeft: 14,
+    paddingRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  nameInput: {
+    flex: 1,
+    color: colors.white,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  inlineIconButton: {
     width: 28,
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-
-  nameSaveRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 10,
-  },
-
-  nameInputWrap: {
-    flex: 1,
-    gap: 8,
-  },
-
-  saveButton: {
-    minWidth: 74,
-    height: 52,
-    borderRadius: radius.sm,
-    backgroundColor: 'rgba(255,105,0,0.10)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-  },
-
-  saveButtonDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderColor: colors.lineSoft,
-  },
-
-  saveButtonText: {
-    color: colors.accent,
-    fontSize: 14,
-    lineHeight: 18,
-    fontFamily: 'Sora_600SemiBold',
-  },
-
-  saveButtonTextDisabled: {
-    color: colors.textDim,
   },
 
   contactList: {
@@ -473,11 +572,20 @@ const styles = StyleSheet.create({
     borderColor: colors.lineSoft,
     backgroundColor: colors.bg,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
     gap: 8,
   },
 
+  contactTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+
   contactName: {
+    flex: 1,
     color: colors.white,
     fontSize: 14,
     lineHeight: 18,
@@ -495,14 +603,14 @@ const styles = StyleSheet.create({
   contactActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
+    justifyContent: 'flex-start',
+    gap: 22,
     marginTop: 4,
   },
 
   actionSlot: {
-    flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
 
   copyAction: {
@@ -519,11 +627,35 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
 
-  deleteAction: {
-    color: colors.red,
-    fontSize: 13,
+  removeHoldButton: {
+    minWidth: 28,
+    height: 22,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+
+  removeHoldProgress: {
+    fontSize: 12,
     lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
+    fontFamily: 'Sora_700Bold',
+    zIndex: 2,
+  },
+
+  removeStripRow: {
+    height: 6,
+    justifyContent: 'flex-end',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+
+  removeHoldFill: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    height: 1,
+    backgroundColor: colors.red,
+    opacity: 0.95,
+    borderRadius: radius.pill,
   },
 
   emptyState: {
