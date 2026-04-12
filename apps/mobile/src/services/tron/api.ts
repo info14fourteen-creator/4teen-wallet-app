@@ -1634,7 +1634,7 @@ export async function getTokenHistoryPage(
   fingerprint?: string
 ): Promise<TokenHistoryPage> {
   const start = Math.max(0, Number.parseInt(String(fingerprint || '0'), 10) || 0);
-  const limit = 20;
+  const limit = 10;
 
   try {
     const addressBook = await getAddressBookMap().catch(() => ({} as Record<string, string>));

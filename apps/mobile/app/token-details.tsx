@@ -11,8 +11,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
 import AppHeader, {
@@ -25,7 +24,9 @@ import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import { getActiveWallet } from '../src/services/wallet/storage';
+import { FOOTER_NAV_RESERVED_SPACE } from '../src/ui/footer-nav';
 import {
+  clearTokenHistoryCache,
   getTokenDetails,
   getTokenHistoryPage,
   type TokenDetails,
@@ -34,6 +35,7 @@ import {
   type TokenPoolInfo,
 } from '../src/services/tron/api';
 
+import CopyIcon from '../assets/icons/ui/copy_btn.svg';
 import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
 import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
 import ShareIcon from '../assets/icons/ui/share_btn.svg';
@@ -83,16 +85,6 @@ function formatPerformanceValue(point?: TokenPerformancePoint) {
   return `${sign}${value.toFixed(2)}%`;
 }
 
-function getPerformanceTone(point?: TokenPerformancePoint) {
-  const value = point?.changePercent;
-
-  if (typeof value !== 'number' || !Number.isFinite(value) || value === 0) {
-    return styles.perfValueDim;
-  }
-
-  return value > 0 ? styles.perfValueGreen : styles.perfValueRed;
-}
-
 function formatHistoryTime(timestamp: number) {
   if (!timestamp) return 'Unknown time';
 
@@ -113,17 +105,13 @@ function formatShortHash(hash: string) {
 function historyTone(item: TokenHistoryItem) {
   if (item.displayType === 'RECEIVE') return styles.historyTypeGreen;
   if (item.displayType === 'SEND') return styles.historyTypeRed;
-  if (item.displayType === 'APPROVE') return styles.historyTypeOrange;
-  if (item.displayType === 'SWAP') return styles.historyTypeAccent;
   return styles.historyTypeDim;
 }
 
 function historyTypeLabel(item: TokenHistoryItem) {
   if (item.displayType === 'RECEIVE') return 'RECEIVE';
   if (item.displayType === 'SEND') return 'SEND';
-  if (item.displayType === 'APPROVE') return 'APPROVE';
-  if (item.displayType === 'SWAP') return 'SWAP';
-  return 'TRIGGER';
+  return 'TRANSFER';
 }
 
 function formatHistoryAmount(item: TokenHistoryItem) {
@@ -156,6 +144,7 @@ function dedupeHistory(items: TokenHistoryItem[]) {
 export default function TokenDetailsScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ tokenId?: string }>();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -163,8 +152,12 @@ export default function TokenDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
   const [poolsOpen, setPoolsOpen] = useState(false);
+  const [marketInfoOpen, setMarketInfoOpen] = useState(false);
   const [details, setDetails] = useState<TokenDetails | null>(null);
   const [errorText, setErrorText] = useState('');
+
+  const contentBottomInset =
+    FOOTER_NAV_RESERVED_SPACE + Math.max(insets.bottom, 6) + spacing[4];
 
   const tokenId =
     typeof params.tokenId === 'string'
@@ -173,41 +166,60 @@ export default function TokenDetailsScreen() {
         ? params.tokenId[0]
         : '';
 
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setErrorText('');
+  const performance = useMemo(() => {
+    const source = details?.performance ?? [];
+    const labels: ('5m' | '1h' | '4h' | '24h')[] = ['5m', '1h', '4h', '24h'];
 
-      const wallet = await getActiveWallet();
+    return labels.map((label) => source.find((item) => item.label === label) || { label });
+  }, [details?.performance]);
 
-      if (!wallet) {
-        throw new Error('No active wallet selected.');
+  const priceChangePoint = useMemo(
+    () => performance.find((point) => point.label === '24h'),
+    [performance]
+  );
+
+  const load = useCallback(
+    async (options?: { forceHistoryRefresh?: boolean }) => {
+      try {
+        setLoading(true);
+        setErrorText('');
+
+        const wallet = await getActiveWallet();
+
+        if (!wallet) {
+          throw new Error('No active wallet selected.');
+        }
+
+        if (!tokenId) {
+          throw new Error('Token id is missing.');
+        }
+
+        if (options?.forceHistoryRefresh) {
+          await clearTokenHistoryCache(wallet.address, tokenId);
+        }
+
+        const nextDetails = await getTokenDetails(wallet.address, tokenId);
+
+        setDetails({
+          ...nextDetails,
+          history: dedupeHistory(nextDetails.history),
+        });
+      } catch (error) {
+        console.error(error);
+        setDetails(null);
+        setErrorText('Failed to load token details.');
+        notice.showErrorNotice('Failed to load token details.', 2600);
+      } finally {
+        setLoading(false);
       }
-
-      if (!tokenId) {
-        throw new Error('Token id is missing.');
-      }
-
-      const nextDetails = await getTokenDetails(wallet.address, tokenId);
-
-      setDetails({
-        ...nextDetails,
-        history: dedupeHistory(nextDetails.history),
-      });
-    } catch (error) {
-      console.error(error);
-      setDetails(null);
-      setErrorText('Failed to load token details.');
-      notice.showErrorNotice('Failed to load token details.', 2600);
-    } finally {
-      setLoading(false);
-    }
-  }, [notice, tokenId]);
+    },
+    [notice, tokenId]
+  );
 
   const handleRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
-      await load();
+      await load({ forceHistoryRefresh: true });
     } finally {
       setRefreshing(false);
     }
@@ -218,13 +230,6 @@ export default function TokenDetailsScreen() {
       void load();
     }, [load])
   );
-
-  const performance = useMemo(() => {
-    const source = details?.performance ?? [];
-    const labels: ('5m' | '1h' | '4h' | '24h')[] = ['5m', '1h', '4h', '24h'];
-
-    return labels.map((label) => source.find((item) => item.label === label) || { label });
-  }, [details?.performance]);
 
   const handleCopyAddress = async () => {
     if (!details?.address) return;
@@ -270,11 +275,14 @@ export default function TokenDetailsScreen() {
       setDetails((current) => {
         if (!current) return current;
 
+        const merged = dedupeHistory([...current.history, ...page.items]);
+        const appendedUniqueCount = merged.length - current.history.length;
+
         return {
           ...current,
-          history: dedupeHistory([...current.history, ...page.items]),
-          historyNextFingerprint: page.nextFingerprint,
-          historyHasMore: page.hasMore,
+          history: merged,
+          historyNextFingerprint: appendedUniqueCount > 0 ? page.nextFingerprint : undefined,
+          historyHasMore: appendedUniqueCount > 0 ? page.hasMore : false,
         };
       });
     } catch (error) {
@@ -285,6 +293,16 @@ export default function TokenDetailsScreen() {
     }
   };
 
+  const priceToneStyle = useMemo(() => {
+    const value = priceChangePoint?.changePercent;
+
+    if (typeof value !== 'number' || !Number.isFinite(value) || value === 0) {
+      return styles.priceValueDim;
+    }
+
+    return value > 0 ? styles.priceValueGreen : styles.priceValueRed;
+  }, [priceChangePoint]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.screen}>
@@ -294,7 +312,7 @@ export default function TokenDetailsScreen() {
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -318,6 +336,7 @@ export default function TokenDetailsScreen() {
                 <View style={styles.cardHeaderRow}>
                   <View style={styles.cardHeaderText}>
                     <Text style={styles.tokenName}>{details.name}</Text>
+                    <Text style={styles.tokenSymbol}>{details.symbol}</Text>
                   </View>
 
                   {details.logo ? (
@@ -345,7 +364,7 @@ export default function TokenDetailsScreen() {
                     onPress={handleCopyAddress}
                     style={styles.copyButton}
                   >
-                    <Ionicons name="copy-outline" size={17} color={colors.textDim} />
+                    <CopyIcon width={18} height={18} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -358,90 +377,119 @@ export default function TokenDetailsScreen() {
                 </View>
 
                 <Text style={styles.balanceAmount}>{details.balanceFormatted}</Text>
-                <Text style={styles.balanceValue}>{formatUsd(details.balanceValueUsd)}</Text>
 
-                <View style={styles.statsGrid}>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statLabel}>Price</Text>
-                    <Text style={[styles.statValue, styles.statValueGreen]} numberOfLines={1}>
-                      {formatUsd(details.priceInUsd, 6)}
-                    </Text>
-                  </View>
-
-                  <View style={styles.statCard}>
-                    <Text style={styles.statLabel}>MCap</Text>
-                    <Text style={styles.statValueCompact} numberOfLines={1}>
-                      {formatCompactCurrency(details.marketCap)}
-                    </Text>
-                  </View>
+                <View style={styles.valueToggleRow}>
+                  <Text style={styles.balanceValue}>{formatUsd(details.balanceValueUsd)}</Text>
 
                   <TouchableOpacity
                     activeOpacity={0.9}
-                    style={styles.statCard}
-                    onPress={() => setPoolsOpen((prev) => !prev)}
+                    style={styles.marketToggleButton}
+                    onPress={() => setMarketInfoOpen((prev) => !prev)}
                   >
-                    <View style={styles.statButtonRow}>
-                      <View style={styles.statButtonText}>
-                        <Text style={styles.statLabel}>Liquidity</Text>
-                        <Text style={styles.statValueCompact} numberOfLines={1}>
-                          {formatCompactCurrency(details.liquidityUsd)}
+                    {marketInfoOpen ? (
+                      <OpenDownIcon width={18} height={18} />
+                    ) : (
+                      <OpenRightIcon width={16} height={16} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {marketInfoOpen ? (
+                  <>
+                    <View style={styles.statsGrid}>
+                      <View style={styles.statCard}>
+                        <Text style={styles.statLabel}>Price</Text>
+                        <Text style={[styles.statValue, priceToneStyle]} numberOfLines={1}>
+                          {formatUsd(details.priceInUsd, 6)}
                         </Text>
                       </View>
 
-                      {poolsOpen ? (
-                        <OpenDownIcon width={18} height={18} />
-                      ) : (
-                        <OpenRightIcon width={16} height={16} />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-
-                  <View style={styles.statCard}>
-                    <Text style={styles.statLabel}>Supply</Text>
-                    <Text style={styles.statValueCompact} numberOfLines={1}>
-                      {formatCompactNumber(details.totalSupply)}
-                    </Text>
-                  </View>
-                </View>
-
-                {poolsOpen ? (
-                  <View style={styles.poolsWrap}>
-                    {details.pools.length > 0 ? (
-                      details.pools.map((pool: TokenPoolInfo) => (
-                        <View key={pool.id} style={styles.poolRow}>
-                          <View style={styles.poolLeft}>
-                            <Text style={styles.poolDex}>{pool.dexName}</Text>
-                            <Text style={styles.poolPair}>{pool.pairLabel}</Text>
-                          </View>
-
-                          <View style={styles.poolRight}>
-                            <Text style={styles.poolLiquidity}>
-                              {formatCompactCurrency(pool.liquidityUsd)}
-                            </Text>
-                            <Text style={styles.poolVolume}>
-                              24h {formatCompactCurrency(pool.volume24h)}
-                            </Text>
-                          </View>
-                        </View>
-                      ))
-                    ) : (
-                      <View style={styles.poolEmpty}>
-                        <Text style={styles.poolEmptyText}>No pool data.</Text>
+                      <View style={styles.statCard}>
+                        <Text style={styles.statLabel}>MCap</Text>
+                        <Text style={styles.statValueCompact} numberOfLines={1}>
+                          {formatCompactCurrency(details.marketCap)}
+                        </Text>
                       </View>
-                    )}
-                  </View>
-                ) : null}
 
-                <View style={styles.performanceRow}>
-                  {performance.map((point) => (
-                    <View key={point.label} style={styles.performanceCard}>
-                      <Text style={styles.perfLabel}>{point.label}</Text>
-                      <Text style={[styles.perfValue, getPerformanceTone(point)]}>
-                        {formatPerformanceValue(point)}
-                      </Text>
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={styles.statCard}
+                        onPress={() => setPoolsOpen((prev) => !prev)}
+                      >
+                        <View style={styles.statButtonRow}>
+                          <View style={styles.statButtonText}>
+                            <Text style={styles.statLabel}>Liquidity</Text>
+                            <Text style={styles.statValueCompact} numberOfLines={1}>
+                              {formatCompactCurrency(details.liquidityUsd)}
+                            </Text>
+                          </View>
+
+                          {poolsOpen ? (
+                            <OpenDownIcon width={18} height={18} />
+                          ) : (
+                            <OpenRightIcon width={16} height={16} />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+
+                      <View style={styles.statCard}>
+                        <Text style={styles.statLabel}>Supply</Text>
+                        <Text style={styles.statValueCompact} numberOfLines={1}>
+                          {formatCompactNumber(details.totalSupply)}
+                        </Text>
+                      </View>
                     </View>
-                  ))}
-                </View>
+
+                    {poolsOpen ? (
+                      <View style={styles.poolsWrap}>
+                        {details.pools.length > 0 ? (
+                          details.pools.map((pool: TokenPoolInfo) => (
+                            <View key={pool.id} style={styles.poolRow}>
+                              <View style={styles.poolLeft}>
+                                <Text style={styles.poolDex}>{pool.dexName}</Text>
+                                <Text style={styles.poolPair}>{pool.pairLabel}</Text>
+                              </View>
+
+                              <View style={styles.poolRight}>
+                                <Text style={styles.poolLiquidity}>
+                                  {formatCompactCurrency(pool.liquidityUsd)}
+                                </Text>
+                                <Text style={styles.poolVolume}>
+                                  24h {formatCompactCurrency(pool.volume24h)}
+                                </Text>
+                              </View>
+                            </View>
+                          ))
+                        ) : (
+                          <View style={styles.poolEmpty}>
+                            <Text style={styles.poolEmptyText}>No pool data.</Text>
+                          </View>
+                        )}
+                      </View>
+                    ) : null}
+
+                    <View style={styles.performanceRow}>
+                      {performance.map((point) => {
+                        const value = point?.changePercent;
+                        const tone =
+                          typeof value !== 'number' || !Number.isFinite(value) || value === 0
+                            ? styles.perfValueDim
+                            : value > 0
+                              ? styles.perfValueGreen
+                              : styles.perfValueRed;
+
+                        return (
+                          <View key={point.label} style={styles.performanceCard}>
+                            <Text style={styles.perfLabel}>{point.label}</Text>
+                            <Text style={[styles.perfValue, tone]}>
+                              {formatPerformanceValue(point)}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </>
+                ) : null}
               </View>
 
               <Text style={[ui.sectionEyebrow, styles.historyEyebrow]}>History</Text>
@@ -453,7 +501,14 @@ export default function TokenDetailsScreen() {
                       <TouchableOpacity
                         key={`${item.txHash}-${item.displayType}-${index}`}
                         activeOpacity={0.9}
-                        style={styles.historyRow}
+                        style={[
+                          styles.historyRow,
+                          item.displayType === 'SEND'
+                            ? styles.historyRowSend
+                            : item.displayType === 'RECEIVE'
+                              ? styles.historyRowReceive
+                              : null,
+                        ]}
                         onPress={() => void handleOpenHistoryItem(item)}
                       >
                         <View style={styles.historyTopRow}>
@@ -471,7 +526,9 @@ export default function TokenDetailsScreen() {
                             </Text>
                           </View>
 
-                          <Text style={styles.historyAmount}>{formatHistoryAmount(item)}</Text>
+                          <Text style={[styles.historyAmount, historyTone(item)]}>
+                            {formatHistoryAmount(item)}
+                          </Text>
                         </View>
 
                         <Text style={styles.historyTime}>{formatHistoryTime(item.timestamp)}</Text>
@@ -485,11 +542,11 @@ export default function TokenDetailsScreen() {
                   </View>
                 ) : (
                   <View style={styles.historyEmpty}>
-                    <Text style={styles.historyEmptyText}>No token history found.</Text>
+                    <Text style={styles.historyEmptyText}>No transfers yet.</Text>
                   </View>
                 )}
 
-                {details.historyHasMore ? (
+                {details.history.length > 0 && details.historyHasMore ? (
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.loadMoreButton}
@@ -542,7 +599,6 @@ const styles = StyleSheet.create({
 
   content: {
     paddingTop: 14,
-    paddingBottom: spacing[7],
   },
 
   loadingState: {
@@ -583,6 +639,7 @@ const styles = StyleSheet.create({
 
   cardHeaderText: {
     flex: 1,
+    gap: 4,
   },
 
   tokenName: {
@@ -590,6 +647,14 @@ const styles = StyleSheet.create({
     fontSize: 34,
     lineHeight: 38,
     fontFamily: 'Sora_700Bold',
+  },
+
+  tokenSymbol: {
+    color: colors.textDim,
+    fontSize: 13,
+    lineHeight: 17,
+    fontFamily: 'Sora_600SemiBold',
+    textTransform: 'uppercase',
   },
 
   tokenLogo: {
@@ -643,11 +708,26 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
   },
 
+  valueToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
   balanceValue: {
+    flex: 1,
     color: colors.textDim,
     fontSize: 13,
     lineHeight: 17,
     fontFamily: 'Sora_600SemiBold',
+  },
+
+  marketToggleButton: {
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   statsGrid: {
@@ -683,8 +763,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
 
-  statValueGreen: {
+  priceValueGreen: {
     color: colors.green,
+  },
+
+  priceValueRed: {
+    color: colors.red,
+  },
+
+  priceValueDim: {
+    color: colors.textDim,
   },
 
   statValueCompact: {
@@ -844,6 +932,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
 
+  historyRowSend: {
+    backgroundColor: 'rgba(255,48,73,0.03)',
+  },
+
+  historyRowReceive: {
+    backgroundColor: 'rgba(24,224,58,0.03)',
+  },
+
   historyTopRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -877,14 +973,6 @@ const styles = StyleSheet.create({
     color: colors.red,
   },
 
-  historyTypeOrange: {
-    color: colors.accent,
-  },
-
-  historyTypeAccent: {
-    color: colors.accent,
-  },
-
   historyTypeDim: {
     color: colors.textDim,
   },
@@ -901,10 +989,11 @@ const styles = StyleSheet.create({
   },
 
   historyAmount: {
-    color: colors.white,
-    fontSize: 13,
-    lineHeight: 17,
-    fontFamily: 'Sora_600SemiBold',
+    fontSize: 18,
+    lineHeight: 22,
+    fontFamily: 'Sora_700Bold',
+    textAlign: 'right',
+    maxWidth: '45%',
   },
 
   historyTime: {
