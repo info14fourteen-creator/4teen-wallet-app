@@ -1,22 +1,18 @@
 {
-  "generatedAt": "2026-04-11T22:38:45.242Z",
+  "generatedAt": "2026-04-12T22:51:49.074Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "15c49cfcf8131d97bdbeea41e20c8b3c55118e3c",
-    "shortHash": "15c49cf",
-    "subject": "refactor: polish wallet selection and management flows",
+    "hash": "01e103310a628dd1ee54850f1b96c8a78a2651c3",
+    "shortHash": "01e1033",
+    "subject": "fix: restore tron api fallback updates and address book icons",
     "author": "info14fourteen-creator",
-    "date": "2026-04-12T03:38:36+05:00"
+    "date": "2026-04-13T03:51:39+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app.json",
-    "M\tapps/mobile/app/import-seed.tsx",
-    "M\tapps/mobile/app/unlock.tsx",
-    "M\tapps/mobile/app/wallets.tsx",
-    "A\tapps/mobile/assets/icons/ui/confirm_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/decline_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/add_contact_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/remove_contact_btn.svg",
     "M\tapps/mobile/src/services/tron/api.ts"
   ],
   "activeFiles": [
@@ -25,11 +21,23 @@
       "count": 6
     },
     {
+      "file": "apps/mobile/src/services/tron/api.ts",
+      "count": 6
+    },
+    {
+      "file": "apps/mobile/app/select-wallet.tsx",
+      "count": 5
+    },
+    {
       "file": "apps/mobile/app/home.tsx",
       "count": 4
     },
     {
-      "file": "apps/mobile/package.json",
+      "file": "apps/mobile/app/import-seed.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/unlock.tsx",
       "count": 4
     },
     {
@@ -37,71 +45,39 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/_layout.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/about.tsx",
-      "count": 3
-    },
-    {
       "file": "apps/mobile/app/address-book.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/import-seed.tsx",
+      "file": "apps/mobile/app/token-details.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/select-wallet.tsx",
+      "file": "apps/mobile/package.json",
       "count": 3
+    },
+    {
+      "file": "apps/mobile/app/_layout.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/about.tsx",
+      "count": 2
     },
     {
       "file": "apps/mobile/app/ui-lab.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/unlock.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/services/tron/api.ts",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/ui/menu-sheet.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/font-lab.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/index.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/close.svg",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/menu.svg",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/search.svg",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/scripts/update-version.mjs",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/src/config/app-version.ts",
+      "file": "apps/mobile/src/config/tron.ts",
       "count": 2
     },
     {
       "file": "apps/mobile/src/services/wallet/index.ts",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/src/services/wallet/portfolio.ts",
       "count": 2
     },
     {
@@ -110,10 +86,6 @@
     },
     {
       "file": "apps/mobile/src/ui/footer-nav.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/src/ui/foundation.tsx",
       "count": 2
     },
     {
@@ -133,11 +105,35 @@
       "count": 1
     },
     {
+      "file": "apps/mobile/app/font-lab.tsx",
+      "count": 1
+    },
+    {
       "file": "apps/mobile/app/import-private-key.tsx",
       "count": 1
     },
     {
       "file": "apps/mobile/app/import-wallet.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/import-watch-only.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/index.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/settings.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/footer/airdrop_footer.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/footer/ambassador_footer.svg",
       "count": 1
     }
   ],
@@ -193,6 +189,7 @@
     "apps/mobile/assets/icons/footer/ambassador_footer.svg",
     "apps/mobile/assets/icons/footer/buy_footer.svg",
     "apps/mobile/assets/icons/footer/swap_footer.svg",
+    "apps/mobile/assets/icons/ui/add_contact_btn.svg",
     "apps/mobile/assets/icons/ui/add_wallet_btn.svg",
     "apps/mobile/assets/icons/ui/address_btn.svg",
     "apps/mobile/assets/icons/ui/backspace_btn.svg",
@@ -209,6 +206,7 @@
     "apps/mobile/assets/icons/ui/open_right_btn.svg",
     "apps/mobile/assets/icons/ui/preferences_btn.svg",
     "apps/mobile/assets/icons/ui/qr_btn.svg",
+    "apps/mobile/assets/icons/ui/remove_contact_btn.svg",
     "apps/mobile/assets/icons/ui/scan.svg",
     "apps/mobile/assets/icons/ui/search.svg",
     "apps/mobile/assets/icons/ui/setings_btn.svg",
@@ -268,6 +266,7 @@
     "apps/mobile/src/ui/numeric-keypad.tsx",
     "apps/mobile/src/ui/submenu-header.tsx",
     "apps/mobile/src/ui/top-chrome.tsx",
+    "apps/mobile/src/ui/use-bottom-inset.ts",
     "apps/mobile/src/wallet/wallet-session.tsx",
     "apps/mobile/svg.d.ts",
     "apps/mobile/tsconfig.json",
