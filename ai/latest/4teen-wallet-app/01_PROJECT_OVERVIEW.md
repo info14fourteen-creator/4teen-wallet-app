@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-13T01:16:48.192Z
+Generated: 2026-04-13T23:04:35.266Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 144cf23b43646c1b27d44d58d7f37bd266d32cd5
-Short commit: 144cf23
-Commit subject: fix: include in-app browser assets and wiring
+Last commit: 324195bdd84fc2178672c2f161fda719df997232
+Short commit: 324195b
+Commit subject: feat(wallet): stabilize wallet import, home state, and notice behavior
 Commit author: info14fourteen-creator
-Commit date: 2026-04-13T06:16:37+05:00
+Commit date: 2026-04-14T04:04:10+05:00
 
 ## Curated project tree
 
@@ -83,11 +83,13 @@ Commit date: 2026-04-13T06:16:37+05:00
           - copy_btn.svg
           - decline_btn.svg
           - footer_menu.svg
+          - full_access_btn.svg
           - info_btn.svg
           - logo_white.svg
           - menu.svg
           - open_down_btn.svg
           - open_right_btn.svg
+          - paste_btn.svg
           - preferences_btn.svg
           - qr_btn.svg
           - remove_contact_btn.svg

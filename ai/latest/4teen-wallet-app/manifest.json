@@ -1,28 +1,50 @@
 {
-  "generatedAt": "2026-04-13T01:16:48.194Z",
+  "generatedAt": "2026-04-13T23:04:35.268Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "144cf23b43646c1b27d44d58d7f37bd266d32cd5",
-    "shortHash": "144cf23",
-    "subject": "fix: include in-app browser assets and wiring",
+    "hash": "324195bdd84fc2178672c2f161fda719df997232",
+    "shortHash": "324195b",
+    "subject": "feat(wallet): stabilize wallet import, home state, and notice behavior",
     "author": "info14fourteen-creator",
-    "date": "2026-04-13T06:16:37+05:00"
+    "date": "2026-04-14T04:04:10+05:00"
   },
   "changedFiles": [
-    "A\tapps/mobile/assets/icons/ui/browser_back_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/browser_close_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/browser_copy_link_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/browser_forward_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/browser_more_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/browser_refresh_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/browser_share_btn.svg"
+    "M\tapps/mobile/app/_layout.tsx",
+    "M\tapps/mobile/app/about.tsx",
+    "M\tapps/mobile/app/home.tsx",
+    "M\tapps/mobile/app/import-private-key.tsx",
+    "M\tapps/mobile/app/import-seed.tsx",
+    "M\tapps/mobile/app/import-wallet.tsx",
+    "M\tapps/mobile/app/import-watch-only.tsx",
+    "M\tapps/mobile/app/ui-lab.tsx",
+    "A\tapps/mobile/assets/icons/ui/full_access_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/paste_btn.svg",
+    "M\tapps/mobile/package.json",
+    "M\tapps/mobile/scripts/update-version.mjs",
+    "M\tapps/mobile/src/config/app-version.ts",
+    "M\tapps/mobile/src/notice/notice-provider.tsx",
+    "M\tapps/mobile/src/services/wallet/import.ts",
+    "M\tapps/mobile/src/services/wallet/storage.ts",
+    "M\tapps/mobile/src/ui/KeyboardView.tsx",
+    "M\tapps/mobile/src/ui/footer-nav.tsx",
+    "M\tapps/mobile/src/ui/submenu-header.tsx",
+    "M\tapps/mobile/src/ui/top-chrome.tsx",
+    "M\tpnpm-lock.yaml"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/services/tron/api.ts",
       "count": 5
+    },
+    {
+      "file": "apps/mobile/app/home.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/import-seed.tsx",
+      "count": 4
     },
     {
       "file": "apps/mobile/app/select-wallet.tsx",
@@ -33,15 +55,11 @@
       "count": 4
     },
     {
-      "file": "apps/mobile/app.json",
+      "file": "apps/mobile/app/_layout.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/home.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/import-seed.tsx",
+      "file": "apps/mobile/app/about.tsx",
       "count": 3
     },
     {
@@ -57,15 +75,7 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/_layout.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/about.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/address-book.tsx",
+      "file": "apps/mobile/app.json",
       "count": 2
     },
     {
@@ -73,7 +83,11 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/src/config/tron.ts",
+      "file": "apps/mobile/scripts/update-version.mjs",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/src/config/app-version.ts",
       "count": 2
     },
     {
@@ -81,15 +95,27 @@
       "count": 2
     },
     {
+      "file": "apps/mobile/src/services/wallet/storage.ts",
+      "count": 2
+    },
+    {
       "file": "apps/mobile/src/ui/footer-nav.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/browser.tsx",
+      "file": "apps/mobile/src/ui/KeyboardView.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/src/ui/top-chrome.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/address-book.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/app/create-wallet.tsx",
+      "file": "apps/mobile/app/browser.tsx",
       "count": 1
     },
     {
@@ -97,23 +123,15 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/index.tsx",
+      "file": "apps/mobile/app/import-private-key.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/icons/footer/airdrop_footer.svg",
+      "file": "apps/mobile/app/import-wallet.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/icons/footer/ambassador_footer.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/footer/buy_footer.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/footer/swap_footer.svg",
+      "file": "apps/mobile/app/import-watch-only.tsx",
       "count": 1
     },
     {
@@ -121,23 +139,19 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/icons/ui/add_wallet_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/address_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/backspace_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/biologin_btn.svg",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/assets/icons/ui/browser_back_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/browser_close_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/browser_copy_link_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/browser_forward_btn.svg",
       "count": 1
     }
   ],
@@ -211,11 +225,13 @@
     "apps/mobile/assets/icons/ui/copy_btn.svg",
     "apps/mobile/assets/icons/ui/decline_btn.svg",
     "apps/mobile/assets/icons/ui/footer_menu.svg",
+    "apps/mobile/assets/icons/ui/full_access_btn.svg",
     "apps/mobile/assets/icons/ui/info_btn.svg",
     "apps/mobile/assets/icons/ui/logo_white.svg",
     "apps/mobile/assets/icons/ui/menu.svg",
     "apps/mobile/assets/icons/ui/open_down_btn.svg",
     "apps/mobile/assets/icons/ui/open_right_btn.svg",
+    "apps/mobile/assets/icons/ui/paste_btn.svg",
     "apps/mobile/assets/icons/ui/preferences_btn.svg",
     "apps/mobile/assets/icons/ui/qr_btn.svg",
     "apps/mobile/assets/icons/ui/remove_contact_btn.svg",
