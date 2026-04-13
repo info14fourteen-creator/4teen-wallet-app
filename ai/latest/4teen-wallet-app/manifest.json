@@ -1,43 +1,35 @@
 {
-  "generatedAt": "2026-04-12T22:51:49.074Z",
+  "generatedAt": "2026-04-13T01:16:48.194Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "01e103310a628dd1ee54850f1b96c8a78a2651c3",
-    "shortHash": "01e1033",
-    "subject": "fix: restore tron api fallback updates and address book icons",
+    "hash": "144cf23b43646c1b27d44d58d7f37bd266d32cd5",
+    "shortHash": "144cf23",
+    "subject": "fix: include in-app browser assets and wiring",
     "author": "info14fourteen-creator",
-    "date": "2026-04-13T03:51:39+05:00"
+    "date": "2026-04-13T06:16:37+05:00"
   },
   "changedFiles": [
-    "A\tapps/mobile/assets/icons/ui/add_contact_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/remove_contact_btn.svg",
-    "M\tapps/mobile/src/services/tron/api.ts"
+    "A\tapps/mobile/assets/icons/ui/browser_back_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/browser_close_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/browser_copy_link_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/browser_forward_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/browser_more_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/browser_refresh_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/browser_share_btn.svg"
   ],
   "activeFiles": [
     {
-      "file": "apps/mobile/app/wallets.tsx",
-      "count": 6
-    },
-    {
       "file": "apps/mobile/src/services/tron/api.ts",
-      "count": 6
-    },
-    {
-      "file": "apps/mobile/app/select-wallet.tsx",
       "count": 5
     },
     {
-      "file": "apps/mobile/app/home.tsx",
+      "file": "apps/mobile/app/select-wallet.tsx",
       "count": 4
     },
     {
-      "file": "apps/mobile/app/import-seed.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/unlock.tsx",
+      "file": "apps/mobile/app/token-details.tsx",
       "count": 4
     },
     {
@@ -45,11 +37,19 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/address-book.tsx",
+      "file": "apps/mobile/app/home.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/token-details.tsx",
+      "file": "apps/mobile/app/import-seed.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/unlock.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/wallets.tsx",
       "count": 3
     },
     {
@@ -65,6 +65,10 @@
       "count": 2
     },
     {
+      "file": "apps/mobile/app/address-book.tsx",
+      "count": 2
+    },
+    {
       "file": "apps/mobile/app/ui-lab.tsx",
       "count": 2
     },
@@ -73,15 +77,7 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/src/services/wallet/index.ts",
-      "count": 2
-    },
-    {
       "file": "apps/mobile/src/services/wallet/portfolio.ts",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/src/services/wallet/storage.ts",
       "count": 2
     },
     {
@@ -89,11 +85,7 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/app/confirm-passcode.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/create-passcode.tsx",
+      "file": "apps/mobile/app/browser.tsx",
       "count": 1
     },
     {
@@ -101,31 +93,11 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/enable-biometrics.tsx",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/app/font-lab.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/app/import-private-key.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/import-wallet.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/import-watch-only.tsx",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/app/index.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/settings.tsx",
       "count": 1
     },
     {
@@ -134,6 +106,38 @@
     },
     {
       "file": "apps/mobile/assets/icons/footer/ambassador_footer.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/footer/buy_footer.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/footer/swap_footer.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/add_contact_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/add_wallet_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/address_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/backspace_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/biologin_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/browser_back_btn.svg",
       "count": 1
     }
   ],
@@ -165,6 +169,7 @@
     "apps/mobile/app/(tabs)/index.tsx",
     "apps/mobile/app/about.tsx",
     "apps/mobile/app/address-book.tsx",
+    "apps/mobile/app/browser.tsx",
     "apps/mobile/app/confirm-passcode.tsx",
     "apps/mobile/app/create-passcode.tsx",
     "apps/mobile/app/create-wallet.tsx",
@@ -194,6 +199,13 @@
     "apps/mobile/assets/icons/ui/address_btn.svg",
     "apps/mobile/assets/icons/ui/backspace_btn.svg",
     "apps/mobile/assets/icons/ui/biologin_btn.svg",
+    "apps/mobile/assets/icons/ui/browser_back_btn.svg",
+    "apps/mobile/assets/icons/ui/browser_close_btn.svg",
+    "apps/mobile/assets/icons/ui/browser_copy_link_btn.svg",
+    "apps/mobile/assets/icons/ui/browser_forward_btn.svg",
+    "apps/mobile/assets/icons/ui/browser_more_btn.svg",
+    "apps/mobile/assets/icons/ui/browser_refresh_btn.svg",
+    "apps/mobile/assets/icons/ui/browser_share_btn.svg",
     "apps/mobile/assets/icons/ui/close.svg",
     "apps/mobile/assets/icons/ui/confirm_btn.svg",
     "apps/mobile/assets/icons/ui/copy_btn.svg",
@@ -267,6 +279,7 @@
     "apps/mobile/src/ui/submenu-header.tsx",
     "apps/mobile/src/ui/top-chrome.tsx",
     "apps/mobile/src/ui/use-bottom-inset.ts",
+    "apps/mobile/src/utils/open-in-app-browser.ts",
     "apps/mobile/src/wallet/wallet-session.tsx",
     "apps/mobile/svg.d.ts",
     "apps/mobile/tsconfig.json",

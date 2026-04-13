@@ -1,13 +1,13 @@
 # 4teen-wallet-app — AI MAP
 
-Generated: 2026-04-12T22:51:49.071Z
+Generated: 2026-04-13T01:16:48.191Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 01e103310a628dd1ee54850f1b96c8a78a2651c3
-Short commit: 01e1033
-Commit subject: fix: restore tron api fallback updates and address book icons
+Last commit: 144cf23b43646c1b27d44d58d7f37bd266d32cd5
+Short commit: 144cf23
+Commit subject: fix: include in-app browser assets and wiring
 Commit author: info14fourteen-creator
-Commit date: 2026-04-13T03:51:39+05:00
+Commit date: 2026-04-13T06:16:37+05:00
 
 ## Snapshot files
 
@@ -40,6 +40,7 @@ Commit date: 2026-04-13T03:51:39+05:00
       - _layout.tsx
       - about.tsx
       - address-book.tsx
+      - browser.tsx
       - confirm-passcode.tsx
       - create-passcode.tsx
       - create-wallet.tsx
@@ -84,6 +85,13 @@ Commit date: 2026-04-13T03:51:39+05:00
           - address_btn.svg
           - backspace_btn.svg
           - biologin_btn.svg
+          - browser_back_btn.svg
+          - browser_close_btn.svg
+          - browser_copy_link_btn.svg
+          - browser_forward_btn.svg
+          - browser_more_btn.svg
+          - browser_refresh_btn.svg
+          - browser_share_btn.svg
           - close.svg
           - confirm_btn.svg
           - copy_btn.svg
@@ -157,6 +165,8 @@ Commit date: 2026-04-13T03:51:39+05:00
         - submenu-header.tsx
         - top-chrome.tsx
         - use-bottom-inset.ts
+      - utils/
+        - open-in-app-browser.ts
       - wallet/
         - wallet-session.tsx
     - app.json

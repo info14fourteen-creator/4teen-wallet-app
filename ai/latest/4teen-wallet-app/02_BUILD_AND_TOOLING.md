@@ -1,13 +1,13 @@
 # 4teen-wallet-app — BUILD AND TOOLING
 
-Generated: 2026-04-12T22:51:49.073Z
+Generated: 2026-04-13T01:16:48.192Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 01e103310a628dd1ee54850f1b96c8a78a2651c3
-Short commit: 01e1033
-Commit subject: fix: restore tron api fallback updates and address book icons
+Last commit: 144cf23b43646c1b27d44d58d7f37bd266d32cd5
+Short commit: 144cf23
+Commit subject: fix: include in-app browser assets and wiring
 Commit author: info14fourteen-creator
-Commit date: 2026-04-13T03:51:39+05:00
+Commit date: 2026-04-13T06:16:37+05:00
 
 ## Included files
 
