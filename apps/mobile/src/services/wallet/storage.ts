@@ -77,7 +77,23 @@ export async function saveWallet(
 
   const existing = await getWalletByAddress(address);
   if (existing) {
-    throw new Error('This wallet is already imported.');
+    const canUpgradeWatchOnly =
+      existing.kind === 'watch-only' && input.kind !== 'watch-only';
+
+    if (!canUpgradeWatchOnly) {
+      throw new Error('This wallet is already imported.');
+    }
+
+    const current = await listWallets();
+    const next = current.filter((item) => item.id !== existing.id);
+
+    await AsyncStorage.setItem(WALLET_LIST_KEY, JSON.stringify(next));
+    await SecureStore.deleteItemAsync(buildSecretKey(existing.id));
+
+    const activeId = await getActiveWalletId();
+    if (activeId === existing.id) {
+      await AsyncStorage.removeItem(ACTIVE_WALLET_ID_KEY);
+    }
   }
 
   const wallet: WalletMeta = {

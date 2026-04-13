@@ -7,8 +7,8 @@ export const APP_VERSION = {
 };
 
 export const APP_BUILD = {
-  commitCount: 20,
-  buildNumber: '0020',
+  buildNumber: '202604140403',
+  generatedAtIso: '2026-04-13T23:03:40.031Z',
 };
 
 export function getVersionLabel() {
@@ -20,14 +20,26 @@ export function getVersionString() {
   return `${major}.${minor}.${patch}-${channel}.${iteration}`;
 }
 
+export function getVersionDisplayString() {
+  return getVersionString().toUpperCase();
+}
+
 export function getBuildString() {
   return APP_BUILD.buildNumber;
 }
 
-export function getCommitCount() {
-  return APP_BUILD.commitCount;
+export function getBuildDisplayString() {
+  return `BUILD ${getBuildString()}`;
+}
+
+export function getGeneratedAtIso() {
+  return APP_BUILD.generatedAtIso;
 }
 
 export function getFullVersionString() {
   return `${getVersionString()}+${getBuildString()}`;
+}
+
+export function getCompactVersionDisplayString() {
+  return `${getVersionDisplayString()} · ${getBuildDisplayString()}`;
 }

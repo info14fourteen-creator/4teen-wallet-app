@@ -16,7 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Rect } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import {
   colors,
@@ -64,15 +64,19 @@ type NoticeContextValue = {
   showAckNotice: (message: string, actions: NoticeAction[], type?: NoticeType) => void;
 };
 
+type NoticeBoxSize = {
+  width: number;
+  height: number;
+};
+
 const NoticeContext = createContext<NoticeContextValue | null>(null);
 
-const RADIUS = 15;
-const STROKE = 3;
-const SIZE = 34;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const NOTICE_RADIUS = 14;
+const NOTICE_STROKE = 1.5;
+const EXTRA_MS_PER_LINE = 1400;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 function normalizeNotice(input: NoticeOptions, id: number): InternalNotice {
   return {
@@ -85,14 +89,39 @@ function normalizeNotice(input: NoticeOptions, id: number): InternalNotice {
   };
 }
 
+function areActionsEquivalent(a: NoticeAction[], b: NoticeAction[]) {
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i].label !== b[i].label) return false;
+  }
+
+  return true;
+}
+
+function getRoundedRectPerimeter(width: number, height: number, r: number) {
+  if (width <= 0 || height <= 0) return 0;
+
+  const clampedRadius = Math.max(0, Math.min(r, width / 2, height / 2));
+  return 2 * (width + height - 4 * clampedRadius) + 2 * Math.PI * clampedRadius;
+}
+
+function getEffectiveDuration(baseDuration: number, lineCount: number) {
+  return baseDuration + Math.max(0, lineCount - 1) * EXTRA_MS_PER_LINE;
+}
+
 export function NoticeProvider({ children }: { children: React.ReactNode }) {
   const [notice, setNotice] = useState<InternalNotice | null>(null);
+  const [boxSize, setBoxSize] = useState<NoticeBoxSize>({ width: 0, height: 0 });
+  const [messageLineCount, setMessageLineCount] = useState(0);
+
   const nextIdRef = useRef(1);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animatedNoticeIdRef = useRef<number | null>(null);
 
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-10)).current;
-  const progress = useRef(new Animated.Value(0)).current;
+  const borderProgress = useRef(new Animated.Value(1)).current;
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current) {
@@ -101,7 +130,20 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const resetBorderProgress = useCallback(() => {
+    borderProgress.stopAnimation();
+    borderProgress.setValue(1);
+  }, [borderProgress]);
+
+  const stopBorderProgress = useCallback(() => {
+    borderProgress.stopAnimation();
+    borderProgress.setValue(0);
+  }, [borderProgress]);
+
   const animateIn = useCallback(() => {
+    opacity.setValue(0);
+    translateY.setValue(-10);
+
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
@@ -137,57 +179,127 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
 
   const hideNotice = useCallback(() => {
     clearHideTimer();
-
-    Animated.timing(progress, {
-      toValue: 0,
-      duration: 80,
-      useNativeDriver: false,
-    }).start();
+    stopBorderProgress();
 
     animateOut(() => {
+      animatedNoticeIdRef.current = null;
       setNotice(null);
+      setBoxSize({ width: 0, height: 0 });
+      setMessageLineCount(0);
     });
-  }, [animateOut, clearHideTimer, progress]);
+  }, [animateOut, clearHideTimer, stopBorderProgress]);
 
   const showNotice = useCallback((input: NoticeOptions) => {
     clearHideTimer();
-    const prepared = normalizeNotice(input, nextIdRef.current++);
-    setNotice(prepared);
-  }, [clearHideTimer]);
+    stopBorderProgress();
+
+    setNotice((current) => {
+      const prepared = normalizeNotice(input, nextIdRef.current++);
+
+      setBoxSize({ width: 0, height: 0 });
+      setMessageLineCount(0);
+
+      if (!current) {
+        return prepared;
+      }
+
+      const canSoftUpdateAck =
+        current.dismissMode === 'ack' &&
+        prepared.dismissMode === 'ack' &&
+        current.type === prepared.type;
+
+      if (canSoftUpdateAck) {
+        const sameMessage = current.message === prepared.message;
+        const sameActions = areActionsEquivalent(current.actions, prepared.actions);
+
+        if (sameMessage && sameActions) {
+          return current;
+        }
+
+        return {
+          ...prepared,
+          id: current.id,
+        };
+      }
+
+      return prepared;
+    });
+  }, [clearHideTimer, stopBorderProgress]);
+
+  const borderPerimeter = useMemo(
+    () => getRoundedRectPerimeter(boxSize.width, boxSize.height, NOTICE_RADIUS),
+    [boxSize.height, boxSize.width]
+  );
+
+  const effectiveDuration = useMemo(() => {
+    if (!notice || messageLineCount <= 0) return 0;
+    return getEffectiveDuration(notice.duration, messageLineCount);
+  }, [messageLineCount, notice]);
+
+  const isAutoNotice = notice?.dismissMode === 'auto';
+  const isMeasured = boxSize.width > 0 && boxSize.height > 0 && messageLineCount > 0;
+  const canRunAutoTimeline = Boolean(notice && isAutoNotice && isMeasured && borderPerimeter > 0 && effectiveDuration > 0);
 
   useEffect(() => {
     if (!notice) return;
 
-    opacity.setValue(0);
-    translateY.setValue(-10);
-    progress.setValue(0);
+    const shouldAnimateIn = animatedNoticeIdRef.current !== notice.id;
 
-    animateIn();
+    if (notice.dismissMode !== 'auto') {
+      if (shouldAnimateIn) {
+        animateIn();
+        animatedNoticeIdRef.current = notice.id;
+      }
 
-    if (notice.dismissMode === 'auto') {
-      Animated.timing(progress, {
-        toValue: CIRCUMFERENCE,
-        duration: notice.duration,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      }).start();
+      clearHideTimer();
+      stopBorderProgress();
 
-      hideTimerRef.current = setTimeout(() => {
-        hideNotice();
-      }, notice.duration);
+      return () => {
+        clearHideTimer();
+      };
     }
+
+    if (!canRunAutoTimeline) {
+      clearHideTimer();
+      resetBorderProgress();
+      return () => {
+        clearHideTimer();
+      };
+    }
+
+    if (shouldAnimateIn) {
+      animateIn();
+      animatedNoticeIdRef.current = notice.id;
+    }
+
+    clearHideTimer();
+    resetBorderProgress();
+
+    Animated.timing(borderProgress, {
+      toValue: 0,
+      duration: effectiveDuration,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    }).start();
+
+    hideTimerRef.current = setTimeout(() => {
+      hideNotice();
+    }, effectiveDuration);
 
     return () => {
       clearHideTimer();
+      borderProgress.stopAnimation();
     };
   }, [
-    notice,
     animateIn,
+    borderProgress,
+    canRunAutoTimeline,
     clearHideTimer,
+    effectiveDuration,
     hideNotice,
-    opacity,
-    progress,
-    translateY,
+    notice,
+    resetBorderProgress,
+    stopBorderProgress,
   ]);
 
   const value = useMemo<NoticeContextValue>(() => ({
@@ -207,7 +319,7 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
       showNotice({ type, message, dismissMode: 'ack', actions }),
   }), [hideNotice, showNotice]);
 
-  const progressColor =
+  const borderGlowColor =
     notice?.type === 'success'
       ? colors.green
       : notice?.type === 'error'
@@ -226,6 +338,10 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
           : colors.lightCool;
 
   const actions = notice?.actions ?? [];
+  const animatedVisibleBorder = borderProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.001, borderPerimeter],
+  });
 
   return (
     <NoticeContext.Provider value={value}>
@@ -234,6 +350,12 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
       {notice ? (
         <View pointerEvents="box-none" style={styles.layer}>
           <AnimatedPressable
+            onLayout={(event) => {
+              const { width, height } = event.nativeEvent.layout;
+              if (width !== boxSize.width || height !== boxSize.height) {
+                setBoxSize({ width, height });
+              }
+            }}
             style={[
               styles.notice,
               {
@@ -242,6 +364,38 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
               },
             ]}
           >
+            {isAutoNotice && borderPerimeter > 0 ? (
+              <View pointerEvents="none" style={styles.borderOverlay}>
+                <Svg width={boxSize.width} height={boxSize.height}>
+                  <Rect
+                    x={NOTICE_STROKE / 2}
+                    y={NOTICE_STROKE / 2}
+                    width={Math.max(boxSize.width - NOTICE_STROKE, 0)}
+                    height={Math.max(boxSize.height - NOTICE_STROKE, 0)}
+                    rx={NOTICE_RADIUS}
+                    ry={NOTICE_RADIUS}
+                    stroke="rgba(255,255,255,0.10)"
+                    strokeWidth={NOTICE_STROKE}
+                    fill="none"
+                  />
+                  <AnimatedRect
+                    x={NOTICE_STROKE / 2}
+                    y={NOTICE_STROKE / 2}
+                    width={Math.max(boxSize.width - NOTICE_STROKE, 0)}
+                    height={Math.max(boxSize.height - NOTICE_STROKE, 0)}
+                    rx={NOTICE_RADIUS}
+                    ry={NOTICE_RADIUS}
+                    stroke={borderGlowColor}
+                    strokeWidth={NOTICE_STROKE}
+                    fill="none"
+                    strokeLinecap="butt"
+                    strokeDasharray={[animatedVisibleBorder, borderPerimeter]}
+                    strokeDashoffset={0}
+                  />
+                </Svg>
+              </View>
+            ) : null}
+
             <TouchableOpacity
               activeOpacity={0.85}
               style={styles.closeButton}
@@ -251,34 +405,14 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
             </TouchableOpacity>
 
             <View style={styles.content}>
-              {notice.dismissMode === 'auto' ? (
-                <Svg width={SIZE} height={SIZE} style={styles.ring}>
-                  <Circle
-                    cx={SIZE / 2}
-                    cy={SIZE / 2}
-                    r={RADIUS}
-                    stroke="rgba(255,255,255,0.12)"
-                    strokeWidth={STROKE}
-                    fill="none"
-                  />
-                  <AnimatedCircle
-                    cx={SIZE / 2}
-                    cy={SIZE / 2}
-                    r={RADIUS}
-                    stroke={progressColor}
-                    strokeWidth={STROKE}
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeDasharray={`${CIRCUMFERENCE}`}
-                    strokeDashoffset={progress}
-                    rotation={-90}
-                    origin={`${SIZE / 2}, ${SIZE / 2}`}
-                  />
-                </Svg>
-              ) : null}
-
               <View style={styles.textWrap}>
-                <Text style={[styles.message, { color: messageColor }]}>
+                <Text
+                  onTextLayout={(event) => {
+                    const nextCount = Math.max(1, event.nativeEvent.lines.length || 1);
+                    setMessageLineCount((current) => (current === nextCount ? current : nextCount));
+                  }}
+                  style={[styles.message, { color: messageColor }]}
+                >
                   {notice.message}
                 </Text>
 
@@ -335,10 +469,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 18,
-    borderRadius: 14,
+    borderRadius: NOTICE_RADIUS,
     backgroundColor: 'rgba(26,26,26,0.98)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
     shadowColor: '#000',
     shadowOpacity: 0.42,
     shadowRadius: 24,
@@ -346,20 +478,20 @@ const styles = StyleSheet.create({
     elevation: 18,
   },
 
-  content: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 14,
-    paddingRight: 18,
+  borderOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: NOTICE_RADIUS,
   },
 
-  ring: {
-    flexShrink: 0,
-    marginTop: 2,
+  content: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
 
   textWrap: {
-    flex: 1,
+    width: '100%',
+    alignItems: 'center',
     gap: 12,
   },
 
@@ -367,6 +499,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamilies.displaySemi,
     fontSize: 15,
     lineHeight: 22,
+    textAlign: 'center',
   },
 
   closeButton: {
@@ -390,6 +523,7 @@ const styles = StyleSheet.create({
   },
 
   actionsWrap: {
+    width: '100%',
     gap: 8,
   },
 

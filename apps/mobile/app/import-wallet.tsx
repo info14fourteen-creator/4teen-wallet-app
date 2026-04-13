@@ -1,4 +1,4 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
@@ -10,29 +10,30 @@ import AppHeader, {
 import SubmenuHeader from '../src/ui/submenu-header';
 import MenuSheet from '../src/ui/menu-sheet';
 import ExpandChevron from '../src/ui/expand-chevron';
-import { colors, layout, radius, spacing } from '../src/theme/tokens';
+import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { hasPasscode } from '../src/security/local-auth';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
 
 const options = [
   {
     id: 'seed',
     title: 'Import by Seed Phrase',
-    body: 'Restore a wallet from a 12-word or 24-word recovery phrase.',
+    body: 'Recover full wallet control from a 12-word or 24-word phrase. Best path when you are restoring real self-custody access.',
     path: '/import-seed',
     requiresPasscode: true,
   },
   {
     id: 'private-key',
     title: 'Import by Private Key',
-    body: 'Restore a wallet by importing a raw private key.',
+    body: 'Import a raw private key and restore direct signing control. Fast, powerful, and absolutely not something to paste carelessly.',
     path: '/import-private-key',
     requiresPasscode: true,
   },
   {
     id: 'watch-only',
     title: 'Import by Watch-Only Address',
-    body: 'Track a TRON wallet without signing or sending transactions.',
+    body: 'Track balances, tokens, and history from any TRON address without exposing keys or granting signing rights.',
     path: '/import-watch-only',
     requiresPasscode: false,
   },
@@ -41,6 +42,7 @@ const options = [
 export default function ImportWalletScreen() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const contentBottomInset = useBottomInset();
 
   const handleOptionPress = async (path: string, requiresPasscode: boolean) => {
     if (!requiresPasscode) {
@@ -76,16 +78,21 @@ export default function ImportWalletScreen() {
           <AppHeader onMenuPress={() => setMenuOpen(true)} />
         </View>
 
-        <View style={styles.content}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          showsVerticalScrollIndicator={false}
+          bounces
+        >
           <SubmenuHeader title="IMPORT WALLET" onBack={() => router.back()} />
 
           <Text style={styles.title}>
-            Choose how you want to <Text style={styles.titleAccent}>restore</Text> access
+            Reconnect your <Text style={styles.titleAccent}>wallet access</Text>
           </Text>
 
           <Text style={styles.lead}>
-            Signing wallet import should be protected. Watch-only mode can stay lighter
-            because it does not carry secret material.
+            Pick the recovery path that matches what you actually control. Seed phrase and private
+            key restore signing power. Watch-only is strictly for tracking, not for moving funds.
           </Text>
 
           <View style={styles.optionList}>
@@ -105,7 +112,7 @@ export default function ImportWalletScreen() {
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+        </ScrollView>
 
         <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
@@ -131,10 +138,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  content: {
+  scroll: {
     flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  content: {
     paddingTop: 14,
-    paddingBottom: spacing[7],
   },
 
   title: {
@@ -162,7 +172,7 @@ const styles = StyleSheet.create({
   },
 
   optionCard: {
-    minHeight: 88,
+    minHeight: 94,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineSoft,

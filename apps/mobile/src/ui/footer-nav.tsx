@@ -20,10 +20,6 @@ const HIDDEN_ROUTES = new Set([
   '/index',
   '/unlock',
   '/create-wallet',
-  '/import-wallet',
-  '/import-seed',
-  '/import-private-key',
-  '/import-watch-only',
   '/create-passcode',
   '/confirm-passcode',
   '/enable-biometrics',
@@ -40,9 +36,11 @@ export default function FooterNav() {
 
   useEffect(() => {
     if (!footerTickerItems.length) return;
+
     const timer = setInterval(() => {
       setTickerIndex((prev) => (prev + 1) % footerTickerItems.length);
     }, 2600);
+
     return () => clearInterval(timer);
   }, [footerTickerItems]);
 

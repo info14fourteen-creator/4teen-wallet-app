@@ -7,8 +7,18 @@ import { useFonts } from 'expo-font';
 import { Sora_600SemiBold, Sora_700Bold } from '@expo-google-fonts/sora';
 import 'react-native-reanimated';
 import { NoticeProvider } from '../src/notice/notice-provider';
+import { Buffer } from 'buffer';
+import process from 'process';
 
 void SplashScreen.preventAutoHideAsync();
+
+if (!(globalThis as any).Buffer) {
+  (globalThis as any).Buffer = Buffer;
+}
+
+if (!(globalThis as any).process) {
+  (globalThis as any).process = process;
+}
 
 function LayoutContent() {
   const segments = useSegments();

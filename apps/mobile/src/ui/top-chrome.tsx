@@ -15,7 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { colors, fontFamilies, radius, spacing } from '../theme/tokens';
-import { getVersionString } from '../config/app-version';
+import { getCompactVersionDisplayString } from '../config/app-version';
 import { openInAppBrowser } from '../utils/open-in-app-browser';
 
 import MenuIcon from '../../assets/icons/ui/menu.svg';
@@ -286,7 +286,7 @@ export function TopChrome() {
                   <LogoWhite width={92} height={92} />
                 </View>
 
-                <Text style={styles.versionText}>{getVersionString()}</Text>
+                <Text style={styles.versionText}>{getCompactVersionDisplayString()}</Text>
 
                 <View style={styles.aboutCard}>
                   <AboutActionRow label="Version Update" onPress={handleVersionUpdate} />

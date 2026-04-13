@@ -40,6 +40,7 @@ import {
 
 import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
 import WatchOnlyIcon from '../assets/icons/ui/watch_only_btn.svg';
+import FullAccessIcon from '../assets/icons/ui/full_access_btn.svg';
 import CopyIcon from '../assets/icons/ui/copy_btn.svg';
 import QrIcon from '../assets/icons/ui/qr_btn.svg';
 import SettingsMiniIcon from '../assets/icons/ui/setings_btn.svg';
@@ -60,6 +61,7 @@ export default function HomeScreen() {
   const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
   const [activeWallet, setActiveWallet] = useState<WalletMeta | null>(null);
   const [portfolio, setPortfolio] = useState<WalletPortfolioSnapshot | null>(null);
+  const [portfolioCache, setPortfolioCache] = useState<Record<string, WalletPortfolioSnapshot>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorText, setErrorText] = useState('');
@@ -147,6 +149,11 @@ export default function HomeScreen() {
 
         const nextPortfolio = await getWalletPortfolio(nextActiveWallet.address);
         setPortfolio(nextPortfolio);
+
+        setPortfolioCache(prev => ({
+          ...prev,
+          [nextActiveWallet.id]: nextPortfolio
+        }));
       } catch (error) {
         console.error(error);
         setPortfolio(null);
@@ -198,8 +205,21 @@ export default function HomeScreen() {
         await setActiveWalletId(nextItem.wallet.id);
         setActiveWallet(nextItem.wallet);
 
-        const nextPortfolio = await getWalletPortfolio(nextItem.wallet.address);
-        setPortfolio(nextPortfolio);
+        const cached = portfolioCache[nextItem.wallet.id];
+
+        if (cached) {
+          setPortfolio(cached);
+        } else {
+          setPortfolio(null);
+
+          const nextPortfolio = await getWalletPortfolio(nextItem.wallet.address);
+          setPortfolio(nextPortfolio);
+
+          setPortfolioCache(prev => ({
+            ...prev,
+            [nextItem.wallet.id]: nextPortfolio
+          }));
+        }
       } catch (error) {
         console.error(error);
         notice.showErrorNotice('Failed to switch wallet.', 2400);
@@ -278,7 +298,18 @@ export default function HomeScreen() {
     });
   }, [notice]);
 
-  return (
+  
+  if (loading && !aggregate) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={colors.accent} size="large" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.screen}>
         <View style={styles.headerSlot}>
@@ -336,15 +367,15 @@ export default function HomeScreen() {
                   const isActive = wallet.id === activeWallet?.id;
 
                   const balanceDisplay = isActive
-                    ? (portfolio?.totalBalanceDisplay ?? item.portfolio?.totalBalanceDisplay ?? '$0.00')
+                    ? (portfolio ? portfolio.totalBalanceDisplay : '—')
                     : (item.portfolio?.totalBalanceDisplay ?? '$0.00');
 
                   const deltaDisplay = isActive
-                    ? (portfolio?.totalDeltaDisplay ?? item.portfolio?.totalDeltaDisplay ?? '$0.00 (0.00%)')
+                    ? (portfolio ? portfolio.totalDeltaDisplay : '')
                     : (item.portfolio?.totalDeltaDisplay ?? '$0.00 (0.00%)');
 
                   const deltaTone = isActive
-                    ? (portfolio?.totalDeltaTone ?? item.portfolio?.totalDeltaTone)
+                    ? (portfolio ? portfolio.totalDeltaTone : 'dim')
                     : item.portfolio?.totalDeltaTone;
 
                   return (
@@ -353,15 +384,17 @@ export default function HomeScreen() {
                         <View style={styles.walletNameRow}>
                           <Text style={styles.walletName}>{wallet.name}</Text>
 
-                          {wallet.kind === 'watch-only' ? (
-                            <TouchableOpacity
-                              activeOpacity={0.85}
-                              style={styles.watchOnlyButton}
-                              onPress={showWatchOnlyNotice}
-                            >
+                          <TouchableOpacity
+                            activeOpacity={0.85}
+                            style={styles.watchOnlyButton}
+                            onPress={wallet.kind === 'watch-only' ? showWatchOnlyNotice : undefined}
+                          >
+                            {wallet.kind === 'watch-only' ? (
                               <WatchOnlyIcon width={18} height={18} />
-                            </TouchableOpacity>
-                          ) : null}
+                            ) : (
+                              <FullAccessIcon width={18} height={18} />
+                            )}
+                          </TouchableOpacity>
                         </View>
 
                         <View style={styles.addressRow}>
@@ -392,7 +425,14 @@ export default function HomeScreen() {
                           </View>
                         ) : (
                           <>
-                            <Text style={styles.balanceValue}>{balanceDisplay}</Text>
+                            {isActive && !portfolio ? (
+  <View style={{ marginTop: 16, alignItems: 'center' }}>
+    <ActivityIndicator color={colors.accent} />
+  </View>
+) : (
+  <Text style={styles.balanceValue}>{balanceDisplay}</Text>
+)}
+                            {isActive && !portfolio ? null : (
                             <Text
                               style={[
                                 styles.balanceDelta,
@@ -405,6 +445,7 @@ export default function HomeScreen() {
                             >
                               {deltaDisplay}
                             </Text>
+                          )}
                           </>
                         )}
                       </View>

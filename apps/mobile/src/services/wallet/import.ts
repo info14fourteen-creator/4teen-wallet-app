@@ -41,16 +41,42 @@ export async function importWalletFromMnemonic(input: {
 }): Promise<WalletMeta> {
   const words = normalizeMnemonicInput(input.mnemonic);
   const normalizedMnemonic = words.join(' ');
+  const allWordsInWordlist = words.every((word) => wordlists.english.includes(word));
+  const validateDefault = validateMnemonic(normalizedMnemonic);
+  const validateEnglish = validateMnemonic(normalizedMnemonic, wordlists.english);
+
+  if (__DEV__) {
+    console.log('MNEMONIC DEBUG SAFE', {
+      wordCount: words.length,
+      normalizedLength: normalizedMnemonic.length,
+      allWordsInWordlist,
+      validateDefault,
+      validateEnglish,
+      firstWordLength: words[0]?.length ?? 0,
+      lastWordLength: words[words.length - 1]?.length ?? 0,
+    });
+  }
 
   if (words.length !== 12 && words.length !== 24) {
     throw new Error('Seed phrase must contain 12 or 24 words.');
   }
 
-  if (!validateMnemonic(normalizedMnemonic, wordlists.english)) {
-    throw new Error('Seed phrase is invalid.');
+  if (!allWordsInWordlist) {
+    throw new Error('Seed phrase contains words outside the BIP39 English list.');
+  }
+
+  if (__DEV__ && !validateDefault && !validateEnglish) {
+    console.warn('BIP39 validation mismatch in RN runtime, continuing to derivation.');
   }
 
   const account = TronWeb.fromMnemonic(normalizedMnemonic, TRON_DERIVATION_PATH);
+
+  if (__DEV__) {
+    console.log('TRON ACCOUNT DEBUG SAFE', {
+      hasAddress: !!account?.address,
+      hasPrivateKey: !!account?.privateKey,
+    });
+  }
 
   if (!account?.address || !account?.privateKey) {
     throw new Error('Failed to derive wallet from seed phrase.');

@@ -9,8 +9,9 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   colors,
   layout,
@@ -25,7 +26,6 @@ import AppHeader, {
 import MenuSheet from '../src/ui/menu-sheet';
 
 const AUTO_INTERVAL = 5200;
-const UI_LAB_BOTTOM_SAFE_SPACE = 44;
 
 type SegmentTone = 'normal' | 'orange' | 'green' | 'red';
 
@@ -97,10 +97,13 @@ const slides: Slide[] = [
 
 export default function UiLab() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [carouselIndex, setCarouselIndex] = useState(1);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const screenTier = useMemo(() => {
@@ -170,28 +173,41 @@ export default function UiLab() {
   }, [width, screenTier]);
 
   const pageSize = dynamic.slideWidth;
+  const bottomActionInset = 44 + Math.max(insets.bottom, 6);
+
+  const virtualSlides = useMemo(() => {
+    if (slides.length === 0) return [];
+    return [slides[slides.length - 1], ...slides, slides[0]];
+  }, []);
+
+  const getRealIndex = useCallback((index: number) => {
+    if (index <= 0) return slides.length - 1;
+    if (index >= slides.length + 1) return 0;
+    return index - 1;
+  }, []);
 
   const goToSlide = (index: number, animated = true) => {
+    const targetIndex = index + 1;
     scrollRef.current?.scrollTo({
-      x: index * pageSize,
+      x: targetIndex * pageSize,
       animated,
     });
+    setCarouselIndex(targetIndex);
     setActiveIndex(index);
   };
 
   const startAutoScroll = useCallback(() => {
-    const slideCount = slides.length;
-
     if (timerRef.current) clearInterval(timerRef.current);
 
     timerRef.current = setInterval(() => {
-      setActiveIndex((prev) => {
-        const next = prev + 1 >= slideCount ? 0 : prev + 1;
+      setCarouselIndex((prev) => {
+        const next = prev + 1;
         scrollRef.current?.scrollTo({ x: next * pageSize, animated: true });
+        setActiveIndex(getRealIndex(next));
         return next;
       });
     }, AUTO_INTERVAL);
-  }, [pageSize]);
+  }, [getRealIndex, pageSize]);
 
   const stopAutoScroll = useCallback(() => {
     if (timerRef.current) {
@@ -201,6 +217,14 @@ export default function UiLab() {
   }, []);
 
   useEffect(() => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ x: pageSize, animated: false });
+      setCarouselIndex(1);
+      setActiveIndex(0);
+    });
+  }, [pageSize]);
+
+  useEffect(() => {
     startAutoScroll();
     return () => stopAutoScroll();
   }, [startAutoScroll, stopAutoScroll]);
@@ -208,7 +232,24 @@ export default function UiLab() {
   const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = event.nativeEvent.contentOffset.x;
     const nextIndex = Math.round(x / pageSize);
-    setActiveIndex(nextIndex);
+
+    if (nextIndex <= 0) {
+      const resetIndex = slides.length;
+      scrollRef.current?.scrollTo({ x: resetIndex * pageSize, animated: false });
+      setCarouselIndex(resetIndex);
+      setActiveIndex(slides.length - 1);
+      return;
+    }
+
+    if (nextIndex >= slides.length + 1) {
+      scrollRef.current?.scrollTo({ x: pageSize, animated: false });
+      setCarouselIndex(1);
+      setActiveIndex(0);
+      return;
+    }
+
+    setCarouselIndex(nextIndex);
+    setActiveIndex(nextIndex - 1);
   };
 
   const renderSegment = (segment: Segment, index: number) => {
@@ -232,7 +273,21 @@ export default function UiLab() {
         </View>
 
         <View style={[styles.top, { gap: dynamic.topGap }]}>
-          <Text style={ui.eyebrow}>4TEEN Wallet</Text>
+          <View style={styles.eyebrowRow}>
+            <Text style={ui.eyebrow}>4TEEN Wallet</Text>
+
+            {navigation.canGoBack() ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.backRow}
+                onPress={() => router.back()}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="arrow-back" size={15} color={colors.accent} />
+                <Text style={ui.submenuBackText}>back</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
           <Text
             style={[
@@ -262,8 +317,8 @@ export default function UiLab() {
               onTouchEnd={startAutoScroll}
               contentContainerStyle={styles.sliderContent}
             >
-              {slides.map((slide) => (
-                <View key={slide.title} style={[styles.slidePage, { width: pageSize }]}>
+              {virtualSlides.map((slide, index) => (
+                <View key={`${slide.title}-${index}`} style={[styles.slidePage, { width: pageSize }]}>
                   <View style={[styles.slideInner, { gap: dynamic.slideGap, paddingVertical: dynamic.slideVerticalPadding }]}>
                     <Text style={ui.sectionEyebrow}>{slide.eyebrow}</Text>
 
@@ -309,7 +364,7 @@ export default function UiLab() {
             styles.bottom,
             {
               paddingTop: dynamic.bottomTopPadding,
-              paddingBottom: dynamic.bottomBottomPadding + UI_LAB_BOTTOM_SAFE_SPACE,
+              paddingBottom: dynamic.bottomBottomPadding + bottomActionInset,
             },
           ]}
         >
@@ -355,6 +410,22 @@ const styles = StyleSheet.create({
 
   top: {
     marginTop: 18,
+  },
+
+  eyebrowRow: {
+    minHeight: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  backRow: {
+    minHeight: 36,
+    paddingHorizontal: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
 
   title: {

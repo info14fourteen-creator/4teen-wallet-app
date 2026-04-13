@@ -1,4 +1,3 @@
-import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,22 +6,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const versionFile = path.resolve(__dirname, '../src/config/app-version.ts');
-const repoRoot = path.resolve(__dirname, '../../..');
-
-function getCommitCount() {
-  try {
-    const output = execSync('git rev-list --count HEAD', {
-      encoding: 'utf8',
-      cwd: repoRoot,
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-
-    const count = Number(output);
-    return Number.isFinite(count) && count >= 0 ? count : 0;
-  } catch {
-    return 0;
-  }
-}
 
 function extractNumber(source, key, fallback) {
   const match = source.match(new RegExp(`${key}:\\s*(\\d+)`));
@@ -45,6 +28,23 @@ function readCurrentVersionSource() {
   }
 }
 
+function pad(value) {
+  return String(value).padStart(2, '0');
+}
+
+function getBuildNumberParts(date = new Date()) {
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hour = pad(date.getHours());
+  const minute = pad(date.getMinutes());
+
+  return {
+    buildNumber: `${year}${month}${day}${hour}${minute}`,
+    generatedAtIso: date.toISOString(),
+  };
+}
+
 const currentSource = readCurrentVersionSource();
 
 const version = {
@@ -55,8 +55,7 @@ const version = {
   iteration: extractNumber(currentSource, 'iteration', 1),
 };
 
-const commitCount = getCommitCount();
-const buildNumber = String(commitCount).padStart(4, '0');
+const { buildNumber, generatedAtIso } = getBuildNumberParts();
 
 const nextSource = `export const APP_VERSION = {
   major: ${version.major},
@@ -67,8 +66,8 @@ const nextSource = `export const APP_VERSION = {
 };
 
 export const APP_BUILD = {
-  commitCount: ${commitCount},
   buildNumber: '${buildNumber}',
+  generatedAtIso: '${generatedAtIso}',
 };
 
 export function getVersionLabel() {
@@ -77,23 +76,39 @@ export function getVersionLabel() {
 
 export function getVersionString() {
   const { major, minor, patch, channel, iteration } = APP_VERSION;
-  return \`\${major}.\${minor}.\${patch}-\${channel}.\${iteration}\`;
+  return \`${'${major}.${minor}.${patch}-${channel}.${iteration}'}\`;
+}
+
+export function getVersionDisplayString() {
+  return getVersionString().toUpperCase();
 }
 
 export function getBuildString() {
   return APP_BUILD.buildNumber;
 }
 
-export function getCommitCount() {
-  return APP_BUILD.commitCount;
+export function getBuildDisplayString() {
+  return \`BUILD \${getBuildString()}\`;
+}
+
+export function getGeneratedAtIso() {
+  return APP_BUILD.generatedAtIso;
 }
 
 export function getFullVersionString() {
   return \`\${getVersionString()}+\${getBuildString()}\`;
 }
+
+export function getCompactVersionDisplayString() {
+  return \`\${getVersionDisplayString()} · \${getBuildDisplayString()}\`;
+}
 `;
 
 writeFileSync(versionFile, nextSource, 'utf8');
 
-console.log(`Updated version: ${version.major}.${version.minor}.${version.patch}-${version.channel}.${version.iteration}`);
-console.log(`Updated build: ${buildNumber} (commits: ${commitCount})`);
+console.log(
+  `Updated version: ${version.major}.${version.minor}.${version.patch}-${version.channel}.${version.iteration}`
+);
+console.log(`Updated build: ${buildNumber}`);
+console.log(`Generated at: ${generatedAtIso}`);
+console.log(`Version file: ${versionFile}`);

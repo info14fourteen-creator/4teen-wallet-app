@@ -16,7 +16,12 @@ export default function SubmenuHeader({
     <View style={styles.wrap}>
       <Text style={ui.sectionEyebrow}>{title}</Text>
 
-      <TouchableOpacity activeOpacity={0.85} style={styles.backRow} onPress={onBack}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        style={styles.backRow}
+        onPress={onBack}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      >
         <Ionicons name="arrow-back" size={15} color={colors.accent} />
         <Text style={ui.submenuBackText}>back</Text>
       </TouchableOpacity>
@@ -34,8 +39,11 @@ const styles = StyleSheet.create({
   },
 
   backRow: {
+    minHeight: 36,
+    paddingHorizontal: 6,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
   },
 });

@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
-  ScrollView,
+  Keyboard,
   StyleSheet,
   Text,
   TextInput,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AppHeader, {
   APP_HEADER_HEIGHT,
@@ -17,6 +17,7 @@ import AppHeader, {
 } from '../src/ui/app-header';
 import SubmenuHeader from '../src/ui/submenu-header';
 import MenuSheet from '../src/ui/menu-sheet';
+import KeyboardView from '../src/ui/KeyboardView';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -26,24 +27,41 @@ import {
   normalizePrivateKey,
 } from '../src/services/wallet/import';
 
+import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
+import PasteIcon from '../assets/icons/ui/paste_btn.svg';
+
+const MAX_WALLET_NAME_LENGTH = 18;
+const KEY_BOX_HEIGHT = 152;
+
 export default function ImportPrivateKeyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ backTo?: string }>();
   const backTo = typeof params.backTo === 'string' ? params.backTo : '/import-wallet';
 
   const notice = useNotice();
+  const insets = useSafeAreaInsets();
+  const contentBottomInset = 62 + Math.max(insets.bottom, 6);
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [privateKey, setPrivateKey] = useState('');
   const [walletName, setWalletName] = useState('');
   const [visible, setVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const walletNameRef = useRef<TextInput | null>(null);
+
   const normalized = useMemo(() => normalizePrivateKey(privateKey), [privateKey]);
   const keyValid = useMemo(() => isValidPrivateKey(privateKey), [privateKey]);
-  const canImport = keyValid && walletName.trim().length > 0 && !submitting;
+  const walletNameTrimmed = walletName.trim();
 
-  const hiddenPreview =
-    normalized.length > 0 ? '•'.repeat(Math.min(normalized.length, 64)) : '';
+  const canImport =
+    keyValid &&
+    walletNameTrimmed.length > 0 &&
+    walletNameTrimmed.length <= MAX_WALLET_NAME_LENGTH &&
+    !submitting;
+
+  const hiddenStatusText =
+    privateKey.length === 0 ? 'Private key hidden' : `Private key hidden • ${normalized.length} chars`;
 
   const handlePaste = async () => {
     const text = await Clipboard.getStringAsync();
@@ -53,17 +71,39 @@ export default function ImportPrivateKeyScreen() {
   };
 
   const handleBack = () => {
+    notice.hideNotice();
     router.replace(backTo as any);
   };
 
   const handleImport = async () => {
-    if (!canImport) return;
+    if (!keyValid) {
+      notice.showErrorNotice('Enter a valid private key.', 2600);
+      return;
+    }
+
+    if (!walletNameTrimmed.length) {
+      notice.showErrorNotice('Wallet name is required.', 2600);
+      walletNameRef.current?.focus();
+      return;
+    }
+
+    if (walletNameTrimmed.length > MAX_WALLET_NAME_LENGTH) {
+      notice.showErrorNotice(
+        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
+        2600
+      );
+      walletNameRef.current?.focus();
+      return;
+    }
+
+    if (submitting) return;
 
     try {
       setSubmitting(true);
+      Keyboard.dismiss();
 
       await importWalletFromPrivateKey({
-        name: walletName.trim(),
+        name: walletNameTrimmed,
         privateKey: normalized,
       });
 
@@ -84,94 +124,124 @@ export default function ImportPrivateKeyScreen() {
           <AppHeader onMenuPress={() => setMenuOpen(true)} />
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
+        <KeyboardView
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          extraScrollHeight={56}
         >
           <SubmenuHeader title="IMPORT BY PRIVATE KEY" onBack={handleBack} />
 
           <Text style={styles.title}>
-            Restore from <Text style={styles.titleAccent}>Private Key</Text>
+            Restore from <Text style={styles.titleAccent}>private key</Text>
           </Text>
 
           <Text style={styles.lead}>
-            Paste a raw private key to restore wallet access. We derive the TRON address locally and save the wallet after validation.
+            Paste the raw private key exactly as issued. The key is validated locally on device,
+            the TRON address is derived locally, and the wallet is imported only after validation.
           </Text>
 
-          <View style={styles.card}>
-            <View style={styles.rowHeader}>
-              <Text style={ui.sectionEyebrow}>Private Key</Text>
-              <Text
-                style={[
-                  styles.statusText,
-                  keyValid ? styles.statusValid : styles.statusIdle,
-                ]}
-              >
-                {privateKey.length === 0 ? 'WAITING' : keyValid ? 'VALID FORMAT' : 'INVALID'}
+          <View style={styles.switchRow}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.switchButton}
+              onPress={handlePaste}
+            >
+              <Text style={styles.switchTextActive}>Paste Key</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[styles.switchButton, visible && styles.switchButtonActive]}
+              onPress={() => setVisible((prev) => !prev)}
+            >
+              <Text style={[styles.switchText, visible && styles.switchTextActive]}>
+                {visible ? 'Hide Key' : 'Show Key'}
               </Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.helperTextCentered}>
+            {privateKey.length === 0
+              ? 'Waiting for private key input.'
+              : keyValid
+                ? 'Valid private key format detected.'
+                : 'Invalid private key format.'}
+          </Text>
+
+          <Text style={styles.blockEyebrow}>Private Key</Text>
+
+          <View style={[styles.keyBox, visible && styles.keyBoxActive]}>
+            <View style={styles.keyContentArea}>
+              {visible ? (
+                <TextInput
+                  value={normalized}
+                  onChangeText={setPrivateKey}
+                  placeholder="Paste private key"
+                  placeholderTextColor={colors.textDim}
+                  style={styles.privateKeyInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="off"
+                  multiline
+                  textAlignVertical="top"
+                  returnKeyType="default"
+                />
+              ) : (
+                <View style={styles.hiddenStateArea}>
+                  <Text style={styles.hiddenSpacerText}>{' '}</Text>
+                </View>
+              )}
             </View>
 
-            {visible ? (
-              <TextInput
-                value={normalized}
-                onChangeText={setPrivateKey}
-                placeholder="Paste private key"
-                placeholderTextColor={colors.textDim}
-                style={styles.privateKeyInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-                multiline
-              />
-            ) : (
-              <View style={styles.hiddenPreviewBox}>
-                <Text style={styles.hiddenPreviewText}>
-                  {hiddenPreview || 'Private key hidden'}
-                </Text>
-              </View>
-            )}
+            <View style={styles.keyUtilityRow}>
+              <Text style={styles.keyUtilityText}>
+                {visible ? 'Private key visible' : hiddenStatusText}
+              </Text>
 
-            <View style={styles.utilityRow}>
               <TouchableOpacity
                 activeOpacity={0.9}
-                style={styles.utilityButton}
+                style={styles.inlineUtilityButton}
                 onPress={handlePaste}
               >
-                <Text style={styles.utilityButtonText}>Paste</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={styles.utilityButton}
-                onPress={() => setVisible((prev) => !prev)}
-              >
-                <Text style={styles.utilityButtonText}>{visible ? 'Hide' : 'Show'}</Text>
+                <PasteIcon width={16} height={16} />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.card}>
-            <Text style={ui.sectionEyebrow}>Wallet Name</Text>
+          <Text style={styles.walletNameEyebrow}>Wallet Name</Text>
+
+          <View style={styles.nameField}>
             <TextInput
+              ref={walletNameRef}
               value={walletName}
-              onChangeText={setWalletName}
-              placeholder="My imported wallet"
+              onChangeText={(value) => setWalletName(value.slice(0, MAX_WALLET_NAME_LENGTH))}
+              placeholder="Imported wallet"
               placeholderTextColor={colors.textDim}
-              style={styles.textInput}
+              style={styles.nameInput}
+              maxLength={MAX_WALLET_NAME_LENGTH}
+              returnKeyType="done"
+              onSubmitEditing={() => void handleImport()}
             />
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[styles.nameConfirmButton, !canImport && styles.nameConfirmButtonDisabled]}
+              onPress={() => void handleImport()}
+            >
+              <ConfirmIcon width={18} height={18} />
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
             activeOpacity={0.9}
             style={[styles.primaryButton, !canImport && styles.primaryButtonDisabled]}
             disabled={!canImport}
-            onPress={handleImport}
+            onPress={() => void handleImport()}
           >
             <Text style={[ui.buttonLabel, !canImport && styles.primaryButtonTextDisabled]}>
               {submitting ? 'Importing...' : 'Import Wallet'}
             </Text>
           </TouchableOpacity>
-        </ScrollView>
+        </KeyboardView>
 
         <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
@@ -184,24 +254,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
     paddingTop: APP_HEADER_TOP_PADDING,
   },
+
   headerSlot: {
     height: APP_HEADER_HEIGHT,
     justifyContent: 'center',
   },
-  scroll: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
+
   content: {
     paddingTop: 14,
-    paddingBottom: spacing[7],
   },
+
   title: {
     marginTop: 8,
     color: colors.white,
@@ -210,96 +279,188 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
     maxWidth: '96%',
   },
+
   titleAccent: {
     color: colors.accent,
     fontFamily: 'Sora_700Bold',
   },
+
   lead: {
     ...ui.lead,
     marginTop: 14,
     marginBottom: 22,
   },
-  card: {
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    borderRadius: radius.md,
-    padding: 16,
-    marginBottom: 16,
-    gap: 10,
-  },
-  rowHeader: {
+
+  switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
+    width: '100%',
   },
-  statusText: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-    letterSpacing: 0.25,
-  },
-  statusIdle: {
-    color: colors.textDim,
-  },
-  statusValid: {
-    color: colors.green,
-  },
-  privateKeyInput: {
-    minHeight: 120,
+
+  switchButton: {
+    flex: 1,
+    minHeight: 44,
     borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
+    
+    
     backgroundColor: colors.bg,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    color: colors.white,
-    textAlignVertical: 'top',
-  },
-  hiddenPreviewBox: {
-    minHeight: 120,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  hiddenPreviewText: {
-    color: colors.white,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: 'Sora_600SemiBold',
-  },
-  utilityRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  utilityButton: {
-    minHeight: 40,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    backgroundColor: 'rgba(255,105,0,0.08)',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  utilityButtonText: {
+
+  switchButtonActive: {
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,105,0,0.12)',
+  },
+
+  switchText: {
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
+  },
+
+  switchTextActive: {
     color: colors.accent,
     fontSize: 13,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
   },
-  textInput: {
-    minHeight: 52,
+
+  helperTextCentered: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
+    marginTop: 14,
+    marginBottom: 16,
+  },
+
+  blockEyebrow: {
+    ...ui.sectionEyebrow,
+    marginBottom: 12,
+  },
+
+  keyBox: {
+    height: KEY_BOX_HEIGHT,
     borderRadius: radius.sm,
-    borderWidth: 1,
+    
     borderColor: colors.lineSoft,
     backgroundColor: colors.bg,
-    paddingHorizontal: 14,
-    color: colors.white,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
   },
+
+  keyBoxActive: {
+    
+    backgroundColor: 'rgba(255,105,0,0.05)',
+  },
+
+  keyContentArea: {
+    flex: 1,
+  },
+
+  privateKeyInput: {
+    flex: 1,
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: 'Sora_600SemiBold',
+    paddingVertical: 0,
+  },
+
+  hiddenStateArea: {
+    flex: 1,
+    justifyContent: 'flex-start',
+  },
+
+  hiddenSpacerText: {
+    color: 'transparent',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+
+  keyUtilityRow: {
+    minHeight: 28,
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+
+  keyUtilityText: {
+    flex: 1,
+    color: colors.white,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  inlineUtilityButton: {
+    minHeight: 28,
+    borderRadius: 999,
+    
+    
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,105,0,0.12)',
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  inlineUtilityButtonText: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 14,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  walletNameEyebrow: {
+    ...ui.sectionEyebrow,
+    marginTop: 22,
+    marginBottom: 12,
+  },
+
+  nameField: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    paddingLeft: 14,
+    paddingRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  nameInput: {
+    flex: 1,
+    minHeight: 52,
+    color: colors.white,
+    fontFamily: 'Sora_600SemiBold',
+    paddingVertical: 0,
+  },
+
+  nameConfirmButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  nameConfirmButtonDisabled: {
+    opacity: 0.35,
+  },
+
   primaryButton: {
     minHeight: layout.buttonHeight,
     borderRadius: radius.sm,
@@ -307,11 +468,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    marginTop: 6,
+    marginTop: spacing[4],
   },
+
   primaryButtonDisabled: {
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
+
   primaryButtonTextDisabled: {
     color: colors.textDim,
   },

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ScrollView,
+  Keyboard,
   StyleSheet,
   Text,
   TextInput,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AppHeader, {
   APP_HEADER_HEIGHT,
@@ -17,6 +17,7 @@ import AppHeader, {
 } from '../src/ui/app-header';
 import SubmenuHeader from '../src/ui/submenu-header';
 import MenuSheet from '../src/ui/menu-sheet';
+import KeyboardView from '../src/ui/KeyboardView';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -26,10 +27,18 @@ import {
   normalizeMnemonicInput,
 } from '../src/services/wallet/import';
 
+import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
+
 const MAX_WALLET_NAME_LENGTH = 18;
 
 function buildWords(count: number) {
   return Array.from({ length: count }, () => '');
+}
+
+function maskWord(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return '•'.repeat(Math.max(4, Math.min(trimmed.length, 8)));
 }
 
 export default function ImportSeedScreen() {
@@ -38,6 +47,8 @@ export default function ImportSeedScreen() {
   const backTo = typeof params.backTo === 'string' ? params.backTo : '/import-wallet';
 
   const notice = useNotice();
+  const insets = useSafeAreaInsets();
+  const contentBottomInset = 62 + Math.max(insets.bottom, 6);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [wordCount, setWordCount] = useState<12 | 24>(12);
@@ -47,6 +58,7 @@ export default function ImportSeedScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  const walletNameRef = useRef<TextInput | null>(null);
 
   const filledCount = useMemo(
     () => words.filter((item) => item.trim().length > 0).length,
@@ -54,10 +66,12 @@ export default function ImportSeedScreen() {
   );
 
   const allFilled = filledCount === wordCount;
+  const walletNameTrimmed = walletName.trim();
+
   const canContinue =
     allFilled &&
-    walletName.trim().length > 0 &&
-    walletName.trim().length <= MAX_WALLET_NAME_LENGTH &&
+    walletNameTrimmed.length > 0 &&
+    walletNameTrimmed.length <= MAX_WALLET_NAME_LENGTH &&
     !submitting;
 
   const activeValue =
@@ -72,6 +86,12 @@ export default function ImportSeedScreen() {
 
     requestAnimationFrame(() => {
       inputRefs.current[index]?.focus();
+    });
+  }, []);
+
+  const focusWalletName = useCallback(() => {
+    requestAnimationFrame(() => {
+      walletNameRef.current?.focus();
     });
   }, []);
 
@@ -97,6 +117,7 @@ export default function ImportSeedScreen() {
         setWords(nextWords);
         setActiveIndex(null);
         notice.hideNotice();
+        focusWalletName();
         return;
       }
 
@@ -112,12 +133,17 @@ export default function ImportSeedScreen() {
 
         const nextIndex = cursor < wordCount ? cursor : null;
         setActiveIndex(nextIndex);
-        focusIndex(nextIndex);
+
+        if (nextIndex === null) {
+          focusWalletName();
+        } else {
+          focusIndex(nextIndex);
+        }
 
         return next;
       });
     },
-    [focusIndex, notice, wordCount]
+    [focusIndex, focusWalletName, notice, wordCount]
   );
 
   const applySuggestion = useCallback(
@@ -135,12 +161,13 @@ export default function ImportSeedScreen() {
 
       if (nextIndex === null) {
         notice.hideNotice();
+        focusWalletName();
         return;
       }
 
       focusIndex(nextIndex);
     },
-    [activeIndex, focusIndex, notice, wordCount]
+    [activeIndex, focusIndex, focusWalletName, notice, wordCount]
   );
 
   useEffect(() => {
@@ -157,10 +184,6 @@ export default function ImportSeedScreen() {
       })),
       'neutral'
     );
-
-    return () => {
-      notice.hideNotice();
-    };
   }, [activeIndex, activeValue, applySuggestion, notice, suggestions]);
 
   const updateWord = useCallback(
@@ -207,14 +230,16 @@ export default function ImportSeedScreen() {
       setWordCount(count);
       setWords(nextWords);
       setActiveIndex(null);
-      notice.hideNotice();
+      notice.showSuccessNotice(`Recognized ${count} recovery words.`, 2200);
+      focusWalletName();
       return;
     }
 
     if (parsed.length > 1) {
       spreadParsedWords(parsed, 0);
+      notice.showSuccessNotice(`Inserted ${parsed.length} words from clipboard.`, 2200);
     }
-  }, [notice, spreadParsedWords]);
+  }, [focusWalletName, notice, spreadParsedWords]);
 
   const handleBack = useCallback(() => {
     notice.hideNotice();
@@ -222,28 +247,60 @@ export default function ImportSeedScreen() {
   }, [backTo, notice, router]);
 
   const handleImport = useCallback(async () => {
-    if (!canContinue) return;
+    if (!allFilled) {
+      notice.showErrorNotice(`Fill all recovery words: ${filledCount}/${wordCount}.`, 2600);
+      return;
+    }
+
+    if (!walletNameTrimmed.length) {
+      notice.showErrorNotice('Wallet name is required.', 2600);
+      focusWalletName();
+      return;
+    }
+
+    if (walletNameTrimmed.length > MAX_WALLET_NAME_LENGTH) {
+      notice.showErrorNotice(
+        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
+        2600
+      );
+      focusWalletName();
+      return;
+    }
+
+    if (submitting) return;
 
     try {
       setSubmitting(true);
       notice.hideNotice();
+      Keyboard.dismiss();
 
       const mnemonic = words.map((item) => item.trim()).join(' ');
 
       await importWalletFromMnemonic({
-        name: walletName.trim(),
+        name: walletNameTrimmed,
         mnemonic,
       });
 
       notice.showSuccessNotice('Wallet imported from seed phrase.', 2400);
       router.replace('/home');
     } catch (error) {
+      console.error('IMPORT FAILED', error);
       const message = error instanceof Error ? error.message : 'Failed to import wallet.';
-      notice.showErrorNotice(message, 3000);
+      notice.showErrorNotice(message, 3200);
     } finally {
       setSubmitting(false);
     }
-  }, [canContinue, notice, router, walletName, words]);
+  }, [
+    allFilled,
+    filledCount,
+    focusWalletName,
+    notice,
+    router,
+    submitting,
+    walletNameTrimmed,
+    wordCount,
+    words,
+  ]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -252,110 +309,147 @@ export default function ImportSeedScreen() {
           <AppHeader onMenuPress={() => setMenuOpen(true)} />
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        <KeyboardView
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          extraScrollHeight={56}
         >
           <SubmenuHeader title="IMPORT BY SEED PHRASE" onBack={handleBack} />
 
           <Text style={styles.title}>
-            Restore from <Text style={styles.titleAccent}>Seed Phrase</Text>
+            Restore from <Text style={styles.titleAccent}>seed phrase</Text>
           </Text>
 
           <Text style={styles.lead}>
-            Paste the full recovery phrase from clipboard in the correct order, or enter it word by word.
-            If you paste all 12 or 24 words, even with numbering, we automatically clean it and place each word into the correct field.
+            Enter the recovery phrase exactly as it was issued. You can paste the full phrase at
+            once, even with numbering, separators, or line breaks. Input is cleaned locally on
+            device and mapped into the correct recovery slots.
           </Text>
 
-          <View style={styles.card}>
-            <View style={styles.switchRow}>
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={[styles.switchButton, wordCount === 12 && styles.switchButtonActive]}
-                onPress={() => handleSwitch(12)}
-              >
-                <Text style={[styles.switchText, wordCount === 12 && styles.switchTextActive]}>
-                  12 Words
-                </Text>
-              </TouchableOpacity>
+          <View style={styles.switchRow}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[styles.switchButton, wordCount === 12 && styles.switchButtonActive]}
+              onPress={() => handleSwitch(12)}
+            >
+              <Text style={[styles.switchText, wordCount === 12 && styles.switchTextActive]}>
+                12 Words
+              </Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={[styles.switchButton, wordCount === 24 && styles.switchButtonActive]}
-                onPress={() => handleSwitch(24)}
-              >
-                <Text style={[styles.switchText, wordCount === 24 && styles.switchTextActive]}>
-                  24 Words
-                </Text>
-              </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={[styles.switchButton, wordCount === 24 && styles.switchButtonActive]}
+              onPress={() => handleSwitch(24)}
+            >
+              <Text style={[styles.switchText, wordCount === 24 && styles.switchTextActive]}>
+                24 Words
+              </Text>
+            </TouchableOpacity>
 
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={styles.switchButton}
-                onPress={() => void handlePastePhrase()}
-              >
-                <Text style={styles.switchTextActive}>Paste Phrase</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.helperText}>
-              Filled: {filledCount}/{wordCount}
-            </Text>
-
-            <View style={styles.grid}>
-              {words.map((value, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.wordCell,
-                    activeIndex === index && styles.wordCellActive,
-                  ]}
-                >
-                  <Text style={styles.wordIndex}>{index + 1}</Text>
-                  <TextInput
-                    ref={(ref) => {
-                      inputRefs.current[index] = ref;
-                    }}
-                    value={value}
-                    onChangeText={(text) => updateWord(index, text)}
-                    onFocus={() => setActiveIndex(index)}
-                    placeholder=""
-                    placeholderTextColor={colors.textDim}
-                    style={styles.wordInput}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoComplete="off"
-                  />
-                </View>
-              ))}
-            </View>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.switchButton}
+              onPress={() => void handlePastePhrase()}
+            >
+              <Text style={styles.switchTextActive}>Paste Phrase</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.card}>
-            <Text style={ui.sectionEyebrow}>Wallet Name</Text>
+          <Text style={styles.helperTextCentered}>
+            Filled: {filledCount}/{wordCount}
+          </Text>
+
+          <Text style={styles.blockEyebrow}>Seed Phrase</Text>
+
+          <View style={styles.grid}>
+            {words.map((value, index) => {
+              const isActive = activeIndex === index;
+              const hasValue = value.trim().length > 0;
+
+              return (
+                <View
+                  key={index}
+                  style={[styles.wordCell, isActive && styles.wordCellActive]}
+                >
+                  <Text style={styles.wordIndex}>{index + 1}</Text>
+
+                  {isActive || !hasValue ? (
+                    <TextInput
+                      ref={(ref) => {
+                        inputRefs.current[index] = ref;
+                      }}
+                      value={value}
+                      onChangeText={(text) => updateWord(index, text)}
+                      onFocus={() => setActiveIndex(index)}
+                      onSubmitEditing={() => {
+                        const nextIndex = index + 1 < wordCount ? index + 1 : null;
+                        setActiveIndex(nextIndex);
+
+                        if (nextIndex === null) {
+                          focusWalletName();
+                        } else {
+                          focusIndex(nextIndex);
+                        }
+                      }}
+                      placeholder=""
+                      placeholderTextColor={colors.textDim}
+                      style={styles.wordInput}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoComplete="off"
+                      returnKeyType={index + 1 < wordCount ? 'next' : 'done'}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.maskedWordButton}
+                      onPress={() => {
+                        setActiveIndex(index);
+                        focusIndex(index);
+                      }}
+                    >
+                      <Text style={styles.maskedWordText}>{maskWord(value)}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+
+          <Text style={styles.walletNameEyebrow}>Wallet Name</Text>
+
+          <View style={styles.nameField}>
             <TextInput
+              ref={walletNameRef}
               value={walletName}
               onChangeText={(value) => setWalletName(value.slice(0, MAX_WALLET_NAME_LENGTH))}
-              placeholder="My imported wallet"
+              placeholder="Imported wallet"
               placeholderTextColor={colors.textDim}
               style={styles.nameInput}
               maxLength={MAX_WALLET_NAME_LENGTH}
+              returnKeyType="done"
+              onSubmitEditing={() => void handleImport()}
             />
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[styles.nameConfirmButton, !canContinue && styles.nameConfirmButtonDisabled]}
+              onPress={() => void handleImport()}
+            >
+              <ConfirmIcon width={18} height={18} />
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity
             activeOpacity={0.9}
             style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]}
-            disabled={!canContinue}
             onPress={() => void handleImport()}
           >
             <Text style={[ui.buttonLabel, !canContinue && styles.primaryButtonTextDisabled]}>
               {submitting ? 'Importing...' : 'Import Wallet'}
             </Text>
           </TouchableOpacity>
-        </ScrollView>
+        </KeyboardView>
 
         <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
@@ -381,14 +475,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  scroll: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-
   content: {
     paddingTop: 14,
-    paddingBottom: spacing[7],
   },
 
   title: {
@@ -409,15 +497,6 @@ const styles = StyleSheet.create({
     ...ui.lead,
     marginTop: 14,
     marginBottom: 22,
-  },
-
-  card: {
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    borderRadius: radius.md,
-    padding: 16,
-    marginBottom: 16,
   },
 
   switchRow: {
@@ -459,13 +538,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  helperText: {
+  helperTextCentered: {
     color: colors.textDim,
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
     marginTop: 14,
-    marginBottom: 14,
+    marginBottom: 16,
+  },
+
+  blockEyebrow: {
+    ...ui.sectionEyebrow,
+    marginBottom: 12,
   },
 
   grid: {
@@ -504,16 +589,57 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     paddingVertical: 0,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  maskedWordButton: {
+    minHeight: 18,
+    justifyContent: 'center',
+  },
+
+  maskedWordText: {
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+    letterSpacing: 1,
+  },
+
+  walletNameEyebrow: {
+    ...ui.sectionEyebrow,
+    marginTop: 22,
+    marginBottom: 12,
+  },
+
+  nameField: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    paddingLeft: 14,
+    paddingRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 
   nameInput: {
+    flex: 1,
     minHeight: 52,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 14,
     color: colors.white,
+    fontFamily: 'Sora_600SemiBold',
+    paddingVertical: 0,
+  },
+
+  nameConfirmButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  nameConfirmButtonDisabled: {
+    opacity: 0.35,
   },
 
   primaryButton: {
@@ -523,7 +649,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    marginTop: 6,
+    marginTop: spacing[4],
   },
 
   primaryButtonDisabled: {
