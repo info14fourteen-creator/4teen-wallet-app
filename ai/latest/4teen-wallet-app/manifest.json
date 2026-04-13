@@ -1,46 +1,22 @@
 {
-  "generatedAt": "2026-04-13T23:04:35.268Z",
+  "generatedAt": "2026-04-13T23:28:59.913Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "324195bdd84fc2178672c2f161fda719df997232",
-    "shortHash": "324195b",
-    "subject": "feat(wallet): stabilize wallet import, home state, and notice behavior",
+    "hash": "4420239ee79f20fa05d6b0d564e5159884cd1532",
+    "shortHash": "4420239",
+    "subject": "fix(home): stabilize wallet card and asset loading",
     "author": "info14fourteen-creator",
-    "date": "2026-04-14T04:04:10+05:00"
+    "date": "2026-04-14T04:28:39+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/_layout.tsx",
-    "M\tapps/mobile/app/about.tsx",
-    "M\tapps/mobile/app/home.tsx",
-    "M\tapps/mobile/app/import-private-key.tsx",
-    "M\tapps/mobile/app/import-seed.tsx",
-    "M\tapps/mobile/app/import-wallet.tsx",
-    "M\tapps/mobile/app/import-watch-only.tsx",
-    "M\tapps/mobile/app/ui-lab.tsx",
-    "A\tapps/mobile/assets/icons/ui/full_access_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/paste_btn.svg",
-    "M\tapps/mobile/package.json",
-    "M\tapps/mobile/scripts/update-version.mjs",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/notice/notice-provider.tsx",
-    "M\tapps/mobile/src/services/wallet/import.ts",
-    "M\tapps/mobile/src/services/wallet/storage.ts",
-    "M\tapps/mobile/src/ui/KeyboardView.tsx",
-    "M\tapps/mobile/src/ui/footer-nav.tsx",
-    "M\tapps/mobile/src/ui/submenu-header.tsx",
-    "M\tapps/mobile/src/ui/top-chrome.tsx",
-    "M\tpnpm-lock.yaml"
+    "M\tapps/mobile/app/home.tsx"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/services/tron/api.ts",
       "count": 5
-    },
-    {
-      "file": "apps/mobile/app/home.tsx",
-      "count": 4
     },
     {
       "file": "apps/mobile/app/import-seed.tsx",
@@ -60,6 +36,10 @@
     },
     {
       "file": "apps/mobile/app/about.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/home.tsx",
       "count": 3
     },
     {
