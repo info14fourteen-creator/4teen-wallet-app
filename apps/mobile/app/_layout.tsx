@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import FooterNav from '../src/ui/footer-nav';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -9,6 +9,39 @@ import 'react-native-reanimated';
 import { NoticeProvider } from '../src/notice/notice-provider';
 
 void SplashScreen.preventAutoHideAsync();
+
+function LayoutContent() {
+  const segments = useSegments();
+  const rootSegment = segments[0];
+  const hideFooterNav = rootSegment === 'browser';
+
+  return (
+    <>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
+          contentStyle: {
+            backgroundColor: 'rgb(10,10,10)',
+          },
+        }}
+      >
+        <Stack.Screen
+          name="index"
+          options={{ contentStyle: { backgroundColor: 'rgb(10,10,10)', paddingBottom: 0 } }}
+        />
+        <Stack.Screen name="browser" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="ui-lab" />
+        <Stack.Screen name="about" />
+        <Stack.Screen name="terms" />
+        <Stack.Screen name="whitepaper" />
+      </Stack>
+
+      {!hideFooterNav ? <FooterNav /> : null}
+      <StatusBar style="light" />
+    </>
+  );
+}
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -26,27 +59,7 @@ export default function RootLayout() {
 
   return (
     <NoticeProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'fade',
-          contentStyle: {
-            backgroundColor: 'rgb(10,10,10)',
-          },
-        }}
-      >
-        <Stack.Screen
-          name="index"
-          options={{ contentStyle: { backgroundColor: 'rgb(10,10,10)', paddingBottom: 0 } }}
-        />
-        <Stack.Screen name="ui-lab" />
-        <Stack.Screen name="about" />
-        <Stack.Screen name="terms" />
-        <Stack.Screen name="whitepaper" />
-      </Stack>
-
-      <FooterNav />
-      <StatusBar style="light" />
+      <LayoutContent />
     </NoticeProvider>
   );
 }

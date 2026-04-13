@@ -13,8 +13,10 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { colors, fontFamilies, radius, spacing } from '../theme/tokens';
 import { getVersionString } from '../config/app-version';
+import { openInAppBrowser } from '../utils/open-in-app-browser';
 
 import MenuIcon from '../../assets/icons/ui/menu.svg';
 import SearchIcon from '../../assets/icons/ui/search.svg';
@@ -159,6 +161,7 @@ function RateButton({
 }
 
 export function TopChrome() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<MenuView>('main');
   const [rateOpen, setRateOpen] = useState(false);
@@ -206,7 +209,7 @@ export function TopChrome() {
       // заглушка под твою нотификацию
       return;
     }
-    Linking.openURL('https://4teen.me');
+    void openInAppBrowser(router, 'https://4teen.me');
   };
 
   return (
@@ -301,7 +304,7 @@ export function TopChrome() {
                         key={label}
                         activeOpacity={0.85}
                         style={styles.socialItem}
-                        onPress={() => Linking.openURL(url)}
+                        onPress={() => void openInAppBrowser(router, url)}
                       >
                         <View style={styles.socialIconWrap}>
                           <Icon width={28} height={28} />
@@ -315,7 +318,7 @@ export function TopChrome() {
                 <TouchableOpacity
                   activeOpacity={0.9}
                   style={styles.websiteButton}
-                  onPress={() => Linking.openURL('https://4teen.me')}
+                  onPress={() => void openInAppBrowser(router, 'https://4teen.me')}
                 >
                   <Text style={styles.websiteButtonText}>Open 4TEEN Website</Text>
                 </TouchableOpacity>

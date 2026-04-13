@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,6 +20,7 @@ import ExpandChevron from '../src/ui/expand-chevron';
 import { colors, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { getBuildString, getVersionString } from '../src/config/app-version';
+import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useNotice } from '../src/notice/notice-provider';
 
 import LogoWhite from '../assets/icons/ui/logo_white.svg';
@@ -68,7 +68,7 @@ export default function AboutScreen() {
       [
         {
           label: 'Open Website',
-          onPress: () => Linking.openURL('https://4teen.me'),
+          onPress: () => void openInAppBrowser(router, 'https://4teen.me'),
         },
       ],
       'update'
@@ -129,7 +129,7 @@ export default function AboutScreen() {
             <ActionRow label="Terms of Service" onPress={() => router.push('/terms' as any)} />
             <ActionRow label="4TEEN Whitepaper" onPress={() => router.push('/whitepaper' as any)} />
             <ActionRow label="Rate Us" icon="star" onPress={handleRateUs} />
-            <ActionRow label="Open 4TEEN Website" icon="external" onPress={() => Linking.openURL('https://4teen.me')} isLast />
+            <ActionRow label="Open 4TEEN Website" icon="external" onPress={() => void openInAppBrowser(router, 'https://4teen.me')} isLast />
           </View>
 
           <Text style={ui.sectionEyebrow}>Official Channels</Text>
@@ -141,7 +141,7 @@ export default function AboutScreen() {
                   key={label}
                   activeOpacity={0.85}
                   style={styles.socialItem}
-                  onPress={() => Linking.openURL(url)}
+                  onPress={() => void openInAppBrowser(router, url)}
                 >
                   <View style={styles.socialIconWrap}>
                     <Icon width={28} height={28} />

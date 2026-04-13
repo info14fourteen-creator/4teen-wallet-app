@@ -9,7 +9,6 @@ import {
   View,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import * as Linking from 'expo-linking';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -33,6 +32,7 @@ import {
   type TokenPerformancePoint,
   type TokenPoolInfo,
 } from '../src/services/tron/api';
+import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 
 import CopyIcon from '../assets/icons/ui/copy_btn.svg';
 import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
@@ -239,7 +239,7 @@ export default function TokenDetailsScreen() {
     if (!details?.address) return;
 
     try {
-      await Linking.openURL(`https://tronscan.org/#/contract/${details.address}`);
+      await openInAppBrowser(router, `https://tronscan.org/#/contract/${details.address}`);
     } catch (error) {
       console.error(error);
       notice.showErrorNotice('Failed to open token contract.', 2200);
@@ -248,7 +248,7 @@ export default function TokenDetailsScreen() {
 
   const handleOpenHistoryItem = async (item: TokenHistoryItem) => {
     try {
-      await Linking.openURL(item.tronscanUrl);
+      await openInAppBrowser(router, item.tronscanUrl);
     } catch (error) {
       console.error(error);
       notice.showErrorNotice('Failed to open Tronscan.', 2200);
