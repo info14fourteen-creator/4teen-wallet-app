@@ -47,6 +47,8 @@ import SettingsMiniIcon from '../assets/icons/ui/setings_btn.svg';
 import PreferencesIcon from '../assets/icons/ui/preferences_btn.svg';
 import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
 
+const ASSET_SKELETON_ROWS = 4;
+
 export default function HomeScreen() {
   const router = useRouter();
   const notice = useNotice();
@@ -62,6 +64,7 @@ export default function HomeScreen() {
   const [activeWallet, setActiveWallet] = useState<WalletMeta | null>(null);
   const [portfolio, setPortfolio] = useState<WalletPortfolioSnapshot | null>(null);
   const [portfolioCache, setPortfolioCache] = useState<Record<string, WalletPortfolioSnapshot>>({});
+  const [portfolioLoadingWalletId, setPortfolioLoadingWalletId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorText, setErrorText] = useState('');
@@ -122,10 +125,26 @@ export default function HomeScreen() {
 
         setAggregate(nextAggregate);
 
+        const nextCacheFromAggregate = (nextAggregate?.items ?? []).reduce<Record<string, WalletPortfolioSnapshot>>(
+          (acc, item) => {
+            if (item.portfolio) {
+              acc[item.wallet.id] = item.portfolio;
+            }
+            return acc;
+          },
+          {}
+        );
+
+        setPortfolioCache((prev) => ({
+          ...prev,
+          ...nextCacheFromAggregate,
+        }));
+
         const items = nextAggregate?.items ?? [];
         if (items.length === 0) {
           setActiveWallet(null);
           setPortfolio(null);
+          setPortfolioLoadingWalletId(null);
           setCurrentCardIndex(0);
           return;
         }
@@ -147,16 +166,26 @@ export default function HomeScreen() {
         setActiveWallet(nextActiveWallet);
         setCurrentCardIndex(nextIndex);
 
+        if (nextActiveItem.portfolio) {
+          setPortfolio(nextActiveItem.portfolio);
+          setPortfolioLoadingWalletId(null);
+          return;
+        }
+
+        setPortfolioLoadingWalletId(nextActiveWallet.id);
+
         const nextPortfolio = await getWalletPortfolio(nextActiveWallet.address);
         setPortfolio(nextPortfolio);
+        setPortfolioLoadingWalletId(null);
 
-        setPortfolioCache(prev => ({
+        setPortfolioCache((prev) => ({
           ...prev,
-          [nextActiveWallet.id]: nextPortfolio
+          [nextActiveWallet.id]: nextPortfolio,
         }));
       } catch (error) {
         console.error(error);
         setPortfolio(null);
+        setPortfolioLoadingWalletId(null);
         setErrorText('Failed to load wallet data.');
         notice.showErrorNotice('Failed to load wallet data.', 2600);
       } finally {
@@ -205,27 +234,37 @@ export default function HomeScreen() {
         await setActiveWalletId(nextItem.wallet.id);
         setActiveWallet(nextItem.wallet);
 
-        const cached = portfolioCache[nextItem.wallet.id];
+        const cached = portfolioCache[nextItem.wallet.id] ?? nextItem.portfolio ?? null;
 
         if (cached) {
           setPortfolio(cached);
-        } else {
-          setPortfolio(null);
+          setPortfolioLoadingWalletId(null);
 
-          const nextPortfolio = await getWalletPortfolio(nextItem.wallet.address);
-          setPortfolio(nextPortfolio);
-
-          setPortfolioCache(prev => ({
+          setPortfolioCache((prev) => ({
             ...prev,
-            [nextItem.wallet.id]: nextPortfolio
+            [nextItem.wallet.id]: cached,
           }));
+          return;
         }
+
+        setPortfolio(null);
+        setPortfolioLoadingWalletId(nextItem.wallet.id);
+
+        const nextPortfolio = await getWalletPortfolio(nextItem.wallet.address);
+        setPortfolio(nextPortfolio);
+        setPortfolioLoadingWalletId(null);
+
+        setPortfolioCache((prev) => ({
+          ...prev,
+          [nextItem.wallet.id]: nextPortfolio,
+        }));
       } catch (error) {
         console.error(error);
+        setPortfolioLoadingWalletId(null);
         notice.showErrorNotice('Failed to switch wallet.', 2400);
       }
     },
-    [activeWallet?.id, cardWidth, notice, walletCards]
+    [activeWallet?.id, cardWidth, notice, portfolioCache, walletCards]
   );
 
   const handleWalletAssetPress = useCallback(() => {
@@ -298,18 +337,21 @@ export default function HomeScreen() {
     });
   }, [notice]);
 
-  
-  if (loading && !aggregate) {
+  const isInitialScreenLoading = loading && !aggregate;
+  const isActivePortfolioLoading =
+    Boolean(activeWallet?.id) && portfolioLoadingWalletId === activeWallet?.id;
+
+  if (isInitialScreenLoading) {
     return (
       <SafeAreaView style={styles.safe}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={styles.screenLoaderWrap}>
           <ActivityIndicator color={colors.accent} size="large" />
         </View>
       </SafeAreaView>
     );
   }
 
-return (
+  return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.screen}>
         <View style={styles.headerSlot}>
@@ -366,17 +408,12 @@ return (
                   const wallet = item.wallet;
                   const isActive = wallet.id === activeWallet?.id;
 
-                  const balanceDisplay = isActive
-                    ? (portfolio ? portfolio.totalBalanceDisplay : '—')
-                    : (item.portfolio?.totalBalanceDisplay ?? '$0.00');
+                  const fallbackPortfolio = portfolioCache[wallet.id] ?? item.portfolio ?? null;
+                  const visiblePortfolio = isActive ? portfolio : fallbackPortfolio;
 
-                  const deltaDisplay = isActive
-                    ? (portfolio ? portfolio.totalDeltaDisplay : '')
-                    : (item.portfolio?.totalDeltaDisplay ?? '$0.00 (0.00%)');
-
-                  const deltaTone = isActive
-                    ? (portfolio ? portfolio.totalDeltaTone : 'dim')
-                    : item.portfolio?.totalDeltaTone;
+                  const balanceDisplay = visiblePortfolio?.totalBalanceDisplay ?? '$0.00';
+                  const deltaDisplay = visiblePortfolio?.totalDeltaDisplay ?? '$0.00 (0.00%)';
+                  const deltaTone = visiblePortfolio?.totalDeltaTone ?? 'dim';
 
                   return (
                     <View key={wallet.id} style={[styles.walletCardPage, { width: cardWidth }]}>
@@ -419,35 +456,29 @@ return (
                           </TouchableOpacity>
                         </View>
 
-                        {loading && isActive ? (
-                          <View style={styles.loadingWrap}>
-                            <ActivityIndicator color={colors.accent} />
-                          </View>
-                        ) : (
-                          <>
-                            {isActive && !portfolio ? (
-  <View style={{ marginTop: 16, alignItems: 'center' }}>
-    <ActivityIndicator color={colors.accent} />
-  </View>
-) : (
-  <Text style={styles.balanceValue}>{balanceDisplay}</Text>
-)}
-                            {isActive && !portfolio ? null : (
-                            <Text
-                              style={[
-                                styles.balanceDelta,
-                                deltaTone === 'green'
-                                  ? styles.deltaGreen
-                                  : deltaTone === 'red'
-                                    ? styles.deltaRed
-                                    : styles.deltaDim,
-                              ]}
-                            >
-                              {deltaDisplay}
-                            </Text>
+                        <View style={styles.balanceBlock}>
+                          {isActive && isActivePortfolioLoading ? (
+                            <View style={styles.balanceLoaderWrap}>
+                              <ActivityIndicator color={colors.accent} />
+                            </View>
+                          ) : (
+                            <>
+                              <Text style={styles.balanceValue}>{balanceDisplay}</Text>
+                              <Text
+                                style={[
+                                  styles.balanceDelta,
+                                  deltaTone === 'green'
+                                    ? styles.deltaGreen
+                                    : deltaTone === 'red'
+                                      ? styles.deltaRed
+                                      : styles.deltaDim,
+                                ]}
+                              >
+                                {deltaDisplay}
+                              </Text>
+                            </>
                           )}
-                          </>
-                        )}
+                        </View>
                       </View>
                     </View>
                   );
@@ -527,51 +558,72 @@ return (
           </View>
 
           <View style={styles.assetList}>
-            {sortedAssets.map((asset) => (
-              <TouchableOpacity
-                key={asset.id}
-                activeOpacity={0.9}
-                style={styles.assetRow}
-                onPress={() => handleOpenToken(asset)}
-              >
-                <View style={styles.assetLeft}>
-                  {asset.logo ? (
-                    <Image
-                      source={{ uri: asset.logo }}
-                      style={styles.assetLogo}
-                      contentFit="contain"
-                    />
-                  ) : (
-                    <View style={styles.assetFallbackLogo}>
-                      <Text style={styles.assetFallbackText}>
-                        {asset.symbol.slice(0, 1).toUpperCase()}
-                      </Text>
+            {isActivePortfolioLoading ? (
+              <View style={styles.assetSkeletonList}>
+                {Array.from({ length: ASSET_SKELETON_ROWS }).map((_, index) => (
+                  <View key={`asset-skeleton-${index}`} style={styles.assetSkeletonRow}>
+                    <View style={styles.assetSkeletonLeft}>
+                      <View style={styles.assetSkeletonLogo} />
+                      <View style={styles.assetSkeletonMeta}>
+                        <View style={styles.assetSkeletonName} />
+                        <View style={styles.assetSkeletonAmount} />
+                      </View>
                     </View>
-                  )}
 
-                  <View style={styles.assetMeta}>
-                    <Text style={styles.assetName}>{asset.name}</Text>
-                    <Text style={styles.assetAmount}>{asset.amountDisplay}</Text>
+                    <View style={styles.assetSkeletonRight}>
+                      <View style={styles.assetSkeletonValue} />
+                      <View style={styles.assetSkeletonDelta} />
+                    </View>
                   </View>
-                </View>
+                ))}
+              </View>
+            ) : (
+              sortedAssets.map((asset) => (
+                <TouchableOpacity
+                  key={asset.id}
+                  activeOpacity={0.9}
+                  style={styles.assetRow}
+                  onPress={() => handleOpenToken(asset)}
+                >
+                  <View style={styles.assetLeft}>
+                    {asset.logo ? (
+                      <Image
+                        source={{ uri: asset.logo }}
+                        style={styles.assetLogo}
+                        contentFit="contain"
+                      />
+                    ) : (
+                      <View style={styles.assetFallbackLogo}>
+                        <Text style={styles.assetFallbackText}>
+                          {asset.symbol.slice(0, 1).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
 
-                <View style={styles.assetRight}>
-                  <Text style={styles.assetValue}>{asset.valueDisplay}</Text>
-                  <Text
-                    style={[
-                      styles.assetDelta,
-                      asset.deltaTone === 'green'
-                        ? styles.deltaGreen
-                        : asset.deltaTone === 'red'
-                          ? styles.deltaRed
-                          : styles.deltaDim,
-                    ]}
-                  >
-                    {asset.deltaDisplay}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+                    <View style={styles.assetMeta}>
+                      <Text style={styles.assetName}>{asset.name}</Text>
+                      <Text style={styles.assetAmount}>{asset.amountDisplay}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.assetRight}>
+                    <Text style={styles.assetValue}>{asset.valueDisplay}</Text>
+                    <Text
+                      style={[
+                        styles.assetDelta,
+                        asset.deltaTone === 'green'
+                          ? styles.deltaGreen
+                          : asset.deltaTone === 'red'
+                            ? styles.deltaRed
+                            : styles.deltaDim,
+                      ]}
+                    >
+                      {asset.deltaDisplay}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         </ScrollView>
 
@@ -621,6 +673,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
     paddingTop: APP_HEADER_TOP_PADDING,
+  },
+
+  screenLoaderWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   headerSlot: {
@@ -731,15 +789,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  walletMetaLabel: {
-    marginTop: 8,
-    color: colors.accent,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
+  balanceBlock: {
+    minHeight: 92,
+    justifyContent: 'center',
   },
 
-  loadingWrap: {
+  balanceLoaderWrap: {
     minHeight: 72,
     alignItems: 'center',
     justifyContent: 'center',
@@ -929,8 +984,81 @@ const styles = StyleSheet.create({
   },
 
   assetList: {
+    minHeight: 318,
     gap: 10,
     paddingBottom: spacing[3],
+  },
+
+  assetSkeletonList: {
+    gap: 10,
+  },
+
+  assetSkeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 72,
+  },
+
+  assetSkeletonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    paddingRight: 12,
+  },
+
+  assetSkeletonLogo: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+
+  assetSkeletonMeta: {
+    flex: 1,
+    gap: 8,
+  },
+
+  assetSkeletonName: {
+    width: '62%',
+    height: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  assetSkeletonAmount: {
+    width: '44%',
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  assetSkeletonRight: {
+    alignItems: 'flex-end',
+    gap: 8,
+    width: 96,
+    flexShrink: 0,
+  },
+
+  assetSkeletonValue: {
+    width: 72,
+    height: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  assetSkeletonDelta: {
+    width: 56,
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
 
   assetRow: {
