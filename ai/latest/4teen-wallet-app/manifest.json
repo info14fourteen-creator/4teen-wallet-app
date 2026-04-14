@@ -1,29 +1,36 @@
 {
-  "generatedAt": "2026-04-14T12:52:54.676Z",
+  "generatedAt": "2026-04-14T20:09:36.452Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "7fcec23c6a9eb8420a694bd85262c55680ff3b4f",
-    "shortHash": "7fcec23",
-    "subject": "chore: bump mobile version",
+    "hash": "37e5251b8031eb62974198d1c660b541acedf987",
+    "shortHash": "37e5251",
+    "subject": "fix: sync custom token visibility across wallet screens",
     "author": "info14fourteen-creator",
-    "date": "2026-04-14T17:52:44+05:00"
+    "date": "2026-04-15T01:09:23+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/src/config/app-version.ts"
+    "A\tapps/mobile/app/add-custom-token.tsx",
+    "M\tapps/mobile/app/home.tsx",
+    "M\tapps/mobile/app/manage-crypto.tsx",
+    "M\tapps/mobile/src/services/tron/api.ts"
   ],
   "activeFiles": [
+    {
+      "file": "apps/mobile/app/home.tsx",
+      "count": 4
+    },
     {
       "file": "apps/mobile/src/config/app-version.ts",
       "count": 4
     },
     {
-      "file": "apps/mobile/app/home.tsx",
+      "file": "apps/mobile/app/token-details.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/token-details.tsx",
+      "file": "apps/mobile/src/services/tron/api.ts",
       "count": 3
     },
     {
@@ -39,11 +46,7 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/app/import-seed.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/select-wallet.tsx",
+      "file": "apps/mobile/app/manage-crypto.tsx",
       "count": 2
     },
     {
@@ -55,12 +58,12 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/src/services/tron/api.ts",
+      "file": "apps/mobile/src/ui/top-chrome.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/src/ui/top-chrome.tsx",
-      "count": 2
+      "file": "apps/mobile/app/add-custom-token.tsx",
+      "count": 1
     },
     {
       "file": "apps/mobile/app/browser.tsx",
@@ -68,6 +71,10 @@
     },
     {
       "file": "apps/mobile/app/import-private-key.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/import-seed.tsx",
       "count": 1
     },
     {
@@ -79,7 +86,7 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/manage-crypto.tsx",
+      "file": "apps/mobile/app/select-wallet.tsx",
       "count": 1
     },
     {
@@ -92,10 +99,6 @@
     },
     {
       "file": "apps/mobile/app/ui-lab.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/unlock.tsx",
       "count": 1
     },
     {
@@ -162,6 +165,7 @@
     "apps/mobile/app/(tabs)/explore.tsx",
     "apps/mobile/app/(tabs)/index.tsx",
     "apps/mobile/app/about.tsx",
+    "apps/mobile/app/add-custom-token.tsx",
     "apps/mobile/app/address-book.tsx",
     "apps/mobile/app/browser.tsx",
     "apps/mobile/app/confirm-passcode.tsx",
