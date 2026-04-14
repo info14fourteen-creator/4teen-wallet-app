@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   NativeScrollEvent,
@@ -23,7 +24,8 @@ import AppHeader, {
 } from '../src/ui/app-header';
 import MenuSheet from '../src/ui/menu-sheet';
 import AddressQrModal from '../src/ui/address-qr-modal';
-import { colors, layout, spacing } from '../src/theme/tokens';
+import { colors, layout, radius, spacing } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import {
   getActiveWalletId,
@@ -37,17 +39,130 @@ import {
   type WalletPortfolioAggregate,
   type WalletPortfolioSnapshot,
 } from '../src/services/wallet/portfolio';
+import {
+  clearWalletHistoryCache,
+  FOURTEEN_CONTRACT,
+  getWalletHistoryPage,
+  TRX_TOKEN_ID,
+  USDT_CONTRACT,
+  type WalletHistoryItem,
+} from '../src/services/tron/api';
+import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 
 import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
 import WatchOnlyIcon from '../assets/icons/ui/watch_only_btn.svg';
 import FullAccessIcon from '../assets/icons/ui/full_access_btn.svg';
 import CopyIcon from '../assets/icons/ui/copy_btn.svg';
 import QrIcon from '../assets/icons/ui/qr_btn.svg';
-import SettingsMiniIcon from '../assets/icons/ui/setings_btn.svg';
-import PreferencesIcon from '../assets/icons/ui/preferences_btn.svg';
+import ValueSortIcon from '../assets/icons/ui/value_sort_btn.svg';
+import AzSortIcon from '../assets/icons/ui/az_sort_btn.svg';
+import ManageFullIcon from '../assets/icons/ui/manage_full_btn.svg';
+import ManageNewIcon from '../assets/icons/ui/manage_new_btn.svg';
 import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
+import ShareIcon from '../assets/icons/ui/share_btn.svg';
+import BrowserRefreshIcon from '../assets/icons/ui/browser_refresh_btn.svg';
 
 const ASSET_SKELETON_ROWS = 4;
+const HISTORY_SKELETON_ROWS = 4;
+
+const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
+  TRX_TOKEN_ID,
+  FOURTEEN_CONTRACT,
+  USDT_CONTRACT,
+] as const;
+
+const HOME_VISIBLE_TOKENS_STORAGE_KEY = 'wallet.homeVisibleTokenIds.v1';
+
+type ContentMode = 'assets' | 'history';
+
+function formatHistoryTime(timestamp: number) {
+  if (!timestamp) return 'Unknown time';
+
+  return new Date(timestamp).toLocaleString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatShortHash(hash: string) {
+  if (!hash || hash.length < 12) return hash;
+  return `${hash.slice(0, 8)}...${hash.slice(-8)}`;
+}
+
+function formatShortContract(value?: string) {
+  const safe = String(value || '').trim();
+  if (!safe) return 'Unknown token';
+  if (safe.length <= 14) return safe;
+  return `${safe.slice(0, 6)}...${safe.slice(-6)}`;
+}
+
+function getHistoryTokenLabel(item: WalletHistoryItem) {
+  if (item.tokenId === TRX_TOKEN_ID) {
+    return 'TRX';
+  }
+
+  const safeSymbol = String(item.tokenSymbol || '').trim();
+  if (safeSymbol) {
+    return safeSymbol;
+  }
+
+  const safeName = String(item.tokenName || '').trim();
+  if (safeName && safeName.toLowerCase() != 'token') {
+    return safeName.split(/\s+/)[0];
+  }
+
+  return formatShortContract(item.tokenId);
+}
+
+function historyTone(item: WalletHistoryItem) {
+  if (item.displayType === 'RECEIVE') return styles.historyTypeGreen;
+  return styles.historyTypeRed;
+}
+
+function historyRowTone(item: WalletHistoryItem) {
+  if (item.displayType === 'RECEIVE') return styles.historyRowReceive;
+  return styles.historyRowSend;
+}
+
+function historyTypeLabel(item: WalletHistoryItem) {
+  if (item.displayType === 'RECEIVE') return 'RECEIVE';
+  return 'SEND';
+}
+
+function formatHistoryAmount(item: WalletHistoryItem) {
+  const clean = item.amountFormatted.replace(/^[+-]\s*/, '');
+
+  if (item.displayType === 'RECEIVE') {
+    return `+${clean}`;
+  }
+
+  return `-${clean}`;
+}
+
+function normalizeAssetTokenKey(asset: PortfolioAsset) {
+  const id = String(asset.id || '').trim();
+  const symbol = String(asset.symbol || '').trim().toUpperCase();
+
+  if (id === TRX_TOKEN_ID || symbol === 'TRX') return TRX_TOKEN_ID;
+  if (id === FOURTEEN_CONTRACT || symbol === '4TEEN') return FOURTEEN_CONTRACT;
+  if (id === USDT_CONTRACT || symbol === 'USDT') return USDT_CONTRACT;
+
+  return id;
+}
+
+function normalizeHistoryTokenKey(item: WalletHistoryItem) {
+  const id = String(item.tokenId || '').trim();
+  const symbol = String(item.tokenSymbol || '').trim().toUpperCase();
+
+  if (id === TRX_TOKEN_ID || symbol === 'TRX') return TRX_TOKEN_ID;
+  if (id === FOURTEEN_CONTRACT || symbol === '4TEEN') return FOURTEEN_CONTRACT;
+  if (id === USDT_CONTRACT || symbol === 'USDT') return USDT_CONTRACT;
+
+  return id;
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -60,21 +175,166 @@ export default function HomeScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [qrVisible, setQrVisible] = useState(false);
   const [qrWallet, setQrWallet] = useState<WalletMeta | null>(null);
+
   const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
   const [activeWallet, setActiveWallet] = useState<WalletMeta | null>(null);
   const [portfolio, setPortfolio] = useState<WalletPortfolioSnapshot | null>(null);
   const [portfolioCache, setPortfolioCache] = useState<Record<string, WalletPortfolioSnapshot>>({});
   const [portfolioLoadingWalletId, setPortfolioLoadingWalletId] = useState<string | null>(null);
+
+  const [historyCache, setHistoryCache] = useState<Record<string, WalletHistoryItem[]>>({});
+  const [historyNextCursorCache, setHistoryNextCursorCache] = useState<Record<string, string | undefined>>({});
+  const [historyHasMoreCache, setHistoryHasMoreCache] = useState<Record<string, boolean>>({});
+  const [historyLoadingWalletId, setHistoryLoadingWalletId] = useState<string | null>(null);
+  const [historyLoadingMoreWalletId, setHistoryLoadingMoreWalletId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorText, setErrorText] = useState('');
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [assetSortMode, setAssetSortMode] = useState<'name' | 'value'>('name');
+  const [contentMode, setContentMode] = useState<ContentMode>('assets');
+  const [homeVisibleTokenIds, setHomeVisibleTokenIds] = useState<string[]>([
+    ...DEFAULT_HOME_VISIBLE_TOKEN_IDS,
+  ]);
 
   const cardWidth = Math.max(width - layout.screenPaddingX * 2, 1);
   const contentBottomInset = 44 + Math.max(insets.bottom, 6);
 
   const walletCards = useMemo(() => aggregate?.items ?? [], [aggregate]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      const loadHomeVisibleTokenIds = async () => {
+        try {
+          const raw = await AsyncStorage.getItem(HOME_VISIBLE_TOKENS_STORAGE_KEY);
+          if (!raw) {
+            if (!cancelled) {
+              setHomeVisibleTokenIds([...DEFAULT_HOME_VISIBLE_TOKEN_IDS]);
+            }
+            return;
+          }
+
+          const parsed = JSON.parse(raw);
+          const next = Array.isArray(parsed)
+            ? parsed.map((value) => String(value || '').trim()).filter(Boolean)
+            : [];
+
+          if (!cancelled) {
+            setHomeVisibleTokenIds(
+              next.length > 0 ? next : [...DEFAULT_HOME_VISIBLE_TOKEN_IDS]
+            );
+          }
+        } catch (error) {
+          console.error(error);
+          if (!cancelled) {
+            setHomeVisibleTokenIds([...DEFAULT_HOME_VISIBLE_TOKEN_IDS]);
+          }
+        }
+      };
+
+      void loadHomeVisibleTokenIds();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
+
+  const visibleHistory = useMemo(() => {
+    if (!activeWallet?.id) return [];
+    return historyCache[activeWallet.id] ?? [];
+  }, [activeWallet?.id, historyCache]);
+
+  const activeHistoryHasMore = useMemo(() => {
+    if (!activeWallet?.id) return false;
+    return Boolean(historyHasMoreCache[activeWallet.id]);
+  }, [activeWallet?.id, historyHasMoreCache]);
+
+  const sortedAssets = useMemo(() => {
+    const assets: PortfolioAsset[] = portfolio?.assets ?? [];
+    const next = [...assets];
+
+    if (assetSortMode === 'value') {
+      next.sort((a, b) => {
+        if (b.valueInUsd !== a.valueInUsd) return b.valueInUsd - a.valueInUsd;
+        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      });
+      return next;
+    }
+
+    next.sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    );
+    return next;
+  }, [assetSortMode, portfolio]);
+
+  const visibleHomeAssets = useMemo(() => {
+    const activeVisibleTokenIds =
+      homeVisibleTokenIds.length > 0
+        ? homeVisibleTokenIds
+        : [...DEFAULT_HOME_VISIBLE_TOKEN_IDS];
+
+    const visibleTokenIdSet = new Set(activeVisibleTokenIds);
+    const sourceAssets: PortfolioAsset[] = (portfolio?.assets ?? []).filter((asset) =>
+      visibleTokenIdSet.has(normalizeAssetTokenKey(asset))
+    );
+
+    const merged = [...sourceAssets];
+
+    if (activeWallet?.id) {
+      const historyItems = historyCache[activeWallet.id] ?? [];
+      const tokensSeenInHistory = new Set(
+        historyItems
+          .map((item) => normalizeHistoryTokenKey(item))
+          .filter((tokenId) => visibleTokenIdSet.has(tokenId))
+      );
+
+      for (const tokenId of activeVisibleTokenIds) {
+        if (!tokensSeenInHistory.has(tokenId)) continue;
+        if (merged.some((asset) => normalizeAssetTokenKey(asset) === tokenId)) continue;
+
+        const fallbackName =
+          tokenId === TRX_TOKEN_ID ? 'TRX' : tokenId === FOURTEEN_CONTRACT ? '4TEEN' : tokenId === USDT_CONTRACT ? 'USDT' : tokenId;
+
+        merged.push({
+          id: tokenId,
+          name: fallbackName,
+          symbol: fallbackName,
+          amountDisplay: '0',
+          valueDisplay: '$0.00',
+          deltaDisplay: '—',
+          deltaTone: 'dim',
+          amount: 0,
+          valueInUsd: 0,
+          priceChange24h: undefined,
+          deltaUsd24h: 0,
+        });
+      }
+    }
+
+    const deduped = merged.filter(
+      (asset, index, array) =>
+        array.findIndex((entry) => normalizeAssetTokenKey(entry) === normalizeAssetTokenKey(asset)) ===
+        index
+    );
+
+    if (assetSortMode === 'value') {
+      deduped.sort((a, b) => {
+        if (b.valueInUsd !== a.valueInUsd) return b.valueInUsd - a.valueInUsd;
+        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      });
+    } else {
+      deduped.sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+      );
+    }
+
+    return deduped;
+  }, [activeWallet?.id, assetSortMode, historyCache, homeVisibleTokenIds, portfolio]);
 
   const showWatchOnlyNotice = useCallback(() => {
     notice.showSuccessNotice(
@@ -112,28 +372,134 @@ export default function HomeScreen() {
     notice.showSuccessNotice('Wallet address copied.', 2200);
   }, [notice, qrWallet?.address]);
 
+  const ensureWalletHistoryLoaded = useCallback(
+    async (wallet: WalletMeta, options?: { force?: boolean }) => {
+      const force = Boolean(options?.force);
+
+      if (!force && historyCache[wallet.id]) {
+        return historyCache[wallet.id];
+      }
+
+      try {
+        setHistoryLoadingWalletId(wallet.id);
+
+        const page = await getWalletHistoryPage(wallet.address, {
+          force,
+          limit: 20,
+        });
+
+        setHistoryCache((prev) => ({
+          ...prev,
+          [wallet.id]: page.items,
+        }));
+
+        setHistoryNextCursorCache((prev) => ({
+          ...prev,
+          [wallet.id]: page.nextFingerprint,
+        }));
+
+        setHistoryHasMoreCache((prev) => ({
+          ...prev,
+          [wallet.id]: page.hasMore,
+        }));
+
+        return page.items;
+      } catch (error) {
+        console.error(error);
+        notice.showErrorNotice('Failed to load wallet history.', 2400);
+        return [];
+      } finally {
+        setHistoryLoadingWalletId((current) => (current === wallet.id ? null : current));
+      }
+    },
+    [historyCache, notice]
+  );
+
+  const handleLoadMoreHistory = useCallback(async () => {
+    if (!activeWallet?.id) return;
+    if (!historyHasMoreCache[activeWallet.id]) return;
+    if (historyLoadingMoreWalletId === activeWallet.id) return;
+
+    const fingerprint = historyNextCursorCache[activeWallet.id];
+    if (!fingerprint) return;
+
+    try {
+      setHistoryLoadingMoreWalletId(activeWallet.id);
+
+      const page = await getWalletHistoryPage(activeWallet.address, {
+        limit: 20,
+        fingerprint,
+      });
+
+      setHistoryCache((prev) => {
+        const current = prev[activeWallet.id] ?? [];
+        const seen = new Set(
+          current.map((item) => `${item.tokenId}:${item.txHash}:${item.displayType}:${item.amountRaw}`)
+        );
+
+        const merged = [...current];
+        for (const item of page.items) {
+          const key = `${item.tokenId}:${item.txHash}:${item.displayType}:${item.amountRaw}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(item);
+          }
+        }
+
+        merged.sort((a, b) => b.timestamp - a.timestamp);
+
+        return {
+          ...prev,
+          [activeWallet.id]: merged,
+        };
+      });
+
+      setHistoryNextCursorCache((prev) => ({
+        ...prev,
+        [activeWallet.id]: page.nextFingerprint,
+      }));
+
+      setHistoryHasMoreCache((prev) => ({
+        ...prev,
+        [activeWallet.id]: page.hasMore,
+      }));
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice('Failed to load more history.', 2200);
+    } finally {
+      setHistoryLoadingMoreWalletId((current) => (current === activeWallet.id ? null : current));
+    }
+  }, [
+    activeWallet,
+    historyHasMoreCache,
+    historyLoadingMoreWalletId,
+    historyNextCursorCache,
+    notice,
+  ]);
+
   const load = useCallback(
-    async (preferredWalletId?: string) => {
+    async (preferredWalletId?: string, options?: { force?: boolean }) => {
+      const force = Boolean(options?.force);
+
       try {
         setLoading(true);
         setErrorText('');
 
         const [nextAggregate, storedActiveWalletId] = await Promise.all([
-          getAllWalletPortfolios(),
+          getAllWalletPortfolios({ force }),
           getActiveWalletId(),
         ]);
 
         setAggregate(nextAggregate);
 
-        const nextCacheFromAggregate = (nextAggregate?.items ?? []).reduce<Record<string, WalletPortfolioSnapshot>>(
-          (acc, item) => {
-            if (item.portfolio) {
-              acc[item.wallet.id] = item.portfolio;
-            }
-            return acc;
-          },
-          {}
-        );
+        const nextCacheFromAggregate = (nextAggregate?.items ?? []).reduce<
+          Record<string, WalletPortfolioSnapshot>
+        >((acc, item) => {
+          if (item.portfolio) {
+            acc[item.wallet.id] = item.portfolio;
+          }
+          return acc;
+        }, {});
 
         setPortfolioCache((prev) => ({
           ...prev,
@@ -145,6 +511,8 @@ export default function HomeScreen() {
           setActiveWallet(null);
           setPortfolio(null);
           setPortfolioLoadingWalletId(null);
+          setHistoryLoadingWalletId(null);
+          setHistoryLoadingMoreWalletId(null);
           setCurrentCardIndex(0);
           return;
         }
@@ -155,11 +523,8 @@ export default function HomeScreen() {
           items[0]?.wallet.id ??
           null;
 
-        const nextIndex = Math.max(
-          0,
-          items.findIndex((item) => item.wallet.id === resolvedActiveWalletId)
-        );
-
+        const foundIndex = items.findIndex((item) => item.wallet.id === resolvedActiveWalletId);
+        const nextIndex = foundIndex >= 0 ? foundIndex : 0;
         const nextActiveItem = items[nextIndex] ?? items[0];
         const nextActiveWallet = nextActiveItem.wallet;
 
@@ -169,40 +534,72 @@ export default function HomeScreen() {
         if (nextActiveItem.portfolio) {
           setPortfolio(nextActiveItem.portfolio);
           setPortfolioLoadingWalletId(null);
-          return;
+        } else {
+          setPortfolioLoadingWalletId(nextActiveWallet.id);
+
+          const nextPortfolio = await getWalletPortfolio(nextActiveWallet.address, { force });
+          setPortfolio(nextPortfolio);
+          setPortfolioLoadingWalletId(null);
+
+          setPortfolioCache((prev) => ({
+            ...prev,
+            [nextActiveWallet.id]: nextPortfolio,
+          }));
         }
 
-        setPortfolioLoadingWalletId(nextActiveWallet.id);
-
-        const nextPortfolio = await getWalletPortfolio(nextActiveWallet.address);
-        setPortfolio(nextPortfolio);
-        setPortfolioLoadingWalletId(null);
-
-        setPortfolioCache((prev) => ({
-          ...prev,
-          [nextActiveWallet.id]: nextPortfolio,
-        }));
+        if (contentMode === 'history') {
+          await ensureWalletHistoryLoaded(nextActiveWallet, { force });
+        }
       } catch (error) {
         console.error(error);
         setPortfolio(null);
         setPortfolioLoadingWalletId(null);
+        setHistoryLoadingWalletId(null);
+        setHistoryLoadingMoreWalletId(null);
         setErrorText('Failed to load wallet data.');
         notice.showErrorNotice('Failed to load wallet data.', 2600);
       } finally {
         setLoading(false);
       }
     },
-    [notice]
+    [contentMode, ensureWalletHistoryLoaded, notice]
   );
 
   const handleRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
-      await load(activeWallet?.id);
+
+      if (activeWallet?.id) {
+        setHistoryCache((prev) => {
+          const next = { ...prev };
+          delete next[activeWallet.id];
+          return next;
+        });
+
+        setHistoryNextCursorCache((prev) => {
+          const next = { ...prev };
+          delete next[activeWallet.id];
+          return next;
+        });
+
+        setHistoryHasMoreCache((prev) => {
+          const next = { ...prev };
+          delete next[activeWallet.id];
+          return next;
+        });
+
+        await clearWalletHistoryCache(activeWallet.address, 20);
+      }
+
+      await load(activeWallet?.id, { force: true });
+
+      if (contentMode === 'history' && activeWallet) {
+        await ensureWalletHistoryLoaded(activeWallet, { force: true });
+      }
     } finally {
       setRefreshing(false);
     }
-  }, [activeWallet?.id, load]);
+  }, [activeWallet, contentMode, ensureWalletHistoryLoaded, load]);
 
   useFocusEffect(
     useCallback(() => {
@@ -244,35 +641,55 @@ export default function HomeScreen() {
             ...prev,
             [nextItem.wallet.id]: cached,
           }));
-          return;
+        } else {
+          setPortfolio(null);
+          setPortfolioLoadingWalletId(nextItem.wallet.id);
+
+          const nextPortfolio = await getWalletPortfolio(nextItem.wallet.address);
+          setPortfolio(nextPortfolio);
+          setPortfolioLoadingWalletId(null);
+
+          setPortfolioCache((prev) => ({
+            ...prev,
+            [nextItem.wallet.id]: nextPortfolio,
+          }));
         }
 
-        setPortfolio(null);
-        setPortfolioLoadingWalletId(nextItem.wallet.id);
-
-        const nextPortfolio = await getWalletPortfolio(nextItem.wallet.address);
-        setPortfolio(nextPortfolio);
-        setPortfolioLoadingWalletId(null);
-
-        setPortfolioCache((prev) => ({
-          ...prev,
-          [nextItem.wallet.id]: nextPortfolio,
-        }));
+        if (contentMode === 'history') {
+          await ensureWalletHistoryLoaded(nextItem.wallet);
+        }
       } catch (error) {
         console.error(error);
         setPortfolioLoadingWalletId(null);
+        setHistoryLoadingWalletId(null);
+        setHistoryLoadingMoreWalletId(null);
         notice.showErrorNotice('Failed to switch wallet.', 2400);
       }
     },
-    [activeWallet?.id, cardWidth, notice, portfolioCache, walletCards]
+    [activeWallet?.id, cardWidth, contentMode, ensureWalletHistoryLoaded, notice, portfolioCache, walletCards]
   );
 
   const handleWalletAssetPress = useCallback(() => {
     router.push('/select-wallet');
   }, [router]);
 
+  const handleToggleHistoryMode = useCallback(async () => {
+    if (!activeWallet) {
+      notice.showErrorNotice('No active wallet selected.', 2200);
+      return;
+    }
+
+    if (contentMode === 'assets') {
+      setContentMode('history');
+      await ensureWalletHistoryLoaded(activeWallet);
+      return;
+    }
+
+    setContentMode('assets');
+  }, [activeWallet, contentMode, ensureWalletHistoryLoaded, notice]);
+
   const handleHomeAction = useCallback(
-    (label: string) => {
+    async (label: string) => {
       if (label === 'Receive') {
         if (activeWallet?.kind === 'watch-only') {
           notice.showErrorNotice(
@@ -291,9 +708,19 @@ export default function HomeScreen() {
         return;
       }
 
+      if (label === 'History') {
+        await handleToggleHistoryMode();
+        return;
+      }
+
+      if (label === 'Manage Crypto') {
+        router.push('/manage-crypto');
+        return;
+      }
+
       notice.showNeutralNotice(`${label} is coming soon.`, 2200);
     },
-    [activeWallet, notice, openQrModal, showWatchOnlyNotice]
+    [activeWallet, handleToggleHistoryMode, notice, openQrModal, showWatchOnlyNotice]
   );
 
   const handleOpenToken = useCallback(
@@ -308,23 +735,17 @@ export default function HomeScreen() {
     [router]
   );
 
-  const sortedAssets = useMemo(() => {
-    const assets: PortfolioAsset[] = portfolio?.assets ?? [];
-    const next = [...assets];
-
-    if (assetSortMode === 'value') {
-      next.sort((a, b) => {
-        if (b.valueInUsd !== a.valueInUsd) return b.valueInUsd - a.valueInUsd;
-        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-      });
-      return next;
-    }
-
-    next.sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
-    );
-    return next;
-  }, [assetSortMode, portfolio]);
+  const handleOpenHistoryItem = useCallback(
+    async (item: WalletHistoryItem) => {
+      try {
+        await openInAppBrowser(router, item.tronscanUrl);
+      } catch (error) {
+        console.error(error);
+        notice.showErrorNotice('Failed to open Tronscan.', 2200);
+      }
+    },
+    [notice, router]
+  );
 
   const handleToggleAssetSort = useCallback(() => {
     setAssetSortMode((prev) => {
@@ -337,9 +758,62 @@ export default function HomeScreen() {
     });
   }, [notice]);
 
+  const handleRefreshTransfers = useCallback(async () => {
+    if (!activeWallet) return;
+
+    try {
+      setHistoryCache((prev) => {
+        const next = { ...prev };
+        delete next[activeWallet.id];
+        return next;
+      });
+
+      setHistoryNextCursorCache((prev) => {
+        const next = { ...prev };
+        delete next[activeWallet.id];
+        return next;
+      });
+
+      setHistoryHasMoreCache((prev) => {
+        const next = { ...prev };
+        delete next[activeWallet.id];
+        return next;
+      });
+
+      await clearWalletHistoryCache(activeWallet.address, 20);
+      await ensureWalletHistoryLoaded(activeWallet, { force: true });
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice('Failed to refresh transfers.', 2200);
+    }
+  }, [activeWallet, ensureWalletHistoryLoaded, notice]);
+
   const isInitialScreenLoading = loading && !aggregate;
   const isActivePortfolioLoading =
     Boolean(activeWallet?.id) && portfolioLoadingWalletId === activeWallet?.id;
+  const isActiveHistoryLoading =
+    Boolean(activeWallet?.id) && historyLoadingWalletId === activeWallet?.id;
+  const isActiveHistoryLoadingMore =
+    Boolean(activeWallet?.id) && historyLoadingMoreWalletId === activeWallet?.id;
+
+  const knownManagedTokenIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    for (const asset of portfolio?.assets ?? []) {
+      ids.add(normalizeAssetTokenKey(asset));
+    }
+
+    return Array.from(ids);
+  }, [portfolio?.assets]);
+
+  const hasHiddenManagedTokens = useMemo(() => {
+    if (knownManagedTokenIds.length === 0) return false;
+    const visibleSet = new Set(homeVisibleTokenIds);
+    return knownManagedTokenIds.some((tokenId) => !visibleSet.has(tokenId));
+  }, [homeVisibleTokenIds, knownManagedTokenIds]);
+
+  const historyButtonIcon = contentMode === 'history' ? 'list-outline' : 'time-outline';
+  const historyButtonLabel = contentMode === 'history' ? 'Assets' : 'History';
 
   if (isInitialScreenLoading) {
     return (
@@ -515,116 +989,266 @@ export default function HomeScreen() {
 
           <View style={styles.actionsRow}>
             <View style={styles.actionEdgeSlot}>
-              <ActionButton icon="arrow-up-outline" label="Send" onPress={() => handleHomeAction('Send')} />
+              <ActionButton icon="arrow-up-outline" label="Send" onPress={() => void handleHomeAction('Send')} />
             </View>
 
             <View style={styles.actionMiddleSlot}>
-              <ActionButton icon="arrow-down-outline" label="Receive" onPress={() => handleHomeAction('Receive')} />
+              <ActionButton icon="arrow-down-outline" label="Receive" onPress={() => void handleHomeAction('Receive')} />
             </View>
 
             <View style={styles.actionMiddleSlot}>
-              <ActionButton icon="time-outline" label="History" onPress={() => handleHomeAction('History')} />
+              <ActionButton icon={historyButtonIcon} label={historyButtonLabel} onPress={() => void handleHomeAction('History')} />
             </View>
 
             <View style={styles.actionEdgeSlotRight}>
-              <ActionButton icon="grid-outline" label="More" onPress={() => handleHomeAction('More')} />
+              <ActionButton icon="grid-outline" label="More" onPress={() => void handleHomeAction('More')} />
             </View>
           </View>
 
           {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
-          <View style={styles.assetsHeaderRow}>
-            <View style={styles.assetsHeaderSide}>
-              <Text style={styles.assetsHeaderMiniLabel}>Assets</Text>
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.assetsHeaderLeftButton}
-                onPress={handleToggleAssetSort}
-              >
-                <PreferencesIcon width={20} height={20} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.assetsHeaderSide}>
-              <Text style={styles.assetsHeaderMiniLabel}>Manage</Text>
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.assetsHeaderRightButton}
-                onPress={() => handleHomeAction('Manage Crypto')}
-              >
-                <SettingsMiniIcon width={20} height={20} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.assetList}>
-            {isActivePortfolioLoading ? (
-              <View style={styles.assetSkeletonList}>
-                {Array.from({ length: ASSET_SKELETON_ROWS }).map((_, index) => (
-                  <View key={`asset-skeleton-${index}`} style={styles.assetSkeletonRow}>
-                    <View style={styles.assetSkeletonLeft}>
-                      <View style={styles.assetSkeletonLogo} />
-                      <View style={styles.assetSkeletonMeta}>
-                        <View style={styles.assetSkeletonName} />
-                        <View style={styles.assetSkeletonAmount} />
-                      </View>
-                    </View>
-
-                    <View style={styles.assetSkeletonRight}>
-                      <View style={styles.assetSkeletonValue} />
-                      <View style={styles.assetSkeletonDelta} />
-                    </View>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              sortedAssets.map((asset) => (
-                <TouchableOpacity
-                  key={asset.id}
-                  activeOpacity={0.9}
-                  style={styles.assetRow}
-                  onPress={() => handleOpenToken(asset)}
-                >
-                  <View style={styles.assetLeft}>
-                    {asset.logo ? (
-                      <Image
-                        source={{ uri: asset.logo }}
-                        style={styles.assetLogo}
-                        contentFit="contain"
-                      />
+          {contentMode === 'assets' ? (
+            <>
+              <View style={styles.assetsHeaderRow}>
+                <View style={styles.assetsHeaderSide}>
+                  <Text style={[ui.sectionEyebrow, styles.assetsEyebrowBar]}>Assets</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.assetsHeaderLeftButton}
+                    onPress={handleToggleAssetSort}
+                  >
+                    {assetSortMode === 'value' ? (
+                      <ValueSortIcon width={20} height={20} />
                     ) : (
-                      <View style={styles.assetFallbackLogo}>
-                        <Text style={styles.assetFallbackText}>
-                          {asset.symbol.slice(0, 1).toUpperCase()}
+                      <AzSortIcon width={20} height={20} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.assetsHeaderSide}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.assetsHeaderRightButton}
+                    onPress={() => void handleHomeAction('Manage Crypto')}
+                  >
+                    {hasHiddenManagedTokens ? (
+                      <ManageNewIcon width={20} height={20} />
+                    ) : (
+                      <ManageFullIcon width={20} height={20} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.assetList}>
+                {isActivePortfolioLoading ? (
+                  <View style={styles.assetSkeletonList}>
+                    {Array.from({ length: ASSET_SKELETON_ROWS }).map((_, index) => (
+                      <View key={`asset-skeleton-${index}`} style={styles.assetSkeletonRow}>
+                        <View style={styles.assetSkeletonLeft}>
+                          <View style={styles.assetSkeletonLogo} />
+                          <View style={styles.assetSkeletonMeta}>
+                            <View style={styles.assetSkeletonName} />
+                            <View style={styles.assetSkeletonAmount} />
+                          </View>
+                        </View>
+
+                        <View style={styles.assetSkeletonRight}>
+                          <View style={styles.assetSkeletonValue} />
+                          <View style={styles.assetSkeletonDelta} />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  visibleHomeAssets.map((asset) => (
+                    <TouchableOpacity
+                      key={asset.id}
+                      activeOpacity={0.9}
+                      style={styles.assetRow}
+                      onPress={() => handleOpenToken(asset)}
+                    >
+                      <View style={styles.assetLeft}>
+                        {asset.logo ? (
+                          <Image
+                            source={{ uri: asset.logo }}
+                            style={styles.assetLogo}
+                            contentFit="contain"
+                          />
+                        ) : (
+                          <View style={styles.assetFallbackLogo}>
+                            <Text style={styles.assetFallbackText}>
+                              {asset.symbol.slice(0, 1).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+
+                        <View style={styles.assetMeta}>
+                          <Text style={styles.assetName}>{asset.name}</Text>
+                          <Text style={styles.assetAmount}>{asset.amountDisplay}</Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.assetRight}>
+                        <Text style={styles.assetValue}>{asset.valueDisplay}</Text>
+                        <Text
+                          style={[
+                            styles.assetDelta,
+                            asset.deltaTone === 'green'
+                              ? styles.deltaGreen
+                              : asset.deltaTone === 'red'
+                                ? styles.deltaRed
+                                : styles.deltaDim,
+                          ]}
+                        >
+                          {asset.deltaDisplay}
                         </Text>
                       </View>
-                    )}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
 
-                    <View style={styles.assetMeta}>
-                      <Text style={styles.assetName}>{asset.name}</Text>
-                      <Text style={styles.assetAmount}>{asset.amountDisplay}</Text>
-                    </View>
-                  </View>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.manageCryptoTextButton}
+                onPress={() => void handleHomeAction('Manage Crypto')}
+              >
+                <Text style={styles.manageCryptoText}>Manage Crypto</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.historyHeaderRow}>
+                <View style={styles.historyHeaderSide}>
+                  <Text style={[ui.sectionEyebrow, styles.historyEyebrowBar]}>Transfers</Text>
+                </View>
 
-                  <View style={styles.assetRight}>
-                    <Text style={styles.assetValue}>{asset.valueDisplay}</Text>
-                    <Text
-                      style={[
-                        styles.assetDelta,
-                        asset.deltaTone === 'green'
-                          ? styles.deltaGreen
-                          : asset.deltaTone === 'red'
-                            ? styles.deltaRed
-                            : styles.deltaDim,
-                      ]}
-                    >
-                      {asset.deltaDisplay}
-                    </Text>
-                  </View>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.historyRefreshButton}
+                  onPress={() => void handleRefreshTransfers()}
+                  disabled={isActiveHistoryLoading}
+                >
+                  {isActiveHistoryLoading ? (
+                    <ActivityIndicator color={colors.accent} size="small" />
+                  ) : (
+                    <BrowserRefreshIcon width={18} height={18} />
+                  )}
                 </TouchableOpacity>
-              ))
-            )}
-          </View>
+              </View>
+
+              <View style={styles.historyBlockHome}>
+                {isActiveHistoryLoading ? (
+                  <View style={styles.historySkeletonList}>
+                    {Array.from({ length: HISTORY_SKELETON_ROWS }).map((_, index) => (
+                      <View key={`history-skeleton-${index}`} style={styles.historySkeletonRow}>
+                        <View style={styles.historySkeletonTopRow}>
+                          <View style={styles.historySkeletonLeft}>
+                            <View style={styles.historySkeletonTag} />
+                            <View style={styles.historySkeletonCounterparty} />
+                          </View>
+                          <View style={styles.historySkeletonAmount} />
+                        </View>
+
+                        <View style={styles.historySkeletonTime} />
+
+                        <View style={styles.historySkeletonBottomRow}>
+                          <View style={styles.historySkeletonHash} />
+                          <View style={styles.historySkeletonShare} />
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : visibleHistory.length > 0 ? (
+                  <>
+                    <View style={styles.historyList}>
+                      {visibleHistory.map((item, index) => (
+                        <TouchableOpacity
+                          key={`${item.tokenId}-${item.txHash}-${item.displayType}-${index}`}
+                          activeOpacity={0.9}
+                          style={[styles.historyRow, historyRowTone(item)]}
+                          onPress={() => void handleOpenHistoryItem(item)}
+                        >
+                          <View style={styles.historyTopLine}>
+                            <Text style={[styles.historyType, historyTone(item)]}>
+                              {historyTypeLabel(item)}
+                            </Text>
+
+                            <Text
+                              style={[styles.historyAmount, historyTone(item)]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {formatHistoryAmount(item)}
+                            </Text>
+                          </View>
+
+                          <View style={styles.historyAddressRow}>
+                            <Text
+                              style={[
+                                styles.historyCounterparty,
+                                item.isKnownContact ? styles.historyCounterpartyKnown : null,
+                              ]}
+                            >
+                              {item.counterpartyLabel || 'Unknown'}
+                            </Text>
+
+                            <View style={styles.historyTokenRow}>
+                              {item.tokenLogo ? (
+                                <Image
+                                  source={{ uri: item.tokenLogo }}
+                                  style={styles.historyTokenLogo}
+                                  contentFit="contain"
+                                />
+                              ) : null}
+
+                              <Text
+                                style={styles.historyTokenLabel}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                              >
+                                {getHistoryTokenLabel(item)}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <Text style={styles.historyTime}>{formatHistoryTime(item.timestamp)}</Text>
+
+                          <View style={styles.historyBottomRow}>
+                            <Text style={styles.historyHash}>{formatShortHash(item.txHash)}</Text>
+
+                            <View style={styles.historyBottomAction}>
+                              <ShareIcon width={14} height={14} />
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {activeHistoryHasMore ? (
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={styles.loadMoreButton}
+                        onPress={() => void handleLoadMoreHistory()}
+                        disabled={isActiveHistoryLoadingMore}
+                      >
+                        {isActiveHistoryLoadingMore ? (
+                          <ActivityIndicator color={colors.accent} size="small" />
+                        ) : (
+                          <Text style={styles.loadMoreButtonText}>Load More</Text>
+                        )}
+                      </TouchableOpacity>
+                    ) : null}
+                  </>
+                ) : (
+                  <View style={styles.historyEmpty}>
+                    <Text style={styles.historyEmptyText}>No transfers yet.</Text>
+                  </View>
+                )}
+              </View>
+            </>
+          )}
         </ScrollView>
 
         <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -969,6 +1593,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
+  assetsEyebrowBar: {
+    marginBottom: 0,
+  },
+
   assetsHeaderLeftButton: {
     width: 28,
     height: 28,
@@ -984,9 +1612,8 @@ const styles = StyleSheet.create({
   },
 
   assetList: {
-    minHeight: 318,
     gap: 10,
-    paddingBottom: spacing[3],
+    paddingBottom: 6,
   },
 
   assetSkeletonList: {
@@ -1142,6 +1769,303 @@ const styles = StyleSheet.create({
   assetDelta: {
     fontSize: 12,
     lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  historyHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 0,
+    marginTop: 0,
+    marginBottom: 6,
+  },
+
+  historyHeaderSide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  historyHeaderMiniLabel: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+  },
+
+  historyEyebrowBar: {
+    marginBottom: 0,
+  },
+
+  historyRefreshButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  historyBlockHome: {
+    minHeight: 318,
+    gap: 10,
+    paddingBottom: spacing[3],
+  },
+
+  historySkeletonList: {
+    gap: 10,
+  },
+
+  historySkeletonRow: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 96,
+    gap: 8,
+  },
+
+  historySkeletonTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+
+  historySkeletonLeft: {
+    flex: 1,
+    gap: 8,
+  },
+
+  historySkeletonTag: {
+    width: 110,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  historySkeletonCounterparty: {
+    width: '72%',
+    height: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  historySkeletonAmount: {
+    width: 84,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  historySkeletonTime: {
+    width: 132,
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  historySkeletonBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  historySkeletonHash: {
+    width: 120,
+    height: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  historySkeletonShare: {
+    width: 14,
+    height: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  historyList: {
+    gap: 10,
+  },
+
+  historyRow: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 8,
+  },
+
+  historyRowSend: {
+    backgroundColor: 'rgba(255,48,73,0.03)',
+  },
+
+  historyRowReceive: {
+    backgroundColor: 'rgba(24,224,58,0.03)',
+  },
+
+  historyTopLine: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+
+
+
+  historyAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  historyBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+
+
+  historyBottomAction: {
+    width: 18,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  historyType: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  historyTypeGreen: {
+    color: colors.green,
+  },
+
+  historyTypeRed: {
+    color: colors.red,
+  },
+
+  historyCounterparty: {
+    flex: 1,
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    paddingRight: 12,
+  },
+
+  historyCounterpartyKnown: {
+    color: colors.white,
+  },
+
+  historyAmount: {
+    color: colors.white,
+    fontSize: 18,
+    lineHeight: 22,
+    fontFamily: 'Sora_700Bold',
+    textAlign: 'right',
+    maxWidth: '48%',
+    flexShrink: 1,
+  },
+
+  historyTime: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  historyHash: {
+    flex: 1,
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  manageCryptoTextButton: {
+    alignSelf: 'center',
+    paddingVertical: 4,
+    marginTop: 0,
+    marginBottom: 12,
+  },
+
+  manageCryptoText: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  historyTokenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    flexShrink: 0,
+    maxWidth: 120,
+  },
+
+  historyTokenLogo: {
+    width: 14,
+    height: 14,
+    borderRadius: 0,
+  },
+
+  historyTokenLabel: {
+    color: colors.white,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    maxWidth: 108,
+    textAlign: 'right',
+  },
+
+  historyTypeDim: {
+    color: colors.textDim,
+  },
+
+  historyEmpty: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+
+  historyEmptyText: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  loadMoreButton: {
+    minHeight: 48,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,105,0,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    marginTop: 2,
+  },
+
+  loadMoreButtonText: {
+    color: colors.accent,
+    fontSize: 14,
+    lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
   },
 });
