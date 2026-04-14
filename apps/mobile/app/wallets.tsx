@@ -483,7 +483,7 @@ function RemoveHoldRow({
       onPressOut={onPressOut}
     >
       <>
-        {active ? <View style={[styles.removeHoldFill, { width: fillWidth }]} /> : null}
+        {active ? <View style={[styles.removeHoldFill, { width: fillWidth as any }]} /> : null}
         <Text style={[styles.destructiveLabel, active && styles.removeHoldLabelActive]}>
           Remove Wallet
         </Text>

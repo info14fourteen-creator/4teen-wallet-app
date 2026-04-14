@@ -418,7 +418,7 @@ export default function AddressBookScreen() {
 
                   <View style={styles.removeStripRow}>
                     {removing ? (
-                      <View style={[styles.removeHoldFill, { width: removalFillWidth }]} />
+                      <View style={[styles.removeHoldFill, { width: removalFillWidth as any }]} />
                     ) : null}
                   </View>
                 </View>
