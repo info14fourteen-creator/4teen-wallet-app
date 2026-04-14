@@ -1,32 +1,36 @@
 {
-  "generatedAt": "2026-04-14T20:09:36.452Z",
+  "generatedAt": "2026-04-14T21:09:35.658Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "37e5251b8031eb62974198d1c660b541acedf987",
-    "shortHash": "37e5251",
-    "subject": "fix: sync custom token visibility across wallet screens",
+    "hash": "01d89e61d9f1ca1ff0bd10aa63482578e18dd673",
+    "shortHash": "01d89e6",
+    "subject": "refactor: simplify clear cache row in settings",
     "author": "info14fourteen-creator",
-    "date": "2026-04-15T01:09:23+05:00"
+    "date": "2026-04-15T02:09:23+05:00"
   },
   "changedFiles": [
-    "A\tapps/mobile/app/add-custom-token.tsx",
+    "M\tapps/mobile/app/add-custom-token.tsx",
     "M\tapps/mobile/app/home.tsx",
     "M\tapps/mobile/app/manage-crypto.tsx",
-    "M\tapps/mobile/src/services/tron/api.ts"
+    "M\tapps/mobile/app/settings.tsx",
+    "M\tapps/mobile/src/config/app-version.ts",
+    "M\tapps/mobile/src/services/tron/api.ts",
+    "M\tapps/mobile/src/services/wallet/portfolio.ts",
+    "M\tapps/mobile/src/services/wallet/storage.ts"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/app/home.tsx",
-      "count": 4
+      "count": 5
     },
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 4
+      "count": 5
     },
     {
-      "file": "apps/mobile/app/token-details.tsx",
+      "file": "apps/mobile/app/manage-crypto.tsx",
       "count": 3
     },
     {
@@ -42,15 +46,11 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/app/address-book.tsx",
+      "file": "apps/mobile/app/add-custom-token.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/manage-crypto.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/wallets.tsx",
+      "file": "apps/mobile/app/token-details.tsx",
       "count": 2
     },
     {
@@ -58,11 +58,19 @@
       "count": 2
     },
     {
+      "file": "apps/mobile/src/services/wallet/portfolio.ts",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/src/services/wallet/storage.ts",
+      "count": 2
+    },
+    {
       "file": "apps/mobile/src/ui/top-chrome.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/add-custom-token.tsx",
+      "file": "apps/mobile/app/address-book.tsx",
       "count": 1
     },
     {
@@ -86,11 +94,11 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/select-wallet.tsx",
+      "file": "apps/mobile/app/send.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/app/send.tsx",
+      "file": "apps/mobile/app/settings.tsx",
       "count": 1
     },
     {
@@ -102,7 +110,7 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/icons/ui/add_contact_btn.svg",
+      "file": "apps/mobile/app/wallets.tsx",
       "count": 1
     },
     {
@@ -131,10 +139,6 @@
     },
     {
       "file": "apps/mobile/assets/icons/ui/browser_refresh_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/browser_share_btn.svg",
       "count": 1
     }
   ],

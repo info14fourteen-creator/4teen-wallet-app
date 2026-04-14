@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-14T20:09:36.450Z
+Generated: 2026-04-14T21:09:35.656Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 37e5251b8031eb62974198d1c660b541acedf987
-Short commit: 37e5251
-Commit subject: fix: sync custom token visibility across wallet screens
+Last commit: 01d89e61d9f1ca1ff0bd10aa63482578e18dd673
+Short commit: 01d89e6
+Commit subject: refactor: simplify clear cache row in settings
 Commit author: info14fourteen-creator
-Commit date: 2026-04-15T01:09:23+05:00
+Commit date: 2026-04-15T02:09:23+05:00
 
 ## Curated project tree
 
