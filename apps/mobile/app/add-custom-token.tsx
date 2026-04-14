@@ -35,14 +35,16 @@ import {
 
 import ToggleOffIcon from '../assets/icons/ui/toggle_off_btn.svg';
 import ToggleOnIcon from '../assets/icons/ui/toggle_on_btn.svg';
+import {
+  buildWalletHomeVisibleTokensStorageKey,
+  getActiveWallet,
+} from '../src/services/wallet/storage';
 
 const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
   TRX_TOKEN_ID,
   FOURTEEN_CONTRACT,
   USDT_CONTRACT,
 ] as const;
-
-const HOME_VISIBLE_TOKENS_STORAGE_KEY = 'wallet.homeVisibleTokenIds.v1';
 
 function isDefaultHomeTokenId(tokenId: string) {
   return DEFAULT_HOME_VISIBLE_TOKEN_IDS.includes(
@@ -83,10 +85,17 @@ export default function AddCustomTokenScreen() {
         setLoading(true);
         setErrorText('');
 
+        const activeWallet = await getActiveWallet();
+        if (!activeWallet) {
+          throw new Error('No active wallet selected.');
+        }
+
+        const visibleStorageKey = buildWalletHomeVisibleTokensStorageKey(activeWallet.id);
+
         const [tokenList, storedVisibleRaw, selectedCustomTokens] = await Promise.all([
           getTronscanTokenList({ force }),
-          AsyncStorage.getItem(HOME_VISIBLE_TOKENS_STORAGE_KEY),
-          getCustomTokenCatalog(),
+          AsyncStorage.getItem(visibleStorageKey),
+          getCustomTokenCatalog(activeWallet.id),
         ]);
 
         let storedVisibleIds: string[] = [...DEFAULT_HOME_VISIBLE_TOKEN_IDS];
@@ -176,12 +185,17 @@ export default function AddCustomTokenScreen() {
           nextCustomCatalog = [...currentCustomCatalog, mapTokenListItemToCustomToken(token)];
         }
 
+        const activeWallet = await getActiveWallet();
+        if (!activeWallet) {
+          throw new Error('No active wallet selected.');
+        }
+
         await Promise.all([
           AsyncStorage.setItem(
-            HOME_VISIBLE_TOKENS_STORAGE_KEY,
+            buildWalletHomeVisibleTokensStorageKey(activeWallet.id),
             JSON.stringify(nextVisibleIds)
           ),
-          setCustomTokenCatalog(nextCustomCatalog),
+          setCustomTokenCatalog(activeWallet.id, nextCustomCatalog),
         ]);
 
         setHomeVisibleTokenIds(nextVisibleIds);

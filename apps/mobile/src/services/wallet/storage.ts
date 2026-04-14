@@ -18,6 +18,8 @@ export type WalletSecretPayload = {
 
 const WALLET_LIST_KEY = 'fourteen_wallet_list_v1';
 const ACTIVE_WALLET_ID_KEY = 'fourteen_active_wallet_id_v1';
+const WALLET_HOME_VISIBLE_TOKENS_KEY_PREFIX = 'wallet.homeVisibleTokenIds.v2';
+const WALLET_CUSTOM_TOKEN_CATALOG_KEY_PREFIX = 'wallet.customTokenCatalog.v2';
 
 function buildSecretKey(id: string) {
   return `fourteen_wallet_secret_${id}`;
@@ -25,6 +27,14 @@ function buildSecretKey(id: string) {
 
 function buildWalletId() {
   return `wallet_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function buildWalletHomeVisibleTokensStorageKey(walletId: string) {
+  return `${WALLET_HOME_VISIBLE_TOKENS_KEY_PREFIX}:${walletId.trim()}`;
+}
+
+export function buildWalletCustomTokenCatalogStorageKey(walletId: string) {
+  return `${WALLET_CUSTOM_TOKEN_CATALOG_KEY_PREFIX}:${walletId.trim()}`;
 }
 
 export async function listWallets(): Promise<WalletMeta[]> {
@@ -184,6 +194,10 @@ export async function removeWallet(id: string): Promise<void> {
 
   await AsyncStorage.setItem(WALLET_LIST_KEY, JSON.stringify(next));
   await SecureStore.deleteItemAsync(buildSecretKey(id));
+  await AsyncStorage.multiRemove([
+    buildWalletHomeVisibleTokensStorageKey(id),
+    buildWalletCustomTokenCatalogStorageKey(id),
+  ]);
 
   const activeId = await getActiveWalletId();
 

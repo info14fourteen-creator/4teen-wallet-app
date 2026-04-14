@@ -28,6 +28,7 @@ import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import {
+  buildWalletHomeVisibleTokensStorageKey,
   getActiveWalletId,
   setActiveWalletId,
   type WalletMeta,
@@ -73,8 +74,6 @@ const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
   FOURTEEN_CONTRACT,
   USDT_CONTRACT,
 ] as const;
-
-const HOME_VISIBLE_TOKENS_STORAGE_KEY = 'wallet.homeVisibleTokenIds.v1';
 
 type ContentMode = 'assets' | 'history';
 
@@ -217,67 +216,67 @@ export default function HomeScreen() {
 
   const walletCards = useMemo(() => aggregate?.items ?? [], [aggregate]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
+  const loadHomePreferences = useCallback(async (walletId?: string | null) => {
+    const resolvedWalletId = String(walletId || activeWallet?.id || '').trim();
 
-      const loadHomePreferences = async () => {
-        try {
-          const [rawVisibleIds, catalog] = await Promise.all([
-            AsyncStorage.getItem(HOME_VISIBLE_TOKENS_STORAGE_KEY),
-            getCustomTokenCatalog().catch(() => []),
-          ]);
+    if (!resolvedWalletId) {
+      setHomeVisibleTokenIds([...DEFAULT_HOME_VISIBLE_TOKEN_IDS]);
+      setCustomTokenCatalog([]);
+      return;
+    }
 
-          const safeCatalog = Array.isArray(catalog) ? catalog : [];
-          const allowedCustomIds = new Set(
-            safeCatalog.map((item) => String(item.id || '').trim()).filter(Boolean)
-          );
+    try {
+      const storageKey = buildWalletHomeVisibleTokensStorageKey(resolvedWalletId);
+      const [rawVisibleIds, catalog] = await Promise.all([
+        AsyncStorage.getItem(storageKey),
+        getCustomTokenCatalog(resolvedWalletId).catch(() => []),
+      ]);
 
-          if (!cancelled) {
-            setCustomTokenCatalog(safeCatalog);
-          }
+      const safeCatalog = Array.isArray(catalog) ? catalog : [];
+      const allowedCustomIds = new Set(
+        safeCatalog.map((item) => String(item.id || '').trim()).filter(Boolean)
+      );
+      const allowedPortfolioIds = new Set(
+        (portfolio?.assets ?? [])
+          .map((asset) => normalizeAssetTokenKey(asset))
+          .filter(Boolean)
+      );
 
-          if (!rawVisibleIds) {
-            if (!cancelled) {
-              setHomeVisibleTokenIds([...DEFAULT_HOME_VISIBLE_TOKEN_IDS]);
-            }
-            return;
-          }
+      setCustomTokenCatalog(safeCatalog);
 
-          const parsed = JSON.parse(rawVisibleIds);
-          const next = Array.isArray(parsed)
-            ? parsed.map((value) => String(value || '').trim()).filter(Boolean)
-            : [];
+      if (!rawVisibleIds) {
+        setHomeVisibleTokenIds([...DEFAULT_HOME_VISIBLE_TOKEN_IDS]);
+        return;
+      }
 
-          const filtered = next.filter((tokenId) => {
-            return (
-              DEFAULT_HOME_VISIBLE_TOKEN_IDS.includes(
-                tokenId as (typeof DEFAULT_HOME_VISIBLE_TOKEN_IDS)[number]
-              ) || allowedCustomIds.has(tokenId)
-            );
-          });
+      const parsed = JSON.parse(rawVisibleIds);
+      const next = Array.isArray(parsed)
+        ? parsed.map((value) => String(value || '').trim()).filter(Boolean)
+        : [];
 
-          if (!cancelled) {
-            setHomeVisibleTokenIds(
-              filtered.length > 0 ? filtered : [...DEFAULT_HOME_VISIBLE_TOKEN_IDS]
-            );
-          }
-        } catch (error) {
-          console.error(error);
-          if (!cancelled) {
-            setHomeVisibleTokenIds([...DEFAULT_HOME_VISIBLE_TOKEN_IDS]);
-            setCustomTokenCatalog([]);
-          }
-        }
-      };
+      const filtered = next.filter((tokenId) => {
+        return (
+          DEFAULT_HOME_VISIBLE_TOKEN_IDS.includes(
+            tokenId as (typeof DEFAULT_HOME_VISIBLE_TOKEN_IDS)[number]
+          ) ||
+          allowedCustomIds.has(tokenId) ||
+          allowedPortfolioIds.has(tokenId)
+        );
+      });
 
-      void loadHomePreferences();
+      setHomeVisibleTokenIds(
+        filtered.length > 0 ? filtered : [...DEFAULT_HOME_VISIBLE_TOKEN_IDS]
+      );
+    } catch (error) {
+      console.error(error);
+      setHomeVisibleTokenIds([...DEFAULT_HOME_VISIBLE_TOKEN_IDS]);
+      setCustomTokenCatalog([]);
+    }
+  }, [activeWallet?.id, portfolio?.assets]);
 
-      return () => {
-        cancelled = true;
-      };
-    }, [])
-  );
+  useEffect(() => {
+    void loadHomePreferences(activeWallet?.id);
+  }, [activeWallet?.id, loadHomePreferences]);
 
 
   useEffect(() => {
@@ -777,7 +776,10 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       void load();
-    }, [load])
+      void loadHomePreferences();
+
+      return undefined;
+    }, [load, loadHomePreferences])
   );
 
   useEffect(() => {

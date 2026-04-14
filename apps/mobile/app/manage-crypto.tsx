@@ -21,7 +21,10 @@ import MenuSheet from '../src/ui/menu-sheet';
 import SubmenuHeader from '../src/ui/submenu-header';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
-import { getActiveWallet } from '../src/services/wallet/storage';
+import {
+  buildWalletHomeVisibleTokensStorageKey,
+  getActiveWallet,
+} from '../src/services/wallet/storage';
 import {
   FOURTEEN_CONTRACT,
   getCustomTokenCatalog,
@@ -45,8 +48,6 @@ const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
   FOURTEEN_CONTRACT,
   USDT_CONTRACT,
 ] as const;
-
-const HOME_VISIBLE_TOKENS_STORAGE_KEY = 'wallet.homeVisibleTokenIds.v1';
 
 function mapCustomTokenToAsset(item: CustomTokenCatalogItem): PortfolioAsset {
   return {
@@ -158,10 +159,12 @@ export default function ManageCryptoScreen() {
         throw new Error('No active wallet selected.');
       }
 
+      const visibleStorageKey = buildWalletHomeVisibleTokensStorageKey(activeWallet.id);
+
       const [nextPortfolio, storedVisibleRaw, customCatalog] = await Promise.all([
         getWalletPortfolio(activeWallet.address, { force }),
-        AsyncStorage.getItem(HOME_VISIBLE_TOKENS_STORAGE_KEY),
-        getCustomTokenCatalog(),
+        AsyncStorage.getItem(visibleStorageKey),
+        getCustomTokenCatalog(activeWallet.id),
       ]);
 
       let storedVisibleIds: string[] = [...DEFAULT_HOME_VISIBLE_TOKEN_IDS];
@@ -180,12 +183,19 @@ export default function ManageCryptoScreen() {
       const selectedCustomIds = new Set(
         customCatalog.map((item) => String(item.id || '').trim()).filter(Boolean)
       );
+      const portfolioTokenIds = new Set(
+        (nextPortfolio.assets ?? [])
+          .map((asset) => normalizeAssetTokenKey(asset))
+          .filter(Boolean)
+      );
 
       storedVisibleIds = storedVisibleIds.filter((tokenId) => {
         return (
           DEFAULT_HOME_VISIBLE_TOKEN_IDS.includes(
             tokenId as (typeof DEFAULT_HOME_VISIBLE_TOKEN_IDS)[number]
-          ) || selectedCustomIds.has(tokenId)
+          ) ||
+          selectedCustomIds.has(tokenId) ||
+          portfolioTokenIds.has(tokenId)
         );
       });
 
@@ -309,8 +319,13 @@ export default function ManageCryptoScreen() {
           return nextIds;
         });
 
+        const activeWallet = await getActiveWallet();
+        if (!activeWallet) {
+          throw new Error('No active wallet selected.');
+        }
+
         await AsyncStorage.setItem(
-          HOME_VISIBLE_TOKENS_STORAGE_KEY,
+          buildWalletHomeVisibleTokensStorageKey(activeWallet.id),
           JSON.stringify(nextIds)
         );
       } catch (error) {

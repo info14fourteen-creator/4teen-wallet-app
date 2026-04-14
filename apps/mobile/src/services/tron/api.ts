@@ -42,7 +42,15 @@ const ACCOUNT_INFO_CACHE_TTL_MS = 30 * 1000;
 const ACCOUNT_TRC20_ASSETS_CACHE_TTL_MS = 30 * 1000;
 const WALLET_SNAPSHOT_CACHE_TTL_MS = 30 * 1000;
 const CUSTOM_TOKEN_CATALOG_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const CUSTOM_TOKEN_CATALOG_STORAGE_KEY = 'wallet.customTokenCatalog.v1';
+const CUSTOM_TOKEN_CATALOG_STORAGE_KEY_PREFIX = 'wallet.customTokenCatalog.v2';
+
+function normalizeCustomTokenCatalogWalletId(walletId: string) {
+  return String(walletId || '').trim().toLowerCase();
+}
+
+function buildCustomTokenCatalogStorageKey(walletId: string) {
+  return `${CUSTOM_TOKEN_CATALOG_STORAGE_KEY_PREFIX}:${normalizeCustomTokenCatalogWalletId(walletId)}`;
+}
 const TRONSCAN_PRICED_TOKENS_URL = 'https://apilist.tronscanapi.com/api/getAssetWithPriceList';
 
 type ProviderName = 'tronscan' | 'trongrid';
@@ -148,8 +156,8 @@ const tronscanTokenOverviewMemoryCache = new Map<
   }
 >();
 const tronscanTokenOverviewInflight = new Map<string, Promise<TokenMetaFallback>>();
-let customTokenCatalogMemoryCache: CustomTokenCatalogCachePayload | null = null;
-let customTokenCatalogInflight: Promise<CustomTokenCatalogItem[]> | null = null;
+const customTokenCatalogMemoryCache = new Map<string, CustomTokenCatalogItem[]>();
+const customTokenCatalogInflight = new Map<string, Promise<CustomTokenCatalogItem[]>>();
 
 const providerKeyState: Record<ProviderName, ProviderKeyState> = {
   tronscan: {
@@ -955,53 +963,91 @@ function normalizeCustomTokenCatalogItems(value: unknown): CustomTokenCatalogIte
     return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
   });
 }
-export async function getCustomTokenCatalog(): Promise<CustomTokenCatalogItem[]> {
-  try {
-    const raw = await AsyncStorage.getItem(CUSTOM_TOKEN_CATALOG_STORAGE_KEY);
+export async function getCustomTokenCatalog(walletId: string): Promise<CustomTokenCatalogItem[]> {
+  const safeWalletId = normalizeCustomTokenCatalogWalletId(walletId);
+  if (!safeWalletId) return [];
 
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw) as unknown;
-
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      'savedAt' in (parsed as Record<string, unknown>) &&
-      'items' in (parsed as Record<string, unknown>)
-    ) {
-      await AsyncStorage.removeItem(CUSTOM_TOKEN_CATALOG_STORAGE_KEY);
-      customTokenCatalogMemoryCache = null;
-      return [];
-    }
-
-    return normalizeCustomTokenCatalogItems(parsed);
-  } catch (error) {
-    console.error('Failed to read custom token catalog:', error);
-    return [];
+  const storageKey = buildCustomTokenCatalogStorageKey(safeWalletId);
+  const memory = customTokenCatalogMemoryCache.get(storageKey);
+  if (memory) {
+    return memory;
   }
+
+  const inflight = customTokenCatalogInflight.get(storageKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const request = (async () => {
+    try {
+      const raw = await AsyncStorage.getItem(storageKey);
+
+      if (!raw) {
+        customTokenCatalogMemoryCache.set(storageKey, []);
+        return [];
+      }
+
+      const parsed = JSON.parse(raw) as unknown;
+
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        'savedAt' in (parsed as Record<string, unknown>) &&
+        'items' in (parsed as Record<string, unknown>)
+      ) {
+        await AsyncStorage.removeItem(storageKey);
+        customTokenCatalogMemoryCache.delete(storageKey);
+        return [];
+      }
+
+      const normalized = normalizeCustomTokenCatalogItems(parsed);
+      customTokenCatalogMemoryCache.set(storageKey, normalized);
+      return normalized;
+    } catch (error) {
+      console.error('Failed to read custom token catalog:', error);
+      return [];
+    } finally {
+      customTokenCatalogInflight.delete(storageKey);
+    }
+  })();
+
+  customTokenCatalogInflight.set(storageKey, request);
+  return request;
 }
 
-export async function clearCustomTokenCatalog(): Promise<void> {
-  customTokenCatalogMemoryCache = null;
+export async function clearCustomTokenCatalog(walletId: string): Promise<void> {
+  const safeWalletId = normalizeCustomTokenCatalogWalletId(walletId);
+  if (!safeWalletId) return;
+
+  const storageKey = buildCustomTokenCatalogStorageKey(safeWalletId);
+  customTokenCatalogMemoryCache.delete(storageKey);
+  customTokenCatalogInflight.delete(storageKey);
 
   try {
-    await AsyncStorage.removeItem(CUSTOM_TOKEN_CATALOG_STORAGE_KEY);
+    await AsyncStorage.removeItem(storageKey);
   } catch (error) {
     console.error('Failed to clear custom token catalog:', error);
     throw error;
   }
 }
 
-export async function setCustomTokenCatalog(items: CustomTokenCatalogItem[]): Promise<void> {
+export async function setCustomTokenCatalog(
+  walletId: string,
+  items: CustomTokenCatalogItem[]
+): Promise<void> {
+  const safeWalletId = normalizeCustomTokenCatalogWalletId(walletId);
+  if (!safeWalletId) {
+    throw new Error('Wallet id is required.');
+  }
+
   const normalized = normalizeCustomTokenCatalogItems(items);
+  const storageKey = buildCustomTokenCatalogStorageKey(safeWalletId);
+
+  customTokenCatalogMemoryCache.set(storageKey, normalized);
+  customTokenCatalogInflight.delete(storageKey);
 
   try {
-    await AsyncStorage.setItem(
-      CUSTOM_TOKEN_CATALOG_STORAGE_KEY,
-      JSON.stringify(normalized)
-    );
+    await AsyncStorage.setItem(storageKey, JSON.stringify(normalized));
   } catch (error) {
     console.error('Failed to write custom token catalog:', error);
     throw error;
@@ -2733,10 +2779,56 @@ export async function getTronscanTokenList(
 }
 
 
+
+export async function clearAllTronCaches(): Promise<void> {
+  marketCache = null;
+  marketIndexInflight = null;
+
+  tokenHistoryMemoryCache.clear();
+  walletHistoryMemoryCache.clear();
+  accountInfoMemoryCache.clear();
+  accountTrc20AssetsMemoryCache.clear();
+  walletSnapshotMemoryCache.clear();
+  tronscanTokenOverviewMemoryCache.clear();
+
+  accountInfoInflight.clear();
+  accountTrc20AssetsInflight.clear();
+  walletSnapshotInflight.clear();
+  tronscanTokenOverviewInflight.clear();
+
+  customTokenCatalogMemoryCache.clear();
+  customTokenCatalogInflight.clear();
+
+  const keysToRemove: string[] = [];
+
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    for (const key of allKeys) {
+      if (
+        key.startsWith(TOKEN_HISTORY_CACHE_PREFIX) ||
+        key.startsWith(WALLET_HISTORY_CACHE_PREFIX) ||
+        key.startsWith(CUSTOM_TOKEN_LIST_CACHE_KEY) ||
+        key === CUSTOM_TOKEN_LIST_CACHE_KEY ||
+        key.startsWith(CUSTOM_TOKEN_CATALOG_STORAGE_KEY_PREFIX)
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+
+    if (keysToRemove.length > 0) {
+      await AsyncStorage.multiRemove(keysToRemove);
+    }
+  } catch (error) {
+    console.error('Failed to clear tron async caches:', error);
+    throw error;
+  }
+}
+
 export async function getTokenDetails(
   walletAddress: string,
   tokenId: string,
-  includeHistory = true
+  includeHistory = true,
+  walletId?: string
 ): Promise<TokenDetails> {
   if (tokenId === TRX_TOKEN_ID) {
     const marketIndex = await getMarketIndex();
@@ -2780,7 +2872,7 @@ export async function getTokenDetails(
 
   if (!asset) {
     const [catalog, overview] = await Promise.all([
-      getCustomTokenCatalog().catch(() => []),
+      getCustomTokenCatalog(walletId || '').catch(() => []),
       getTronscanTokenOverview(tokenId).catch((): TokenMetaFallback => ({})),
     ]);
 

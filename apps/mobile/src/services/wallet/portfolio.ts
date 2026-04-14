@@ -274,6 +274,24 @@ function buildPortfolioSnapshot(
   };
 }
 
+
+export async function clearAllWalletPortfolioCaches(): Promise<void> {
+  portfolioMemoryCache.clear();
+  portfolioInflight.clear();
+
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const keysToRemove = allKeys.filter((key) => key.startsWith(PORTFOLIO_CACHE_PREFIX));
+
+    if (keysToRemove.length > 0) {
+      await AsyncStorage.multiRemove(keysToRemove);
+    }
+  } catch (error) {
+    console.error('Failed to clear wallet portfolio caches:', error);
+    throw error;
+  }
+}
+
 export async function getWalletPortfolio(
   address: string,
   options?: { force?: boolean }
