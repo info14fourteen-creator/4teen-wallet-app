@@ -1,29 +1,25 @@
 {
-  "generatedAt": "2026-04-14T11:38:38.022Z",
+  "generatedAt": "2026-04-14T11:39:01.425Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "7b173bc8a70b08289f33ee976c791d5727f7a64b",
-    "shortHash": "7b173bc",
-    "subject": "feat: finalize home asset controls and manage crypto flow",
+    "hash": "667b559bb24454c3dcca54ab33f55b4339aa18a5",
+    "shortHash": "667b559",
+    "subject": "chore: bump mobile version",
     "author": "info14fourteen-creator",
-    "date": "2026-04-14T16:38:28+05:00"
+    "date": "2026-04-14T16:38:49+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/address-book.tsx",
-    "M\tapps/mobile/app/wallets.tsx",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/services/tron/api.ts",
-    "M\tapps/mobile/src/services/wallet/portfolio.ts"
+    "M\tapps/mobile/src/config/app-version.ts"
   ],
   "activeFiles": [
     {
-      "file": "apps/mobile/src/services/tron/api.ts",
-      "count": 5
+      "file": "apps/mobile/app/token-details.tsx",
+      "count": 4
     },
     {
-      "file": "apps/mobile/app/token-details.tsx",
+      "file": "apps/mobile/src/services/tron/api.ts",
       "count": 4
     },
     {
@@ -31,11 +27,7 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/import-seed.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/wallets.tsx",
+      "file": "apps/mobile/src/config/app-version.ts",
       "count": 3
     },
     {
@@ -51,19 +43,19 @@
       "count": 2
     },
     {
+      "file": "apps/mobile/app/import-seed.tsx",
+      "count": 2
+    },
+    {
       "file": "apps/mobile/app/select-wallet.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/unlock.tsx",
+      "file": "apps/mobile/app/wallets.tsx",
       "count": 2
     },
     {
       "file": "apps/mobile/package.json",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/src/config/app-version.ts",
       "count": 2
     },
     {
@@ -73,10 +65,6 @@
     {
       "file": "apps/mobile/src/ui/top-chrome.tsx",
       "count": 2
-    },
-    {
-      "file": "apps/mobile/app.json",
-      "count": 1
     },
     {
       "file": "apps/mobile/app/browser.tsx",
@@ -111,6 +99,10 @@
       "count": 1
     },
     {
+      "file": "apps/mobile/app/unlock.tsx",
+      "count": 1
+    },
+    {
       "file": "apps/mobile/assets/icons/ui/add_contact_btn.svg",
       "count": 1
     },
@@ -136,6 +128,10 @@
     },
     {
       "file": "apps/mobile/assets/icons/ui/browser_more_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/browser_refresh_btn.svg",
       "count": 1
     }
   ],
