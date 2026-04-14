@@ -41,6 +41,9 @@ const TRONSCAN_TOKEN_OVERVIEW_CACHE_TTL_MS = 30 * 60 * 1000;
 const ACCOUNT_INFO_CACHE_TTL_MS = 30 * 1000;
 const ACCOUNT_TRC20_ASSETS_CACHE_TTL_MS = 30 * 1000;
 const WALLET_SNAPSHOT_CACHE_TTL_MS = 30 * 1000;
+const CUSTOM_TOKEN_CATALOG_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const CUSTOM_TOKEN_CATALOG_STORAGE_KEY = 'wallet.customTokenCatalog.v1';
+const TRONSCAN_PRICED_TOKENS_URL = 'https://apilist.tronscanapi.com/api/getAssetWithPriceList';
 
 type ProviderName = 'tronscan' | 'trongrid';
 
@@ -111,6 +114,21 @@ type TokenMetaFallback = {
   totalSupply?: number;
 };
 
+type CustomTokenCatalogCachePayload = {
+  savedAt: number;
+  items: CustomTokenCatalogItem[];
+};
+
+export type CustomTokenCatalogItem = {
+  id: string;
+  name: string;
+  abbr: string;
+  logo?: string;
+  type?: string;
+  vip?: boolean;
+};
+
+
 let marketCache: CachedMarketIndex | null = null;
 let marketIndexInflight: Promise<CachedMarketIndex> | null = null;
 let cmcCooldownUntil = 0;
@@ -130,6 +148,8 @@ const tronscanTokenOverviewMemoryCache = new Map<
   }
 >();
 const tronscanTokenOverviewInflight = new Map<string, Promise<TokenMetaFallback>>();
+let customTokenCatalogMemoryCache: CustomTokenCatalogCachePayload | null = null;
+let customTokenCatalogInflight: Promise<CustomTokenCatalogItem[]> | null = null;
 
 const providerKeyState: Record<ProviderName, ProviderKeyState> = {
   tronscan: {
@@ -893,6 +913,99 @@ async function getTronscanTokenOverviewMap(tokenIds: string[]): Promise<Record<s
   );
 
   return Object.fromEntries(entries);
+}
+
+function normalizeCustomTokenCatalogItems(value: unknown): CustomTokenCatalogItem[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const items: CustomTokenCatalogItem[] = [];
+
+  for (const item of value) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    const record = item as Record<string, unknown>;
+    const id = String(record.id || '').trim();
+    const name = String(record.name || '').trim();
+    const abbr = String(record.abbr || '').trim();
+    const logo = String(record.logo || '').trim() || undefined;
+    const type = String(record.type || '').trim() || undefined;
+    const vip = Boolean(record.vip);
+
+    if (!id || (!name && !abbr)) {
+      continue;
+    }
+
+    items.push({
+      id,
+      name,
+      abbr,
+      logo,
+      type,
+      vip,
+    });
+  }
+
+  return items.sort((a, b) => {
+    const left = (a.name || a.abbr || a.id).toLowerCase();
+    const right = (b.name || b.abbr || b.id).toLowerCase();
+    return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+export async function getCustomTokenCatalog(): Promise<CustomTokenCatalogItem[]> {
+  try {
+    const raw = await AsyncStorage.getItem(CUSTOM_TOKEN_CATALOG_STORAGE_KEY);
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      'savedAt' in (parsed as Record<string, unknown>) &&
+      'items' in (parsed as Record<string, unknown>)
+    ) {
+      await AsyncStorage.removeItem(CUSTOM_TOKEN_CATALOG_STORAGE_KEY);
+      customTokenCatalogMemoryCache = null;
+      return [];
+    }
+
+    return normalizeCustomTokenCatalogItems(parsed);
+  } catch (error) {
+    console.error('Failed to read custom token catalog:', error);
+    return [];
+  }
+}
+
+export async function clearCustomTokenCatalog(): Promise<void> {
+  customTokenCatalogMemoryCache = null;
+
+  try {
+    await AsyncStorage.removeItem(CUSTOM_TOKEN_CATALOG_STORAGE_KEY);
+  } catch (error) {
+    console.error('Failed to clear custom token catalog:', error);
+    throw error;
+  }
+}
+
+export async function setCustomTokenCatalog(items: CustomTokenCatalogItem[]): Promise<void> {
+  const normalized = normalizeCustomTokenCatalogItems(items);
+
+  try {
+    await AsyncStorage.setItem(
+      CUSTOM_TOKEN_CATALOG_STORAGE_KEY,
+      JSON.stringify(normalized)
+    );
+  } catch (error) {
+    console.error('Failed to write custom token catalog:', error);
+    throw error;
+  }
 }
 
 function buildTokenHistoryCacheKey(walletAddress: string, tokenId: string) {
@@ -2498,6 +2611,128 @@ export async function getWalletSnapshot(
   }
 }
 
+
+export type TronscanTokenListItem = {
+  id: string;
+  name: string;
+  abbr: string;
+  logo?: string;
+};
+
+type TronscanAssetWithPriceItem = {
+  id?: string;
+  name?: string;
+  abbr?: string;
+  logo?: string;
+};
+
+type TronscanAssetWithPriceResponse = {
+  data?: TronscanAssetWithPriceItem[];
+};
+
+const CUSTOM_TOKEN_LIST_CACHE_KEY = 'fourteen_custom_token_list_cache_v1';
+const CUSTOM_TOKEN_LIST_CACHE_TTL_MS = 30 * 60 * 1000;
+
+type CustomTokenListCachePayload = {
+  savedAt: number;
+  items: TronscanTokenListItem[];
+};
+
+export async function getTronscanTokenList(
+  options?: { force?: boolean }
+): Promise<TronscanTokenListItem[]> {
+  const force = Boolean(options?.force);
+
+  if (!force) {
+    try {
+      const raw = await AsyncStorage.getItem(CUSTOM_TOKEN_LIST_CACHE_KEY);
+
+      if (raw) {
+        const parsed = JSON.parse(raw) as CustomTokenListCachePayload;
+
+        if (
+          parsed &&
+          typeof parsed.savedAt === 'number' &&
+          Array.isArray(parsed.items) &&
+          Date.now() - parsed.savedAt < CUSTOM_TOKEN_LIST_CACHE_TTL_MS
+        ) {
+          return parsed.items;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to read custom token list cache:', error);
+    }
+  }
+
+  try {
+    const response = await fetch(
+      'https://apilist.tronscanapi.com/api/getAssetWithPriceList',
+      {
+        headers: {
+          Accept: 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`HTTP ${response.status}: ${text}`);
+    }
+
+    const payload = (await response.json()) as TronscanAssetWithPriceResponse;
+    const list = Array.isArray(payload?.data) ? payload.data : [];
+
+    const items = list
+      .map((item) => ({
+        id: String(item?.id || '').trim(),
+        name: String(item?.name || '').trim(),
+        abbr: String(item?.abbr || '').trim(),
+        logo: String(item?.logo || '').trim() || undefined,
+      }))
+      .filter((item) => item.id && item.name)
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        })
+      );
+
+    try {
+      await AsyncStorage.setItem(
+        CUSTOM_TOKEN_LIST_CACHE_KEY,
+        JSON.stringify({
+          savedAt: Date.now(),
+          items,
+        } satisfies CustomTokenListCachePayload)
+      );
+    } catch (error) {
+      console.error('Failed to write custom token list cache:', error);
+    }
+
+    return items;
+  } catch (error) {
+    console.error('Failed to load Tronscan token list:', error);
+
+    if (!force) {
+      try {
+        const raw = await AsyncStorage.getItem(CUSTOM_TOKEN_LIST_CACHE_KEY);
+
+        if (raw) {
+          const parsed = JSON.parse(raw) as CustomTokenListCachePayload;
+          if (parsed && Array.isArray(parsed.items)) {
+            return parsed.items;
+          }
+        }
+      } catch (cacheError) {
+        console.error('Failed to read fallback custom token list cache:', cacheError);
+      }
+    }
+
+    return [];
+  }
+}
+
+
 export async function getTokenDetails(
   walletAddress: string,
   tokenId: string,
@@ -2544,7 +2779,43 @@ export async function getTokenDetails(
   const asset = assets.find((item) => item.tokenId === tokenId);
 
   if (!asset) {
-    throw new Error('Token not found in wallet.');
+    const [catalog, overview] = await Promise.all([
+      getCustomTokenCatalog().catch(() => []),
+      getTronscanTokenOverview(tokenId).catch((): TokenMetaFallback => ({})),
+    ]);
+
+    const custom = catalog.find((item) => item.id === tokenId);
+    const marketIndex = await getMarketIndex([tokenId], {
+      [tokenId]: overview,
+    }).catch(() => ({ byContract: {} } as any));
+    const marketMeta = marketIndex?.byContract?.[tokenId] ?? {};
+    const decimals = Number(marketMeta.decimals ?? overview.decimals ?? 0) || 0;
+    const historyPage = includeHistory
+      ? await getTokenHistory(walletAddress, tokenId, decimals)
+      : { items: [], nextFingerprint: undefined, hasMore: false };
+
+    return {
+      tokenId,
+      walletAddress,
+      name: marketMeta.name || overview.name || custom?.name || tokenId,
+      symbol: marketMeta.symbol || overview.symbol || custom?.abbr || tokenId.slice(0, 6),
+      address: tokenId,
+      decimals,
+      logo: marketMeta.logo || overview.logo || custom?.logo,
+      balanceRaw: '0',
+      balanceFormatted: '0',
+      balanceValueUsd: 0,
+      priceInUsd: marketMeta.priceInUsd ?? overview.priceInUsd,
+      marketCap: marketMeta.marketCap,
+      liquidityUsd: marketMeta.liquidityUsd ?? overview.liquidityUsd,
+      totalSupply: marketMeta.totalSupply ?? overview.totalSupply,
+      performance:
+        marketMeta.performance || buildFallbackPerformance(marketMeta.priceChange24h ?? overview.priceChange24h),
+      pools: marketMeta.pools || [],
+      history: historyPage.items,
+      historyNextFingerprint: historyPage.nextFingerprint,
+      historyHasMore: historyPage.hasMore,
+    };
   }
 
   const marketMeta = marketCache?.byContract[tokenId] ?? {};

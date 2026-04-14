@@ -24,10 +24,12 @@ import { useNotice } from '../src/notice/notice-provider';
 import { getActiveWallet } from '../src/services/wallet/storage';
 import {
   FOURTEEN_CONTRACT,
+  getCustomTokenCatalog,
   getTokenDetails,
   getWalletHistoryPage,
   TRX_TOKEN_ID,
   USDT_CONTRACT,
+  type CustomTokenCatalogItem,
 } from '../src/services/tron/api';
 import {
   getWalletPortfolio,
@@ -45,6 +47,23 @@ const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
 ] as const;
 
 const HOME_VISIBLE_TOKENS_STORAGE_KEY = 'wallet.homeVisibleTokenIds.v1';
+
+function mapCustomTokenToAsset(item: CustomTokenCatalogItem): PortfolioAsset {
+  return {
+    id: item.id,
+    name: item.name || item.abbr || item.id,
+    symbol: item.abbr || item.name || item.id.slice(0, 6),
+    logo: item.logo,
+    amountDisplay: '0',
+    valueDisplay: '$0.00',
+    deltaDisplay: '—',
+    deltaTone: 'dim',
+    amount: 0,
+    valueInUsd: 0,
+    priceChange24h: undefined,
+    deltaUsd24h: 0,
+  };
+}
 
 function normalizeAssetTokenKey(asset: PortfolioAsset) {
   const id = String(asset.id || '').trim();
@@ -64,6 +83,53 @@ function sortAssetsByName(items: PortfolioAsset[]) {
       sensitivity: 'base',
     })
   );
+}
+
+async function buildManageFallbackAsset(
+  walletAddress: string,
+  tokenId: string
+): Promise<PortfolioAsset> {
+  try {
+    const details = await getTokenDetails(walletAddress, tokenId, false);
+
+    return {
+      id: details.tokenId,
+      name: details.name || details.symbol || tokenId,
+      symbol: details.symbol || details.name || tokenId.slice(0, 6),
+      logo: details.logo,
+      amountDisplay: details.balanceFormatted || '0',
+      valueDisplay: '$0.00',
+      deltaDisplay: '—',
+      deltaTone: 'dim',
+      amount: 0,
+      valueInUsd: Number(details.balanceValueUsd || 0),
+      priceChange24h: undefined,
+      deltaUsd24h: 0,
+    };
+  } catch {
+    const fallbackName =
+      tokenId === TRX_TOKEN_ID
+        ? 'TRX'
+        : tokenId === FOURTEEN_CONTRACT
+          ? '4TEEN'
+          : tokenId === USDT_CONTRACT
+            ? 'USDT'
+            : tokenId;
+
+    return {
+      id: tokenId,
+      name: fallbackName,
+      symbol: fallbackName,
+      amountDisplay: '0',
+      valueDisplay: '$0.00',
+      deltaDisplay: '—',
+      deltaTone: 'dim',
+      amount: 0,
+      valueInUsd: 0,
+      priceChange24h: undefined,
+      deltaUsd24h: 0,
+    };
+  }
 }
 
 export default function ManageCryptoScreen() {
@@ -92,10 +158,36 @@ export default function ManageCryptoScreen() {
         throw new Error('No active wallet selected.');
       }
 
-      const [nextPortfolio, storedVisibleRaw] = await Promise.all([
+      const [nextPortfolio, storedVisibleRaw, customCatalog] = await Promise.all([
         getWalletPortfolio(activeWallet.address, { force }),
         AsyncStorage.getItem(HOME_VISIBLE_TOKENS_STORAGE_KEY),
+        getCustomTokenCatalog(),
       ]);
+
+      let storedVisibleIds: string[] = [...DEFAULT_HOME_VISIBLE_TOKEN_IDS];
+      try {
+        const parsed = storedVisibleRaw ? JSON.parse(storedVisibleRaw) : null;
+        const next = Array.isArray(parsed)
+          ? parsed.map((value) => String(value || '').trim()).filter(Boolean)
+          : [];
+        if (next.length > 0) {
+          storedVisibleIds = next;
+        }
+      } catch {
+        storedVisibleIds = [...DEFAULT_HOME_VISIBLE_TOKEN_IDS];
+      }
+
+      const selectedCustomIds = new Set(
+        customCatalog.map((item) => String(item.id || '').trim()).filter(Boolean)
+      );
+
+      storedVisibleIds = storedVisibleIds.filter((tokenId) => {
+        return (
+          DEFAULT_HOME_VISIBLE_TOKEN_IDS.includes(
+            tokenId as (typeof DEFAULT_HOME_VISIBLE_TOKEN_IDS)[number]
+          ) || selectedCustomIds.has(tokenId)
+        );
+      });
 
       let nextAssets = [...(nextPortfolio.assets ?? [])];
 
@@ -136,11 +228,24 @@ export default function ManageCryptoScreen() {
             });
             existingIds.add(tokenId);
           } catch {
-            // Ignore unknown extras from history.
           }
         }
       } catch {
-        // Ignore history fetch failure.
+      }
+
+      const existingIds = new Set(nextAssets.map((asset) => normalizeAssetTokenKey(asset)));
+
+      for (const tokenId of DEFAULT_HOME_VISIBLE_TOKEN_IDS) {
+        if (existingIds.has(tokenId)) continue;
+        nextAssets.push(await buildManageFallbackAsset(activeWallet.address, tokenId));
+        existingIds.add(tokenId);
+      }
+
+      for (const item of customCatalog) {
+        const tokenId = String(item.id || '').trim();
+        if (!tokenId || existingIds.has(tokenId)) continue;
+        nextAssets.push(mapCustomTokenToAsset(item));
+        existingIds.add(tokenId);
       }
 
       const deduped = nextAssets.filter(
@@ -150,24 +255,15 @@ export default function ManageCryptoScreen() {
           ) === index
       );
 
-      let storedVisibleIds: string[] = [...DEFAULT_HOME_VISIBLE_TOKEN_IDS];
-      try {
-        const parsed = storedVisibleRaw ? JSON.parse(storedVisibleRaw) : null;
-        const next = Array.isArray(parsed)
-          ? parsed.map((value) => String(value || '').trim()).filter(Boolean)
-          : [];
-        if (next.length > 0) {
-          storedVisibleIds = next;
-        }
-      } catch {
-        storedVisibleIds = [...DEFAULT_HOME_VISIBLE_TOKEN_IDS];
-      }
-
       setPortfolio({
         ...nextPortfolio,
         assets: deduped,
       });
-      setHomeVisibleTokenIds(storedVisibleIds);
+      setHomeVisibleTokenIds(
+        storedVisibleIds.length > 0
+          ? storedVisibleIds
+          : [...DEFAULT_HOME_VISIBLE_TOKEN_IDS]
+      );
     } catch (error) {
       console.error(error);
       setPortfolio(null);
@@ -460,8 +556,11 @@ const styles = StyleSheet.create({
 
   addCustomTokenButton: {
     alignSelf: 'center',
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    marginTop: 4,
+    marginTop: -1,
     marginBottom: 10,
   },
 

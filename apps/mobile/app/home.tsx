@@ -42,9 +42,12 @@ import {
 import {
   clearWalletHistoryCache,
   FOURTEEN_CONTRACT,
+  getCustomTokenCatalog,
+  getTokenDetails,
   getWalletHistoryPage,
   TRX_TOKEN_ID,
   USDT_CONTRACT,
+  type CustomTokenCatalogItem,
   type WalletHistoryItem,
 } from '../src/services/tron/api';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
@@ -197,6 +200,17 @@ export default function HomeScreen() {
   const [homeVisibleTokenIds, setHomeVisibleTokenIds] = useState<string[]>([
     ...DEFAULT_HOME_VISIBLE_TOKEN_IDS,
   ]);
+  const [customTokenCatalog, setCustomTokenCatalog] = useState<CustomTokenCatalogItem[]>([]);
+  const [visibleTokenMetaMap, setVisibleTokenMetaMap] = useState<
+    Record<
+      string,
+      {
+        name?: string;
+        symbol?: string;
+        logo?: string;
+      }
+    >
+  >({});
 
   const cardWidth = Math.max(width - layout.screenPaddingX * 2, 1);
   const contentBottomInset = 44 + Math.max(insets.bottom, 6);
@@ -207,35 +221,57 @@ export default function HomeScreen() {
     useCallback(() => {
       let cancelled = false;
 
-      const loadHomeVisibleTokenIds = async () => {
+      const loadHomePreferences = async () => {
         try {
-          const raw = await AsyncStorage.getItem(HOME_VISIBLE_TOKENS_STORAGE_KEY);
-          if (!raw) {
+          const [rawVisibleIds, catalog] = await Promise.all([
+            AsyncStorage.getItem(HOME_VISIBLE_TOKENS_STORAGE_KEY),
+            getCustomTokenCatalog().catch(() => []),
+          ]);
+
+          const safeCatalog = Array.isArray(catalog) ? catalog : [];
+          const allowedCustomIds = new Set(
+            safeCatalog.map((item) => String(item.id || '').trim()).filter(Boolean)
+          );
+
+          if (!cancelled) {
+            setCustomTokenCatalog(safeCatalog);
+          }
+
+          if (!rawVisibleIds) {
             if (!cancelled) {
               setHomeVisibleTokenIds([...DEFAULT_HOME_VISIBLE_TOKEN_IDS]);
             }
             return;
           }
 
-          const parsed = JSON.parse(raw);
+          const parsed = JSON.parse(rawVisibleIds);
           const next = Array.isArray(parsed)
             ? parsed.map((value) => String(value || '').trim()).filter(Boolean)
             : [];
 
+          const filtered = next.filter((tokenId) => {
+            return (
+              DEFAULT_HOME_VISIBLE_TOKEN_IDS.includes(
+                tokenId as (typeof DEFAULT_HOME_VISIBLE_TOKEN_IDS)[number]
+              ) || allowedCustomIds.has(tokenId)
+            );
+          });
+
           if (!cancelled) {
             setHomeVisibleTokenIds(
-              next.length > 0 ? next : [...DEFAULT_HOME_VISIBLE_TOKEN_IDS]
+              filtered.length > 0 ? filtered : [...DEFAULT_HOME_VISIBLE_TOKEN_IDS]
             );
           }
         } catch (error) {
           console.error(error);
           if (!cancelled) {
             setHomeVisibleTokenIds([...DEFAULT_HOME_VISIBLE_TOKEN_IDS]);
+            setCustomTokenCatalog([]);
           }
         }
       };
 
-      void loadHomeVisibleTokenIds();
+      void loadHomePreferences();
 
       return () => {
         cancelled = true;
@@ -243,6 +279,99 @@ export default function HomeScreen() {
     }, [])
   );
 
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadVisibleTokenMeta = async () => {
+      if (!activeWallet?.address) {
+        if (!cancelled) {
+          setVisibleTokenMetaMap({});
+        }
+        return;
+      }
+
+      const activeVisibleTokenIds =
+        homeVisibleTokenIds.length > 0
+          ? homeVisibleTokenIds
+          : [...DEFAULT_HOME_VISIBLE_TOKEN_IDS];
+
+      const presentIds = new Set(
+        (portfolio?.assets ?? []).map((asset) => normalizeAssetTokenKey(asset))
+      );
+
+      const tokenIdsToLoad = activeVisibleTokenIds.filter((tokenId) => !presentIds.has(tokenId));
+
+      if (tokenIdsToLoad.length === 0) {
+        if (!cancelled) {
+          setVisibleTokenMetaMap({});
+        }
+        return;
+      }
+
+      const customCatalogIndex = new Map(
+        customTokenCatalog.map((item) => [String(item.id || '').trim(), item] as const)
+      );
+
+      const entries = await Promise.all(
+        tokenIdsToLoad.map(async (tokenId) => {
+          try {
+            const details = await getTokenDetails(activeWallet.address, tokenId, false);
+            return [
+              tokenId,
+              {
+                name: details.name,
+                symbol: details.symbol,
+                logo: details.logo,
+              },
+            ] as const;
+          } catch {
+            const customItem = customCatalogIndex.get(tokenId);
+
+            const fallbackName =
+              customItem?.name ||
+              customItem?.abbr ||
+              (tokenId === TRX_TOKEN_ID
+                ? 'TRX'
+                : tokenId === FOURTEEN_CONTRACT
+                  ? '4TEEN'
+                  : tokenId === USDT_CONTRACT
+                    ? 'USDT'
+                    : tokenId);
+
+            const fallbackSymbol =
+              customItem?.abbr ||
+              (tokenId === TRX_TOKEN_ID
+                ? 'TRX'
+                : tokenId === FOURTEEN_CONTRACT
+                  ? '4TEEN'
+                  : tokenId === USDT_CONTRACT
+                    ? 'USDT'
+                    : fallbackName);
+
+            return [
+              tokenId,
+              {
+                name: fallbackName,
+                symbol: fallbackSymbol,
+                logo: customItem?.logo,
+              },
+            ] as const;
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setVisibleTokenMetaMap(Object.fromEntries(entries));
+      }
+    };
+
+    void loadVisibleTokenMeta();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWallet?.address, customTokenCatalog, homeVisibleTokenIds, portfolio?.assets]);
 
   const visibleHistory = useMemo(() => {
     if (!activeWallet?.id) return [];
@@ -284,26 +413,62 @@ export default function HomeScreen() {
     );
 
     const merged = [...sourceAssets];
+    const customCatalogIndex = new Map(
+      customTokenCatalog.map((item) => [String(item.id || '').trim(), item] as const)
+    );
 
     if (activeWallet?.id) {
       const historyItems = historyCache[activeWallet.id] ?? [];
-      const tokensSeenInHistory = new Set(
-        historyItems
-          .map((item) => normalizeHistoryTokenKey(item))
-          .filter((tokenId) => visibleTokenIdSet.has(tokenId))
+      const historyIndex = new Map(
+        historyItems.map((item) => [normalizeHistoryTokenKey(item), item] as const)
       );
 
       for (const tokenId of activeVisibleTokenIds) {
-        if (!tokensSeenInHistory.has(tokenId)) continue;
         if (merged.some((asset) => normalizeAssetTokenKey(asset) === tokenId)) continue;
 
+        const historyItem = historyIndex.get(tokenId);
+        const customItem = customCatalogIndex.get(tokenId);
+        const metaItem = visibleTokenMetaMap[tokenId];
+
+        const isDefaultToken =
+          tokenId === TRX_TOKEN_ID ||
+          tokenId === FOURTEEN_CONTRACT ||
+          tokenId === USDT_CONTRACT;
+
+        if (!isDefaultToken && !historyItem && !customItem && !metaItem) {
+          continue;
+        }
+
         const fallbackName =
-          tokenId === TRX_TOKEN_ID ? 'TRX' : tokenId === FOURTEEN_CONTRACT ? '4TEEN' : tokenId === USDT_CONTRACT ? 'USDT' : tokenId;
+          historyItem?.tokenName ||
+          metaItem?.name ||
+          customItem?.name ||
+          customItem?.abbr ||
+          (tokenId === TRX_TOKEN_ID
+            ? 'TRX'
+            : tokenId === FOURTEEN_CONTRACT
+              ? '4TEEN'
+              : tokenId === USDT_CONTRACT
+                ? 'USDT'
+                : tokenId);
+
+        const fallbackSymbol =
+          historyItem?.tokenSymbol ||
+          metaItem?.symbol ||
+          customItem?.abbr ||
+          (tokenId === TRX_TOKEN_ID
+            ? 'TRX'
+            : tokenId === FOURTEEN_CONTRACT
+              ? '4TEEN'
+              : tokenId === USDT_CONTRACT
+                ? 'USDT'
+                : fallbackName);
 
         merged.push({
           id: tokenId,
           name: fallbackName,
-          symbol: fallbackName,
+          symbol: fallbackSymbol,
+          logo: historyItem?.tokenLogo || metaItem?.logo || customItem?.logo,
           amountDisplay: '0',
           valueDisplay: '$0.00',
           deltaDisplay: '—',
@@ -334,7 +499,15 @@ export default function HomeScreen() {
     }
 
     return deduped;
-  }, [activeWallet?.id, assetSortMode, historyCache, homeVisibleTokenIds, portfolio]);
+  }, [
+    activeWallet?.id,
+    assetSortMode,
+    customTokenCatalog,
+    historyCache,
+    homeVisibleTokenIds,
+    portfolio,
+    visibleTokenMetaMap,
+  ]);
 
   const showWatchOnlyNotice = useCallback(() => {
     notice.showSuccessNotice(
