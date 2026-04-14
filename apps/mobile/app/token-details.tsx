@@ -38,6 +38,7 @@ import CopyIcon from '../assets/icons/ui/copy_btn.svg';
 import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
 import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
 import ShareIcon from '../assets/icons/ui/share_btn.svg';
+import BrowserRefreshIcon from '../assets/icons/ui/browser_refresh_btn.svg';
 
 function formatUsd(value?: number, maximumFractionDigits = 2) {
   const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -127,6 +128,16 @@ function formatHistoryAmount(item: TokenHistoryItem) {
   return clean;
 }
 
+function getTokenHistoryBadgeLabel(details: TokenDetails | null) {
+  const safeSymbol = String(details?.symbol || '').trim();
+  if (safeSymbol) return safeSymbol;
+
+  const safeName = String(details?.name || '').trim();
+  if (safeName) return safeName.split(/\s+/)[0];
+
+  return 'TOKEN';
+}
+
 function dedupeHistory(items: TokenHistoryItem[]) {
   const map = new Map<string, TokenHistoryItem>();
 
@@ -150,6 +161,8 @@ export default function TokenDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [poolsOpen, setPoolsOpen] = useState(false);
   const [marketInfoOpen, setMarketInfoOpen] = useState(false);
   const [details, setDetails] = useState<TokenDetails | null>(null);
@@ -196,15 +209,17 @@ export default function TokenDetailsScreen() {
           await clearTokenHistoryCache(wallet.address, tokenId);
         }
 
-        const nextDetails = await getTokenDetails(wallet.address, tokenId);
+        const nextDetails = await getTokenDetails(wallet.address, tokenId, true);
 
         setDetails({
           ...nextDetails,
           history: dedupeHistory(nextDetails.history),
         });
+        setHistoryLoaded(true);
       } catch (error) {
         console.error(error);
         setDetails(null);
+        setHistoryLoaded(false);
         setErrorText('Failed to load token details.');
         notice.showErrorNotice('Failed to load token details.', 2600);
       } finally {
@@ -244,7 +259,7 @@ export default function TokenDetailsScreen() {
       console.error(error);
       notice.showErrorNotice('Failed to open token contract.', 2200);
     }
-  }, [details?.address, notice]);
+  }, [details?.address, notice, router]);
 
   const handleOpenHistoryItem = async (item: TokenHistoryItem) => {
     try {
@@ -254,6 +269,38 @@ export default function TokenDetailsScreen() {
       notice.showErrorNotice('Failed to open Tronscan.', 2200);
     }
   };
+
+  const handleReloadHistory = useCallback(async () => {
+    if (!tokenId || !details) return;
+
+    try {
+      setHistoryLoading(true);
+
+      const page = await getTokenHistoryPage(
+        details.walletAddress,
+        tokenId,
+        details.decimals
+      );
+
+      setDetails((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          history: dedupeHistory(page.items),
+          historyNextFingerprint: page.nextFingerprint,
+          historyHasMore: page.hasMore,
+        };
+      });
+
+      setHistoryLoaded(true);
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice('Failed to load token history.', 2200);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [details, notice, tokenId]);
 
   const handleLoadMoreHistory = async () => {
     if (!details?.historyHasMore || !details.historyNextFingerprint || historyLoadingMore) {
@@ -352,28 +399,6 @@ export default function TokenDetailsScreen() {
                   )}
                 </View>
 
-                <View style={styles.addressRow}>
-                  <Text style={styles.tokenAddress} numberOfLines={1} ellipsizeMode="middle">
-                    {details.address}
-                  </Text>
-
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={handleCopyAddress}
-                    style={styles.copyButton}
-                  >
-                    <CopyIcon width={18} height={18} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => void handleOpenTokenContract()}
-                    style={styles.copyButton}
-                  >
-                    <ShareIcon width={18} height={18} />
-                  </TouchableOpacity>
-                </View>
-
                 <Text style={styles.balanceAmount}>{details.balanceFormatted}</Text>
 
                 <View style={styles.valueToggleRow}>
@@ -394,6 +419,28 @@ export default function TokenDetailsScreen() {
 
                 {marketInfoOpen ? (
                   <>
+                    <View style={styles.addressRow}>
+                      <Text style={styles.tokenAddress} numberOfLines={1} ellipsizeMode="middle">
+                        {details.address}
+                      </Text>
+
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={handleCopyAddress}
+                        style={styles.copyButton}
+                      >
+                        <CopyIcon width={18} height={18} />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => void handleOpenTokenContract()}
+                        style={styles.copyButton}
+                      >
+                        <ShareIcon width={18} height={18} />
+                      </TouchableOpacity>
+                    </View>
+
                     <View style={styles.statsGrid}>
                       <View style={styles.statCard}>
                         <Text style={styles.statLabel}>Price</Text>
@@ -490,7 +537,40 @@ export default function TokenDetailsScreen() {
                 ) : null}
               </View>
 
-              <Text style={[ui.sectionEyebrow, styles.historyEyebrow]}>History</Text>
+              <View style={styles.tokenActionsRow}>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.tokenPrimaryButton}
+                  onPress={() => router.push('/send')}
+                >
+                  <Text style={styles.tokenPrimaryButtonText}>Send</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.tokenSecondaryButton}
+                  onPress={() => router.push('/swap')}
+                >
+                  <Text style={styles.tokenSecondaryButtonText}>Swap</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.historyHeaderBar}>
+                <Text style={[ui.sectionEyebrow, styles.historyEyebrowBar]}>Transfers</Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.historyRefreshButton}
+                  onPress={() => void handleReloadHistory()}
+                  disabled={historyLoading}
+                >
+                  {historyLoading ? (
+                    <ActivityIndicator color={colors.accent} size="small" />
+                  ) : (
+                    <BrowserRefreshIcon width={18} height={18} />
+                  )}
+                </TouchableOpacity>
+              </View>
 
               <View style={styles.historyBlock}>
                 {details.history.length > 0 ? (
@@ -509,31 +589,59 @@ export default function TokenDetailsScreen() {
                         ]}
                         onPress={() => void handleOpenHistoryItem(item)}
                       >
-                        <View style={styles.historyTopRow}>
-                          <View style={styles.historyLeft}>
-                            <Text style={[styles.historyType, historyTone(item)]}>
-                              {historyTypeLabel(item)}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.historyCounterparty,
-                                item.isKnownContact ? styles.historyCounterpartyKnown : null,
-                              ]}
-                            >
-                              {item.counterpartyLabel || 'Unknown'}
-                            </Text>
-                          </View>
+                        <View style={styles.historyTopLine}>
+                          <Text style={[styles.historyType, historyTone(item)]}>
+                            {historyTypeLabel(item)}
+                          </Text>
 
-                          <Text style={[styles.historyAmount, historyTone(item)]}>
+                          <Text
+                            style={[styles.historyAmount, historyTone(item)]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
                             {formatHistoryAmount(item)}
                           </Text>
+                        </View>
+
+                        <View style={styles.historyAddressRow}>
+                          <Text
+                            style={[
+                              styles.historyCounterparty,
+                              item.isKnownContact ? styles.historyCounterpartyKnown : null,
+                            ]}
+                            numberOfLines={1}
+                            ellipsizeMode="middle"
+                          >
+                            {item.counterpartyLabel || 'Unknown'}
+                          </Text>
+
+                          <View style={styles.historyTokenRow}>
+                            {details?.logo ? (
+                              <Image
+                                source={{ uri: details.logo }}
+                                style={styles.historyTokenLogo}
+                                contentFit="contain"
+                              />
+                            ) : null}
+
+                            <Text
+                              style={styles.historyTokenLabel}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {getTokenHistoryBadgeLabel(details)}
+                            </Text>
+                          </View>
                         </View>
 
                         <Text style={styles.historyTime}>{formatHistoryTime(item.timestamp)}</Text>
 
                         <View style={styles.historyBottomRow}>
                           <Text style={styles.historyHash}>{formatShortHash(item.txHash)}</Text>
-                          <ShareIcon width={14} height={14} />
+
+                          <View style={styles.historyBottomAction}>
+                            <ShareIcon width={14} height={14} />
+                          </View>
                         </View>
                       </TouchableOpacity>
                     ))}
@@ -908,8 +1016,65 @@ const styles = StyleSheet.create({
     color: colors.textDim,
   },
 
-  historyEyebrow: {
+  tokenActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+
+  tokenPrimaryButton: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+
+  tokenPrimaryButtonText: {
+    color: colors.bg,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  tokenSecondaryButton: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+
+  tokenSecondaryButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  historyHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
     marginBottom: 18,
+  },
+
+  historyEyebrowBar: {
+    marginBottom: 0,
+  },
+
+  historyRefreshButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   historyBlock: {
@@ -939,16 +1104,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(24,224,58,0.03)',
   },
 
-  historyTopRow: {
+  historyTopLine: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: 12,
   },
 
-  historyLeft: {
-    flex: 1,
-    gap: 4,
+  historyAddressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
   },
 
   historyBottomRow: {
@@ -956,6 +1123,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
+  },
+
+  historyBottomAction: {
+    width: 18,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
 
   historyType: {
@@ -977,10 +1151,12 @@ const styles = StyleSheet.create({
   },
 
   historyCounterparty: {
+    flex: 1,
     color: colors.textDim,
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
+    paddingRight: 12,
   },
 
   historyCounterpartyKnown: {
@@ -988,11 +1164,13 @@ const styles = StyleSheet.create({
   },
 
   historyAmount: {
+    color: colors.white,
     fontSize: 18,
     lineHeight: 22,
     fontFamily: 'Sora_700Bold',
     textAlign: 'right',
-    maxWidth: '45%',
+    maxWidth: '48%',
+    flexShrink: 1,
   },
 
   historyTime: {
@@ -1003,10 +1181,35 @@ const styles = StyleSheet.create({
   },
 
   historyHash: {
+    flex: 1,
     color: colors.accent,
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
+  },
+
+  historyTokenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    flexShrink: 0,
+    maxWidth: 120,
+  },
+
+  historyTokenLogo: {
+    width: 14,
+    height: 14,
+    borderRadius: 0,
+  },
+
+  historyTokenLabel: {
+    color: colors.white,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    maxWidth: 108,
+    textAlign: 'right',
   },
 
   historyEmpty: {
