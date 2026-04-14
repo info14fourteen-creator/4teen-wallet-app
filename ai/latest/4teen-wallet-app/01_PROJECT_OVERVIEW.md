@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-13T23:28:59.911Z
+Generated: 2026-04-14T11:38:38.020Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 4420239ee79f20fa05d6b0d564e5159884cd1532
-Short commit: 4420239
-Commit subject: fix(home): stabilize wallet card and asset loading
+Last commit: 7b173bc8a70b08289f33ee976c791d5727f7a64b
+Short commit: 7b173bc
+Commit subject: feat: finalize home asset controls and manage crypto flow
 Commit author: info14fourteen-creator
-Commit date: 2026-04-14T04:28:39+05:00
+Commit date: 2026-04-14T16:38:28+05:00
 
 ## Curated project tree
 
@@ -38,9 +38,12 @@ Commit date: 2026-04-14T04:28:39+05:00
       - import-wallet.tsx
       - import-watch-only.tsx
       - index.tsx
+      - manage-crypto.tsx
       - modal.tsx
       - select-wallet.tsx
+      - send.tsx
       - settings.tsx
+      - swap.tsx
       - terms.tsx
       - token-details.tsx
       - ui-lab.tsx
@@ -69,6 +72,7 @@ Commit date: 2026-04-14T04:28:39+05:00
           - add_contact_btn.svg
           - add_wallet_btn.svg
           - address_btn.svg
+          - az_sort_btn.svg
           - backspace_btn.svg
           - biologin_btn.svg
           - browser_back_btn.svg
@@ -86,6 +90,8 @@ Commit date: 2026-04-14T04:28:39+05:00
           - full_access_btn.svg
           - info_btn.svg
           - logo_white.svg
+          - manage_full_btn.svg
+          - manage_new_btn.svg
           - menu.svg
           - open_down_btn.svg
           - open_right_btn.svg
@@ -97,6 +103,9 @@ Commit date: 2026-04-14T04:28:39+05:00
           - search.svg
           - setings_btn.svg
           - share_btn.svg
+          - toggle_off_btn.svg
+          - toggle_on_btn.svg
+          - value_sort_btn.svg
           - wallet_btn.svg
           - watch_only_btn.svg
     - components/

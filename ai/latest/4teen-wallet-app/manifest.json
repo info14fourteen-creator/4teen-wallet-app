@@ -1,17 +1,21 @@
 {
-  "generatedAt": "2026-04-13T23:28:59.913Z",
+  "generatedAt": "2026-04-14T11:38:38.022Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "4420239ee79f20fa05d6b0d564e5159884cd1532",
-    "shortHash": "4420239",
-    "subject": "fix(home): stabilize wallet card and asset loading",
+    "hash": "7b173bc8a70b08289f33ee976c791d5727f7a64b",
+    "shortHash": "7b173bc",
+    "subject": "feat: finalize home asset controls and manage crypto flow",
     "author": "info14fourteen-creator",
-    "date": "2026-04-14T04:28:39+05:00"
+    "date": "2026-04-14T16:38:28+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/home.tsx"
+    "M\tapps/mobile/app/address-book.tsx",
+    "M\tapps/mobile/app/wallets.tsx",
+    "M\tapps/mobile/src/config/app-version.ts",
+    "M\tapps/mobile/src/services/tron/api.ts",
+    "M\tapps/mobile/src/services/wallet/portfolio.ts"
   ],
   "activeFiles": [
     {
@@ -19,31 +23,15 @@
       "count": 5
     },
     {
-      "file": "apps/mobile/app/import-seed.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/select-wallet.tsx",
-      "count": 4
-    },
-    {
       "file": "apps/mobile/app/token-details.tsx",
       "count": 4
-    },
-    {
-      "file": "apps/mobile/app/_layout.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/about.tsx",
-      "count": 3
     },
     {
       "file": "apps/mobile/app/home.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/unlock.tsx",
+      "file": "apps/mobile/app/import-seed.tsx",
       "count": 3
     },
     {
@@ -51,19 +39,27 @@
       "count": 3
     },
     {
+      "file": "apps/mobile/app/_layout.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/about.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/address-book.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/select-wallet.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/unlock.tsx",
+      "count": 2
+    },
+    {
       "file": "apps/mobile/package.json",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app.json",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/ui-lab.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/scripts/update-version.mjs",
       "count": 2
     },
     {
@@ -75,31 +71,15 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/src/services/wallet/storage.ts",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/src/ui/footer-nav.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/src/ui/KeyboardView.tsx",
-      "count": 2
-    },
-    {
       "file": "apps/mobile/src/ui/top-chrome.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/address-book.tsx",
+      "file": "apps/mobile/app.json",
       "count": 1
     },
     {
       "file": "apps/mobile/app/browser.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/font-lab.tsx",
       "count": 1
     },
     {
@@ -115,7 +95,27 @@
       "count": 1
     },
     {
+      "file": "apps/mobile/app/manage-crypto.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/send.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/swap.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/ui-lab.tsx",
+      "count": 1
+    },
+    {
       "file": "apps/mobile/assets/icons/ui/add_contact_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/az_sort_btn.svg",
       "count": 1
     },
     {
@@ -132,6 +132,10 @@
     },
     {
       "file": "apps/mobile/assets/icons/ui/browser_forward_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/browser_more_btn.svg",
       "count": 1
     }
   ],
@@ -175,9 +179,12 @@
     "apps/mobile/app/import-wallet.tsx",
     "apps/mobile/app/import-watch-only.tsx",
     "apps/mobile/app/index.tsx",
+    "apps/mobile/app/manage-crypto.tsx",
     "apps/mobile/app/modal.tsx",
     "apps/mobile/app/select-wallet.tsx",
+    "apps/mobile/app/send.tsx",
     "apps/mobile/app/settings.tsx",
+    "apps/mobile/app/swap.tsx",
     "apps/mobile/app/terms.tsx",
     "apps/mobile/app/token-details.tsx",
     "apps/mobile/app/ui-lab.tsx",
@@ -191,6 +198,7 @@
     "apps/mobile/assets/icons/ui/add_contact_btn.svg",
     "apps/mobile/assets/icons/ui/add_wallet_btn.svg",
     "apps/mobile/assets/icons/ui/address_btn.svg",
+    "apps/mobile/assets/icons/ui/az_sort_btn.svg",
     "apps/mobile/assets/icons/ui/backspace_btn.svg",
     "apps/mobile/assets/icons/ui/biologin_btn.svg",
     "apps/mobile/assets/icons/ui/browser_back_btn.svg",
@@ -208,6 +216,8 @@
     "apps/mobile/assets/icons/ui/full_access_btn.svg",
     "apps/mobile/assets/icons/ui/info_btn.svg",
     "apps/mobile/assets/icons/ui/logo_white.svg",
+    "apps/mobile/assets/icons/ui/manage_full_btn.svg",
+    "apps/mobile/assets/icons/ui/manage_new_btn.svg",
     "apps/mobile/assets/icons/ui/menu.svg",
     "apps/mobile/assets/icons/ui/open_down_btn.svg",
     "apps/mobile/assets/icons/ui/open_right_btn.svg",
@@ -229,6 +239,9 @@
     "apps/mobile/assets/icons/ui/socials/whatsapp_social.svg",
     "apps/mobile/assets/icons/ui/socials/x_social.svg",
     "apps/mobile/assets/icons/ui/socials/youtube_social.svg",
+    "apps/mobile/assets/icons/ui/toggle_off_btn.svg",
+    "apps/mobile/assets/icons/ui/toggle_on_btn.svg",
+    "apps/mobile/assets/icons/ui/value_sort_btn.svg",
     "apps/mobile/assets/icons/ui/wallet_btn.svg",
     "apps/mobile/assets/icons/ui/watch_only_btn.svg",
     "apps/mobile/components/external-link.tsx",
