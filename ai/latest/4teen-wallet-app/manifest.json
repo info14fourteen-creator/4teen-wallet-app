@@ -1,29 +1,22 @@
 {
-  "generatedAt": "2026-04-14T21:09:35.658Z",
+  "generatedAt": "2026-04-15T08:19:02.420Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "01d89e61d9f1ca1ff0bd10aa63482578e18dd673",
-    "shortHash": "01d89e6",
-    "subject": "refactor: simplify clear cache row in settings",
+    "hash": "580329e0e8754629a71ccaf14b3aaf5882647acb",
+    "shortHash": "580329e",
+    "subject": "Finalize home header alignment fixes",
     "author": "info14fourteen-creator",
-    "date": "2026-04-15T02:09:23+05:00"
+    "date": "2026-04-15T13:18:49+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/add-custom-token.tsx",
-    "M\tapps/mobile/app/home.tsx",
-    "M\tapps/mobile/app/manage-crypto.tsx",
-    "M\tapps/mobile/app/settings.tsx",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/services/tron/api.ts",
-    "M\tapps/mobile/src/services/wallet/portfolio.ts",
-    "M\tapps/mobile/src/services/wallet/storage.ts"
+    "M\tapps/mobile/app/home.tsx"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/app/home.tsx",
-      "count": 5
+      "count": 6
     },
     {
       "file": "apps/mobile/src/config/app-version.ts",
@@ -38,23 +31,11 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/_layout.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/about.tsx",
-      "count": 2
-    },
-    {
       "file": "apps/mobile/app/add-custom-token.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/token-details.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/package.json",
+      "file": "apps/mobile/app/ui-lab.tsx",
       "count": 2
     },
     {
@@ -66,15 +47,15 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/src/ui/top-chrome.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/address-book.tsx",
+      "file": "apps/mobile/app/_layout.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/app/browser.tsx",
+      "file": "apps/mobile/app/about.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/address-book.tsx",
       "count": 1
     },
     {
@@ -106,7 +87,7 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/ui-lab.tsx",
+      "file": "apps/mobile/app/token-details.tsx",
       "count": 1
     },
     {
@@ -139,6 +120,18 @@
     },
     {
       "file": "apps/mobile/assets/icons/ui/browser_refresh_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/browser_share_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/full_access_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/manage_full_btn.svg",
       "count": 1
     }
   ],
