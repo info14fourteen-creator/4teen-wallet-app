@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
   },
 
   top: {
-    marginTop: 18,
+    marginTop: 14,
   },
 
   eyebrowRow: {
@@ -417,6 +417,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 0,
   },
 
   backRow: {
