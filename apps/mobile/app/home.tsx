@@ -4,10 +4,12 @@ import {
   ActivityIndicator,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   useWindowDimensions,
@@ -16,7 +18,6 @@ import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
 
 import AppHeader, {
   APP_HEADER_HEIGHT,
@@ -30,6 +31,8 @@ import { useNotice } from '../src/notice/notice-provider';
 import {
   buildWalletHomeVisibleTokensStorageKey,
   getActiveWalletId,
+  removeWallet,
+  renameWallet,
   setActiveWalletId,
   type WalletMeta,
 } from '../src/services/wallet/storage';
@@ -65,9 +68,19 @@ import ManageNewIcon from '../assets/icons/ui/manage_new_btn.svg';
 import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
 import ShareIcon from '../assets/icons/ui/share_btn.svg';
 import BrowserRefreshIcon from '../assets/icons/ui/browser_refresh_btn.svg';
+import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
+import DeclineIcon from '../assets/icons/ui/decline_btn.svg';
+import SendIcon from '../assets/icons/ui/send_btn.svg';
+import ReceiveIcon from '../assets/icons/ui/receive_btn.svg';
+import HistoryIcon from '../assets/icons/ui/history_btn.svg';
+import AssetsIcon from '../assets/icons/ui/assets_btn.svg';
+import MoreIcon from '../assets/icons/ui/more_btn.svg';
 
 const ASSET_SKELETON_ROWS = 4;
 const HISTORY_SKELETON_ROWS = 4;
+const MAX_WALLET_NAME_LENGTH = 18;
+const REMOVE_HOLD_MS = 7000;
+const REMOVE_DISPLAY_MAX = 114;
 
 const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
   TRX_TOKEN_ID,
@@ -75,7 +88,7 @@ const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
   USDT_CONTRACT,
 ] as const;
 
-type ContentMode = 'assets' | 'history';
+type ContentMode = 'assets' | 'history' | 'more';
 
 function formatHistoryTime(timestamp: number) {
   if (!timestamp) return 'Unknown time';
@@ -112,7 +125,7 @@ function getHistoryTokenLabel(item: WalletHistoryItem) {
   }
 
   const safeName = String(item.tokenName || '').trim();
-  if (safeName && safeName.toLowerCase() != 'token') {
+  if (safeName && safeName.toLowerCase() !== 'token') {
     return safeName.split(/\s+/)[0];
   }
 
@@ -166,6 +179,25 @@ function normalizeHistoryTokenKey(item: WalletHistoryItem) {
   return id;
 }
 
+function splitLeadingCurrencySymbol(value: string) {
+  const safe = String(value || '').trim();
+  if (!safe) {
+    return { symbol: '', amount: '$0.00' };
+  }
+
+  if (/^[^\d-]/.test(safe)) {
+    return {
+      symbol: safe.charAt(0),
+      amount: safe.slice(1) || '0.00',
+    };
+  }
+
+  return {
+    symbol: '',
+    amount: safe,
+  };
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const notice = useNotice();
@@ -189,6 +221,15 @@ export default function HomeScreen() {
   const [historyHasMoreCache, setHistoryHasMoreCache] = useState<Record<string, boolean>>({});
   const [historyLoadingWalletId, setHistoryLoadingWalletId] = useState<string | null>(null);
   const [historyLoadingMoreWalletId, setHistoryLoadingMoreWalletId] = useState<string | null>(null);
+
+  const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState('');
+  const [removalWalletId, setRemovalWalletId] = useState<string | null>(null);
+  const [removalProgress, setRemovalProgress] = useState(0);
+
+  const removalStartedAtRef = useRef<number | null>(null);
+  const removalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const removalCompletedRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -215,6 +256,21 @@ export default function HomeScreen() {
   const contentBottomInset = 44 + Math.max(insets.bottom, 6);
 
   const walletCards = useMemo(() => aggregate?.items ?? [], [aggregate]);
+
+  const clearRemovalTimer = useCallback(() => {
+    if (removalTimerRef.current) {
+      clearInterval(removalTimerRef.current);
+      removalTimerRef.current = null;
+    }
+  }, []);
+
+  const resetRemovalState = useCallback(() => {
+    clearRemovalTimer();
+    removalStartedAtRef.current = null;
+    removalCompletedRef.current = false;
+    setRemovalWalletId(null);
+    setRemovalProgress(0);
+  }, [clearRemovalTimer]);
 
   const loadHomePreferences = useCallback(async (walletId?: string | null) => {
     const resolvedWalletId = String(walletId || activeWallet?.id || '').trim();
@@ -371,6 +427,12 @@ export default function HomeScreen() {
     };
   }, [activeWallet?.address, customTokenCatalog, homeVisibleTokenIds, portfolio?.assets]);
 
+  useEffect(() => {
+    return () => {
+      clearRemovalTimer();
+    };
+  }, [clearRemovalTimer]);
+
   const visibleHistory = useMemo(() => {
     if (!activeWallet?.id) return [];
     return historyCache[activeWallet.id] ?? [];
@@ -380,24 +442,6 @@ export default function HomeScreen() {
     if (!activeWallet?.id) return false;
     return Boolean(historyHasMoreCache[activeWallet.id]);
   }, [activeWallet?.id, historyHasMoreCache]);
-
-  const sortedAssets = useMemo(() => {
-    const assets: PortfolioAsset[] = portfolio?.assets ?? [];
-    const next = [...assets];
-
-    if (assetSortMode === 'value') {
-      next.sort((a, b) => {
-        if (b.valueInUsd !== a.valueInUsd) return b.valueInUsd - a.valueInUsd;
-        return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
-      });
-      return next;
-    }
-
-    next.sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
-    );
-    return next;
-  }, [assetSortMode, portfolio]);
 
   const visibleHomeAssets = useMemo(() => {
     const activeVisibleTokenIds =
@@ -685,6 +729,9 @@ export default function HomeScreen() {
           setHistoryLoadingWalletId(null);
           setHistoryLoadingMoreWalletId(null);
           setCurrentCardIndex(0);
+          setEditingWalletId(null);
+          setDraftName('');
+          resetRemovalState();
           return;
         }
 
@@ -701,6 +748,15 @@ export default function HomeScreen() {
 
         setActiveWallet(nextActiveWallet);
         setCurrentCardIndex(nextIndex);
+
+        if (editingWalletId && editingWalletId !== nextActiveWallet.id) {
+          setEditingWalletId(null);
+          setDraftName('');
+        }
+
+        if (removalWalletId && removalWalletId !== nextActiveWallet.id) {
+          resetRemovalState();
+        }
 
         if (nextActiveItem.portfolio) {
           setPortfolio(nextActiveItem.portfolio);
@@ -733,7 +789,14 @@ export default function HomeScreen() {
         setLoading(false);
       }
     },
-    [contentMode, ensureWalletHistoryLoaded, notice]
+    [
+      contentMode,
+      editingWalletId,
+      ensureWalletHistoryLoaded,
+      notice,
+      removalWalletId,
+      resetRemovalState,
+    ]
   );
 
   const handleRefresh = useCallback(async () => {
@@ -802,6 +865,10 @@ export default function HomeScreen() {
       }
 
       try {
+        resetRemovalState();
+        setEditingWalletId(null);
+        setDraftName('');
+
         await setActiveWalletId(nextItem.wallet.id);
         setActiveWallet(nextItem.wallet);
 
@@ -840,7 +907,7 @@ export default function HomeScreen() {
         notice.showErrorNotice('Failed to switch wallet.', 2400);
       }
     },
-    [activeWallet?.id, cardWidth, contentMode, ensureWalletHistoryLoaded, notice, portfolioCache, walletCards]
+    [activeWallet?.id, cardWidth, contentMode, ensureWalletHistoryLoaded, notice, portfolioCache, resetRemovalState, walletCards]
   );
 
   const handleWalletAssetPress = useCallback(() => {
@@ -853,14 +920,233 @@ export default function HomeScreen() {
       return;
     }
 
-    if (contentMode === 'assets') {
+    setEditingWalletId(null);
+    setDraftName('');
+    resetRemovalState();
+
+    if (contentMode !== 'history') {
       setContentMode('history');
       await ensureWalletHistoryLoaded(activeWallet);
       return;
     }
 
     setContentMode('assets');
-  }, [activeWallet, contentMode, ensureWalletHistoryLoaded, notice]);
+  }, [activeWallet, contentMode, ensureWalletHistoryLoaded, notice, resetRemovalState]);
+
+  const handleToggleMoreMode = useCallback(() => {
+    if (!activeWallet) {
+      notice.showErrorNotice('No active wallet selected.', 2200);
+      return;
+    }
+
+    setEditingWalletId(null);
+    setDraftName('');
+    resetRemovalState();
+    setContentMode((prev) => (prev === 'more' ? 'assets' : 'more'));
+  }, [activeWallet, notice, resetRemovalState]);
+
+  const handleOpenWalletOptionRoute = useCallback(
+    (pathname: '/export-mnemonic' | '/backup-private-key' | '/multisig-transactions' | '/connections') => {
+      if (!activeWallet) {
+        notice.showErrorNotice('No active wallet selected.', 2200);
+        return;
+      }
+
+      router.push(pathname);
+    },
+    [activeWallet, notice, router]
+  );
+
+  const handleRenameStart = useCallback(() => {
+    if (!activeWallet?.id) {
+      notice.showErrorNotice('No active wallet selected.', 2200);
+      return;
+    }
+
+    resetRemovalState();
+    setEditingWalletId(activeWallet.id);
+    setDraftName(activeWallet.name);
+  }, [activeWallet?.id, activeWallet?.name, notice, resetRemovalState]);
+
+  const handleRenameCancel = useCallback(() => {
+    setEditingWalletId(null);
+    setDraftName('');
+  }, []);
+
+  const handleRenameSave = useCallback(async () => {
+    if (!activeWallet?.id) {
+      notice.showErrorNotice('No active wallet selected.', 2200);
+      return;
+    }
+
+    const nextName = draftName.trim();
+
+    if (!nextName) {
+      notice.showErrorNotice('Wallet name is required.', 2200);
+      return;
+    }
+
+    if (nextName.length > MAX_WALLET_NAME_LENGTH) {
+      notice.showErrorNotice(
+        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
+        2600
+      );
+      return;
+    }
+
+    try {
+      const updated = await renameWallet(activeWallet.id, nextName);
+      setEditingWalletId(null);
+      setDraftName('');
+      setActiveWallet((current) =>
+        current && current.id === activeWallet.id
+          ? {
+              ...current,
+              name: updated.name,
+            }
+          : current
+      );
+
+      setAggregate((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          items: current.items.map((item) =>
+            item.wallet.id === activeWallet.id
+              ? {
+                  ...item,
+                  wallet: {
+                    ...item.wallet,
+                    name: updated.name,
+                  },
+                }
+              : item
+          ),
+        };
+      });
+
+      notice.showSuccessNotice(`Wallet renamed: ${updated.name}`, 2400);
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice('Failed to rename wallet.', 2600);
+    }
+  }, [activeWallet, draftName, notice]);
+
+  const handleRemoveConfirmed = useCallback(async () => {
+    if (!activeWallet?.id) {
+      notice.showErrorNotice('No active wallet selected.', 2200);
+      return;
+    }
+
+    try {
+      const removedWalletId = activeWallet.id;
+      resetRemovalState();
+      setEditingWalletId(null);
+      setDraftName('');
+
+      await removeWallet(removedWalletId);
+
+      const nextAggregate = await getAllWalletPortfolios({ force: true });
+      setAggregate(nextAggregate);
+
+      const nextItems = nextAggregate?.items ?? [];
+      if (nextItems.length === 0) {
+        setActiveWallet(null);
+        setPortfolio(null);
+        setCurrentCardIndex(0);
+        notice.showSuccessNotice('Wallet removed from this device.', 2400);
+        return;
+      }
+
+      const nextIndex = Math.max(
+        0,
+        walletCards.findIndex((item) => item.wallet.id === removedWalletId)
+      );
+      const safeIndex = Math.min(nextIndex, nextItems.length - 1);
+      const nextActiveItem = nextItems[safeIndex] ?? nextItems[0];
+
+      await setActiveWalletId(nextActiveItem.wallet.id);
+      setActiveWallet(nextActiveItem.wallet);
+      setCurrentCardIndex(safeIndex);
+
+      if (nextActiveItem.portfolio) {
+        setPortfolio(nextActiveItem.portfolio);
+        setPortfolioCache((prev) => ({
+          ...prev,
+          [nextActiveItem.wallet.id]: nextActiveItem.portfolio!,
+        }));
+      } else {
+        const nextPortfolio = await getWalletPortfolio(nextActiveItem.wallet.address, {
+          force: true,
+        });
+        setPortfolio(nextPortfolio);
+        setPortfolioCache((prev) => ({
+          ...prev,
+          [nextActiveItem.wallet.id]: nextPortfolio,
+        }));
+      }
+
+      if (contentMode === 'history') {
+        await ensureWalletHistoryLoaded(nextActiveItem.wallet, { force: true });
+      }
+
+      notice.showSuccessNotice('Wallet removed from this device.', 2400);
+    } catch (error) {
+      console.error(error);
+      resetRemovalState();
+      notice.showErrorNotice('Failed to remove wallet.', 2600);
+    }
+  }, [
+    activeWallet,
+    contentMode,
+    ensureWalletHistoryLoaded,
+    notice,
+    resetRemovalState,
+    walletCards,
+  ]);
+
+  const handleRemovePress = useCallback(() => {
+    notice.showNeutralNotice('To delete, press and hold.', 2200);
+  }, [notice]);
+
+  const handleRemovePressIn = useCallback(() => {
+    if (!activeWallet?.id) {
+      notice.showErrorNotice('No active wallet selected.', 2200);
+      return;
+    }
+
+    clearRemovalTimer();
+    removalCompletedRef.current = false;
+    removalStartedAtRef.current = Date.now();
+    setRemovalWalletId(activeWallet.id);
+    setRemovalProgress(0);
+
+    removalTimerRef.current = setInterval(() => {
+      const startedAt = removalStartedAtRef.current;
+      if (!startedAt) return;
+
+      const elapsed = Date.now() - startedAt;
+      const fraction = Math.max(0, Math.min(1, elapsed / REMOVE_HOLD_MS));
+      const displayProgress = Math.round(fraction * REMOVE_DISPLAY_MAX);
+
+      setRemovalProgress(displayProgress);
+
+      if (fraction >= 1 && !removalCompletedRef.current) {
+        removalCompletedRef.current = true;
+        clearRemovalTimer();
+        void handleRemoveConfirmed();
+      }
+    }, 50);
+  }, [activeWallet?.id, clearRemovalTimer, handleRemoveConfirmed, notice]);
+
+  const handleRemovePressOut = useCallback(() => {
+    if (removalCompletedRef.current) {
+      return;
+    }
+
+    resetRemovalState();
+  }, [resetRemovalState]);
 
   const handleHomeAction = useCallback(
     async (label: string) => {
@@ -882,8 +1168,13 @@ export default function HomeScreen() {
         return;
       }
 
-      if (label === 'History') {
+      if (label === 'History' || label === 'Assets') {
         await handleToggleHistoryMode();
+        return;
+      }
+
+      if (label === 'More') {
+        handleToggleMoreMode();
         return;
       }
 
@@ -894,7 +1185,15 @@ export default function HomeScreen() {
 
       notice.showNeutralNotice(`${label} is coming soon.`, 2200);
     },
-    [activeWallet, handleToggleHistoryMode, notice, openQrModal, showWatchOnlyNotice]
+    [
+      activeWallet,
+      handleToggleHistoryMode,
+      handleToggleMoreMode,
+      notice,
+      openQrModal,
+      router,
+      showWatchOnlyNotice,
+    ]
   );
 
   const handleOpenToken = useCallback(
@@ -986,8 +1285,15 @@ export default function HomeScreen() {
     return knownManagedTokenIds.some((tokenId) => !visibleSet.has(tokenId));
   }, [homeVisibleTokenIds, knownManagedTokenIds]);
 
-  const historyButtonIcon = contentMode === 'history' ? 'list-outline' : 'time-outline';
+  const historyButtonIcon = contentMode === 'history' ? 'grid-outline' : 'time-outline';
   const historyButtonLabel = contentMode === 'history' ? 'Assets' : 'History';
+  const moreButtonIcon = contentMode === 'more' ? 'apps' : 'apps-outline';
+  const moreButtonLabel = contentMode === 'more' ? 'Assets' : 'More';
+
+  const isRemovingActiveWallet = Boolean(activeWallet?.id) && removalWalletId === activeWallet?.id;
+  const removalFillWidth = `${Math.min(100, (removalProgress / REMOVE_DISPLAY_MAX) * 100)}%`;
+  const removalProgressColor =
+    removalProgress >= REMOVE_DISPLAY_MAX ? colors.white : colors.red;
 
   if (isInitialScreenLoading) {
     return (
@@ -1066,6 +1372,7 @@ export default function HomeScreen() {
                   const visiblePortfolio = isActive ? portfolio : fallbackPortfolio;
 
                   const balanceDisplay = visiblePortfolio?.totalBalanceDisplay ?? '$0.00';
+                  const balanceParts = splitLeadingCurrencySymbol(balanceDisplay);
                   const deltaDisplay = visiblePortfolio?.totalDeltaDisplay ?? '$0.00 (0.00%)';
                   const deltaTone = visiblePortfolio?.totalDeltaTone ?? 'dim';
 
@@ -1127,7 +1434,17 @@ export default function HomeScreen() {
                             </View>
                           ) : (
                             <>
-                              <Text style={styles.balanceValue}>{balanceDisplay}</Text>
+                              <View style={styles.balanceValueRow}>
+                                {balanceParts.symbol ? (
+                                  <Text style={styles.balanceCurrencySymbol}>
+                                    {balanceParts.symbol}
+                                  </Text>
+                                ) : null}
+                                <Text style={styles.balanceValueAmount}>
+                                  {balanceParts.amount}
+                                </Text>
+                              </View>
+
                               <Text
                                 style={[
                                   styles.balanceDelta,
@@ -1179,19 +1496,19 @@ export default function HomeScreen() {
 
           <View style={styles.actionsRow}>
             <View style={styles.actionEdgeSlot}>
-              <ActionButton icon="arrow-up-outline" label="Send" onPress={() => void handleHomeAction('Send')} />
+              <ActionButton icon="send" label="Send" onPress={() => void handleHomeAction('Send')} />
             </View>
 
             <View style={styles.actionMiddleSlot}>
-              <ActionButton icon="arrow-down-outline" label="Receive" onPress={() => void handleHomeAction('Receive')} />
+              <ActionButton icon="receive" label="Receive" onPress={() => void handleHomeAction('Receive')} />
             </View>
 
             <View style={styles.actionMiddleSlot}>
-              <ActionButton icon={historyButtonIcon} label={historyButtonLabel} onPress={() => void handleHomeAction('History')} />
+              <ActionButton icon={contentMode === 'history' ? 'assets' : 'history'} label={historyButtonLabel} onPress={() => void handleHomeAction(historyButtonLabel)} />
             </View>
 
             <View style={styles.actionEdgeSlotRight}>
-              <ActionButton icon="grid-outline" label="More" onPress={() => void handleHomeAction('More')} />
+              <ActionButton icon={contentMode === 'more' ? 'assets' : 'more'} label={moreButtonLabel} onPress={() => void handleHomeAction('More')} />
             </View>
           </View>
 
@@ -1199,8 +1516,8 @@ export default function HomeScreen() {
 
           {contentMode === 'assets' ? (
             <>
-              <View style={styles.assetsHeaderRow}>
-                <View style={styles.assetsHeaderSide}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionHeaderSide}>
                   <Text style={[ui.sectionEyebrow, styles.assetsEyebrowBar]}>Assets</Text>
                   <TouchableOpacity
                     activeOpacity={0.85}
@@ -1215,7 +1532,7 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.assetsHeaderSide}>
+                <View style={styles.sectionHeaderSide}>
                   <TouchableOpacity
                     activeOpacity={0.85}
                     style={styles.assetsHeaderRightButton}
@@ -1307,10 +1624,10 @@ export default function HomeScreen() {
                 <Text style={styles.manageCryptoText}>Manage Crypto</Text>
               </TouchableOpacity>
             </>
-          ) : (
+          ) : contentMode === 'history' ? (
             <>
-              <View style={styles.historyHeaderRow}>
-                <View style={styles.historyHeaderSide}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionHeaderSide}>
                   <Text style={[ui.sectionEyebrow, styles.historyEyebrowBar]}>Transfers</Text>
                 </View>
 
@@ -1438,6 +1755,106 @@ export default function HomeScreen() {
                 )}
               </View>
             </>
+          ) : (
+            <>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionHeaderSide}>
+                  <Text style={[ui.sectionEyebrow, styles.optionsEyebrowBar]}>Options</Text>
+                </View>
+                <View style={styles.sectionHeaderSide} />
+              </View>
+
+              <View style={styles.optionsList}>
+                {editingWalletId === activeWallet?.id ? (
+                  <View style={styles.renameInlineRow}>
+                    <TextInput
+                      value={draftName}
+                      onChangeText={(value) =>
+                        setDraftName(value.slice(0, MAX_WALLET_NAME_LENGTH))
+                      }
+                      placeholder="Wallet name"
+                      placeholderTextColor={colors.textDim}
+                      style={styles.renameInput}
+                      autoFocus
+                      maxLength={MAX_WALLET_NAME_LENGTH}
+                      returnKeyType="done"
+                      onSubmitEditing={() => void handleRenameSave()}
+                    />
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.renameIconButton}
+                      onPress={handleRenameCancel}
+                    >
+                      <DeclineIcon width={18} height={18} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={styles.renameIconButton}
+                      onPress={() => void handleRenameSave()}
+                    >
+                      <ConfirmIcon width={18} height={18} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.optionRow}
+                    onPress={handleRenameStart}
+                  >
+                    <Text style={ui.actionLabel}>Rename Wallet</Text>
+                    <OpenRightIcon width={18} height={18} />
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.optionRow}
+                  onPress={() => handleOpenWalletOptionRoute('/export-mnemonic')}
+                >
+                  <Text style={ui.actionLabel}>Export Mnemonic</Text>
+                  <OpenRightIcon width={18} height={18} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.optionRow}
+                  onPress={() => handleOpenWalletOptionRoute('/backup-private-key')}
+                >
+                  <Text style={ui.actionLabel}>Back Up Private Key</Text>
+                  <OpenRightIcon width={18} height={18} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.optionRow}
+                  onPress={() => handleOpenWalletOptionRoute('/multisig-transactions')}
+                >
+                  <Text style={ui.actionLabel}>Multisig Transactions</Text>
+                  <OpenRightIcon width={18} height={18} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.optionRow}
+                  onPress={() => handleOpenWalletOptionRoute('/connections')}
+                >
+                  <Text style={ui.actionLabel}>Connections</Text>
+                  <OpenRightIcon width={18} height={18} />
+                </TouchableOpacity>
+
+                <RemoveHoldRow
+                  active={isRemovingActiveWallet}
+                  progress={removalProgress}
+                  fillWidth={removalFillWidth}
+                  progressColor={removalProgressColor}
+                  onPress={handleRemovePress}
+                  onPressIn={handleRemovePressIn}
+                  onPressOut={handleRemovePressOut}
+                />
+              </View>
+            </>
           )}
         </ScrollView>
 
@@ -1462,17 +1879,62 @@ function ActionButton({
   label,
   onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: 'send' | 'receive' | 'history' | 'assets' | 'more';
   label: string;
   onPress: () => void;
 }) {
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.actionButton} onPress={onPress}>
       <View style={styles.actionIconWrap}>
-        <Ionicons name={icon} size={30} color={colors.accent} />
+        {icon === 'send' ? <SendIcon width={28} height={28} /> : null}
+        {icon === 'receive' ? <ReceiveIcon width={28} height={28} /> : null}
+        {icon === 'history' ? <HistoryIcon width={28} height={28} /> : null}
+        {icon === 'assets' ? <AssetsIcon width={28} height={28} /> : null}
+        {icon === 'more' ? <MoreIcon width={28} height={28} /> : null}
       </View>
       <Text style={styles.actionLabel}>{label}</Text>
     </TouchableOpacity>
+  );
+}
+
+function RemoveHoldRow({
+  active,
+  progress,
+  fillWidth,
+  progressColor,
+  onPress,
+  onPressIn,
+  onPressOut,
+}: {
+  active: boolean;
+  progress: number;
+  fillWidth: string;
+  progressColor: string;
+  onPress: () => void;
+  onPressIn: () => void;
+  onPressOut: () => void;
+}) {
+  return (
+    <Pressable
+      style={styles.removeHoldRow}
+      onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+    >
+      <>
+        {active ? <View style={[styles.removeHoldFill, { width: fillWidth as any }]} /> : null}
+        <Text style={[styles.optionRowDestructiveText, active && styles.removeHoldLabelActive]}>
+          Remove Wallet
+        </Text>
+        {active ? (
+          <Text style={[styles.removeHoldProgress, { color: progressColor }]}>
+            {progress}%
+          </Text>
+        ) : (
+          <Text style={styles.removeHoldArrowPlaceholder} />
+        )}
+      </>
+    </Pressable>
   );
 }
 
@@ -1616,7 +2078,8 @@ const styles = StyleSheet.create({
 
   balanceBlock: {
     minHeight: 92,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 10,
   },
 
   balanceLoaderWrap: {
@@ -1625,12 +2088,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  balanceValue: {
-    marginTop: 16,
-    color: colors.white,
-    fontSize: 32,
-    lineHeight: 38,
+  balanceValueRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 2,
+    marginTop: 4,
+  },
+
+  balanceCurrencySymbol: {
+    color: colors.accent,
+    fontSize: 36,
+    lineHeight: 42,
     fontFamily: 'Sora_700Bold',
+  },
+
+  balanceValueAmount: {
+    color: colors.white,
+    fontSize: 36,
+    lineHeight: 42,
+    fontFamily: 'Sora_700Bold',
+    flexShrink: 1,
   },
 
   balanceDelta: {
@@ -1771,27 +2248,20 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
 
-  assetsHeaderRow: {
+  sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 0,
     marginTop: 0,
     marginBottom: 6,
+    minHeight: 28,
   },
 
-  assetsHeaderSide: {
+  sectionHeaderSide: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-
-  assetsHeaderMiniLabel: {
-    color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 16,
-    fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.4,
   },
 
   assetsEyebrowBar: {
@@ -1973,29 +2443,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
 
-  historyHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 0,
-    marginTop: 0,
-    marginBottom: 6,
-  },
-
-  historyHeaderSide: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-
-  historyHeaderMiniLabel: {
-    color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 16,
-    fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.4,
-  },
-
   historyEyebrowBar: {
     marginBottom: 0,
   },
@@ -2005,6 +2452,92 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  optionsEyebrowBar: {
+    marginBottom: 0,
+  },
+
+  optionsList: {
+    gap: 2,
+    paddingBottom: spacing[3],
+  },
+
+  optionRow: {
+    minHeight: 48,
+    paddingHorizontal: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'transparent',
+  },
+
+  optionRowDestructiveText: {
+    color: colors.red,
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  renameInlineRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  renameInput: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radius.sm,
+    borderWidth: 0,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    paddingHorizontal: 14,
+    color: colors.white,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  renameIconButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  removeHoldRow: {
+    minHeight: 48,
+    overflow: 'hidden',
+    paddingHorizontal: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'transparent',
+    position: 'relative',
+  },
+
+  removeHoldFill: {
+    position: 'absolute',
+    left: 4,
+    bottom: 6,
+    height: 1,
+    backgroundColor: colors.red,
+    opacity: 0.95,
+    borderRadius: radius.pill,
+  },
+
+  removeHoldLabelActive: {
+    color: colors.white,
+  },
+
+  removeHoldProgress: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+    zIndex: 2,
+  },
+
+  removeHoldArrowPlaceholder: {
+    width: 18,
   },
 
   historyBlockHome: {
@@ -2228,10 +2761,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
     maxWidth: 108,
     textAlign: 'right',
-  },
-
-  historyTypeDim: {
-    color: colors.textDim,
   },
 
   historyEmpty: {
