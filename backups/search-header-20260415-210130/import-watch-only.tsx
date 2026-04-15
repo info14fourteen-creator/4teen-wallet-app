@@ -1,0 +1,445 @@
+import { useMemo, useRef, useState } from 'react';
+import {
+  Keyboard,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import AppHeader, {
+  APP_HEADER_HEIGHT,
+  APP_HEADER_TOP_PADDING,
+} from '../src/ui/app-header';
+import SubmenuHeader from '../src/ui/submenu-header';
+import MenuSheet from '../src/ui/menu-sheet';
+import KeyboardView from '../src/ui/KeyboardView';
+import { colors, layout, radius, spacing } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+import { useNotice } from '../src/notice/notice-provider';
+import {
+  importWalletFromWatchOnly,
+  isValidTronAddress,
+} from '../src/services/wallet/import';
+
+import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
+import PasteIcon from '../assets/icons/ui/paste_btn.svg';
+
+const MAX_WALLET_NAME_LENGTH = 18;
+const ADDRESS_BOX_HEIGHT = 92;
+
+export default function ImportWatchOnlyScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ backTo?: string }>();
+  const backTo = typeof params.backTo === 'string' ? params.backTo : '/import-wallet';
+
+  const notice = useNotice();
+  const insets = useSafeAreaInsets();
+  const contentBottomInset = 62 + Math.max(insets.bottom, 6);
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [address, setAddress] = useState('');
+  const [walletName, setWalletName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const walletNameRef = useRef<TextInput | null>(null);
+
+  const normalizedAddress = address.trim();
+  const walletNameTrimmed = walletName.trim();
+  const addressValid = useMemo(() => isValidTronAddress(normalizedAddress), [normalizedAddress]);
+
+  const canSave =
+    addressValid &&
+    walletNameTrimmed.length > 0 &&
+    walletNameTrimmed.length <= MAX_WALLET_NAME_LENGTH &&
+    !submitting;
+
+  const handlePaste = async () => {
+    const text = await Clipboard.getStringAsync();
+    if (text) {
+      setAddress(text.trim());
+    }
+  };
+
+  const handleBack = () => {
+    notice.hideNotice();
+    router.replace(backTo as any);
+  };
+
+  const handleSave = async () => {
+    if (!addressValid) {
+      notice.showErrorNotice('Enter a valid TRON address.', 2600);
+      return;
+    }
+
+    if (!walletNameTrimmed.length) {
+      notice.showErrorNotice('Wallet name is required.', 2600);
+      walletNameRef.current?.focus();
+      return;
+    }
+
+    if (walletNameTrimmed.length > MAX_WALLET_NAME_LENGTH) {
+      notice.showErrorNotice(
+        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
+        2600
+      );
+      walletNameRef.current?.focus();
+      return;
+    }
+
+    if (submitting) return;
+
+    try {
+      setSubmitting(true);
+      Keyboard.dismiss();
+
+      await importWalletFromWatchOnly({
+        name: walletNameTrimmed,
+        address: normalizedAddress,
+      });
+
+      notice.showSuccessNotice('Watch-only wallet saved.', 2400);
+      router.replace('/home');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to save watch-only wallet.';
+      notice.showErrorNotice(message, 3000);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.screen}>
+        <View style={styles.headerSlot}>
+          <AppHeader onMenuPress={() => setMenuOpen(true)} />
+        </View>
+
+        <KeyboardView
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          extraScrollHeight={56}
+        >
+          <SubmenuHeader title="IMPORT WATCH-ONLY" onBack={handleBack} />
+
+          <Text style={styles.title}>
+            Add a <Text style={styles.titleAccent}>watch-only</Text> wallet
+          </Text>
+
+          <Text style={styles.lead}>
+            Track balances, tokens and wallet activity without signing rights. The TRON address is
+            validated locally and saved as a read-only wallet.
+          </Text>
+
+          <View style={styles.switchRow}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.switchButton}
+              onPress={handlePaste}
+            >
+              <Text style={styles.switchTextActive}>Paste Address</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.helperTextCentered}>
+            {address.length === 0
+              ? 'Waiting for TRON address input.'
+              : addressValid
+                ? 'Valid TRON address detected.'
+                : 'Invalid TRON address.'}
+          </Text>
+
+          <Text style={styles.blockEyebrow}>TRON Address</Text>
+
+          <View style={[styles.addressBox, normalizedAddress.length > 0 && styles.addressBoxActive]}>
+            <View style={styles.addressContentArea}>
+              <TextInput
+                value={address}
+                onChangeText={setAddress}
+                placeholder="T..."
+                placeholderTextColor={colors.textDim}
+                style={styles.addressInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="off"
+                returnKeyType="next"
+                onSubmitEditing={() => walletNameRef.current?.focus()}
+              />
+            </View>
+
+            <View style={styles.addressUtilityRow}>
+              <Text style={styles.addressUtilityText}>
+                {address.length === 0 ? 'TRON address not set' : normalizedAddress}
+              </Text>
+
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.inlineUtilityButton}
+                onPress={handlePaste}
+              >
+                <PasteIcon width={16} height={16} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <Text style={styles.walletNameEyebrow}>Wallet Name</Text>
+
+          <View style={styles.nameField}>
+            <TextInput
+              ref={walletNameRef}
+              value={walletName}
+              onChangeText={(value) => setWalletName(value.slice(0, MAX_WALLET_NAME_LENGTH))}
+              placeholder="Watch wallet"
+              placeholderTextColor={colors.textDim}
+              style={styles.nameInput}
+              maxLength={MAX_WALLET_NAME_LENGTH}
+              returnKeyType="done"
+              onSubmitEditing={() => void handleSave()}
+            />
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[styles.nameConfirmButton, !canSave && styles.nameConfirmButtonDisabled]}
+              onPress={() => void handleSave()}
+            >
+              <ConfirmIcon width={18} height={18} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.modeHint}>
+            View-only mode: this wallet should not sign, send, or expose private-key actions.
+          </Text>
+
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={[styles.primaryButton, !canSave && styles.primaryButtonDisabled]}
+            disabled={!canSave}
+            onPress={() => void handleSave()}
+          >
+            <Text style={[ui.buttonLabel, !canSave && styles.primaryButtonTextDisabled]}>
+              {submitting ? 'Saving...' : 'Save Watch-Only Wallet'}
+            </Text>
+          </TouchableOpacity>
+        </KeyboardView>
+
+        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: APP_HEADER_TOP_PADDING,
+  },
+
+  headerSlot: {
+    height: APP_HEADER_HEIGHT,
+    justifyContent: 'center',
+  },
+
+  content: {
+    paddingTop: 14,
+  },
+
+  title: {
+    marginTop: 8,
+    color: colors.white,
+    fontSize: 34,
+    lineHeight: 40,
+    fontFamily: 'Sora_700Bold',
+    maxWidth: '96%',
+  },
+
+  titleAccent: {
+    color: colors.accent,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  lead: {
+    ...ui.lead,
+    marginTop: 14,
+    marginBottom: 22,
+  },
+
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+
+  switchButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radius.sm,
+    
+    
+    backgroundColor: colors.bg,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  switchTextActive: {
+    color: colors.accent,
+    fontSize: 13,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
+  },
+
+  helperTextCentered: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
+    marginTop: 14,
+    marginBottom: 16,
+  },
+
+  blockEyebrow: {
+    ...ui.sectionEyebrow,
+    marginBottom: 12,
+  },
+
+  addressBox: {
+    height: ADDRESS_BOX_HEIGHT,
+    borderRadius: radius.sm,
+    
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+
+  addressBoxActive: {
+    
+    backgroundColor: 'rgba(255,105,0,0.05)',
+  },
+
+  addressContentArea: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+
+  addressInput: {
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 18,
+    paddingVertical: 0,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  addressUtilityRow: {
+    minHeight: 28,
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+
+  addressUtilityText: {
+    flex: 1,
+    color: colors.white,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  inlineUtilityButton: {
+    minHeight: 28,
+    borderRadius: 999,
+    
+    
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,105,0,0.12)',
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  inlineUtilityButtonText: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 14,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  walletNameEyebrow: {
+    ...ui.sectionEyebrow,
+    marginTop: 22,
+    marginBottom: 12,
+  },
+
+  nameField: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    paddingLeft: 14,
+    paddingRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  nameInput: {
+    flex: 1,
+    minHeight: 52,
+    color: colors.white,
+    fontFamily: 'Sora_600SemiBold',
+    paddingVertical: 0,
+  },
+
+  nameConfirmButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  nameConfirmButtonDisabled: {
+    opacity: 0.35,
+  },
+
+  modeHint: {
+    ...ui.body,
+    color: colors.textDim,
+    marginTop: spacing[4],
+  },
+
+  primaryButton: {
+    minHeight: layout.buttonHeight,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    marginTop: spacing[4],
+  },
+
+  primaryButtonDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  primaryButtonTextDisabled: {
+    color: colors.textDim,
+  },
+});

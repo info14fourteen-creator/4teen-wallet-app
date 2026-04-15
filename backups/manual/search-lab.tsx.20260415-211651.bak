@@ -1,0 +1,447 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+
+import { colors, layout, radius } from '../src/theme/tokens';
+import FooterNav from '../src/ui/footer-nav';
+import { openInAppBrowser } from '../src/utils/open-in-app-browser';
+import { getAddressBookMap } from '../src/services/address-book';
+
+function isTronAddress(value: string) {
+  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(value.trim());
+}
+
+function looksLikeUrl(value: string) {
+  const safe = value.trim().toLowerCase();
+  if (!safe) return false;
+
+  return (
+    safe.startsWith('http://') ||
+    safe.startsWith('https://') ||
+    safe.startsWith('www.') ||
+    safe.includes('.')
+  );
+}
+
+type SearchResult =
+  | { type: 'address'; contactName?: string }
+  | { type: 'url' }
+  | { type: 'nav'; route: string; title: string; subtitle: string }
+  | { type: 'unknown' }
+  | null;
+
+export default function SearchLabScreen() {
+  const router = useRouter();
+
+  const [query, setQuery] = useState('');
+  const [contactMap, setContactMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let mounted = true;
+
+    void getAddressBookMap().then((map) => {
+      if (mounted) {
+        setContactMap(map);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const normalized = query.trim();
+
+  const result = useMemo<SearchResult>(() => {
+    if (!normalized) return null;
+
+    const lower = normalized.toLowerCase();
+
+    if (isTronAddress(normalized)) {
+      return {
+        type: 'address',
+        contactName: contactMap[lower],
+      };
+    }
+
+    if (looksLikeUrl(normalized)) {
+      return { type: 'url' };
+    }
+
+    if (
+      lower === 'send' ||
+      lower.includes('send crypto') ||
+      lower.includes('transfer')
+    ) {
+      return {
+        type: 'nav',
+        route: '/send',
+        title: 'Open Send',
+        subtitle: 'Go to send flow',
+      };
+    }
+
+    if (lower === 'swap' || lower.includes('exchange')) {
+      return {
+        type: 'nav',
+        route: '/swap',
+        title: 'Open Swap',
+        subtitle: 'Go to swap screen',
+      };
+    }
+
+    if (
+      lower.includes('wallet') ||
+      lower.includes('wallets') ||
+      lower.includes('manage wallet')
+    ) {
+      return {
+        type: 'nav',
+        route: '/wallets',
+        title: 'Open Wallet Management',
+        subtitle: 'Manage, rename, remove, and open wallets',
+      };
+    }
+
+    if (
+      lower.includes('contact') ||
+      lower.includes('address book') ||
+      lower.includes('addressbook')
+    ) {
+      return {
+        type: 'nav',
+        route: '/address-book',
+        title: 'Open Address Book',
+        subtitle: 'View and manage saved contacts',
+      };
+    }
+
+    if (
+      lower.includes('token') ||
+      lower.includes('crypto') ||
+      lower.includes('asset') ||
+      lower.includes('manage crypto')
+    ) {
+      return {
+        type: 'nav',
+        route: '/manage-crypto',
+        title: 'Open Manage Crypto',
+        subtitle: 'Toggle token visibility and manage assets',
+      };
+    }
+
+    if (
+      lower.includes('custom token') ||
+      lower.includes('add token') ||
+      lower.includes('contract')
+    ) {
+      return {
+        type: 'nav',
+        route: '/add-custom-token',
+        title: 'Open Add Custom Token',
+        subtitle: 'Add or enable a token by contract',
+      };
+    }
+
+    if (lower.includes('setting') || lower === 'settings') {
+      return {
+        type: 'nav',
+        route: '/settings',
+        title: 'Open Settings',
+        subtitle: 'Open app settings',
+      };
+    }
+
+    if (lower.includes('home')) {
+      return {
+        type: 'nav',
+        route: '/home',
+        title: 'Open Home',
+        subtitle: 'Go back to wallet home',
+      };
+    }
+
+    if (lower.includes('select wallet')) {
+      return {
+        type: 'nav',
+        route: '/select-wallet',
+        title: 'Open Select Wallet',
+        subtitle: 'Choose active wallet',
+      };
+    }
+
+    return { type: 'unknown' };
+  }, [contactMap, normalized]);
+
+  const handlePrimaryAction = async () => {
+    if (!result) return;
+
+    if (result.type === 'address') {
+      router.push('/send');
+      return;
+    }
+
+    if (result.type === 'url') {
+      await openInAppBrowser(router, normalized);
+      return;
+    }
+
+    if (result.type === 'nav') {
+      router.push(result.route as any);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.screen}>
+        <View style={styles.headerBlock}>
+          <Text style={styles.eyebrow}>SEARCH LAB</Text>
+          <Text style={styles.title}>Smart Search</Text>
+          <Text style={styles.subtitle}>
+            Wallets, contacts, contracts, links, app routes. Humans do enjoy
+            forcing one input to do five jobs.
+          </Text>
+        </View>
+
+        <View style={styles.searchWrap}>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="crypto, address, dapp..."
+            placeholderTextColor={colors.textDim}
+            style={styles.input}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus
+          />
+        </View>
+
+        {result ? (
+          <View style={styles.resultCard}>
+            {result.type === 'address' ? (
+              <>
+                <Text style={styles.resultTitle}>
+                  {result.contactName
+                    ? `Wallet address • ${result.contactName}`
+                    : 'Wallet address detected'}
+                </Text>
+                <Text style={styles.resultText}>{normalized}</Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.primaryButton}
+                  onPress={() => void handlePrimaryAction()}
+                >
+                  <Text style={styles.primaryButtonText}>Send</Text>
+                </TouchableOpacity>
+
+                {!result.contactName ? (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.secondaryButton}
+                    onPress={() => router.push('/address-book')}
+                  >
+                    <Text style={styles.secondaryButtonText}>
+                      Add to contact book
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
+            ) : null}
+
+            {result.type === 'url' ? (
+              <>
+                <Text style={styles.resultTitle}>Open in browser</Text>
+                <Text style={styles.resultText}>{normalized}</Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.primaryButton}
+                  onPress={() => void handlePrimaryAction()}
+                >
+                  <Text style={styles.primaryButtonText}>Open</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+
+            {result.type === 'nav' ? (
+              <>
+                <Text style={styles.resultTitle}>{result.title}</Text>
+                <Text style={styles.resultText}>{result.subtitle}</Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.primaryButton}
+                  onPress={() => void handlePrimaryAction()}
+                >
+                  <Text style={styles.primaryButtonText}>Open</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+
+            {result.type === 'unknown' ? (
+              <>
+                <Text style={styles.resultTitle}>Nothing matched yet</Text>
+                <Text style={styles.resultText}>
+                  Try a TRON address, a URL, or route words like send, swap,
+                  wallet, settings, contacts, token.
+                </Text>
+              </>
+            ) : null}
+          </View>
+        ) : (
+          <View style={styles.idleCard}>
+            <Text style={styles.idleTitle}>Ready for input</Text>
+            <Text style={styles.idleText}>
+              Paste a wallet address, contract, route keyword, or website.
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <FooterNav />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: 18,
+  },
+
+  headerBlock: {
+    marginBottom: 18,
+    gap: 6,
+  },
+
+  eyebrow: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.45,
+    textTransform: 'uppercase',
+  },
+
+  title: {
+    color: colors.white,
+    fontSize: 28,
+    lineHeight: 34,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  subtitle: {
+    color: colors.textDim,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  searchWrap: {
+    marginBottom: 14,
+  },
+
+  input: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    color: colors.white,
+    fontFamily: 'Sora_600SemiBold',
+    fontSize: 14,
+    lineHeight: 18,
+  },
+
+  resultCard: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,105,0,0.06)',
+    padding: 16,
+    gap: 10,
+  },
+
+  idleCard: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    padding: 16,
+    gap: 8,
+  },
+
+  idleTitle: {
+    color: colors.white,
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  idleText: {
+    color: colors.textDim,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  resultTitle: {
+    color: colors.white,
+    fontSize: 18,
+    lineHeight: 22,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  resultText: {
+    color: colors.textDim,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  primaryButton: {
+    marginTop: 6,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+
+  primaryButtonText: {
+    color: colors.bg,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  secondaryButton: {
+    minHeight: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  secondaryButtonText: {
+    color: colors.accent,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
+});

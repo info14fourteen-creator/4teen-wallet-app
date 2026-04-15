@@ -1,0 +1,71 @@
+export type SearchQuickPageVisibility = 'always' | 'hasWallets' | 'noWallets';
+
+export type SearchRouteEntry = {
+  id: string;
+  route: string;
+  title: string;
+  subtitle: string;
+  keywords: string[];
+  quickPageOrder?: number;
+  quickPageVisibility?: SearchQuickPageVisibility;
+};
+
+export type SearchTokenItem = {
+  id: string;
+  name: string;
+  abbr: string;
+  logo?: string;
+  source: 'portfolio' | 'custom' | 'catalog';
+};
+
+export type SearchSuggestion =
+  | {
+      id: string;
+      type: 'token';
+      title: string;
+      subtitle: string;
+      tokenId: string;
+      logo?: string;
+      badge: string;
+      score: number;
+    }
+  | {
+      id: string;
+      type: 'wallet';
+      title: string;
+      subtitle: string;
+      walletId: string;
+      score: number;
+    }
+  | {
+      id: string;
+      type: 'contact';
+      title: string;
+      subtitle: string;
+      address: string;
+      score: number;
+    }
+  | {
+      id: string;
+      type: 'route';
+      title: string;
+      subtitle: string;
+      route: string;
+      score: number;
+    }
+  | {
+      id: string;
+      type: 'address';
+      title: string;
+      subtitle: string;
+      address: string;
+      score: number;
+    }
+  | {
+      id: string;
+      type: 'url';
+      title: string;
+      subtitle: string;
+      url: string;
+      score: number;
+    };

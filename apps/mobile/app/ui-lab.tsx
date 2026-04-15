@@ -269,7 +269,7 @@ export default function UiLab() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={[styles.screen, { paddingHorizontal: dynamic.horizontalPadding }]}>
         <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} />
+          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
         </View>
 
         <View style={[styles.top, { gap: dynamic.topGap }]}>

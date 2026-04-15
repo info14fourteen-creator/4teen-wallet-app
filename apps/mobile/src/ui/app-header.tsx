@@ -1,5 +1,6 @@
-import { TextInput, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Pressable, TextInput, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { colors, radius } from '../theme/tokens';
+import { useGlobalSearch } from '../search/search-provider';
 
 import MenuIcon from '../../assets/icons/ui/menu.svg';
 import SearchIcon from '../../assets/icons/ui/search.svg';
@@ -16,6 +17,7 @@ type AppHeaderProps = {
   showClose?: boolean;
   onClosePress?: () => void;
   onScanPress?: () => void;
+  onSearchPress?: () => void;
 };
 
 export default function AppHeader({
@@ -24,6 +26,8 @@ export default function AppHeader({
   onClosePress,
   onScanPress,
 }: AppHeaderProps) {
+  const { openSearch } = useGlobalSearch();
+
   return (
     <View style={styles.bar}>
       <TouchableOpacity
@@ -34,7 +38,10 @@ export default function AppHeader({
         {showClose ? <CloseIcon width={22} height={22} /> : <MenuIcon width={24} height={24} />}
       </TouchableOpacity>
 
-      <View style={styles.search}>
+      <Pressable
+        style={({ pressed }) => [styles.search, pressed && styles.searchPressed]}
+        onPress={openSearch}
+      >
         <TextInput
           editable={false}
           pointerEvents="none"
@@ -43,7 +50,7 @@ export default function AppHeader({
           style={styles.input}
         />
         <SearchIcon width={16} height={16} />
-      </View>
+      </Pressable>
 
       <TouchableOpacity activeOpacity={0.85} style={styles.iconButton} onPress={onScanPress}>
         <ScanIcon width={22} height={22} />
@@ -79,6 +86,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.surfaceSoft,
+  },
+
+  searchPressed: {
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,105,0,0.06)',
   },
 
   input: {

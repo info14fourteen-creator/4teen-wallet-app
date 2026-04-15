@@ -1,0 +1,354 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import AppHeader, {
+  APP_HEADER_HEIGHT,
+  APP_HEADER_TOP_PADDING,
+} from '../src/ui/app-header';
+import MenuSheet from '../src/ui/menu-sheet';
+import SubmenuHeader from '../src/ui/submenu-header';
+import ExpandChevron from '../src/ui/expand-chevron';
+import { colors, layout, radius, spacing } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+import { useNotice } from '../src/notice/notice-provider';
+import { clearAllWalletPortfolioCaches } from '../src/services/wallet/portfolio';
+import { clearAllTronCaches } from '../src/services/tron/api';
+
+const CLEAR_HOLD_MS = 3500;
+const CLEAR_DISPLAY_MAX = 114;
+
+export default function SettingsScreen() {
+  const router = useRouter();
+  const notice = useNotice();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
+  const [clearActive, setClearActive] = useState(false);
+  const [clearProgress, setClearProgress] = useState(0);
+
+  const clearStartedAtRef = useRef<number | null>(null);
+  const clearTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const clearCompletedRef = useRef(false);
+
+  const clearHoldTimer = useCallback(() => {
+    if (clearTimerRef.current) {
+      clearInterval(clearTimerRef.current);
+      clearTimerRef.current = null;
+    }
+  }, []);
+
+  const resetClearState = useCallback(() => {
+    clearHoldTimer();
+    clearStartedAtRef.current = null;
+    clearCompletedRef.current = false;
+    setClearActive(false);
+    setClearProgress(0);
+  }, [clearHoldTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearHoldTimer();
+    };
+  }, [clearHoldTimer]);
+
+  const handleClearCacheConfirmed = useCallback(async () => {
+    if (clearingCache) {
+      resetClearState();
+      return;
+    }
+
+    try {
+      setClearingCache(true);
+      await Promise.all([clearAllWalletPortfolioCaches(), clearAllTronCaches()]);
+      notice.showSuccessNotice('Cache cleared.', 2200);
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice('Failed to clear cache.', 2200);
+    } finally {
+      setClearingCache(false);
+      resetClearState();
+    }
+  }, [clearingCache, notice, resetClearState]);
+
+  const handleClearPress = useCallback(() => {
+    if (clearingCache) return;
+    notice.showNeutralNotice('To clear cache, press and hold.', 2200);
+  }, [clearingCache, notice]);
+
+  const handleClearPressIn = useCallback(() => {
+    if (clearingCache) return;
+
+    clearHoldTimer();
+    clearCompletedRef.current = false;
+    clearStartedAtRef.current = Date.now();
+    setClearActive(true);
+    setClearProgress(0);
+
+    clearTimerRef.current = setInterval(() => {
+      const startedAt = clearStartedAtRef.current;
+      if (!startedAt) return;
+
+      const elapsed = Date.now() - startedAt;
+      const fraction = Math.max(0, Math.min(1, elapsed / CLEAR_HOLD_MS));
+      const displayProgress = Math.round(fraction * CLEAR_DISPLAY_MAX);
+
+      setClearProgress(displayProgress);
+
+      if (fraction >= 1 && !clearCompletedRef.current) {
+        clearCompletedRef.current = true;
+        clearHoldTimer();
+        void handleClearCacheConfirmed();
+      }
+    }, 50);
+  }, [clearHoldTimer, clearingCache, handleClearCacheConfirmed]);
+
+  const handleClearPressOut = useCallback(() => {
+    if (clearCompletedRef.current || clearingCache) {
+      return;
+    }
+
+    resetClearState();
+  }, [clearingCache, resetClearState]);
+
+  const clearFillWidth = `${Math.min(100, (clearProgress / CLEAR_DISPLAY_MAX) * 100)}%`;
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.screen}>
+        <View style={styles.headerSlot}>
+          <AppHeader onMenuPress={() => setMenuOpen(true)} />
+        </View>
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <SubmenuHeader title="SETTINGS" onBack={() => router.back()} />
+
+          <View style={styles.list}>
+            <SettingRow label="Language" value="English" onPress={() => router.push('/language')} />
+            <SettingRow label="Currency" value="USD" onPress={() => router.push('/currency')} />
+            <SettingRow
+              label="Authentication Method"
+              value="Not set"
+              onPress={() => router.push('/authentication-method')}
+            />
+            <SettingRow label="Appearance" value="Dark" onPress={() => router.push('/appearance')} />
+
+            <SettingRow label="Buy 4TEEN" value="Open" onPress={() => router.push('/buy-4teen')} />
+            <SettingRow
+              label="Unlock Timeline"
+              value="Open"
+              onPress={() => router.push('/unlock-timeline')}
+            />
+            <SettingRow
+              label="Liquidity Controller"
+              value="Open"
+              onPress={() => router.push('/liquidity-controller')}
+            />
+            <SettingRow
+              label="Ambassador Program"
+              value="Open"
+              onPress={() => router.push('/ambassador-program')}
+            />
+            <SettingRow label="Airdrop" value="Open" onPress={() => router.push('/airdrop')} />
+
+            <ClearCacheHoldRow
+              active={clearActive}
+              clearing={clearingCache}
+              progress={clearProgress}
+              fillWidth={clearFillWidth}
+              onPress={handleClearPress}
+              onPressIn={handleClearPressIn}
+              onPressOut={handleClearPressOut}
+            />
+          </View>
+
+          <Text style={styles.helperText}>
+            Clears temporary market, portfolio, and history cache without removing wallets or your
+            token settings.
+          </Text>
+        </ScrollView>
+
+        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function SettingRow({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity activeOpacity={0.9} style={styles.row} onPress={onPress}>
+      <View style={styles.rowText}>
+        <Text style={ui.actionLabel}>{label}</Text>
+        <Text style={styles.value}>{value}</Text>
+      </View>
+      <ExpandChevron open={false} />
+    </TouchableOpacity>
+  );
+}
+
+function ClearCacheHoldRow({
+  active,
+  clearing,
+  progress,
+  fillWidth,
+  onPress,
+  onPressIn,
+  onPressOut,
+}: {
+  active: boolean;
+  clearing: boolean;
+  progress: number;
+  fillWidth: string;
+  onPress: () => void;
+  onPressIn: () => void;
+  onPressOut: () => void;
+}) {
+  return (
+    <Pressable
+      style={styles.clearCacheRow}
+      onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      disabled={clearing}
+    >
+      <>
+        {active && !clearing ? (
+          <View style={[styles.clearHoldFill, { width: fillWidth as any }]} />
+        ) : null}
+
+        <View style={styles.clearCacheRowTop}>
+          <Text style={ui.actionLabel}>Clear cache</Text>
+
+          {clearing ? (
+            <ActivityIndicator color={colors.white} size="small" />
+          ) : active ? (
+            <Text style={styles.clearProgressText}>{progress}%</Text>
+          ) : (
+            <ExpandChevron open={false} />
+          )}
+        </View>
+      </>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: APP_HEADER_TOP_PADDING,
+  },
+
+  headerSlot: {
+    height: APP_HEADER_HEIGHT,
+    justifyContent: 'center',
+  },
+
+  scroll: {
+    flex: 1,
+  },
+
+  content: {
+    paddingTop: 14,
+    paddingBottom: spacing[7],
+  },
+
+  list: {
+    gap: 12,
+  },
+
+  row: {
+    minHeight: 56,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+
+  rowText: {
+    flex: 1,
+    gap: 4,
+    paddingRight: 12,
+  },
+
+  value: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  clearCacheRow: {
+    minHeight: 32,
+    paddingTop: 2,
+    paddingBottom: 10,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+
+  clearCacheRowTop: {
+    minHeight: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  helperText: {
+    marginTop: 12,
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  clearHoldFill: {
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+    height: 1,
+    backgroundColor: colors.accent,
+    opacity: 0.95,
+    borderRadius: radius.pill,
+  },
+
+  clearProgressText: {
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+});

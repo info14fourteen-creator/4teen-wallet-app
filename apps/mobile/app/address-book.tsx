@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as SecureStore from 'expo-secure-store';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -47,6 +47,11 @@ function isValidTronAddress(value: string) {
 
 export default function AddressBookScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    openAdd?: string | string[];
+    prefillName?: string | string[];
+    prefillAddress?: string | string[];
+  }>();
   const notice = useNotice();
   const insets = useSafeAreaInsets();
   const contentBottomInset = 62 + Math.max(insets.bottom, 6);
@@ -65,6 +70,7 @@ export default function AddressBookScreen() {
   const removalStartedAtRef = useRef<number | null>(null);
   const removalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const removalCompletedRef = useRef(false);
+  const prefillAppliedRef = useRef(false);
 
   const addressValid = useMemo(() => isValidTronAddress(address), [address]);
   const canSave = name.trim().length > 0 && addressValid;
@@ -98,6 +104,28 @@ export default function AddressBookScreen() {
       clearRemovalTimer();
     };
   }, [clearRemovalTimer]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    if (prefillAppliedRef.current) return;
+
+    const openAddParam = Array.isArray(params.openAdd) ? params.openAdd[0] : params.openAdd;
+    const prefillNameParam = Array.isArray(params.prefillName) ? params.prefillName[0] : params.prefillName;
+    const prefillAddressParam = Array.isArray(params.prefillAddress) ? params.prefillAddress[0] : params.prefillAddress;
+
+    if (openAddParam === '1' || prefillNameParam || prefillAddressParam) {
+      prefillAppliedRef.current = true;
+      setAddOpen(true);
+
+      if (prefillNameParam) {
+        setName(String(prefillNameParam).slice(0, MAX_CONTACT_NAME_LENGTH));
+      }
+
+      if (prefillAddressParam) {
+        setAddress(String(prefillAddressParam).trim());
+      }
+    }
+  }, [loaded, params.openAdd, params.prefillAddress, params.prefillName]);
 
   const loadContacts = async () => {
     try {
@@ -243,9 +271,15 @@ export default function AddressBookScreen() {
 
   const handleSend = useCallback(
     (contact: ContactItem) => {
-      notice.showNeutralNotice(`Send flow for ${contact.name} is coming soon.`, 2200);
+      router.push({
+        pathname: '/send',
+        params: {
+          address: contact.address,
+          contactName: contact.name,
+        },
+      } as any);
     },
-    [notice]
+    [router]
   );
 
   const addressValidationTone =

@@ -1,14 +1,17 @@
 import { Stack, useSegments } from 'expo-router';
-import FooterNav from '../src/ui/footer-nav';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { useFonts } from 'expo-font';
 import { Sora_600SemiBold, Sora_700Bold } from '@expo-google-fonts/sora';
 import 'react-native-reanimated';
-import { NoticeProvider } from '../src/notice/notice-provider';
 import { Buffer } from 'buffer';
 import process from 'process';
+
+import FooterNav from '../src/ui/footer-nav';
+import { NoticeProvider } from '../src/notice/notice-provider';
+import { WalletSessionProvider } from '../src/wallet/wallet-session';
+import { SearchProvider } from '../src/search/search-provider';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -69,7 +72,11 @@ export default function RootLayout() {
 
   return (
     <NoticeProvider>
-      <LayoutContent />
+      <WalletSessionProvider>
+        <SearchProvider>
+          <LayoutContent />
+        </SearchProvider>
+      </WalletSessionProvider>
     </NoticeProvider>
   );
 }

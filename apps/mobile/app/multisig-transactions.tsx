@@ -18,7 +18,7 @@ export default function Screen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.screen}>
         <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => {}} />
+          <AppHeader onMenuPress={() => {}} onSearchPress={() => router.push('/search-lab')} />
         </View>
 
         <ScrollView

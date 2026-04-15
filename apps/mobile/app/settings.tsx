@@ -137,10 +137,14 @@ export default function SettingsScreen() {
           <SubmenuHeader title="SETTINGS" onBack={() => router.back()} />
 
           <View style={styles.list}>
-            <SettingRow label="Language" value="English" />
-            <SettingRow label="Currency" value="USD" />
-            <SettingRow label="Authentication Method" value="Not set" />
-            <SettingRow label="Appearance" value="Dark" />
+            <SettingRow label="Language" value="English" onPress={() => router.push('/language')} />
+            <SettingRow label="Currency" value="USD" onPress={() => router.push('/currency')} />
+            <SettingRow
+              label="Authentication Method"
+              value="Not set"
+              onPress={() => router.push('/authentication-method')}
+            />
+            <SettingRow label="Appearance" value="Dark" onPress={() => router.push('/appearance')} />
 
             <ClearCacheHoldRow
               active={clearActive}
@@ -165,9 +169,17 @@ export default function SettingsScreen() {
   );
 }
 
-function SettingRow({ label, value }: { label: string; value: string }) {
+function SettingRow({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  onPress: () => void;
+}) {
   return (
-    <TouchableOpacity activeOpacity={0.9} style={styles.row}>
+    <TouchableOpacity activeOpacity={0.9} style={styles.row} onPress={onPress}>
       <View style={styles.rowText}>
         <Text style={ui.actionLabel}>{label}</Text>
         <Text style={styles.value}>{value}</Text>

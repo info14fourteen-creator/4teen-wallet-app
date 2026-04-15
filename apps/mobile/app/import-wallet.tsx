@@ -75,7 +75,7 @@ export default function ImportWalletScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.screen}>
         <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} />
+          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
         </View>
 
         <ScrollView

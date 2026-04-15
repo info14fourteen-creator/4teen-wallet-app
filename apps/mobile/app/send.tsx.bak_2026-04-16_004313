@@ -1,0 +1,118 @@
+import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+
+import SubmenuHeader from '../src/ui/submenu-header';
+import { colors, layout, radius } from '../src/theme/tokens';
+
+function shortenMiddle(value: string, left = 6, right = 6) {
+  const safe = String(value || '').trim();
+  if (!safe) return '';
+  if (safe.length <= left + right + 3) return safe;
+  return `${safe.slice(0, left)}...${safe.slice(-right)}`;
+}
+
+export default function SendScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{
+    address?: string | string[];
+    contactName?: string | string[];
+  }>();
+
+  const address = Array.isArray(params.address) ? params.address[0] : params.address;
+  const contactName = Array.isArray(params.contactName) ? params.contactName[0] : params.contactName;
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.screen}>
+        <SubmenuHeader title="SEND" onBack={() => router.back()} />
+
+        <View style={styles.body}>
+          <Text style={styles.title}>Send</Text>
+
+          {address ? (
+            <View style={styles.prefillCard}>
+              <Text style={styles.prefillEyebrow}>Prefilled recipient</Text>
+              <Text style={styles.prefillTitle}>
+                {contactName ? contactName : shortenMiddle(address)}
+              </Text>
+              <Text style={styles.prefillAddress}>{address}</Text>
+            </View>
+          ) : null}
+
+          <Text style={styles.text}>
+            This screen is still a stub, but the recipient is already being passed in correctly.
+          </Text>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: 12,
+  },
+
+  body: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+
+  title: {
+    color: colors.white,
+    fontSize: 24,
+    lineHeight: 30,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  prefillCard: {
+    width: '100%',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,105,0,0.06)',
+    padding: 16,
+    gap: 6,
+  },
+
+  prefillEyebrow: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+
+  prefillTitle: {
+    color: colors.white,
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  prefillAddress: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  text: {
+    color: colors.textDim,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
+  },
+});

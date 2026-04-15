@@ -1,0 +1,88 @@
+import type { SearchRouteEntry } from './search-types';
+
+export const APP_SEARCH_ROUTES: SearchRouteEntry[] = [
+  {
+    id: 'route-home',
+    route: '/home',
+    title: 'Open Home',
+    subtitle: 'Go back to wallet home',
+    keywords: ['home', 'main', 'wallet home'],
+  },
+  {
+    id: 'route-wallets',
+    route: '/wallets',
+    title: 'Open Wallet Management',
+    subtitle: 'Manage, rename, remove, and open wallets',
+    keywords: ['wallet', 'wallets', 'manage wallet', 'wallet management'],
+  },
+  {
+    id: 'route-select-wallet',
+    route: '/select-wallet',
+    title: 'Open Select Wallet',
+    subtitle: 'Choose active wallet',
+    keywords: ['select wallet', 'choose wallet', 'active wallet'],
+  },
+  {
+    id: 'route-address-book',
+    route: '/address-book',
+    title: 'Open Address Book',
+    subtitle: 'View and manage saved contacts',
+    keywords: ['contact', 'contacts', 'address book', 'addressbook'],
+  },
+  {
+    id: 'route-send',
+    route: '/send',
+    title: 'Open Send',
+    subtitle: 'Go to send flow',
+    keywords: ['send', 'transfer', 'send crypto', 'send trx', 'send token'],
+  },
+  {
+    id: 'route-swap',
+    route: '/swap',
+    title: 'Open Swap',
+    subtitle: 'Go to swap screen',
+    keywords: ['swap', 'exchange', 'trade'],
+  },
+  {
+    id: 'route-manage-crypto',
+    route: '/manage-crypto',
+    title: 'Open Manage Crypto',
+    subtitle: 'Toggle token visibility and manage assets',
+    keywords: ['token', 'tokens', 'crypto', 'asset', 'assets', 'manage crypto'],
+  },
+  {
+    id: 'route-add-custom-token',
+    route: '/add-custom-token',
+    title: 'Open Add Custom Token',
+    subtitle: 'Add or enable a token by contract',
+    keywords: ['custom token', 'add token', 'contract', 'token contract'],
+  },
+  {
+    id: 'route-settings',
+    route: '/settings',
+    title: 'Open Settings',
+    subtitle: 'Open app settings',
+    keywords: ['setting', 'settings'],
+  },
+  {
+    id: 'route-about',
+    route: '/about',
+    title: 'Open About',
+    subtitle: 'Project and app information',
+    keywords: ['about', 'about us', 'info'],
+  },
+  {
+    id: 'route-whitepaper',
+    route: '/whitepaper',
+    title: 'Open Whitepaper',
+    subtitle: 'Read the whitepaper',
+    keywords: ['whitepaper', 'paper', 'docs'],
+  },
+  {
+    id: 'route-terms',
+    route: '/terms',
+    title: 'Open Terms',
+    subtitle: 'Read terms and conditions',
+    keywords: ['terms', 'conditions', 'legal'],
+  },
+];
