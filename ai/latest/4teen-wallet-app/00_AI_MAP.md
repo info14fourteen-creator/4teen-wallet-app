@@ -1,13 +1,13 @@
 # 4teen-wallet-app — AI MAP
 
-Generated: 2026-04-15T10:52:32.677Z
+Generated: 2026-04-15T23:08:13.723Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: fb32c153f1dd71cd33b479764ad75f2d81ca7912
-Short commit: fb32c15
-Commit subject: chore: bump mobile app version
+Last commit: f093b92ca9aa15c5b6b633b54d08c17f00a739fc
+Short commit: f093b92
+Commit subject: search: smart search UX, quick pages, icons, tags, layout sync with header
 Commit author: info14fourteen-creator
-Commit date: 2026-04-15T15:52:23+05:00
+Commit date: 2026-04-16T04:08:04+05:00
 
 ## Snapshot files
 
@@ -41,12 +41,18 @@ Commit date: 2026-04-15T15:52:23+05:00
       - about.tsx
       - add-custom-token.tsx
       - address-book.tsx
+      - airdrop.tsx
+      - ambassador-program.tsx
+      - appearance.tsx
+      - authentication-method.tsx
       - backup-private-key.tsx
       - browser.tsx
+      - buy-4teen.tsx
       - confirm-passcode.tsx
       - connections.tsx
       - create-passcode.tsx
       - create-wallet.tsx
+      - currency.tsx
       - enable-biometrics.tsx
       - export-mnemonic.tsx
       - font-lab.tsx
@@ -56,6 +62,8 @@ Commit date: 2026-04-15T15:52:23+05:00
       - import-wallet.tsx
       - import-watch-only.tsx
       - index.tsx
+      - language.tsx
+      - liquidity-controller.tsx
       - manage-crypto.tsx
       - modal.tsx
       - multisig-transactions.tsx
@@ -66,6 +74,7 @@ Commit date: 2026-04-15T15:52:23+05:00
       - terms.tsx
       - token-details.tsx
       - ui-lab.tsx
+      - unlock-timeline.tsx
       - unlock.tsx
       - wallets.tsx
       - whitepaper.tsx
@@ -91,6 +100,8 @@ Commit date: 2026-04-15T15:52:23+05:00
           - add_contact_btn.svg
           - add_wallet_btn.svg
           - address_btn.svg
+          - airdrop_qp_btn.svg
+          - ambassador_qp_btn.svg
           - assets_btn.svg
           - az_sort_btn.svg
           - backspace_btn.svg
@@ -102,14 +113,17 @@ Commit date: 2026-04-15T15:52:23+05:00
           - browser_more_btn.svg
           - browser_refresh_btn.svg
           - browser_share_btn.svg
+          - buy_4teen_qp_btn.svg
           - close.svg
           - confirm_btn.svg
           - copy_btn.svg
+          - create_add_wallet_qp_btn.svg
           - decline_btn.svg
           - footer_menu.svg
           - full_access_btn.svg
           - history_btn.svg
           - info_btn.svg
+          - liquidity_qp_btn.svg
           - logo_white.svg
           - manage_full_btn.svg
           - manage_new_btn.svg
@@ -124,11 +138,15 @@ Commit date: 2026-04-15T15:52:23+05:00
           - remove_contact_btn.svg
           - scan.svg
           - search.svg
+          - select_wallet_qp_btn.svg
           - send_btn.svg
+          - send_qp_btn.svg
           - setings_btn.svg
           - share_btn.svg
+          - swap_qp_btn.svg
           - toggle_off_btn.svg
           - toggle_on_btn.svg
+          - unlock_qp_btn.svg
           - value_sort_btn.svg
           - wallet_btn.svg
           - watch_only_btn.svg
@@ -150,6 +168,7 @@ Commit date: 2026-04-15T15:52:23+05:00
       - use-color-scheme.web.ts
       - use-theme-color.ts
     - scripts/
+      - create-stub-screen.mjs
       - reset-project.js
       - update-version.mjs
     - src/
@@ -158,6 +177,11 @@ Commit date: 2026-04-15T15:52:23+05:00
         - tron.ts
       - notice/
         - notice-provider.tsx
+      - search/
+        - search-provider.tsx
+        - search-routes.ts
+        - search-sheet.tsx
+        - search-types.ts
       - security/
         - local-auth.ts
       - services/
@@ -183,6 +207,7 @@ Commit date: 2026-04-15T15:52:23+05:00
         - KeyboardView.tsx
         - menu-sheet.tsx
         - numeric-keypad.tsx
+        - stub-screen.tsx
         - submenu-header.tsx
         - top-chrome.tsx
         - use-bottom-inset.ts
@@ -197,6 +222,29 @@ Commit date: 2026-04-15T15:52:23+05:00
     - README.md
     - svg.d.ts
     - tsconfig.json
+- backups/
+  - search-header-20260415-210130/
+    - about.tsx
+    - add-custom-token.tsx
+    - address-book.tsx
+    - backup-private-key.tsx
+    - confirm-passcode.tsx
+    - connections.tsx
+    - create-passcode.tsx
+    - create-wallet.tsx
+    - enable-biometrics.tsx
+    - export-mnemonic.tsx
+    - import-private-key.tsx
+    - import-seed.tsx
+    - import-wallet.tsx
+    - import-watch-only.tsx
+    - manage-crypto.tsx
+    - multisig-transactions.tsx
+    - settings.tsx
+    - terms.tsx
+    - token-details.tsx
+    - ui-lab.tsx
+    - whitepaper.tsx
 - docs/
   - ai-snapshots/
     - 2026-04-09-wallet-home-wired.md
