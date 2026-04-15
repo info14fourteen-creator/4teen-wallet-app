@@ -1,17 +1,17 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-04-15T08:19:02.419Z
+Generated: 2026-04-15T10:46:36.265Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 580329e0e8754629a71ccaf14b3aaf5882647acb
-Short commit: 580329e
-Commit subject: Finalize home header alignment fixes
+Last commit: 12e037040ef64389cc621b47877d91378488d8d6
+Short commit: 12e0370
+Commit subject: feat: refine home actions and inline wallet options
 Commit author: info14fourteen-creator
-Commit date: 2026-04-15T13:18:49+05:00
+Commit date: 2026-04-15T15:46:20+05:00
 
 ## Most frequently changed files in last 20 commits
 
-- 6x :: apps/mobile/app/home.tsx
+- 7x :: apps/mobile/app/home.tsx
 - 5x :: apps/mobile/src/config/app-version.ts
 - 3x :: apps/mobile/app/manage-crypto.tsx
 - 3x :: apps/mobile/src/services/tron/api.ts
@@ -31,13 +31,13 @@ Commit date: 2026-04-15T13:18:49+05:00
 - 1x :: apps/mobile/app/swap.tsx
 - 1x :: apps/mobile/app/token-details.tsx
 - 1x :: apps/mobile/app/wallets.tsx
+- 1x :: apps/mobile/assets/icons/ui/assets_btn.svg
 - 1x :: apps/mobile/assets/icons/ui/az_sort_btn.svg
-- 1x :: apps/mobile/assets/icons/ui/browser_back_btn.svg
-- 1x :: apps/mobile/assets/icons/ui/browser_close_btn.svg
-- 1x :: apps/mobile/assets/icons/ui/browser_copy_link_btn.svg
-- 1x :: apps/mobile/assets/icons/ui/browser_forward_btn.svg
-- 1x :: apps/mobile/assets/icons/ui/browser_more_btn.svg
-- 1x :: apps/mobile/assets/icons/ui/browser_refresh_btn.svg
-- 1x :: apps/mobile/assets/icons/ui/browser_share_btn.svg
 - 1x :: apps/mobile/assets/icons/ui/full_access_btn.svg
+- 1x :: apps/mobile/assets/icons/ui/history_btn.svg
 - 1x :: apps/mobile/assets/icons/ui/manage_full_btn.svg
+- 1x :: apps/mobile/assets/icons/ui/manage_new_btn.svg
+- 1x :: apps/mobile/assets/icons/ui/more_btn.svg
+- 1x :: apps/mobile/assets/icons/ui/paste_btn.svg
+- 1x :: apps/mobile/assets/icons/ui/receive_btn.svg
+- 1x :: apps/mobile/assets/icons/ui/send_btn.svg

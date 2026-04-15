@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-15T08:19:02.418Z
+Generated: 2026-04-15T10:46:36.263Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 580329e0e8754629a71ccaf14b3aaf5882647acb
-Short commit: 580329e
-Commit subject: Finalize home header alignment fixes
+Last commit: 12e037040ef64389cc621b47877d91378488d8d6
+Short commit: 12e0370
+Commit subject: feat: refine home actions and inline wallet options
 Commit author: info14fourteen-creator
-Commit date: 2026-04-15T13:18:49+05:00
+Commit date: 2026-04-15T15:46:20+05:00
 
 ## Curated project tree
 
@@ -73,6 +73,7 @@ Commit date: 2026-04-15T13:18:49+05:00
           - add_contact_btn.svg
           - add_wallet_btn.svg
           - address_btn.svg
+          - assets_btn.svg
           - az_sort_btn.svg
           - backspace_btn.svg
           - biologin_btn.svg
@@ -89,19 +90,23 @@ Commit date: 2026-04-15T13:18:49+05:00
           - decline_btn.svg
           - footer_menu.svg
           - full_access_btn.svg
+          - history_btn.svg
           - info_btn.svg
           - logo_white.svg
           - manage_full_btn.svg
           - manage_new_btn.svg
           - menu.svg
+          - more_btn.svg
           - open_down_btn.svg
           - open_right_btn.svg
           - paste_btn.svg
           - preferences_btn.svg
           - qr_btn.svg
+          - receive_btn.svg
           - remove_contact_btn.svg
           - scan.svg
           - search.svg
+          - send_btn.svg
           - setings_btn.svg
           - share_btn.svg
           - toggle_off_btn.svg

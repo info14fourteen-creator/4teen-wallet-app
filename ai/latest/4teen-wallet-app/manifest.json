@@ -1,22 +1,27 @@
 {
-  "generatedAt": "2026-04-15T08:19:02.420Z",
+  "generatedAt": "2026-04-15T10:46:36.266Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "580329e0e8754629a71ccaf14b3aaf5882647acb",
-    "shortHash": "580329e",
-    "subject": "Finalize home header alignment fixes",
+    "hash": "12e037040ef64389cc621b47877d91378488d8d6",
+    "shortHash": "12e0370",
+    "subject": "feat: refine home actions and inline wallet options",
     "author": "info14fourteen-creator",
-    "date": "2026-04-15T13:18:49+05:00"
+    "date": "2026-04-15T15:46:20+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/home.tsx"
+    "M\tapps/mobile/app/home.tsx",
+    "A\tapps/mobile/assets/icons/ui/assets_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/history_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/more_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/receive_btn.svg",
+    "A\tapps/mobile/assets/icons/ui/send_btn.svg"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/app/home.tsx",
-      "count": 6
+      "count": 7
     },
     {
       "file": "apps/mobile/src/config/app-version.ts",
@@ -95,35 +100,11 @@
       "count": 1
     },
     {
+      "file": "apps/mobile/assets/icons/ui/assets_btn.svg",
+      "count": 1
+    },
+    {
       "file": "apps/mobile/assets/icons/ui/az_sort_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/browser_back_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/browser_close_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/browser_copy_link_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/browser_forward_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/browser_more_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/browser_refresh_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/browser_share_btn.svg",
       "count": 1
     },
     {
@@ -131,7 +112,31 @@
       "count": 1
     },
     {
+      "file": "apps/mobile/assets/icons/ui/history_btn.svg",
+      "count": 1
+    },
+    {
       "file": "apps/mobile/assets/icons/ui/manage_full_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/manage_new_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/more_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/paste_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/receive_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/send_btn.svg",
       "count": 1
     }
   ],
@@ -195,6 +200,7 @@
     "apps/mobile/assets/icons/ui/add_contact_btn.svg",
     "apps/mobile/assets/icons/ui/add_wallet_btn.svg",
     "apps/mobile/assets/icons/ui/address_btn.svg",
+    "apps/mobile/assets/icons/ui/assets_btn.svg",
     "apps/mobile/assets/icons/ui/az_sort_btn.svg",
     "apps/mobile/assets/icons/ui/backspace_btn.svg",
     "apps/mobile/assets/icons/ui/biologin_btn.svg",
@@ -211,19 +217,23 @@
     "apps/mobile/assets/icons/ui/decline_btn.svg",
     "apps/mobile/assets/icons/ui/footer_menu.svg",
     "apps/mobile/assets/icons/ui/full_access_btn.svg",
+    "apps/mobile/assets/icons/ui/history_btn.svg",
     "apps/mobile/assets/icons/ui/info_btn.svg",
     "apps/mobile/assets/icons/ui/logo_white.svg",
     "apps/mobile/assets/icons/ui/manage_full_btn.svg",
     "apps/mobile/assets/icons/ui/manage_new_btn.svg",
     "apps/mobile/assets/icons/ui/menu.svg",
+    "apps/mobile/assets/icons/ui/more_btn.svg",
     "apps/mobile/assets/icons/ui/open_down_btn.svg",
     "apps/mobile/assets/icons/ui/open_right_btn.svg",
     "apps/mobile/assets/icons/ui/paste_btn.svg",
     "apps/mobile/assets/icons/ui/preferences_btn.svg",
     "apps/mobile/assets/icons/ui/qr_btn.svg",
+    "apps/mobile/assets/icons/ui/receive_btn.svg",
     "apps/mobile/assets/icons/ui/remove_contact_btn.svg",
     "apps/mobile/assets/icons/ui/scan.svg",
     "apps/mobile/assets/icons/ui/search.svg",
+    "apps/mobile/assets/icons/ui/send_btn.svg",
     "apps/mobile/assets/icons/ui/setings_btn.svg",
     "apps/mobile/assets/icons/ui/share_btn.svg",
     "apps/mobile/assets/icons/ui/socials/discord_social.svg",
