@@ -278,7 +278,6 @@ export default function HomeScreen() {
     void loadHomePreferences(activeWallet?.id);
   }, [activeWallet?.id, loadHomePreferences]);
 
-
   useEffect(() => {
     let cancelled = false;
 
@@ -1024,20 +1023,26 @@ export default function HomeScreen() {
         >
           <View style={styles.walletAssetRow}>
             <TouchableOpacity
-              activeOpacity={0.9}
-              style={styles.walletAssetMainButton}
+              activeOpacity={0.85}
+              style={styles.walletAssetTitleButton}
               onPress={handleWalletAssetPress}
             >
-              <Text style={styles.walletAssetEyebrow}>WALLET ASSET</Text>
-              <OpenRightIcon width={18} height={18} />
+              <Text style={[ui.sectionEyebrow, styles.walletAssetEyebrow]}>
+                WALLET ASSET
+              </Text>
+              <View style={styles.walletAssetInlineArrowWrap}>
+                <OpenRightIcon width={18} height={18} />
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
-              activeOpacity={0.9}
+              activeOpacity={0.85}
               style={styles.walletAssetAddButton}
               onPress={() => router.push('/ui-lab')}
             >
-              <AddWalletIcon width={16} height={16} />
+              <View style={styles.walletAssetAddIconWrap}>
+                <AddWalletIcon width={16} height={16} />
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -1098,7 +1103,17 @@ export default function HomeScreen() {
 
                           <TouchableOpacity
                             activeOpacity={0.85}
-                            onPress={() => openQrModal(wallet)}
+                            onPress={() => {
+                              if (wallet.kind === 'watch-only') {
+                                notice.showErrorNotice(
+                                  'Make sure you have full access to this wallet. You will not be able to send anything from a watch-only wallet.',
+                                  3200
+                                );
+                                return;
+                              }
+
+                              openQrModal(wallet);
+                            }}
                             style={styles.iconActionButton}
                           >
                             <QrIcon width={18} height={18} />
@@ -1495,38 +1510,49 @@ const styles = StyleSheet.create({
   },
 
   walletAssetRow: {
+    minHeight: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 24,
-    marginBottom: 10,
+    marginBottom: 22,
   },
 
-  walletAssetMainButton: {
+  walletAssetTitleButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    height: 24,
-    alignSelf: 'flex-start',
+    gap: 4,
+    flexShrink: 1,
+  },
+
+  walletAssetInlineArrowWrap: {
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
   },
 
   walletAssetAddButton: {
-    width: 24,
-    height: 24,
+    minHeight: 36,
+    minWidth: 36,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  walletAssetAddIconWrap: {
+    width: 16,
+    height: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   walletAssetEyebrow: {
-    color: colors.accent,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.45,
+    marginBottom: 0,
   },
 
   walletCardSection: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
 
   walletPagerContent: {
@@ -2090,9 +2116,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-
-
-
   historyAddressRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -2106,7 +2129,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
   },
-
 
   historyBottomAction: {
     width: 18,
@@ -2169,7 +2191,10 @@ const styles = StyleSheet.create({
 
   manageCryptoTextButton: {
     alignSelf: 'center',
-    paddingVertical: 4,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    justifyContent: 'center',
     marginTop: 0,
     marginBottom: 12,
   },
