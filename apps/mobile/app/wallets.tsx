@@ -314,7 +314,7 @@ export default function WalletsScreen() {
                   <View key={wallet.id} style={styles.walletGroup}>
                     <TouchableOpacity
                       activeOpacity={0.9}
-                      style={[styles.walletRow, active && styles.walletRowActive]}
+                      style={[styles.walletRow, active ? styles.walletRowActive : styles.walletRowInactive]}
                       onPress={() => {
                         resetRemovalState();
                         setExpandedWalletId((prev) => (prev === wallet.id ? null : wallet.id));
@@ -392,22 +392,23 @@ export default function WalletsScreen() {
                         )}
 
                         <StubRow
-                          label="Back Up Private Key"
-                          onPress={() =>
-                            notice.showNeutralNotice('Backup flow is not wired yet.', 2200)
-                          }
+                          label="Export Mnemonic"
+                          onPress={() => router.push('/export-mnemonic')}
                         />
+
+                        <StubRow
+                          label="Back Up Private Key"
+                          onPress={() => router.push('/backup-private-key')}
+                        />
+
                         <StubRow
                           label="Multisig Transactions"
-                          onPress={() =>
-                            notice.showNeutralNotice('Multisig flow is not wired yet.', 2200)
-                          }
+                          onPress={() => router.push('/multisig-transactions')}
                         />
+
                         <StubRow
                           label="Connections"
-                          onPress={() =>
-                            notice.showNeutralNotice('Connections flow is not wired yet.', 2200)
-                          }
+                          onPress={() => router.push('/connections')}
                         />
 
                         <RemoveHoldRow
@@ -608,8 +609,6 @@ const styles = StyleSheet.create({
     minHeight: 86,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    backgroundColor: 'transparent',
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -618,9 +617,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
+  walletRowInactive: {
+    borderColor: 'rgba(255,105,0,0.14)',
+    backgroundColor: 'rgba(255,105,0,0.04)',
+  },
+
   walletRowActive: {
-    borderColor: 'rgba(255,105,0,0.16)',
-    backgroundColor: 'rgba(255,105,0,0.03)',
+    borderColor: 'rgba(24,224,58,0.22)',
+    backgroundColor: 'rgba(24,224,58,0.06)',
   },
 
   walletText: {
@@ -636,7 +640,7 @@ const styles = StyleSheet.create({
   },
 
   activeBadge: {
-    color: colors.accent,
+    color: colors.green,
     fontSize: 11,
     lineHeight: 14,
     fontFamily: 'Sora_700Bold',
