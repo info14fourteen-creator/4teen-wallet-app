@@ -1,27 +1,22 @@
 {
-  "generatedAt": "2026-04-15T10:46:36.266Z",
+  "generatedAt": "2026-04-15T10:52:32.681Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "12e037040ef64389cc621b47877d91378488d8d6",
-    "shortHash": "12e0370",
-    "subject": "feat: refine home actions and inline wallet options",
+    "hash": "fb32c153f1dd71cd33b479764ad75f2d81ca7912",
+    "shortHash": "fb32c15",
+    "subject": "chore: bump mobile app version",
     "author": "info14fourteen-creator",
-    "date": "2026-04-15T15:46:20+05:00"
+    "date": "2026-04-15T15:52:23+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/home.tsx",
-    "A\tapps/mobile/assets/icons/ui/assets_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/history_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/more_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/receive_btn.svg",
-    "A\tapps/mobile/assets/icons/ui/send_btn.svg"
+    "M\tapps/mobile/src/config/app-version.ts"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/app/home.tsx",
-      "count": 7
+      "count": 5
     },
     {
       "file": "apps/mobile/src/config/app-version.ts",
@@ -40,7 +35,7 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/app/ui-lab.tsx",
+      "file": "apps/mobile/app/wallets.tsx",
       "count": 2
     },
     {
@@ -48,35 +43,23 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/src/services/wallet/storage.ts",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/_layout.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/about.tsx",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/app/address-book.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/app/import-private-key.tsx",
+      "file": "apps/mobile/app/backup-private-key.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/app/import-seed.tsx",
+      "file": "apps/mobile/app/connections.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/app/import-wallet.tsx",
+      "file": "apps/mobile/app/export-mnemonic.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/app/import-watch-only.tsx",
+      "file": "apps/mobile/app/multisig-transactions.tsx",
       "count": 1
     },
     {
@@ -96,7 +79,7 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/wallets.tsx",
+      "file": "apps/mobile/app/ui-lab.tsx",
       "count": 1
     },
     {
@@ -105,10 +88,6 @@
     },
     {
       "file": "apps/mobile/assets/icons/ui/az_sort_btn.svg",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/full_access_btn.svg",
       "count": 1
     },
     {
@@ -128,15 +107,27 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/assets/icons/ui/paste_btn.svg",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/assets/icons/ui/receive_btn.svg",
       "count": 1
     },
     {
       "file": "apps/mobile/assets/icons/ui/send_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/toggle_off_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/toggle_on_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/value_sort_btn.svg",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/src/services/wallet/storage.ts",
       "count": 1
     }
   ],
@@ -169,11 +160,14 @@
     "apps/mobile/app/about.tsx",
     "apps/mobile/app/add-custom-token.tsx",
     "apps/mobile/app/address-book.tsx",
+    "apps/mobile/app/backup-private-key.tsx",
     "apps/mobile/app/browser.tsx",
     "apps/mobile/app/confirm-passcode.tsx",
+    "apps/mobile/app/connections.tsx",
     "apps/mobile/app/create-passcode.tsx",
     "apps/mobile/app/create-wallet.tsx",
     "apps/mobile/app/enable-biometrics.tsx",
+    "apps/mobile/app/export-mnemonic.tsx",
     "apps/mobile/app/font-lab.tsx",
     "apps/mobile/app/home.tsx",
     "apps/mobile/app/import-private-key.tsx",
@@ -183,6 +177,7 @@
     "apps/mobile/app/index.tsx",
     "apps/mobile/app/manage-crypto.tsx",
     "apps/mobile/app/modal.tsx",
+    "apps/mobile/app/multisig-transactions.tsx",
     "apps/mobile/app/select-wallet.tsx",
     "apps/mobile/app/send.tsx",
     "apps/mobile/app/settings.tsx",
