@@ -277,7 +277,7 @@ export default function AddressBookScreen() {
   const handleSend = useCallback(
     (contact: ContactItem) => {
       router.push({
-        pathname: '/send-select-token',
+        pathname: '/send',
         params: {
           address: contact.address,
           contactName: contact.name,

@@ -142,8 +142,8 @@ export default function SendScreen() {
     router.push({
       pathname: '/send-select-token',
       params: {
-        ...(recipient.trim() ? { address: recipient.trim() } : {}),
-        ...(contactName ? { contactName } : {}),
+        address: recipient.trim(),
+        contactName,
       },
     } as any);
   }, [contactName, recipient, router]);

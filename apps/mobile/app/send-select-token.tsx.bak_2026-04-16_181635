@@ -1,0 +1,447 @@
+import { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
+
+import AppHeader, {
+  APP_HEADER_HEIGHT,
+  APP_HEADER_TOP_PADDING,
+} from '../src/ui/app-header';
+import MenuSheet from '../src/ui/menu-sheet';
+import SubmenuHeader from '../src/ui/submenu-header';
+import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+import { useNotice } from '../src/notice/notice-provider';
+import { getActiveWallet } from '../src/services/wallet/storage';
+import {
+  getWalletPortfolio,
+  type PortfolioAsset,
+  type WalletPortfolioSnapshot,
+} from '../src/services/wallet/portfolio';
+
+import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
+
+function hasPositiveAssetBalance(asset: PortfolioAsset) {
+  return Number.isFinite(asset.amount) && asset.amount > 0;
+}
+
+export default function SendSelectTokenScreen() {
+  const router = useRouter();
+  const notice = useNotice();
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    address?: string | string[];
+    contactName?: string | string[];
+  }>();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errorText, setErrorText] = useState('');
+  const [walletName, setWalletName] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
+  const [portfolio, setPortfolio] = useState<WalletPortfolioSnapshot | null>(null);
+
+  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
+
+  const recipientAddress =
+    typeof params.address === 'string'
+      ? params.address.trim()
+      : Array.isArray(params.address)
+        ? String(params.address[0] || '').trim()
+        : '';
+
+  const contactName =
+    typeof params.contactName === 'string'
+      ? params.contactName.trim()
+      : Array.isArray(params.contactName)
+        ? String(params.contactName[0] || '').trim()
+        : '';
+
+  const load = useCallback(async (options?: { force?: boolean }) => {
+    try {
+      setLoading(true);
+      setErrorText('');
+
+      const wallet = await getActiveWallet();
+
+      if (!wallet) {
+        throw new Error('No active wallet selected.');
+      }
+
+      setWalletName(wallet.name);
+      setWalletAddress(wallet.address);
+
+      const nextPortfolio = await getWalletPortfolio(wallet.address, {
+        force: Boolean(options?.force),
+      });
+
+      setPortfolio(nextPortfolio);
+    } catch (error) {
+      console.error(error);
+      setPortfolio(null);
+      setWalletName('');
+      setWalletAddress('');
+      setErrorText(error instanceof Error ? error.message : 'Failed to load send token list.');
+      notice.showErrorNotice('Failed to load send token list.', 2400);
+    } finally {
+      setLoading(false);
+    }
+  }, [notice]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await load({ force: true });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
+  const sendableAssets = useMemo(() => {
+    const items = (portfolio?.assets ?? []).filter(hasPositiveAssetBalance);
+
+    return items.sort((a, b) => {
+      if (b.valueInUsd !== a.valueInUsd) return b.valueInUsd - a.valueInUsd;
+      return a.name.localeCompare(b.name, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    });
+  }, [portfolio?.assets]);
+
+  const handleOpenSend = useCallback(
+    (asset: PortfolioAsset) => {
+      router.push({
+        pathname: '/send',
+        params: {
+          tokenId: asset.id,
+          address: recipientAddress,
+          contactName,
+        },
+      } as any);
+    },
+    [contactName, recipientAddress, router]
+  );
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.screen}>
+        <View style={styles.headerSlot}>
+          <AppHeader
+            onMenuPress={() => setMenuOpen(true)}
+            onSearchPress={() => router.push('/search-lab')}
+          />
+        </View>
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          showsVerticalScrollIndicator={false}
+          bounces
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+              progressBackgroundColor={colors.bg}
+            />
+          }
+        >
+          <SubmenuHeader title="SELECT TOKEN" onBack={() => router.back()} />
+
+          <View style={styles.summaryCard}>
+            <Text style={ui.eyebrow}>From Wallet</Text>
+            <Text style={styles.summaryValue}>{walletName || 'Active wallet'}</Text>
+            <Text style={styles.summaryAddress} numberOfLines={1} ellipsizeMode="middle">
+              {walletAddress || '—'}
+            </Text>
+
+            {recipientAddress ? (
+              <>
+                <View style={styles.summaryDivider} />
+                <Text style={ui.eyebrow}>Recipient</Text>
+                <Text style={styles.summaryRecipient}>
+                  {contactName ? `${contactName} · ${recipientAddress}` : recipientAddress}
+                </Text>
+              </>
+            ) : null}
+
+            <Text style={styles.summaryHint}>
+              Select the asset you want to send from the active wallet.
+            </Text>
+          </View>
+
+          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>Available To Send</Text>
+
+          {loading ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          ) : errorText ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>Unable to load assets</Text>
+              <Text style={styles.emptyText}>{errorText}</Text>
+            </View>
+          ) : sendableAssets.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No sendable assets</Text>
+              <Text style={styles.emptyText}>
+                Only tokens with a balance greater than zero are shown here.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.assetList}>
+              {sendableAssets.map((asset) => (
+                <TouchableOpacity
+                  key={asset.id}
+                  activeOpacity={0.9}
+                  style={styles.assetRow}
+                  onPress={() => handleOpenSend(asset)}
+                >
+                  <View style={styles.assetLeft}>
+                    {asset.logo ? (
+                      <Image
+                        source={{ uri: asset.logo }}
+                        style={styles.assetLogo}
+                        contentFit="contain"
+                      />
+                    ) : (
+                      <View style={styles.assetFallbackLogo}>
+                        <Text style={styles.assetFallbackText}>
+                          {asset.symbol.slice(0, 1).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={styles.assetMeta}>
+                      <Text style={styles.assetName}>{asset.name}</Text>
+                      <Text style={styles.assetAmount}>
+                        {asset.symbol} · {asset.amountDisplay}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.assetRight}>
+                    <Text style={styles.assetValue}>{asset.valueDisplay}</Text>
+                    <OpenRightIcon width={18} height={18} />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+
+        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: APP_HEADER_TOP_PADDING,
+  },
+
+  headerSlot: {
+    height: APP_HEADER_HEIGHT,
+    justifyContent: 'center',
+  },
+
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  content: {
+    paddingTop: 14,
+  },
+
+  summaryCard: {
+    backgroundColor: 'rgba(255,105,0,0.06)',
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    borderRadius: radius.md,
+    padding: 16,
+    marginBottom: 18,
+    gap: 8,
+  },
+
+  summaryValue: {
+    color: colors.white,
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  summaryAddress: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  summaryDivider: {
+    height: 1,
+    backgroundColor: colors.lineSoft,
+    marginVertical: 4,
+  },
+
+  summaryRecipient: {
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  summaryHint: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    marginTop: 2,
+  },
+
+  sectionEyebrowOutside: {
+    marginBottom: 12,
+  },
+
+  loadingWrap: {
+    minHeight: 220,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  emptyState: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    gap: 6,
+  },
+
+  emptyTitle: {
+    color: colors.white,
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  emptyText: {
+    color: colors.textDim,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  assetList: {
+    gap: 10,
+    paddingBottom: 16,
+  },
+
+  assetRow: {
+    minHeight: 72,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  assetLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    paddingRight: 12,
+  },
+
+  assetLogo: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+
+  assetFallbackLogo: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,105,0,0.12)',
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+
+  assetFallbackText: {
+    color: colors.accent,
+    fontSize: 15,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  assetMeta: {
+    flex: 1,
+    gap: 4,
+  },
+
+  assetName: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  assetAmount: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  assetRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+
+  assetValue: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: 'Sora_700Bold',
+  },
+});

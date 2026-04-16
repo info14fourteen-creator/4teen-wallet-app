@@ -159,7 +159,7 @@ export default function SelectWalletScreen() {
                   <TouchableOpacity
                     key={wallet.id}
                     activeOpacity={0.9}
-                    style={[styles.walletRow, active && styles.walletRowActive]}
+                    style={[styles.walletRow, active ? styles.walletRowActive : styles.walletRowInactive]}
                     onPress={() => void handleSelectWallet(wallet)}
                   >
                     <View style={styles.walletText}>
@@ -307,8 +307,6 @@ const styles = StyleSheet.create({
     minHeight: 86,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    backgroundColor: 'transparent',
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -317,9 +315,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
+  walletRowInactive: {
+    borderColor: 'rgba(255,105,0,0.14)',
+    backgroundColor: 'rgba(255,105,0,0.04)',
+  },
+
   walletRowActive: {
-    borderColor: 'rgba(255,105,0,0.16)',
-    backgroundColor: 'rgba(255,105,0,0.03)',
+    borderColor: 'rgba(24,224,58,0.22)',
+    backgroundColor: 'rgba(24,224,58,0.06)',
   },
 
   walletText: {
@@ -335,7 +338,7 @@ const styles = StyleSheet.create({
   },
 
   activeBadge: {
-    color: colors.accent,
+    color: colors.green,
     fontSize: 11,
     lineHeight: 14,
     fontFamily: 'Sora_700Bold',

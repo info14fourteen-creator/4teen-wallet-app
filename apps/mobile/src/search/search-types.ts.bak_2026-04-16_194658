@@ -19,7 +19,6 @@ export type SearchRouteEntry = {
   title: string;
   subtitle: string;
   keywords: string[];
-  aliases?: string[];
   quickPageOrder?: number;
   quickPageVisibility?: SearchQuickPageVisibility;
   quickPageIcon?: SearchQuickPageIcon;

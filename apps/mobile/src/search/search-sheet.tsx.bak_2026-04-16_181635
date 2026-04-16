@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 
 import { colors, layout, radius } from '../theme/tokens';
-import { APP_HEADER_HEIGHT, APP_HEADER_TOP_PADDING } from '../ui/app-header.constants';
+import { APP_HEADER_HEIGHT, APP_HEADER_TOP_PADDING } from '../ui/app-header';
 import { APP_SEARCH_ROUTES } from './search-routes';
 import type {
   SearchQuickPageIcon,
@@ -91,17 +91,6 @@ function normalizeUrl(value: string) {
   return safe;
 }
 
-function routeToSearchTerms(route: string) {
-  const safe = String(route || '').trim().replace(/^\//, '');
-  if (!safe) return [];
-
-  return safe
-    .split('/')
-    .flatMap((part) => part.split(/[-_]/g))
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
 function shortenMiddle(value: string, left = 6, right = 6) {
   const safe = String(value || '').trim();
   if (!safe) return '';
@@ -113,6 +102,7 @@ function uniqueById<T extends { id: string }>(items: T[]) {
   const map = new Map<string, T>();
 
   for (const item of items) {
+    if (!item?.id) continue;
     if (!map.has(item.id)) {
       map.set(item.id, item);
     }
@@ -479,16 +469,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
     }
 
     for (const route of APP_SEARCH_ROUTES) {
-      const routeTerms = routeToSearchTerms(route.route);
-
-      const score = scoreTextMatch(q, [
-        route.title,
-        route.subtitle,
-        route.route,
-        ...routeTerms,
-        ...route.keywords,
-        ...(route.aliases ?? []),
-      ]);
+      const score = scoreTextMatch(q, [route.title, ...route.keywords]);
       if (score <= 0) continue;
 
       next.push({
@@ -497,7 +478,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
         title: route.title,
         subtitle: route.subtitle,
         route: route.route,
-        score: score + 80,
+        score,
       });
     }
 
@@ -597,7 +578,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
       if (item.type === 'contact') {
         onClose();
         router.push({
-          pathname: '/send-select-token',
+          pathname: '/send',
           params: {
             address: item.address,
             contactName: item.title,
@@ -609,7 +590,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
       if (item.type === 'address') {
         onClose();
         router.push({
-          pathname: '/send-select-token',
+          pathname: '/send',
           params: {
             address: item.address,
           },
@@ -906,7 +887,6 @@ const styles = StyleSheet.create({
   searchInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
 
   input: {

@@ -545,7 +545,7 @@ export default function TokenDetailsScreen() {
                     router.push({
                       pathname: '/send',
                       params: { tokenId: details.tokenId },
-                    } as any)
+                    })
                   }
                 >
                   <Text style={styles.tokenPrimaryButtonText}>Send</Text>

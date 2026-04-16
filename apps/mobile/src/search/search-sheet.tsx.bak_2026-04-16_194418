@@ -91,17 +91,6 @@ function normalizeUrl(value: string) {
   return safe;
 }
 
-function routeToSearchTerms(route: string) {
-  const safe = String(route || '').trim().replace(/^\//, '');
-  if (!safe) return [];
-
-  return safe
-    .split('/')
-    .flatMap((part) => part.split(/[-_]/g))
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
 function shortenMiddle(value: string, left = 6, right = 6) {
   const safe = String(value || '').trim();
   if (!safe) return '';
@@ -479,16 +468,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
     }
 
     for (const route of APP_SEARCH_ROUTES) {
-      const routeTerms = routeToSearchTerms(route.route);
-
-      const score = scoreTextMatch(q, [
-        route.title,
-        route.subtitle,
-        route.route,
-        ...routeTerms,
-        ...route.keywords,
-        ...(route.aliases ?? []),
-      ]);
+      const score = scoreTextMatch(q, [route.title, ...route.keywords]);
       if (score <= 0) continue;
 
       next.push({
@@ -497,7 +477,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
         title: route.title,
         subtitle: route.subtitle,
         route: route.route,
-        score: score + 80,
+        score,
       });
     }
 

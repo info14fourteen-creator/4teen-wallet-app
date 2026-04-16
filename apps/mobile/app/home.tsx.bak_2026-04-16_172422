@@ -19,11 +19,10 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
-import AppHeader from '../src/ui/app-header';
-import {
+import AppHeader, {
   APP_HEADER_HEIGHT,
   APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header.constants';
+} from '../src/ui/app-header';
 import MenuSheet from '../src/ui/menu-sheet';
 import AddressQrModal from '../src/ui/address-qr-modal';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
@@ -1180,7 +1179,12 @@ export default function HomeScreen() {
       }
 
       if (label === 'Send') {
-        router.push('/send-select-token');
+        router.push({
+          pathname: '/send',
+          params: {
+            tokenId: TRX_TOKEN_ID,
+          },
+        });
         return;
       }
 

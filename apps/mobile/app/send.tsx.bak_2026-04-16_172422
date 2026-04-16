@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -25,20 +24,23 @@ import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
 import { TRX_TOKEN_ID } from '../src/services/tron/api';
 import { getSendAssetDraft, sendAssetTransfer } from '../src/services/wallet/send';
+import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 
 function isValidTronAddress(value: string) {
   return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(value || '').trim());
+}
+
+function shortTx(value: string) {
+  const safe = String(value || '').trim();
+  if (safe.length < 14) return safe;
+  return `${safe.slice(0, 8)}...${safe.slice(-6)}`;
 }
 
 export default function SendScreen() {
   const router = useRouter();
   const notice = useNotice();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{
-    tokenId?: string | string[];
-    address?: string | string[];
-    contactName?: string | string[];
-  }>();
+  const params = useLocalSearchParams<{ tokenId?: string }>();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -54,21 +56,7 @@ export default function SendScreen() {
       ? params.tokenId
       : Array.isArray(params.tokenId)
         ? params.tokenId[0]
-        : '';
-
-  const prefillAddress =
-    typeof params.address === 'string'
-      ? params.address.trim()
-      : Array.isArray(params.address)
-        ? String(params.address[0] || '').trim()
-        : '';
-
-  const contactName =
-    typeof params.contactName === 'string'
-      ? params.contactName.trim()
-      : Array.isArray(params.contactName)
-        ? String(params.contactName[0] || '').trim()
-        : '';
+        : TRX_TOKEN_ID;
 
   const contentBottomInset = 44 + Math.max(insets.bottom, 6);
 
@@ -76,10 +64,6 @@ export default function SendScreen() {
     try {
       setLoading(true);
       setErrorText('');
-
-      if (!tokenId) {
-        throw new Error('Token is not selected.');
-      }
 
       const nextDraft = await getSendAssetDraft(tokenId);
       setDraft(nextDraft);
@@ -99,12 +83,6 @@ export default function SendScreen() {
     }, [load])
   );
 
-  useEffect(() => {
-    if (prefillAddress) {
-      setRecipient(prefillAddress);
-    }
-  }, [prefillAddress]);
-
   const handleRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
@@ -122,31 +100,6 @@ export default function SendScreen() {
     if (!draft?.spendableAmount) return;
     setAmount(draft.spendableAmount);
   }, [draft?.spendableAmount]);
-
-  const handlePasteRecipient = useCallback(async () => {
-    const value = await Clipboard.getStringAsync();
-    if (value) {
-      setRecipient(String(value).trim());
-    }
-  }, []);
-
-  const handleOpenAddressBook = useCallback(() => {
-    router.push('/address-book');
-  }, [router]);
-
-  const handleOpenScan = useCallback(() => {
-    router.push('/scan?mode=send' as any);
-  }, [router]);
-
-  const handleChangeToken = useCallback(() => {
-    router.push({
-      pathname: '/send-select-token',
-      params: {
-        ...(recipient.trim() ? { address: recipient.trim() } : {}),
-        ...(contactName ? { contactName } : {}),
-      },
-    } as any);
-  }, [contactName, recipient, router]);
 
   const handleSend = useCallback(async () => {
     if (!draft) return;
@@ -181,14 +134,21 @@ export default function SendScreen() {
         amount: safeAmount,
       });
 
-      notice.showSuccessNotice(`${tokenLabel} sent.`, 2600);
+      notice.showSuccessNotice(
+        `${tokenLabel} sent. ${shortTx(result.txId)}`,
+        3200
+      );
 
-      router.push({
-        pathname: '/browser',
-        params: {
-          url: result.explorerUrl,
-        },
-      } as any);
+      setAmount('');
+      setRecipient('');
+
+      try {
+        await openInAppBrowser(router, result.explorerUrl);
+      } catch (browserError) {
+        console.error(browserError);
+      }
+
+      await load();
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
@@ -198,7 +158,7 @@ export default function SendScreen() {
     } finally {
       setSending(false);
     }
-  }, [amount, draft, notice, recipient, router, tokenLabel]);
+  }, [amount, draft, load, notice, recipient, router, tokenLabel]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -243,56 +203,15 @@ export default function SendScreen() {
 
                   <View style={styles.divider} />
 
-                  <View style={styles.assetHeaderRow}>
-                    <View style={styles.assetHeaderText}>
-                      <Text style={styles.label}>Asset</Text>
-                      <Text style={styles.value}>{draft.token.name}</Text>
-                      <Text style={styles.subvalue}>
-                        {draft.token.symbol} · Balance: {draft.token.balanceFormatted}
-                      </Text>
-                    </View>
-
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={handleChangeToken}
-                      style={styles.changeTokenButton}
-                    >
-                      <Text style={styles.changeTokenButtonText}>Change</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <Text style={styles.label}>Asset</Text>
+                  <Text style={styles.value}>{draft.token.name}</Text>
+                  <Text style={styles.subvalue}>
+                    {draft.token.symbol} · Balance: {draft.token.balanceFormatted}
+                  </Text>
                 </View>
 
                 <View style={styles.formCard}>
-                  <View style={styles.fieldHeaderRow}>
-                    <Text style={styles.inputLabel}>Recipient</Text>
-
-                    <View style={styles.recipientActions}>
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={handlePasteRecipient}
-                        style={styles.inlineActionButton}
-                      >
-                        <Text style={styles.inlineActionButtonText}>Paste</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={handleOpenAddressBook}
-                        style={styles.inlineActionButton}
-                      >
-                        <Text style={styles.inlineActionButtonText}>Book</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        activeOpacity={0.85}
-                        onPress={handleOpenScan}
-                        style={styles.inlineActionButton}
-                      >
-                        <Text style={styles.inlineActionButtonText}>Scan</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
+                  <Text style={styles.inputLabel}>Recipient</Text>
                   <TextInput
                     value={recipient}
                     onChangeText={setRecipient}
@@ -302,10 +221,6 @@ export default function SendScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
-
-                  {contactName ? (
-                    <Text style={styles.contactHint}>Recipient label: {contactName}</Text>
-                  ) : null}
 
                   <View style={styles.amountHeaderRow}>
                     <Text style={styles.inputLabel}>Amount</Text>
@@ -460,71 +375,11 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
 
-  assetHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-
-  assetHeaderText: {
-    flex: 1,
-    gap: 4,
-  },
-
-  changeTokenButton: {
-    minHeight: 32,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  changeTokenButtonText: {
-    color: colors.accent,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_700Bold',
-  },
-
   inputLabel: {
     color: colors.white,
     fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
-  },
-
-  fieldHeaderRow: {
-    marginTop: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-
-  recipientActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-
-  inlineActionButton: {
-    minHeight: 28,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  inlineActionButtonText: {
-    color: colors.accent,
-    fontSize: 11,
-    lineHeight: 14,
-    fontFamily: 'Sora_700Bold',
   },
 
   input: {
@@ -536,14 +391,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     color: colors.white,
     fontFamily: 'Sora_600SemiBold',
-  },
-
-  contactHint: {
-    color: colors.textDim,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-    marginTop: -2,
   },
 
   amountHeaderRow: {

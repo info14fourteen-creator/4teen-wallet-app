@@ -12,11 +12,10 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import AppHeader from '../src/ui/app-header';
-import {
+import AppHeader, {
   APP_HEADER_HEIGHT,
   APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header.constants';
+} from '../src/ui/app-header';
 import MenuSheet from '../src/ui/menu-sheet';
 import SubmenuHeader from '../src/ui/submenu-header';
 import { colors, layout, radius } from '../src/theme/tokens';
