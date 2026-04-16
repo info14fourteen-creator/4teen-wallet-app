@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
   StyleSheet,
@@ -28,14 +28,16 @@ import {
 
 import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
 import PasteIcon from '../assets/icons/ui/paste_btn.svg';
+import ScanIcon from '../assets/icons/ui/scan.svg';
 
 const MAX_WALLET_NAME_LENGTH = 18;
 const ADDRESS_BOX_HEIGHT = 92;
 
 export default function ImportWatchOnlyScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ backTo?: string }>();
+  const params = useLocalSearchParams<{ backTo?: string; address?: string | string[] }>();
   const backTo = typeof params.backTo === 'string' ? params.backTo : '/import-wallet';
+  const scannedAddressParam = Array.isArray(params.address) ? params.address[0] : params.address;
 
   const notice = useNotice();
   const insets = useSafeAreaInsets();
@@ -58,11 +60,20 @@ export default function ImportWatchOnlyScreen() {
     walletNameTrimmed.length <= MAX_WALLET_NAME_LENGTH &&
     !submitting;
 
+  useEffect(() => {
+    if (!scannedAddressParam) return;
+    setAddress(String(scannedAddressParam).trim());
+  }, [scannedAddressParam]);
+
   const handlePaste = async () => {
     const text = await Clipboard.getStringAsync();
     if (text) {
       setAddress(text.trim());
     }
+  };
+
+  const handleScanAddress = () => {
+    router.push('/scan?mode=watch-only' as any);
   };
 
   const handleBack = () => {
@@ -176,13 +187,23 @@ export default function ImportWatchOnlyScreen() {
                 {address.length === 0 ? 'TRON address not set' : normalizedAddress}
               </Text>
 
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={styles.inlineUtilityButton}
-                onPress={handlePaste}
-              >
-                <PasteIcon width={16} height={16} />
-              </TouchableOpacity>
+              <View style={styles.addressActions}>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.inlineUtilityButton}
+                  onPress={handleScanAddress}
+                >
+                  <ScanIcon width={16} height={16} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.inlineUtilityButton}
+                  onPress={handlePaste}
+                >
+                  <PasteIcon width={16} height={16} />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
 
@@ -319,17 +340,14 @@ const styles = StyleSheet.create({
   addressBox: {
     height: ADDRESS_BOX_HEIGHT,
     borderRadius: radius.sm,
-    
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
+    backgroundColor: 'rgba(255,255,255,0.03)',
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 8,
   },
 
   addressBoxActive: {
-    
-    backgroundColor: 'rgba(255,105,0,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
 
   addressContentArea: {
@@ -354,6 +372,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
+  addressActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+
   addressUtilityText: {
     flex: 1,
     color: colors.white,
@@ -363,14 +388,8 @@ const styles = StyleSheet.create({
   },
 
   inlineUtilityButton: {
-    minHeight: 28,
-    borderRadius: 999,
-    
-    
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    backgroundColor: 'rgba(255,105,0,0.12)',
-    paddingHorizontal: 12,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
