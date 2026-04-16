@@ -1,17 +1,23 @@
 {
-  "generatedAt": "2026-04-16T01:02:09.134Z",
+  "generatedAt": "2026-04-16T01:03:07.501Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "e025c6b8ad8dbd294438b07902757352b249f4f6",
-    "shortHash": "e025c6b",
-    "subject": "scan: apply scanned address to watch-only import",
+    "hash": "f7398a8952e49da075514f0c2d19850934fb0785",
+    "shortHash": "f7398a8",
+    "subject": "scan: wire QR flows for address book and watch-only import",
     "author": "info14fourteen-creator",
-    "date": "2026-04-16T06:02:00+05:00"
+    "date": "2026-04-16T06:02:58+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/import-watch-only.tsx"
+    "M\tapps/mobile/app.json",
+    "M\tapps/mobile/app/address-book.tsx",
+    "A\tapps/mobile/app/scan.tsx",
+    "M\tapps/mobile/app/swap.tsx",
+    "M\tapps/mobile/package.json",
+    "M\tapps/mobile/src/ui/app-header.tsx",
+    "M\tpnpm-lock.yaml"
   ],
   "activeFiles": [
     {
@@ -20,7 +26,7 @@
     },
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 5
+      "count": 4
     },
     {
       "file": "apps/mobile/app/add-custom-token.tsx",
@@ -29,6 +35,10 @@
     {
       "file": "apps/mobile/app/manage-crypto.tsx",
       "count": 3
+    },
+    {
+      "file": "apps/mobile/app/address-book.tsx",
+      "count": 2
     },
     {
       "file": "apps/mobile/app/backup-private-key.tsx",
@@ -67,15 +77,19 @@
       "count": 2
     },
     {
+      "file": "apps/mobile/src/ui/app-header.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app.json",
+      "count": 1
+    },
+    {
       "file": "apps/mobile/app/_layout.tsx",
       "count": 1
     },
     {
       "file": "apps/mobile/app/about.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/address-book.tsx",
       "count": 1
     },
     {
@@ -124,14 +138,6 @@
     },
     {
       "file": "apps/mobile/app/import-private-key.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/import-seed.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/import-wallet.tsx",
       "count": 1
     }
   ],
@@ -190,6 +196,7 @@
     "apps/mobile/app/manage-crypto.tsx",
     "apps/mobile/app/modal.tsx",
     "apps/mobile/app/multisig-transactions.tsx",
+    "apps/mobile/app/scan.tsx",
     "apps/mobile/app/select-wallet.tsx",
     "apps/mobile/app/send.tsx",
     "apps/mobile/app/settings.tsx",

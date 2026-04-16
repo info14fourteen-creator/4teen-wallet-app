@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-16T01:02:09.132Z
+Generated: 2026-04-16T01:03:07.499Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: e025c6b8ad8dbd294438b07902757352b249f4f6
-Short commit: e025c6b
-Commit subject: scan: apply scanned address to watch-only import
+Last commit: f7398a8952e49da075514f0c2d19850934fb0785
+Short commit: f7398a8
+Commit subject: scan: wire QR flows for address book and watch-only import
 Commit author: info14fourteen-creator
-Commit date: 2026-04-16T06:02:00+05:00
+Commit date: 2026-04-16T06:02:58+05:00
 
 ## Curated project tree
 
@@ -53,6 +53,7 @@ Commit date: 2026-04-16T06:02:00+05:00
       - manage-crypto.tsx
       - modal.tsx
       - multisig-transactions.tsx
+      - scan.tsx
       - select-wallet.tsx
       - send.tsx
       - settings.tsx
