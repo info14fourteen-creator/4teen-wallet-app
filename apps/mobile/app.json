@@ -8,7 +8,14 @@
         {
           "faceIDPermission": "Allow 4TEEN Wallet to use Face ID."
         }
-      ]
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow 4TEEN Wallet to access your camera to scan QR codes."
+        }
+      ],
+      "expo-secure-store"
     ],
     "android": {
       "softwareKeyboardLayoutMode": "resize"

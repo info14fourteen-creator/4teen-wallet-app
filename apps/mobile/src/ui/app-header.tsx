@@ -1,4 +1,5 @@
 import { Pressable, TextInput, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { colors, radius } from '../theme/tokens';
 import { useGlobalSearch } from '../search/search-provider';
 
@@ -26,7 +27,17 @@ export default function AppHeader({
   onClosePress,
   onScanPress,
 }: AppHeaderProps) {
+  const router = useRouter();
   const { openSearch } = useGlobalSearch();
+
+  const handleScanPress = () => {
+    if (onScanPress) {
+      onScanPress();
+      return;
+    }
+
+    router.push('/scan');
+  };
 
   return (
     <View style={styles.bar}>
@@ -52,7 +63,7 @@ export default function AppHeader({
         <SearchIcon width={16} height={16} />
       </Pressable>
 
-      <TouchableOpacity activeOpacity={0.85} style={styles.iconButton} onPress={onScanPress}>
+      <TouchableOpacity activeOpacity={0.85} style={styles.iconButton} onPress={handleScanPress}>
         <ScanIcon width={22} height={22} />
       </TouchableOpacity>
     </View>

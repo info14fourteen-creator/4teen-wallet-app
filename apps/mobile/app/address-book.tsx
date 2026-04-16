@@ -11,7 +11,6 @@ import * as Clipboard from 'expo-clipboard';
 import * as SecureStore from 'expo-secure-store';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 
 import AppHeader, {
   APP_HEADER_HEIGHT,
@@ -27,6 +26,8 @@ import AddContactIcon from '../assets/icons/ui/add_contact_btn.svg';
 import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
 import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
 import RemoveContactIcon from '../assets/icons/ui/remove_contact_btn.svg';
+import PasteIcon from '../assets/icons/ui/paste_btn.svg';
+import ScanIcon from '../assets/icons/ui/scan.svg';
 
 type ContactItem = {
   id: string;
@@ -167,6 +168,10 @@ export default function AddressBookScreen() {
       setAddress(text.trim());
     }
   };
+
+  const handleScanAddress = useCallback(() => {
+    router.push('/scan?mode=address-book' as any);
+  }, [router]);
 
   const handleCopy = useCallback(
     async (value: string) => {
@@ -352,9 +357,17 @@ export default function AddressBookScreen() {
                   <TouchableOpacity
                     activeOpacity={0.85}
                     style={styles.inlineIconButton}
+                    onPress={handleScanAddress}
+                  >
+                    <ScanIcon width={18} height={18} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.inlineIconButton}
                     onPress={handlePaste}
                   >
-                    <Ionicons name="clipboard-outline" size={18} color={colors.accent} />
+                    <PasteIcon width={18} height={18} />
                   </TouchableOpacity>
                 </View>
               </View>
