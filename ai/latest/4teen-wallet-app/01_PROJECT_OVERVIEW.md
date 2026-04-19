@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-16T15:04:50.584Z
+Generated: 2026-04-19T02:27:44.040Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 3823474f68ab78542931426d74fbd2b129adddd6
-Short commit: 3823474
-Commit subject: feat: refine send select token wallet picker ui
+Last commit: 1293b5ab16bf25a50afee081dc980b53288d6185
+Short commit: 1293b5a
+Commit subject: feat(mobile): polish wallet send flow
 Commit author: info14fourteen-creator
-Commit date: 2026-04-16T20:04:36+05:00
+Commit date: 2026-04-19T07:27:25+05:00
 
 ## Curated project tree
 
@@ -39,6 +39,7 @@ Commit date: 2026-04-16T20:04:36+05:00
       - create-passcode.tsx
       - create-wallet.tsx
       - currency.tsx
+      - earn.tsx
       - enable-biometrics.tsx
       - export-mnemonic.tsx
       - font-lab.tsx
@@ -55,15 +56,17 @@ Commit date: 2026-04-16T20:04:36+05:00
       - multisig-transactions.tsx
       - scan.tsx
       - select-wallet.tsx
-      - send-select-token.tsx
+      - send-confirm.tsx
       - send.tsx
       - settings.tsx
       - swap.tsx
       - terms.tsx
       - token-details.tsx
       - ui-lab.tsx
+      - ui-shell-lab.tsx
       - unlock-timeline.tsx
       - unlock.tsx
+      - wallet.tsx
       - wallets.tsx
       - whitepaper.tsx
     - assets/
@@ -107,9 +110,13 @@ Commit date: 2026-04-16T20:04:36+05:00
           - copy_btn.svg
           - create_add_wallet_qp_btn.svg
           - decline_btn.svg
+          - earn_footer_menu_btn_onclick.svg
+          - earn_footer_menu_btn.svg
           - footer_menu.svg
           - full_access_btn.svg
           - history_btn.svg
+          - home_footer_menu_btn_onclick.svg
+          - home_footer_menu_btn.svg
           - info_btn.svg
           - liquidity_qp_btn.svg
           - logo_white.svg
@@ -128,9 +135,13 @@ Commit date: 2026-04-16T20:04:36+05:00
           - search.svg
           - select_wallet_qp_btn.svg
           - send_btn.svg
+          - send_footer_menu_btn_onclick.svg
+          - send_footer_menu_btn.svg
           - send_qp_btn.svg
           - setings_btn.svg
           - share_btn.svg
+          - swap_footer_menu_btn_onclick.svg
+          - swap_footer_menu_btn.svg
           - swap_qp_btn.svg
           - toggle_off_btn.svg
           - toggle_on_btn.svg
@@ -184,7 +195,9 @@ Commit date: 2026-04-16T20:04:36+05:00
           - send.ts
           - storage.ts
         - address-book.ts
+        - recent-recipients.ts
       - theme/
+        - patterns.ts
         - tokens.ts
         - ui.ts
       - ui/
@@ -194,13 +207,21 @@ Commit date: 2026-04-16T20:04:36+05:00
         - expand-chevron.tsx
         - footer-nav.tsx
         - foundation.tsx
+        - fourteen-wallet-loader.tsx
+        - inline-refresh-loader.tsx
         - KeyboardView.tsx
         - menu-sheet.tsx
+        - navigation-routes.ts
+        - navigation.constants.ts
+        - navigation.tsx
         - numeric-keypad.tsx
+        - screen-brow.tsx
+        - screen-loading-state.tsx
         - stub-screen.tsx
-        - submenu-header.tsx
+        - thin-orange-loader.tsx
         - top-chrome.tsx
         - use-bottom-inset.ts
+        - use-chrome-loading.ts
       - utils/
         - open-in-app-browser.ts
       - wallet/
