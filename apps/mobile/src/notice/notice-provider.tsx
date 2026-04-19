@@ -18,15 +18,16 @@ import {
 } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   colors,
   fontFamilies,
   radius,
 } from '../theme/tokens';
 import {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../ui/app-header.constants';
+  NAV_HEADER_TOP_PADDING,
+  NAV_HEADER_DROP_OFFSET,
+} from '../ui/navigation.constants';
 
 type NoticeType = 'neutral' | 'success' | 'error' | 'update';
 type NoticeDismissMode = 'auto' | 'sticky' | 'ack';
@@ -111,6 +112,7 @@ function getEffectiveDuration(baseDuration: number, lineCount: number) {
 }
 
 export function NoticeProvider({ children }: { children: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
   const [notice, setNotice] = useState<InternalNotice | null>(null);
   const [boxSize, setBoxSize] = useState<NoticeBoxSize>({ width: 0, height: 0 });
   const [messageLineCount, setMessageLineCount] = useState(0);
@@ -192,6 +194,9 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
   const showNotice = useCallback((input: NoticeOptions) => {
     clearHideTimer();
     stopBorderProgress();
+    opacity.stopAnimation();
+    translateY.stopAnimation();
+    animatedNoticeIdRef.current = null;
 
     setNotice((current) => {
       const prepared = normalizeNotice(input, nextIdRef.current++);
@@ -224,7 +229,7 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
 
       return prepared;
     });
-  }, [clearHideTimer, stopBorderProgress]);
+  }, [clearHideTimer, opacity, stopBorderProgress, translateY]);
 
   const borderPerimeter = useMemo(
     () => getRoundedRectPerimeter(boxSize.width, boxSize.height, NOTICE_RADIUS),
@@ -348,8 +353,20 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {notice ? (
-        <View pointerEvents="box-none" style={styles.layer}>
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.layer,
+            {
+              top:
+                Math.max(insets.top, NAV_HEADER_TOP_PADDING) +
+                NAV_HEADER_DROP_OFFSET +
+                51,
+            },
+          ]}
+        >
           <AnimatedPressable
+            key={notice.id}
             onLayout={(event) => {
               const { width, height } = event.nativeEvent.layout;
               if (width !== boxSize.width || height !== boxSize.height) {
@@ -455,7 +472,6 @@ export function useNotice() {
 const styles = StyleSheet.create({
   layer: {
     position: 'absolute',
-    top: APP_HEADER_TOP_PADDING + APP_HEADER_HEIGHT + 14,
     left: 0,
     right: 0,
     alignItems: 'center',

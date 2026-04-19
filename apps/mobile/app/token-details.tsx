@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -10,15 +10,16 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import MenuSheet from '../src/ui/menu-sheet';
-import SubmenuHeader from '../src/ui/submenu-header';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
+import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenLoadingState from '../src/ui/screen-loading-state';
+import ScreenBrow from '../src/ui/screen-brow';
+import useChromeLoading from '../src/ui/use-chrome-loading';
+
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -33,6 +34,7 @@ import {
   type TokenPoolInfo,
 } from '../src/services/tron/api';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
+import { useWalletSession } from '../src/wallet/wallet-session';
 
 import CopyIcon from '../assets/icons/ui/copy_btn.svg';
 import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
@@ -154,10 +156,10 @@ function dedupeHistory(items: TokenHistoryItem[]) {
 export default function TokenDetailsScreen() {
   const router = useRouter();
   const notice = useNotice();
-  const insets = useSafeAreaInsets();
+  const { walletDataRefreshKey } = useWalletSession();
+  const navInsets = useNavigationInsets({ topExtra: 14 });
   const params = useLocalSearchParams<{ tokenId?: string }>();
 
-  const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
@@ -167,8 +169,9 @@ export default function TokenDetailsScreen() {
   const [marketInfoOpen, setMarketInfoOpen] = useState(false);
   const [details, setDetails] = useState<TokenDetails | null>(null);
   const [errorText, setErrorText] = useState('');
+  useChromeLoading((loading && !details) || refreshing);
 
-  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
+  const contentBottomInset = useBottomInset();
 
   const tokenId =
     typeof params.tokenId === 'string'
@@ -221,7 +224,7 @@ export default function TokenDetailsScreen() {
         setDetails(null);
         setHistoryLoaded(false);
         setErrorText('Failed to load token details.');
-        notice.showErrorNotice('Failed to load token details.', 2600);
+        notice.showErrorNotice('Token details failed to load.', 2600);
       } finally {
         setLoading(false);
       }
@@ -244,10 +247,15 @@ export default function TokenDetailsScreen() {
     }, [load])
   );
 
+  useEffect(() => {
+    if (!tokenId || walletDataRefreshKey === 0) return;
+    void load();
+  }, [load, tokenId, walletDataRefreshKey]);
+
   const handleCopyAddress = async () => {
     if (!details?.address) return;
     await Clipboard.setStringAsync(details.address);
-    notice.showSuccessNotice('Token address copied.', 2200);
+    notice.showSuccessNotice('Token contract copied.', 2200);
   };
 
   const handleOpenTokenContract = useCallback(async () => {
@@ -296,7 +304,7 @@ export default function TokenDetailsScreen() {
       setHistoryLoaded(true);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Failed to load token history.', 2200);
+      notice.showErrorNotice('Token history failed to load.', 2200);
     } finally {
       setHistoryLoading(false);
     }
@@ -332,7 +340,7 @@ export default function TokenDetailsScreen() {
       });
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Failed to load more history.', 2200);
+      notice.showErrorNotice('More token history failed to load.', 2200);
     } finally {
       setHistoryLoadingMore(false);
     }
@@ -348,16 +356,19 @@ export default function TokenDetailsScreen() {
     return value > 0 ? styles.priceValueGreen : styles.priceValueRed;
   }, [priceChangePoint]);
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
+  if (loading && !details) {
+    return <ScreenLoadingState />;
+  }
 
+  return (
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <View style={styles.screen}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -369,7 +380,8 @@ export default function TokenDetailsScreen() {
             />
           }
         >
-          <SubmenuHeader title="TOKEN DETAILS" onBack={() => router.back()} />
+          <ScreenBrow label="TOKEN DETAILS" variant="back" />
+          <InlineRefreshLoader visible={refreshing} />
 
           {loading ? (
             <View style={styles.loadingState}>
@@ -679,8 +691,6 @@ export default function TokenDetailsScreen() {
             </View>
           )}
         </ScrollView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -696,12 +706,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -709,7 +713,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
+    gap: 0,
   },
 
   loadingState: {
@@ -1038,7 +1042,7 @@ const styles = StyleSheet.create({
   },
 
   tokenPrimaryButtonText: {
-    color: colors.bg,
+    color: colors.white,
     fontSize: 14,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',

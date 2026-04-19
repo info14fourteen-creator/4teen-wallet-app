@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
   },
 
   primaryButtonText: {
-    color: colors.bg,
+    color: colors.white,
     fontSize: 14,
     lineHeight: 18,
     fontFamily: fontFamilies.display,

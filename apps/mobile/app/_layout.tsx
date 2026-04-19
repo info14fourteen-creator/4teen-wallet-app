@@ -1,17 +1,18 @@
-import { Stack, useSegments } from 'expo-router';
+import { Stack, usePathname, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useFonts } from 'expo-font';
 import { Sora_600SemiBold, Sora_700Bold } from '@expo-google-fonts/sora';
 import 'react-native-reanimated';
 import { Buffer } from 'buffer';
 import process from 'process';
 
-import FooterNav from '../src/ui/footer-nav';
 import { NoticeProvider } from '../src/notice/notice-provider';
 import { WalletSessionProvider } from '../src/wallet/wallet-session';
 import { SearchProvider } from '../src/search/search-provider';
+import { NavigationChrome } from '../src/ui/navigation';
+import { shouldRenderSharedNavigation } from '../src/ui/navigation-routes';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -24,9 +25,15 @@ if (!(globalThis as any).process) {
 }
 
 function LayoutContent() {
+  const pathname = usePathname();
   const segments = useSegments();
   const rootSegment = segments[0];
-  const hideFooterNav = rootSegment === 'browser';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const showSharedNavigation = shouldRenderSharedNavigation(pathname, rootSegment);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   return (
     <>
@@ -34,6 +41,9 @@ function LayoutContent() {
         screenOptions={{
           headerShown: false,
           animation: 'fade',
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+          animationMatchesGesture: true,
           contentStyle: {
             backgroundColor: 'rgb(10,10,10)',
           },
@@ -44,13 +54,20 @@ function LayoutContent() {
           options={{ contentStyle: { backgroundColor: 'rgb(10,10,10)', paddingBottom: 0 } }}
         />
         <Stack.Screen name="browser" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="scan" options={{ animation: 'fade' }} />
         <Stack.Screen name="ui-lab" />
         <Stack.Screen name="about" />
         <Stack.Screen name="terms" />
         <Stack.Screen name="whitepaper" />
       </Stack>
 
-      {!hideFooterNav ? <FooterNav /> : null}
+      {showSharedNavigation ? (
+        <NavigationChrome
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
+          onCloseMenu={() => setMenuOpen(false)}
+        />
+      ) : null}
       <StatusBar style="light" />
     </>
   );

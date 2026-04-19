@@ -3,12 +3,14 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import AppHeader, {
+import AppHeader from '../src/ui/app-header';
+import {
   APP_HEADER_HEIGHT,
   APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import SubmenuHeader from '../src/ui/submenu-header';
+} from '../src/ui/app-header.constants';
+
 import MenuSheet from '../src/ui/menu-sheet';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
@@ -22,6 +24,7 @@ export default function CreatePasscodeScreen() {
 
   const [digits, setDigits] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const contentBottomInset = useBottomInset();
 
   const canContinue = useMemo(() => digits.length === 6, [digits]);
 
@@ -53,11 +56,10 @@ export default function CreatePasscodeScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.screen}>
         <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
+          <AppHeader onMenuPress={() => setMenuOpen(true)} />
         </View>
 
         <View style={styles.content}>
-          <SubmenuHeader title="CREATE PASSCODE" onBack={() => router.back()} />
 
           <Text style={styles.title}>
             Create a <Text style={styles.titleAccent}>6-digit</Text> passcode

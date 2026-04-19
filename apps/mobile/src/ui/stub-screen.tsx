@@ -1,15 +1,11 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../ui/app-header';
-import MenuSheet from '../ui/menu-sheet';
-import SubmenuHeader from '../ui/submenu-header';
 import { colors, layout, radius } from '../theme/tokens';
 import { ui } from '../theme/ui';
+import { useBottomInset } from '../ui/use-bottom-inset';
+import { useNavigationInsets } from './navigation';
+import ScreenBrow from './screen-brow';
 
 type StubScreenProps = {
   eyebrow: string;
@@ -22,33 +18,26 @@ export default function StubScreen({
   title,
   body = 'This screen is not wired yet.',
 }: StubScreenProps) {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const navInsets = useNavigationInsets({ topExtra: 14 });
+  const contentBottomInset = useBottomInset();
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => {}} />
-        </View>
-
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
             styles.content,
-            { paddingBottom: 44 + Math.max(insets.bottom, 6) },
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
           ]}
           showsVerticalScrollIndicator={false}
         >
-          <SubmenuHeader title={eyebrow} onBack={() => router.back()} />
-
+          <ScreenBrow label={eyebrow} variant="back" />
           <View style={styles.stubCard}>
             {title ? <Text style={styles.stubTitle}>{title}</Text> : null}
             <Text style={styles.stubText}>{body}</Text>
           </View>
         </ScrollView>
-
-        <MenuSheet open={false} onClose={() => {}} />
       </View>
     </SafeAreaView>
   );
@@ -64,12 +53,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -78,7 +61,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
+    gap: 14,
   },
 
   stubCard: {

@@ -30,7 +30,7 @@ export type SearchTokenItem = {
   name: string;
   abbr: string;
   logo?: string;
-  source: 'portfolio' | 'custom' | 'catalog';
+  source: 'portfolio' | 'custom' | 'catalog' | 'cmc';
 };
 
 export type SearchSuggestion =

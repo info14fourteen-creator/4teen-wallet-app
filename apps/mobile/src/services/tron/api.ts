@@ -20,8 +20,9 @@ const TRX_SYMBOL = 'TRX';
 const USDT_SYMBOL = 'USDT';
 const FOURTEEN_SYMBOL = '4TEEN';
 
-const TRX_LOGO = 'https://s2.coinmarketcap.com/static/img/coins/64x64/1958.png';
+export const TRX_LOGO = 'https://s2.coinmarketcap.com/static/img/coins/64x64/1958.png';
 const USDT_LOGO = 'https://s2.coinmarketcap.com/static/img/coins/64x64/825.png';
+export { FOURTEEN_LOGO };
 
 export const TRX_TOKEN_ID = 'trx';
 export const TRX_CONTRACT = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
@@ -41,6 +42,7 @@ const TRONSCAN_TOKEN_OVERVIEW_CACHE_TTL_MS = 30 * 60 * 1000;
 const ACCOUNT_INFO_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACCOUNT_TRC20_ASSETS_CACHE_TTL_MS = 2 * 60 * 1000;
 const WALLET_SNAPSHOT_CACHE_TTL_MS = 2 * 60 * 1000;
+const ACCOUNT_RESOURCES_CACHE_TTL_MS = 2 * 60 * 1000;
 const CUSTOM_TOKEN_CATALOG_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const CUSTOM_TOKEN_CATALOG_STORAGE_KEY_PREFIX = 'wallet.customTokenCatalog.v2';
 
@@ -106,6 +108,11 @@ type WalletSnapshotCacheEntry = {
   data: WalletSnapshot;
 };
 
+type AccountResourcesCacheEntry = {
+  savedAt: number;
+  data: WalletAccountResources;
+};
+
 type ProviderKeyState = {
   nextIndex: number;
   cooldownUntil: number[];
@@ -120,6 +127,14 @@ type TokenMetaFallback = {
   priceChange24h?: number;
   liquidityUsd?: number;
   totalSupply?: number;
+};
+
+export type CmcDexSearchToken = {
+  id: string;
+  name: string;
+  abbr: string;
+  logo?: string;
+  liquidityUsd?: number;
 };
 
 type CustomTokenCatalogCachePayload = {
@@ -145,9 +160,11 @@ const walletHistoryMemoryCache = new Map<string, WalletHistoryCachePayload>();
 const accountInfoMemoryCache = new Map<string, AccountInfoCacheEntry>();
 const accountTrc20AssetsMemoryCache = new Map<string, AccountTrc20AssetsCacheEntry>();
 const walletSnapshotMemoryCache = new Map<string, WalletSnapshotCacheEntry>();
+const accountResourcesMemoryCache = new Map<string, AccountResourcesCacheEntry>();
 const accountInfoInflight = new Map<string, Promise<TronAccountInfo>>();
 const accountTrc20AssetsInflight = new Map<string, Promise<Trc20Asset[]>>();
 const walletSnapshotInflight = new Map<string, Promise<WalletSnapshot>>();
+const accountResourcesInflight = new Map<string, Promise<WalletAccountResources>>();
 const tronscanTokenOverviewMemoryCache = new Map<
   string,
   {
@@ -174,6 +191,14 @@ export type TronAccountInfo = {
   address: string;
   balanceSun: number;
   balanceTrx: number;
+};
+
+export type WalletAccountResources = {
+  address: string;
+  energyUsed: number;
+  energyLimit: number;
+  bandwidthUsed: number;
+  bandwidthLimit: number;
 };
 
 export type Trc20Asset = {
@@ -482,6 +507,15 @@ type TronscanTrc20TransferResponse = {
   token_transfers?: TronscanTrc20TransferItem[];
 };
 
+type TronAccountResourcesResponse = {
+  freeNetUsed?: number | string;
+  freeNetLimit?: number | string;
+  NetUsed?: number | string;
+  NetLimit?: number | string;
+  EnergyUsed?: number | string;
+  EnergyLimit?: number | string;
+};
+
 function getProviderBaseUrl(provider: ProviderName) {
   return provider === 'tronscan' ? TRONSCAN_BASE_URL : TRONGRID_BASE_URL;
 }
@@ -613,6 +647,10 @@ function buildWalletSnapshotRuntimeCacheKey(address: string) {
   return normalizeAddressKey(address);
 }
 
+function buildAccountResourcesRuntimeCacheKey(address: string) {
+  return normalizeAddressKey(address);
+}
+
 function readFreshRuntimeCache<T extends { savedAt: number; data: unknown }>(
   cache: Map<string, T>,
   key: string,
@@ -643,12 +681,13 @@ function writeRuntimeCache<T>(
   });
 }
 
-function clearWalletRuntimeCaches(address: string) {
+export function clearWalletRuntimeCaches(address: string) {
   const normalized = normalizeAddressKey(address);
 
   accountInfoMemoryCache.delete(normalized);
   accountTrc20AssetsMemoryCache.delete(normalized);
   walletSnapshotMemoryCache.delete(normalized);
+  accountResourcesMemoryCache.delete(normalized);
 }
 
 function isSameAddress(left?: string, right?: string) {
@@ -1213,6 +1252,46 @@ export async function clearWalletHistoryCache(
   }
 }
 
+export async function prependWalletHistoryCacheItem(
+  walletAddress: string,
+  item: WalletHistoryItem,
+  limit = DEFAULT_WALLET_HISTORY_LIMIT
+): Promise<void> {
+  const cacheKey = buildWalletHistoryCacheKey(walletAddress, limit);
+  const current = await readWalletHistoryCache(cacheKey, limit);
+  const nextItems = dedupeWalletHistoryItems([item, ...(current?.items || [])])
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, limit);
+
+  await writeWalletHistoryCache(
+    cacheKey,
+    {
+      items: nextItems,
+      nextFingerprint: current?.nextFingerprint,
+      hasMore: current?.hasMore ?? false,
+    },
+    limit
+  );
+}
+
+export async function prependTokenHistoryCacheItem(
+  walletAddress: string,
+  tokenId: string,
+  item: TokenHistoryItem
+): Promise<void> {
+  const cacheKey = buildTokenHistoryCacheKey(walletAddress, tokenId);
+  const current = await readTokenHistoryCache(cacheKey);
+  const nextItems = dedupeHistoryItems([item, ...(current?.items || [])]).sort(
+    (a, b) => b.timestamp - a.timestamp
+  );
+
+  await writeTokenHistoryCache(cacheKey, {
+    items: nextItems,
+    nextFingerprint: current?.nextFingerprint,
+    hasMore: current?.hasMore ?? false,
+  });
+}
+
 export async function clearTokenHistoryCache(
   walletAddress: string,
   tokenId: string
@@ -1305,6 +1384,87 @@ async function fetchWithProviderKeyPool<T>(
   throw lastError || new Error(`All ${provider} keys failed`);
 }
 
+async function postWithProviderKeyPool<T>(
+  provider: ProviderName,
+  path: string,
+  body?: Record<string, unknown>
+): Promise<T> {
+  assertTronConfig();
+
+  const baseUrl = getProviderBaseUrl(provider);
+  const keys = getProviderApiKeys(provider);
+  const state = providerKeyState[provider];
+
+  if (!keys.length) {
+    throw new Error(`No API keys configured for ${provider}`);
+  }
+
+  if (state.cooldownUntil.length !== keys.length) {
+    state.cooldownUntil = new Array(keys.length).fill(0);
+  }
+
+  const now = Date.now();
+  const orderedIndexes = Array.from({ length: keys.length }, (_, offset) => {
+    return (state.nextIndex + offset) % keys.length;
+  });
+
+  const availableIndexes = orderedIndexes.filter((index) => state.cooldownUntil[index] <= now);
+  const fallbackIndexes = availableIndexes.length > 0 ? availableIndexes : orderedIndexes;
+
+  let lastError: Error | null = null;
+
+  for (const index of fallbackIndexes) {
+    const apiKey = keys[index];
+    const url = `${baseUrl}${path}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'TRON-PRO-API-KEY': apiKey,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body ?? {}),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        const text = await response.text();
+
+        if (response.status === 429) {
+          state.cooldownUntil[index] = Date.now() + parseRetryDelayMsFromText(text);
+        }
+
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
+
+      state.nextIndex = (index + 1) % keys.length;
+      state.cooldownUntil[index] = 0;
+
+      return (await response.json()) as T;
+    } catch (error) {
+      clearTimeout(timeout);
+
+      lastError =
+        error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'Unknown request error');
+
+      if (String(lastError.message).toLowerCase().includes('aborted')) {
+        state.cooldownUntil[index] = Date.now() + 5_000;
+      }
+
+      console.warn(`[${provider}] request failed with key #${index + 1}:`, lastError.message);
+    }
+  }
+
+  throw lastError || new Error(`All ${provider} keys failed`);
+}
+
 export async function tronscanFetch<T>(
   path: string,
   params?: Record<string, string | number | boolean | undefined>
@@ -1317,6 +1477,13 @@ export async function trongridFetch<T>(
   params?: Record<string, string | number | boolean | undefined>
 ): Promise<T> {
   return fetchWithProviderKeyPool<T>('trongrid', path, params);
+}
+
+export async function trongridPost<T>(
+  path: string,
+  body?: Record<string, unknown>
+): Promise<T> {
+  return postWithProviderKeyPool<T>('trongrid', path, body);
 }
 
 async function cmcFetch<T>(
@@ -1544,6 +1711,54 @@ async function getDexTokenMarketMeta(
     performance: buildPerformance(data?.sts),
     pools: buildPools(data),
   };
+}
+
+export async function getCmcDexSearchToken(address: string): Promise<CmcDexSearchToken | null> {
+  const tokenId = normalizeTokenId(address);
+  if (!tokenId || tokenId === TRX_TOKEN_ID || tokenId === TRX_CONTRACT) {
+    return null;
+  }
+
+  const known = getKnownTokenMeta(tokenId);
+  const overview = await getTronscanTokenOverview(tokenId).catch((): TokenMetaFallback => ({}));
+  const fallback = mergeTokenMetaFallbacks(overview, {
+    name: known?.tokenName,
+    symbol: known?.tokenAbbr,
+    logo: known?.tokenLogo,
+    decimals: known?.tokenDecimal,
+  });
+
+  try {
+    const meta = await getDexTokenMarketMeta(tokenId, {
+      name: fallback.name || tokenId,
+      symbol: fallback.symbol || tokenId.slice(0, 6),
+      logo: fallback.logo,
+    });
+
+    return {
+      id: tokenId,
+      name: meta.name || fallback.name || tokenId,
+      abbr: meta.symbol || fallback.symbol || tokenId.slice(0, 6),
+      logo: meta.logo || fallback.logo,
+      liquidityUsd: meta.liquidityUsd ?? fallback.liquidityUsd,
+    };
+  } catch (error) {
+    if (!isCmcInvalidKeyError(error) && !isCmcRateLimitError(error)) {
+      console.error('Failed to load CMC dex search token:', tokenId, error);
+    }
+
+    if (!fallback.name && !fallback.symbol && !fallback.logo) {
+      return null;
+    }
+
+    return {
+      id: tokenId,
+      name: fallback.name || tokenId,
+      abbr: fallback.symbol || tokenId.slice(0, 6),
+      logo: fallback.logo,
+      liquidityUsd: fallback.liquidityUsd,
+    };
+  }
 }
 
 async function getMarketIndex(
@@ -2444,6 +2659,62 @@ export async function getAccountInfo(
     return await request;
   } finally {
     accountInfoInflight.delete(cacheKey);
+  }
+}
+
+export async function getAccountResources(
+  address: string,
+  options?: { force?: boolean }
+): Promise<WalletAccountResources> {
+  const cacheKey = buildAccountResourcesRuntimeCacheKey(address);
+
+  if (!options?.force) {
+    const cached = readFreshRuntimeCache(
+      accountResourcesMemoryCache,
+      cacheKey,
+      ACCOUNT_RESOURCES_CACHE_TTL_MS
+    );
+    if (cached) {
+      return cached;
+    }
+  } else {
+    accountResourcesMemoryCache.delete(cacheKey);
+  }
+
+  const inflight = accountResourcesInflight.get(cacheKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const request = (async (): Promise<WalletAccountResources> => {
+    const payload = await trongridPost<TronAccountResourcesResponse>('/wallet/getaccountresource', {
+      address,
+      visible: true,
+    });
+
+    const freeNetUsed = parsePositiveCount(payload?.freeNetUsed) ?? 0;
+    const freeNetLimit = parsePositiveCount(payload?.freeNetLimit) ?? 0;
+    const netUsed = parsePositiveCount(payload?.NetUsed) ?? 0;
+    const netLimit = parsePositiveCount(payload?.NetLimit) ?? 0;
+
+    const result: WalletAccountResources = {
+      address,
+      energyUsed: parsePositiveCount(payload?.EnergyUsed) ?? 0,
+      energyLimit: parsePositiveCount(payload?.EnergyLimit) ?? 0,
+      bandwidthUsed: freeNetUsed + netUsed,
+      bandwidthLimit: freeNetLimit + netLimit,
+    };
+
+    writeRuntimeCache(accountResourcesMemoryCache, cacheKey, result);
+    return result;
+  })();
+
+  accountResourcesInflight.set(cacheKey, request);
+
+  try {
+    return await request;
+  } finally {
+    accountResourcesInflight.delete(cacheKey);
   }
 }
 

@@ -10,6 +10,7 @@ import {
   getBiometricsEnabled,
   verifyPasscode,
 } from '../src/security/local-auth';
+import { useWalletSession } from '../src/wallet/wallet-session';
 
 import BioLoginIcon from '../assets/icons/ui/biologin_btn.svg';
 import BackspaceIcon from '../assets/icons/ui/backspace_btn.svg';
@@ -18,6 +19,7 @@ const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'BIO', '0', 'DELETE
 
 export default function UnlockScreen() {
   const router = useRouter();
+  const { triggerNavigationIntro } = useWalletSession();
 
   const [digits, setDigits] = useState('');
   const [error, setError] = useState('');
@@ -69,7 +71,8 @@ export default function UnlockScreen() {
         return;
       }
 
-      router.replace('/home');
+      triggerNavigationIntro();
+      router.replace('/wallet');
     } catch (error) {
       console.error(error);
       setError('Failed to verify passcode.');
@@ -77,7 +80,7 @@ export default function UnlockScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [digits, router, submitting]);
+  }, [digits, router, submitting, triggerNavigationIntro]);
 
   useEffect(() => {
     if (full) {
@@ -97,11 +100,12 @@ export default function UnlockScreen() {
 
       if (!result.success) return;
 
-      router.replace('/home');
+      triggerNavigationIntro();
+      router.replace('/wallet');
     } catch (error) {
       console.error(error);
     }
-  }, [biometricsEnabled, router, submitting]);
+  }, [biometricsEnabled, router, submitting, triggerNavigationIntro]);
 
   const handleKeyPress = useCallback(
     (key: (typeof KEYPAD)[number]) => {
@@ -138,11 +142,21 @@ export default function UnlockScreen() {
           </Text>
 
           <Text style={styles.lead}>
-            This app is protected. Enter your 6-digit passcode or use {biometricsLabel.toLowerCase()} if enabled.
+            This app is protected. Enter your 6-digit passcode
+            {biometricsEnabled
+              ? ` or use ${
+                  biometricsLabel === 'Face ID' ? 'face unlock' : 'fingerprint'
+                } if enabled.`
+              : '.'}
           </Text>
 
           <View style={styles.card}>
-            <Text style={ui.sectionEyebrow}>Unlock</Text>
+            <View style={styles.cardHeaderRow}>
+              <Text style={ui.sectionEyebrow}>Unlock</Text>
+              <Text style={styles.cardHeaderErrorText} numberOfLines={1}>
+                {error || ' '}
+              </Text>
+            </View>
 
             <View style={styles.dotsRow}>
               {Array.from({ length: 6 }, (_, index) => (
@@ -152,8 +166,6 @@ export default function UnlockScreen() {
                 />
               ))}
             </View>
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
 
           <View style={styles.keypad}>
@@ -232,6 +244,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
+  cardHeaderRow: {
+    minHeight: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  cardHeaderErrorText: {
+    flex: 1,
+    color: colors.red,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'right',
+  },
+
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -252,15 +281,6 @@ const styles = StyleSheet.create({
   dotFilled: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,
-  },
-
-  errorText: {
-    marginTop: 16,
-    color: colors.red,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-    textAlign: 'center',
   },
 
   keypad: {

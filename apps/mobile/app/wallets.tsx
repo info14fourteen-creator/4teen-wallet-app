@@ -10,15 +10,14 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import AppHeader from '../src/ui/app-header';
-import {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header.constants';
-import MenuSheet from '../src/ui/menu-sheet';
-import SubmenuHeader from '../src/ui/submenu-header';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
+import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
+import useChromeLoading from '../src/ui/use-chrome-loading';
+
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -53,15 +52,14 @@ const REMOVE_DISPLAY_MAX = 114;
 export default function WalletsScreen() {
   const router = useRouter();
   const notice = useNotice();
-  const insets = useSafeAreaInsets();
-
-  const [menuOpen, setMenuOpen] = useState(false);
+  const navInsets = useNavigationInsets({ topExtra: 14 });
   const [expandedWalletId, setExpandedWalletId] = useState<string | null>(null);
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
   const [activeWalletId, setActiveWalletIdState] = useState<string | null>(null);
   const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  useChromeLoading(refreshing);
 
   const [removalWalletId, setRemovalWalletId] = useState<string | null>(null);
   const [removalProgress, setRemovalProgress] = useState(0);
@@ -70,7 +68,7 @@ export default function WalletsScreen() {
   const removalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const removalCompletedRef = useRef(false);
 
-  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
+  const contentBottomInset = useBottomInset();
 
   const clearRemovalTimer = useCallback(() => {
     if (removalTimerRef.current) {
@@ -98,7 +96,7 @@ export default function WalletsScreen() {
       setAggregate(nextAggregate);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Failed to load wallet management.', 2600);
+      notice.showErrorNotice('Wallet manager failed to load.', 2600);
     }
   }, [notice]);
 
@@ -135,11 +133,11 @@ export default function WalletsScreen() {
     try {
       await setActiveWalletId(wallet.id);
       setActiveWalletIdState(wallet.id);
-      notice.showSuccessNotice(`Selected: ${wallet.name}`, 2200);
-      router.replace('/home');
+      notice.showSuccessNotice(`Active wallet: ${wallet.name}`, 2200);
+      router.replace('/wallet');
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Failed to select wallet.', 2600);
+      notice.showErrorNotice('Wallet selection failed.', 2600);
     }
   };
 
@@ -163,14 +161,14 @@ export default function WalletsScreen() {
       } catch (error) {
         console.error(error);
         resetRemovalState();
-        notice.showErrorNotice('Failed to remove wallet.', 2600);
+        notice.showErrorNotice('Wallet removal failed.', 2600);
       }
     },
     [editingWalletId, expandedWalletId, load, notice, resetRemovalState]
   );
 
   const handleRemovePress = useCallback(() => {
-    notice.showNeutralNotice('To delete, press and hold.', 2200);
+    notice.showNeutralNotice('Press and hold to remove this wallet.', 2200);
   }, [notice]);
 
   const handleRemovePressIn = useCallback(
@@ -242,25 +240,26 @@ export default function WalletsScreen() {
       setEditingWalletId(null);
       setDraftName('');
       await load();
-      notice.showSuccessNotice(`Wallet renamed: ${updated.name}`, 2400);
+      notice.showSuccessNotice(`Wallet renamed to ${updated.name}.`, 2400);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Failed to rename wallet.', 2600);
+      notice.showErrorNotice('Wallet rename failed.', 2600);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
-
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           showsVerticalScrollIndicator={false}
           bounces
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -271,8 +270,8 @@ export default function WalletsScreen() {
             />
           }
         >
-          <SubmenuHeader title="WALLET MANAGEMENT" onBack={() => router.back()} />
-
+          <ScreenBrow label="WALLET MANAGEMENT" variant="back" />
+          <InlineRefreshLoader visible={refreshing} />
           <View style={styles.summaryCard}>
             <Text style={ui.eyebrow}>Total Assets</Text>
             <Text style={styles.summaryValue}>
@@ -286,7 +285,7 @@ export default function WalletsScreen() {
             </Text>
           </View>
 
-          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>Wallets</Text>
+          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>Managed Wallets</Text>
 
           {wallets.length === 0 ? (
             <View style={styles.emptyState}>
@@ -438,8 +437,6 @@ export default function WalletsScreen() {
             <AddWalletIcon width={20} height={20} />
           </TouchableOpacity>
         </ScrollView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -511,12 +508,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -525,7 +516,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
+    gap: 0,
   },
 
   summaryCard: {

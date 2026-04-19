@@ -14,7 +14,7 @@ export const APP_SEARCH_ROUTES: SearchRouteEntry[] = [
   },
   {
     id: 'route-send',
-    route: '/send-select-token',
+    route: '/send',
     title: 'Send Crypto',
     subtitle: 'Choose token and recipient to transfer',
     keywords: ['send', 'transfer', 'send crypto', 'send trx', 'send token'],
@@ -102,7 +102,7 @@ export const APP_SEARCH_ROUTES: SearchRouteEntry[] = [
   },
   {
     id: 'route-home',
-    route: '/home',
+    route: '/wallet',
     title: 'Open Home',
     subtitle: 'Go back to wallet home',
     keywords: ['home', 'main', 'wallet home'],

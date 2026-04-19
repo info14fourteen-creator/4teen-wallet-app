@@ -11,15 +11,15 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
+import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenLoadingState from '../src/ui/screen-loading-state';
+import ScreenBrow from '../src/ui/screen-brow';
+import useChromeLoading from '../src/ui/use-chrome-loading';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import MenuSheet from '../src/ui/menu-sheet';
-import SubmenuHeader from '../src/ui/submenu-header';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
 import {
@@ -62,11 +62,9 @@ function mapTokenListItemToCustomToken(token: TronscanTokenListItem): CustomToke
 }
 
 export default function AddCustomTokenScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
   const notice = useNotice();
+  const navInsets = useNavigationInsets({ topExtra: 14 });
 
-  const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
@@ -76,8 +74,9 @@ export default function AddCustomTokenScreen() {
   ]);
   const [customTokenCatalog, setCustomTokenCatalogState] = useState<CustomTokenCatalogItem[]>([]);
   const [errorText, setErrorText] = useState('');
+  useChromeLoading((loading && tokens.length === 0) || refreshing);
 
-  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
+  const contentBottomInset = useBottomInset();
 
   const load = useCallback(
     async (force = false) => {
@@ -130,7 +129,7 @@ export default function AddCustomTokenScreen() {
         console.error(error);
         setTokens([]);
         setErrorText('Failed to load custom tokens.');
-        notice.showErrorNotice('Failed to load custom tokens.', 2400);
+        notice.showErrorNotice('Custom token list failed to load.', 2400);
       } finally {
         setLoading(false);
       }
@@ -202,7 +201,7 @@ export default function AddCustomTokenScreen() {
         setCustomTokenCatalogState(nextCustomCatalog);
       } catch (error) {
         console.error(error);
-        notice.showErrorNotice('Failed to update custom tokens.', 2200);
+        notice.showErrorNotice('Custom token update failed.', 2200);
       }
     },
     [customTokenCatalog, homeVisibleTokenIds, notice]
@@ -230,17 +229,22 @@ export default function AddCustomTokenScreen() {
     );
   }, [customTokenCatalog]);
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
+  if (loading && tokens.length === 0) {
+    return <ScreenLoadingState />;
+  }
 
+  return (
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <View style={styles.screen}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           showsVerticalScrollIndicator={false}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -251,7 +255,11 @@ export default function AddCustomTokenScreen() {
             />
           }
         >
-          <SubmenuHeader title="CUSTOM TOKEN" onBack={() => router.back()} />
+          <ScreenBrow
+            label={`ADD CUSTOM TOKEN (${filteredTokens.length})`}
+            variant="back"
+          />
+          <InlineRefreshLoader visible={refreshing} />
 
           {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
@@ -264,6 +272,11 @@ export default function AddCustomTokenScreen() {
               style={styles.searchInput}
               autoCapitalize="none"
               autoCorrect={false}
+              autoComplete="off"
+              keyboardAppearance="dark"
+              selectionColor={colors.accent}
+              returnKeyType="search"
+              blurOnSubmit
             />
           </View>
 
@@ -324,8 +337,6 @@ export default function AddCustomTokenScreen() {
             )}
           </View>
         </ScrollView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -341,12 +352,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -355,7 +360,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
+    gap: 0,
   },
 
   errorText: {

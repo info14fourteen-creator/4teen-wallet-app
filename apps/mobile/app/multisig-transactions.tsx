@@ -1,96 +1,11 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import StubScreen from '../src/ui/stub-screen';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import MenuSheet from '../src/ui/menu-sheet';
-import SubmenuHeader from '../src/ui/submenu-header';
-import { colors, layout, radius } from '../src/theme/tokens';
-
-export default function Screen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-
+export default function MultisigTransactionsScreen() {
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => {}} onSearchPress={() => router.push('/search-lab')} />
-        </View>
-
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingBottom: 44 + Math.max(insets.bottom, 6) },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          <SubmenuHeader title="Multisig Transactions" onBack={() => router.back()} />
-
-          <View style={styles.stubCard}>
-            <Text style={styles.stubTitle}>Multisig Transactions</Text>
-            <Text style={styles.stubText}>This screen is not wired yet.</Text>
-          </View>
-        </ScrollView>
-
-        <MenuSheet open={false} onClose={() => {}} />
-      </View>
-    </SafeAreaView>
+    <StubScreen
+      eyebrow="MULTISIG TRANSACTIONS"
+      title="Multisig Transactions"
+      body="This screen is not wired yet."
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-
-  screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
-  },
-
-  scroll: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-
-  content: {
-    paddingTop: 14,
-  },
-
-  stubCard: {
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: 'rgba(255,105,0,0.05)',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 8,
-  },
-
-  stubTitle: {
-    color: colors.white,
-    fontSize: 18,
-    lineHeight: 24,
-    fontFamily: 'Sora_700Bold',
-  },
-
-  stubText: {
-    color: colors.textDim,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: 'Sora_600SemiBold',
-  },
-});

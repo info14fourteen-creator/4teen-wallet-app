@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Keyboard,
   Pressable,
   ScrollView,
@@ -16,7 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 
 import { colors, layout, radius } from '../theme/tokens';
-import { APP_HEADER_HEIGHT, APP_HEADER_TOP_PADDING } from '../ui/app-header.constants';
+import { APP_HEADER_HEIGHT, APP_HEADER_TOP_PADDING, APP_HEADER_DROP_OFFSET, APP_HEADER_SIDE_PADDING } from '../ui/app-header.constants';
+import ThinOrangeLoader from '../ui/thin-orange-loader';
 import { APP_SEARCH_ROUTES } from './search-routes';
 import type {
   SearchQuickPageIcon,
@@ -28,6 +28,7 @@ import { openInAppBrowser } from '../utils/open-in-app-browser';
 import { useNotice } from '../notice/notice-provider';
 import {
   getCustomTokenCatalog,
+  getCmcDexSearchToken,
   getTronscanTokenList,
   type CustomTokenCatalogItem,
   type TronscanTokenListItem,
@@ -160,6 +161,7 @@ function scoreTextMatch(query: string, candidates: string[]) {
 function sourceLabel(source: SearchTokenItem['source']) {
   if (source === 'portfolio') return 'IN WALLET';
   if (source === 'custom') return 'CUSTOM';
+  if (source === 'cmc') return 'CMC';
   return 'CATALOG';
 }
 
@@ -278,6 +280,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
   const [portfolioAssets, setPortfolioAssets] = useState<PortfolioAsset[]>([]);
   const [customTokens, setCustomTokens] = useState<CustomTokenCatalogItem[]>([]);
   const [catalogTokens, setCatalogTokens] = useState<TronscanTokenListItem[]>([]);
+  const [liveContractToken, setLiveContractToken] = useState<SearchTokenItem | null>(null);
 
   const focusInput = useCallback((nextValue?: string) => {
     requestAnimationFrame(() => {
@@ -336,6 +339,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
   useEffect(() => {
     if (!visible) {
       setQuery('');
+      setLiveContractToken(null);
       return;
     }
 
@@ -358,15 +362,60 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
     [portfolioAssets, customTokens, catalogTokens]
   );
 
+  useEffect(() => {
+    if (!visible) return;
+
+    const q = normalized;
+    if (!isTronAddress(q)) {
+      setLiveContractToken(null);
+      return;
+    }
+
+    const normalizedQuery = normalize(q);
+    const hasLocalExactMatch = tokenItems.some((token) => normalize(token.id) === normalizedQuery);
+    if (hasLocalExactMatch) {
+      setLiveContractToken(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const token = await getCmcDexSearchToken(q).catch(() => null);
+      if (cancelled) return;
+
+      if (!token) {
+        setLiveContractToken(null);
+        return;
+      }
+
+      setLiveContractToken({
+        id: token.id,
+        name: token.name,
+        abbr: token.abbr,
+        logo: token.logo,
+        source: 'cmc',
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [normalized, tokenItems, visible]);
+
   const suggestions = useMemo<SearchSuggestion[]>(() => {
     const q = normalized;
     if (!q) return [];
 
     const next: SearchSuggestion[] = [];
     const normalizedQuery = normalize(q);
-    const exactContractToken = tokenItems.find(
-      (token) => normalize(token.id) === normalizedQuery
-    );
+    const exactContractToken =
+      tokenItems.find(
+        (token) => normalize(token.id) === normalizedQuery
+      ) ||
+      (liveContractToken && normalize(liveContractToken.id) === normalizedQuery
+        ? liveContractToken
+        : undefined);
 
     if (exactContractToken) {
       next.push({
@@ -504,7 +553,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
     return uniqueById(next)
       .sort((a, b) => b.score - a.score)
       .slice(0, 14);
-  }, [activeWallet?.id, contacts, normalized, tokenItems, wallets]);
+  }, [activeWallet?.id, contacts, liveContractToken, normalized, tokenItems, wallets]);
 
   const quickRoutes = useMemo(() => {
     const hasWallets = wallets.length > 0;
@@ -554,7 +603,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
       focusInput(trimmed);
     } catch (error) {
       console.error('Failed to read clipboard.', error);
-      notice.showErrorNotice('Failed to read clipboard.', 2200);
+      notice.showErrorNotice('Clipboard read failed.', 2200);
       focusInput(query);
     }
   }, [focusInput, notice, query]);
@@ -597,7 +646,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
       if (item.type === 'contact') {
         onClose();
         router.push({
-          pathname: '/send-select-token',
+          pathname: '/send',
           params: {
             address: item.address,
             contactName: item.title,
@@ -609,7 +658,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
       if (item.type === 'address') {
         onClose();
         router.push({
-          pathname: '/send-select-token',
+          pathname: '/send',
           params: {
             address: item.address,
           },
@@ -657,7 +706,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
         style={[
           styles.panelWrap,
           {
-            paddingTop: insets.top + APP_HEADER_TOP_PADDING,
+            paddingTop: Math.max(insets.top, APP_HEADER_TOP_PADDING) + APP_HEADER_DROP_OFFSET,
           },
         ]}
         pointerEvents="box-none"
@@ -680,7 +729,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
                   autoFocus
                   returnKeyType="done"
                   enterKeyHint="done"
-                  blurOnSubmit={false}
+                  blurOnSubmit
                   onSubmitEditing={() => void handleUrlSubmit()}
                 />
 
@@ -707,7 +756,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
 
           {loading ? (
             <View style={styles.loadingCard}>
-              <ActivityIndicator color={colors.accent} size="small" />
+              <ThinOrangeLoader size={18} strokeWidth={2} />
               <Text style={styles.loadingText}>Loading search index...</Text>
             </View>
           ) : normalized.length === 0 ? (
@@ -876,7 +925,7 @@ const styles = StyleSheet.create({
 
   panelWrap: {
     flex: 1,
-    paddingHorizontal: layout.screenPaddingX,
+    paddingHorizontal: APP_HEADER_SIDE_PADDING,
     alignItems: 'stretch',
   },
 

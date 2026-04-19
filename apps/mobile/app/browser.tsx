@@ -25,23 +25,6 @@ import BrowserShareIcon from '../assets/icons/ui/browser_share_btn.svg';
 
 const DEFAULT_URL = 'https://tronscan.org';
 
-const PRELOAD_DARK_MODE_SCRIPT = `
-(function() {
-  try {
-    var style = document.createElement('style');
-    style.innerHTML = 'html, body { background: #0A0A0A !important; }';
-    document.head && document.head.appendChild(style);
-    if (document.documentElement) {
-      document.documentElement.style.backgroundColor = '#0A0A0A';
-    }
-    if (document.body) {
-      document.body.style.backgroundColor = '#0A0A0A';
-    }
-  } catch (e) {}
-})();
-true;
-`;
-
 function normalizeUrl(input?: string | string[]) {
   const raw = Array.isArray(input) ? input[0] : input;
 
@@ -121,7 +104,7 @@ export default function BrowserScreen() {
       return;
     }
 
-    router.replace('/home');
+    router.replace('/wallet');
   }, [router]);
 
   const handleBackPress = useCallback(() => {
@@ -231,6 +214,7 @@ export default function BrowserScreen() {
                   autoCorrect={false}
                   keyboardType="url"
                   returnKeyType="go"
+                  blurOnSubmit
                   placeholder="Enter URL"
                   placeholderTextColor={colors.textDim}
                   style={styles.addressInput}
@@ -325,7 +309,6 @@ export default function BrowserScreen() {
               setCanGoForward(state.canGoForward);
             }}
             onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
-            injectedJavaScriptBeforeContentLoaded={PRELOAD_DARK_MODE_SCRIPT}
             sharedCookiesEnabled
             javaScriptEnabled
             domStorageEnabled

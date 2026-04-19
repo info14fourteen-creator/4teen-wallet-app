@@ -8,14 +8,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
+import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
+import useChromeLoading from '../src/ui/use-chrome-loading';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import MenuSheet from '../src/ui/menu-sheet';
-import SubmenuHeader from '../src/ui/submenu-header';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -41,14 +40,13 @@ function formatWalletKind(kind: WalletMeta['kind']) {
 export default function SelectWalletScreen() {
   const router = useRouter();
   const notice = useNotice();
-  const insets = useSafeAreaInsets();
-
-  const [menuOpen, setMenuOpen] = useState(false);
+  const navInsets = useNavigationInsets({ topExtra: 14 });
   const [activeWalletId, setActiveWalletIdState] = useState<string | null>(null);
   const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  useChromeLoading(refreshing);
 
-  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
+  const contentBottomInset = useBottomInset();
 
   const load = useCallback(async () => {
     try {
@@ -61,7 +59,7 @@ export default function SelectWalletScreen() {
       setAggregate(nextAggregate);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Failed to load wallets.', 2600);
+      notice.showErrorNotice('Wallet list failed to load.', 2600);
     }
   }, [notice]);
 
@@ -92,24 +90,23 @@ export default function SelectWalletScreen() {
     try {
       await setActiveWalletId(wallet.id);
       setActiveWalletIdState(wallet.id);
-      notice.showSuccessNotice(`Selected: ${wallet.name}`, 2200);
-      router.replace('/home');
+      notice.showSuccessNotice(`Active wallet: ${wallet.name}`, 2200);
+      router.replace('/wallet');
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Failed to select wallet.', 2600);
+      notice.showErrorNotice('Wallet selection failed.', 2600);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
-
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           showsVerticalScrollIndicator={false}
           bounces
           refreshControl={
@@ -122,8 +119,8 @@ export default function SelectWalletScreen() {
             />
           }
         >
-          <SubmenuHeader title="SELECT WALLET" onBack={() => router.back()} />
-
+          <ScreenBrow label="SELECT WALLET" variant="backLink" />
+          <InlineRefreshLoader visible={refreshing} />
           <View style={styles.summaryCard}>
             <Text style={ui.eyebrow}>Total Assets</Text>
             <Text style={styles.summaryValue}>
@@ -195,8 +192,6 @@ export default function SelectWalletScreen() {
             <AddWalletIcon width={20} height={20} />
           </TouchableOpacity>
         </ScrollView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -212,12 +207,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -226,7 +215,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
+    gap: 0,
   },
 
   summaryCard: {

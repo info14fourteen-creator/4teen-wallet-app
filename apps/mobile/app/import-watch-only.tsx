@@ -9,15 +9,11 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import SubmenuHeader from '../src/ui/submenu-header';
-import MenuSheet from '../src/ui/menu-sheet';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
 import KeyboardView from '../src/ui/KeyboardView';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -35,15 +31,12 @@ const ADDRESS_BOX_HEIGHT = 92;
 
 export default function ImportWatchOnlyScreen() {
   const router = useRouter();
+  const navInsets = useNavigationInsets({ topExtra: 14 });
   const params = useLocalSearchParams<{ backTo?: string; address?: string | string[] }>();
-  const backTo = typeof params.backTo === 'string' ? params.backTo : '/import-wallet';
   const scannedAddressParam = Array.isArray(params.address) ? params.address[0] : params.address;
 
   const notice = useNotice();
-  const insets = useSafeAreaInsets();
-  const contentBottomInset = 62 + Math.max(insets.bottom, 6);
-
-  const [menuOpen, setMenuOpen] = useState(false);
+  const contentBottomInset = useBottomInset();
   const [address, setAddress] = useState('');
   const [walletName, setWalletName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +46,12 @@ export default function ImportWatchOnlyScreen() {
   const normalizedAddress = address.trim();
   const walletNameTrimmed = walletName.trim();
   const addressValid = useMemo(() => isValidTronAddress(normalizedAddress), [normalizedAddress]);
+  const addressFontSize = useMemo(() => {
+    if (normalizedAddress.length > 32) return 11;
+    if (normalizedAddress.length > 26) return 12;
+    if (normalizedAddress.length > 20) return 13;
+    return 14;
+  }, [normalizedAddress.length]);
 
   const canSave =
     addressValid &&
@@ -74,11 +73,6 @@ export default function ImportWatchOnlyScreen() {
 
   const handleScanAddress = () => {
     router.push('/scan?mode=watch-only' as any);
-  };
-
-  const handleBack = () => {
-    notice.hideNotice();
-    router.replace(backTo as any);
   };
 
   const handleSave = async () => {
@@ -113,8 +107,8 @@ export default function ImportWatchOnlyScreen() {
         address: normalizedAddress,
       });
 
-      notice.showSuccessNotice('Watch-only wallet saved.', 2400);
-      router.replace('/home');
+      notice.showSuccessNotice('Watch-only wallet added.', 2400);
+      router.replace('/wallet');
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to save watch-only wallet.';
@@ -125,17 +119,16 @@ export default function ImportWatchOnlyScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
-
         <KeyboardView
-          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           extraScrollHeight={56}
         >
-          <SubmenuHeader title="IMPORT WATCH-ONLY" onBack={handleBack} />
+          <ScreenBrow label="WATCH-ONLY WALLET" variant="back" />
 
           <Text style={styles.title}>
             Add a <Text style={styles.titleAccent}>watch-only</Text> wallet
@@ -170,13 +163,18 @@ export default function ImportWatchOnlyScreen() {
             <View style={styles.addressContentArea}>
               <TextInput
                 value={address}
-                onChangeText={setAddress}
+                onChangeText={(value) => setAddress(value.replace(/\s+/g, ''))}
                 placeholder="T..."
                 placeholderTextColor={colors.textDim}
-                style={styles.addressInput}
+                style={[
+                  styles.addressInput,
+                  { fontSize: addressFontSize, lineHeight: addressFontSize + 4 },
+                ]}
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="off"
+                keyboardAppearance="dark"
+                selectionColor={colors.accent}
                 returnKeyType="next"
                 onSubmitEditing={() => walletNameRef.current?.focus()}
               />
@@ -246,8 +244,6 @@ export default function ImportWatchOnlyScreen() {
             </Text>
           </TouchableOpacity>
         </KeyboardView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -263,16 +259,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   content: {
-    paddingTop: 14,
+    gap: 0,
   },
 
   title: {

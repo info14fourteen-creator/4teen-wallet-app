@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -10,14 +9,12 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import * as SecureStore from 'expo-secure-store';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import KeyboardView from '../src/ui/KeyboardView';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import MenuSheet from '../src/ui/menu-sheet';
-import SubmenuHeader from '../src/ui/submenu-header';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -52,12 +49,12 @@ export default function AddressBookScreen() {
     openAdd?: string | string[];
     prefillName?: string | string[];
     prefillAddress?: string | string[];
+    tokenId?: string | string[];
+    contactName?: string | string[];
   }>();
   const notice = useNotice();
-  const insets = useSafeAreaInsets();
-  const contentBottomInset = 62 + Math.max(insets.bottom, 6);
-
-  const [menuOpen, setMenuOpen] = useState(false);
+  const navInsets = useNavigationInsets({ topExtra: 14 });
+  const contentBottomInset = useBottomInset();
   const [addOpen, setAddOpen] = useState(false);
 
   const [name, setName] = useState('');
@@ -72,9 +69,23 @@ export default function AddressBookScreen() {
   const removalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const removalCompletedRef = useRef(false);
   const prefillAppliedRef = useRef(false);
+  const nameInputRef = useRef<TextInput | null>(null);
+  const returnTokenId =
+    typeof params.tokenId === 'string'
+      ? params.tokenId.trim()
+      : Array.isArray(params.tokenId)
+        ? String(params.tokenId[0] || '').trim()
+        : '';
 
-  const addressValid = useMemo(() => isValidTronAddress(address), [address]);
+  const normalizedAddress = address.trim();
+  const addressValid = useMemo(() => isValidTronAddress(normalizedAddress), [normalizedAddress]);
   const canSave = name.trim().length > 0 && addressValid;
+  const addressFontSize = useMemo(() => {
+    if (normalizedAddress.length > 32) return 11;
+    if (normalizedAddress.length > 26) return 12;
+    if (normalizedAddress.length > 20) return 13;
+    return 14;
+  }, [normalizedAddress.length]);
 
   const clearRemovalTimer = useCallback(() => {
     if (removalTimerRef.current) {
@@ -147,7 +158,7 @@ export default function AddressBookScreen() {
     } catch (error) {
       console.error('Failed to load address book', error);
       setContacts(defaultContacts);
-      notice.showErrorNotice('Failed to load address book.', 2600);
+      notice.showErrorNotice('Address book failed to load.', 2600);
     } finally {
       setLoaded(true);
     }
@@ -158,7 +169,7 @@ export default function AddressBookScreen() {
       await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(nextContacts));
     } catch (error) {
       console.error('Failed to save address book', error);
-      notice.showErrorNotice('Failed to save address book.', 2600);
+      notice.showErrorNotice('Address book update failed.', 2600);
     }
   };
 
@@ -176,7 +187,7 @@ export default function AddressBookScreen() {
   const handleCopy = useCallback(
     async (value: string) => {
       await Clipboard.setStringAsync(value);
-      notice.showSuccessNotice('Address copied.', 2200);
+      notice.showSuccessNotice('TRON address copied.', 2200);
     },
     [notice]
   );
@@ -186,7 +197,7 @@ export default function AddressBookScreen() {
     const trimmedAddress = address.trim();
 
     if (!trimmedName) {
-      notice.showErrorNotice('Enter a contact name first.', 2200);
+      notice.showErrorNotice('Enter a contact label first.', 2200);
       return;
     }
 
@@ -208,7 +219,7 @@ export default function AddressBookScreen() {
     );
 
     if (exists) {
-      notice.showErrorNotice('This TRON address is already saved.', 2400);
+      notice.showErrorNotice('This TRON address is already in your address book.', 2400);
       return;
     }
 
@@ -222,20 +233,20 @@ export default function AddressBookScreen() {
     setName('');
     setAddress('');
     setAddOpen(false);
-    notice.showSuccessNotice('Contact saved.', 2200);
+    notice.showSuccessNotice('Address book entry saved.', 2200);
   }, [address, contacts, name, notice]);
 
   const handleDeleteConfirmed = useCallback(
     (id: string) => {
       setContacts((prev) => prev.filter((item) => item.id !== id));
       resetRemovalState();
-      notice.showSuccessNotice('Contact removed.', 2200);
+      notice.showSuccessNotice('Address book entry removed.', 2200);
     },
     [notice, resetRemovalState]
   );
 
   const handleDeletePress = useCallback(() => {
-    notice.showNeutralNotice('To delete, press and hold.', 2200);
+    notice.showNeutralNotice('Press and hold to remove this entry.', 2200);
   }, [notice]);
 
   const handleDeletePressIn = useCallback(
@@ -277,14 +288,15 @@ export default function AddressBookScreen() {
   const handleSend = useCallback(
     (contact: ContactItem) => {
       router.push({
-        pathname: '/send-select-token',
+        pathname: '/send',
         params: {
           address: contact.address,
           contactName: contact.name,
+          ...(returnTokenId ? { tokenId: returnTokenId } : {}),
         },
       } as any);
     },
-    [router]
+    [returnTokenId, router]
   );
 
   const addressValidationTone =
@@ -295,20 +307,18 @@ export default function AddressBookScreen() {
         : styles.headerValidationBad;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} />
-        </View>
-
-        <ScrollView
+        <KeyboardView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
-          showsVerticalScrollIndicator={false}
-          bounces
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          extraScrollHeight={56}
         >
-          <SubmenuHeader title="ADDRESS BOOK" onBack={() => router.back()} />
-
+          <ScreenBrow label="ADDRESS BOOK" variant="back" />
           <View style={styles.addRowWrap}>
             <TouchableOpacity
               activeOpacity={0.9}
@@ -346,12 +356,20 @@ export default function AddressBookScreen() {
                 >
                   <TextInput
                     value={address}
-                    onChangeText={setAddress}
+                    onChangeText={(value) => setAddress(value.replace(/\s+/g, ''))}
                     placeholder="T..."
                     placeholderTextColor={colors.textDim}
-                    style={styles.addressInput}
+                    style={[
+                      styles.addressInput,
+                      { fontSize: addressFontSize, lineHeight: addressFontSize + 4 },
+                    ]}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    autoComplete="off"
+                    keyboardAppearance="dark"
+                    selectionColor={colors.accent}
+                    returnKeyType="next"
+                    onSubmitEditing={() => nameInputRef.current?.focus()}
                   />
 
                   <TouchableOpacity
@@ -377,6 +395,7 @@ export default function AddressBookScreen() {
 
                 <View style={styles.nameField}>
                   <TextInput
+                    ref={nameInputRef}
                     value={name}
                     onChangeText={(value) => setName(value.slice(0, MAX_CONTACT_NAME_LENGTH))}
                     placeholder="Contact name"
@@ -478,9 +497,7 @@ export default function AddressBookScreen() {
               </View>
             ) : null}
           </View>
-        </ScrollView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+        </KeyboardView>
       </View>
     </SafeAreaView>
   );
@@ -496,12 +513,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -510,7 +521,6 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
     gap: 16,
   },
 

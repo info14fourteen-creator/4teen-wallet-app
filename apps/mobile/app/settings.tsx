@@ -11,18 +11,15 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import MenuSheet from '../src/ui/menu-sheet';
-import SubmenuHeader from '../src/ui/submenu-header';
 import ExpandChevron from '../src/ui/expand-chevron';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import { clearAllWalletPortfolioCaches } from '../src/services/wallet/portfolio';
 import { clearAllTronCaches } from '../src/services/tron/api';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
 
 const CLEAR_HOLD_MS = 3500;
 const CLEAR_DISPLAY_MAX = 114;
@@ -30,8 +27,9 @@ const CLEAR_DISPLAY_MAX = 114;
 export default function SettingsScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const navInsets = useNavigationInsets({ topExtra: 14 });
+  const contentBottomInset = useBottomInset();
 
-  const [menuOpen, setMenuOpen] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
   const [clearActive, setClearActive] = useState(false);
   const [clearProgress, setClearProgress] = useState(0);
@@ -70,10 +68,10 @@ export default function SettingsScreen() {
     try {
       setClearingCache(true);
       await Promise.all([clearAllWalletPortfolioCaches(), clearAllTronCaches()]);
-      notice.showSuccessNotice('Cache cleared.', 2200);
+      notice.showSuccessNotice('Local cache cleared.', 2200);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Failed to clear cache.', 2200);
+      notice.showErrorNotice('Cache clear failed.', 2200);
     } finally {
       setClearingCache(false);
       resetClearState();
@@ -82,7 +80,7 @@ export default function SettingsScreen() {
 
   const handleClearPress = useCallback(() => {
     if (clearingCache) return;
-    notice.showNeutralNotice('To clear cache, press and hold.', 2200);
+    notice.showNeutralNotice('Press and hold to clear cache.', 2200);
   }, [clearingCache, notice]);
 
   const handleClearPressIn = useCallback(() => {
@@ -123,19 +121,17 @@ export default function SettingsScreen() {
   const clearFillWidth = `${Math.min(100, (clearProgress / CLEAR_DISPLAY_MAX) * 100)}%`;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} />
-        </View>
-
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           showsVerticalScrollIndicator={false}
         >
-          <SubmenuHeader title="SETTINGS" onBack={() => router.back()} />
-
+          <ScreenBrow label="SETTINGS" variant="back" />
           <View style={styles.list}>
             <SettingRow label="Language" value="English" onPress={() => router.push('/language')} />
             <SettingRow label="Currency" value="USD" onPress={() => router.push('/currency')} />
@@ -162,8 +158,6 @@ export default function SettingsScreen() {
             token settings.
           </Text>
         </ScrollView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -245,12 +239,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -258,7 +246,6 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
     paddingBottom: spacing[7],
   },
 

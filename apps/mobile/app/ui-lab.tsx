@@ -9,21 +9,19 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { useNavigation, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   colors,
   layout,
   radius,
+  spacing,
   typography,
 } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import MenuSheet from '../src/ui/menu-sheet';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
 
 const AUTO_INTERVAL = 5200;
 
@@ -97,14 +95,14 @@ const slides: Slide[] = [
 
 export default function UiLab() {
   const router = useRouter();
-  const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
+  const navInsets = useNavigationInsets({ topExtra: 14 });
   const { width, height } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [carouselIndex, setCarouselIndex] = useState(1);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [, setCarouselIndex] = useState(1);
+
+  const bottomInset = useBottomInset(0);
 
   const screenTier = useMemo(() => {
     if (height <= 740) return 'compact';
@@ -173,7 +171,6 @@ export default function UiLab() {
   }, [width, screenTier]);
 
   const pageSize = dynamic.slideWidth;
-  const bottomActionInset = 44 + Math.max(insets.bottom, 6);
 
   const virtualSlides = useMemo(() => {
     if (slides.length === 0) return [];
@@ -266,29 +263,10 @@ export default function UiLab() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={[styles.screen, { paddingHorizontal: dynamic.horizontalPadding }]}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
-
-        <View style={[styles.top, { gap: dynamic.topGap }]}>
-          <View style={styles.eyebrowRow}>
-            <Text style={ui.eyebrow}>4TEEN Wallet</Text>
-
-            {navigation.canGoBack() ? (
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.backRow}
-                onPress={() => router.back()}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Ionicons name="arrow-back" size={15} color={colors.accent} />
-                <Text style={ui.submenuBackText}>back</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-
+        <View style={[styles.top, { gap: dynamic.topGap, marginTop: navInsets.top }]}>
+          <ScreenBrow label="4TEEN WALLET" variant="back" />
           <Text
             style={[
               styles.title,
@@ -364,7 +342,7 @@ export default function UiLab() {
             styles.bottom,
             {
               paddingTop: dynamic.bottomTopPadding,
-              paddingBottom: dynamic.bottomBottomPadding + bottomActionInset,
+              paddingBottom: bottomInset + dynamic.bottomBottomPadding - spacing[4],
             },
           ]}
         >
@@ -384,8 +362,6 @@ export default function UiLab() {
             <Text style={ui.buttonLabel}>Import Wallet</Text>
           </TouchableOpacity>
         </View>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -400,33 +376,10 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   top: {
-    marginTop: 14,
-  },
-
-  eyebrowRow: {
-    minHeight: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 0,
-  },
-
-  backRow: {
-    minHeight: 36,
-    paddingHorizontal: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    marginTop: 0,
   },
 
   title: {

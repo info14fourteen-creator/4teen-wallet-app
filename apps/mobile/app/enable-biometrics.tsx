@@ -4,24 +4,22 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import SubmenuHeader from '../src/ui/submenu-header';
-import MenuSheet from '../src/ui/menu-sheet';
-import { colors, layout, radius, spacing } from '../src/theme/tokens';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
+import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { setBiometricsEnabled } from '../src/security/local-auth';
 
 export default function EnableBiometricsScreen() {
   const router = useRouter();
+  const navInsets = useNavigationInsets({ topExtra: 14 });
   const params = useLocalSearchParams<{ next?: string }>();
   const nextPath = typeof params.next === 'string' ? params.next : '/import-wallet';
 
   const [supportedLabel, setSupportedLabel] = useState('Biometrics');
   const [available, setAvailable] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const contentBottomInset = useBottomInset();
 
   useEffect(() => {
     void loadSupport();
@@ -71,15 +69,10 @@ export default function EnableBiometricsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
-
-        <View style={styles.content}>
-          <SubmenuHeader title="ENABLE BIOMETRICS" onBack={() => router.back()} />
-
+        <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
+          <ScreenBrow label="ENABLE BIOMETRICS" variant="back" />
           <Text style={styles.title}>
             Enable <Text style={styles.titleAccent}>{supportedLabel}</Text>
           </Text>
@@ -109,8 +102,6 @@ export default function EnableBiometricsScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -126,18 +117,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   content: {
     flex: 1,
-    paddingTop: 14,
-    paddingBottom: spacing[7],
+    gap: 0,
   },
 
   title: {

@@ -3,11 +3,12 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import AppHeader, {
+import AppHeader from '../src/ui/app-header';
+import {
   APP_HEADER_HEIGHT,
   APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import SubmenuHeader from '../src/ui/submenu-header';
+} from '../src/ui/app-header.constants';
+
 import MenuSheet from '../src/ui/menu-sheet';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
@@ -70,11 +71,10 @@ export default function ConfirmPasscodeScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.screen}>
         <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
+          <AppHeader onMenuPress={() => setMenuOpen(true)} />
         </View>
 
         <View style={styles.content}>
-          <SubmenuHeader title="CONFIRM PASSCODE" onBack={() => router.back()} />
 
           <Text style={styles.title}>
             Confirm your <Text style={styles.titleAccent}>passcode</Text>
@@ -85,7 +85,12 @@ export default function ConfirmPasscodeScreen() {
           </Text>
 
           <View style={styles.card}>
-            <Text style={ui.sectionEyebrow}>Confirm</Text>
+            <View style={styles.cardHeaderRow}>
+              <Text style={ui.sectionEyebrow}>Confirm</Text>
+              <Text style={styles.cardHeaderErrorText} numberOfLines={1}>
+                {error || ' '}
+              </Text>
+            </View>
 
             <View style={styles.dotsRow}>
               {Array.from({ length: 6 }, (_, index) => (
@@ -95,8 +100,6 @@ export default function ConfirmPasscodeScreen() {
                 />
               ))}
             </View>
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
 
           <NumericKeypad
@@ -178,6 +181,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
+  cardHeaderRow: {
+    minHeight: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  cardHeaderErrorText: {
+    flex: 1,
+    color: colors.red,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'right',
+  },
+
   dotsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -198,15 +218,6 @@ const styles = StyleSheet.create({
   dotFilled: {
     backgroundColor: colors.accent,
     borderColor: colors.accent,
-  },
-
-  errorText: {
-    marginTop: 16,
-    color: colors.red,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-    textAlign: 'center',
   },
 
   primaryButton: {

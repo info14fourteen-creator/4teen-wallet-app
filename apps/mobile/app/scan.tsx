@@ -10,7 +10,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,13 +22,10 @@ import {
   type BarcodeScanningResult,
 } from 'expo-camera';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import MenuSheet from '../src/ui/menu-sheet';
-import SubmenuHeader from '../src/ui/submenu-header';
-import { colors, layout, radius, spacing } from '../src/theme/tokens';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
+
+import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
@@ -87,21 +85,35 @@ function getPrimaryButtonLabel(kind: ScanKind | null, mode: ScanMode) {
 
 export default function ScanScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const notice = useNotice();
-  const params = useLocalSearchParams<{ mode?: string }>();
+  const params = useLocalSearchParams<{
+    mode?: string;
+    tokenId?: string | string[];
+    contactName?: string | string[];
+  }>();
   const [permission, requestPermission] = useCameraPermissions();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [scannedValue, setScannedValue] = useState('');
   const [scannedType, setScannedType] = useState<ScanKind | null>(null);
   const [timeoutStage, setTimeoutStage] = useState<ScanTimeoutStage>('scan');
   const [timedOut, setTimedOut] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
   const [scanWindowHeight, setScanWindowHeight] = useState(0);
+  const [cameraReady, setCameraReady] = useState(false);
+
+  const navInsets = useNavigationInsets({
+    topExtra: 14,
+    bottomExtra: 20,
+  });
 
   const scanLineAnimation = useRef(new Animated.Value(0)).current;
   const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const warnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resultExitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scanLockedRef = useRef(false);
+  const leavingRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const mode: ScanMode = useMemo(() => {
     const raw = Array.isArray(params.mode) ? params.mode[0] : params.mode;
@@ -111,9 +123,24 @@ export default function ScanScreen() {
     return 'default';
   }, [params.mode]);
 
-  const hasResult = Boolean(scannedValue);
+  const returnTokenId =
+    typeof params.tokenId === 'string'
+      ? params.tokenId
+      : Array.isArray(params.tokenId)
+        ? String(params.tokenId[0] || '').trim()
+        : '';
 
+  const returnContactName =
+    typeof params.contactName === 'string'
+      ? params.contactName.trim()
+      : Array.isArray(params.contactName)
+        ? String(params.contactName[0] || '').trim()
+        : '';
+
+  const hasResult = Boolean(scannedValue);
   const scanLabel = useMemo(() => getScanLabel(scannedType), [scannedType]);
+  const scannerPaused = !isFocused;
+  const scanViewReady = Boolean(permission?.granted) && cameraReady && scanWindowHeight > 0;
 
   const clearTimers = useCallback(() => {
     if (warnTimerRef.current) {
@@ -128,10 +155,111 @@ export default function ScanScreen() {
       clearTimeout(resultExitTimerRef.current);
       resultExitTimerRef.current = null;
     }
+    if (backTimerRef.current) {
+      clearTimeout(backTimerRef.current);
+      backTimerRef.current = null;
+    }
   }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      clearTimers();
+      scanLineAnimation.stopAnimation();
+    };
+  }, [clearTimers, scanLineAnimation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      leavingRef.current = false;
+
+      return () => {
+        clearTimers();
+        scanLineAnimation.stopAnimation();
+        scanLockedRef.current = false;
+        leavingRef.current = false;
+        setCameraReady(false);
+        setScanWindowHeight(0);
+        setScannedValue('');
+        setScannedType(null);
+        setTimeoutStage('scan');
+        setTimedOut(false);
+      };
+    }, [clearTimers, scanLineAnimation])
+  );
+
+  const safeBack = useCallback(() => {
+    if (!mountedRef.current) return;
+    router.back();
+  }, [router]);
+
+  const scheduleBack = useCallback(
+    (delayMs: number) => {
+      if (backTimerRef.current) {
+        clearTimeout(backTimerRef.current);
+      }
+
+      backTimerRef.current = setTimeout(() => {
+        if (!mountedRef.current) return;
+        safeBack();
+      }, delayMs);
+    },
+    [safeBack]
+  );
+
+  const handleResolvedAddress = useCallback(
+    (address: string) => {
+      clearTimers();
+      leavingRef.current = true;
+
+      if (mode === 'watch-only') {
+        router.replace({
+          pathname: '/import-watch-only',
+          params: {
+            address,
+          },
+        } as any);
+        return;
+      }
+
+      if (mode === 'address-book') {
+        router.replace({
+          pathname: '/address-book',
+          params: {
+            openAdd: '1',
+            prefillAddress: address,
+          },
+        } as any);
+        return;
+      }
+
+      if (mode === 'send') {
+        router.replace({
+          pathname: '/send',
+          params: {
+            ...(returnTokenId ? { tokenId: returnTokenId } : {}),
+            ...(returnContactName ? { contactName: returnContactName } : {}),
+            address,
+          },
+        } as any);
+        return;
+      }
+
+      router.replace({
+        pathname: '/send',
+        params: {
+          address,
+        },
+      } as any);
+    },
+    [clearTimers, mode, returnContactName, returnTokenId, router]
+  );
 
   const resetScannerState = useCallback(() => {
     clearTimers();
+    scanLockedRef.current = false;
+    leavingRef.current = false;
     setScannedValue('');
     setScannedType(null);
     setTimeoutStage('scan');
@@ -139,7 +267,7 @@ export default function ScanScreen() {
   }, [clearTimers]);
 
   useEffect(() => {
-    if (hasResult || timedOut) {
+    if (scannerPaused || hasResult || timedOut || leavingRef.current) {
       clearTimers();
       return;
     }
@@ -147,25 +275,30 @@ export default function ScanScreen() {
     setTimeoutStage('scan');
 
     warnTimerRef.current = setTimeout(() => {
+      if (!mountedRef.current || leavingRef.current) return;
       setTimeoutStage('warn');
-      notice.showNeutralNotice('QR not detected yet.', 1800);
+      notice.showNeutralNotice('QR code not locked yet.', 1800);
     }, 30000);
 
     exitTimerRef.current = setTimeout(() => {
+      if (!mountedRef.current || scanLockedRef.current || leavingRef.current) return;
+      leavingRef.current = true;
       setTimedOut(true);
-      notice.showNeutralNotice('QR not found. Returning to previous screen.', 1800);
-      setTimeout(() => {
-        router.back();
-      }, 600);
+      clearTimers();
+      notice.showNeutralNotice('No QR found. Returning to the previous screen.', 1800);
+      scheduleBack(600);
     }, 45000);
 
     return () => {
       clearTimers();
     };
-  }, [clearTimers, hasResult, notice, router, timedOut]);
+  }, [clearTimers, hasResult, notice, scannerPaused, scheduleBack, timedOut]);
 
   useEffect(() => {
-    if (!hasResult) {
+    const shouldSkipResultTimeout =
+      !hasResult || (scannedType === 'address' && mode !== 'default') || leavingRef.current || scannerPaused;
+
+    if (shouldSkipResultTimeout) {
       if (resultExitTimerRef.current) {
         clearTimeout(resultExitTimerRef.current);
         resultExitTimerRef.current = null;
@@ -176,8 +309,11 @@ export default function ScanScreen() {
     setTimeoutStage('result');
 
     resultExitTimerRef.current = setTimeout(() => {
+      if (!mountedRef.current || leavingRef.current) return;
+      leavingRef.current = true;
+      clearTimers();
       notice.showNeutralNotice('Scan result expired. Returning back.', 1800);
-      router.back();
+      safeBack();
     }, 60000);
 
     return () => {
@@ -186,10 +322,10 @@ export default function ScanScreen() {
         resultExitTimerRef.current = null;
       }
     };
-  }, [hasResult, notice, router]);
+  }, [clearTimers, hasResult, mode, notice, safeBack, scannedType, scannerPaused]);
 
   useEffect(() => {
-    if (hasResult || timedOut) {
+    if (scannerPaused || hasResult || timedOut) {
       scanLineAnimation.stopAnimation();
       return;
     }
@@ -219,61 +355,53 @@ export default function ScanScreen() {
       loop.stop();
       scanLineAnimation.stopAnimation();
     };
-  }, [hasResult, scanLineAnimation, timedOut]);
+  }, [hasResult, scanLineAnimation, scannerPaused, timedOut]);
 
-  const handleResolvedValue = useCallback((value: string) => {
-    const safe = String(value || '').trim();
-    if (!safe) return;
-    setScannedType(detectScanKind(safe));
-    setScannedValue(safe);
-  }, []);
+  const handleResolvedValue = useCallback(
+    (value: string) => {
+      const safe = String(value || '').trim();
+      if (!safe || scannerPaused || scanLockedRef.current || leavingRef.current || !mountedRef.current) return;
+
+      const nextType = detectScanKind(safe);
+
+      scanLockedRef.current = true;
+      clearTimers();
+      setTimedOut(false);
+      setTimeoutStage('result');
+      setScannedType(nextType);
+      setScannedValue(safe);
+
+      if (nextType === 'address' && mode !== 'default') {
+        handleResolvedAddress(safe);
+      }
+    },
+    [clearTimers, handleResolvedAddress, mode, scannerPaused]
+  );
 
   const handleBarcodeScanned = useCallback(
     (result: BarcodeScanningResult) => {
       const value = String(result?.data || '').trim();
-      if (!value || hasResult || timedOut) return;
+      if (!value || scannerPaused || hasResult || timedOut || scanLockedRef.current || leavingRef.current) return;
       handleResolvedValue(value);
     },
-    [handleResolvedValue, hasResult, timedOut]
+    [handleResolvedValue, hasResult, scannerPaused, timedOut]
   );
 
   const handleCopy = useCallback(async () => {
-    if (!scannedValue) return;
+    if (!scannedValue || leavingRef.current || !mountedRef.current) return;
     await Clipboard.setStringAsync(scannedValue);
-    notice.showSuccessNotice('Value copied.', 1600);
+    if (!mountedRef.current || leavingRef.current) return;
+    notice.showSuccessNotice('Scan result copied.', 1600);
   }, [notice, scannedValue]);
 
   const handlePrimaryAction = useCallback(async () => {
-    if (!scannedValue) return;
+    if (!scannedValue || leavingRef.current || !mountedRef.current) return;
+
+    leavingRef.current = true;
+    clearTimers();
 
     if (scannedType === 'address') {
-      if (mode === 'watch-only') {
-        router.push({
-          pathname: '/import-watch-only',
-          params: {
-            address: scannedValue,
-          },
-        } as any);
-        return;
-      }
-
-      if (mode === 'address-book') {
-        router.push({
-          pathname: '/address-book',
-          params: {
-            openAdd: '1',
-            prefillAddress: scannedValue,
-          },
-        } as any);
-        return;
-      }
-
-      router.push({
-        pathname: '/send-select-token',
-        params: {
-          address: scannedValue,
-        },
-      } as any);
+      handleResolvedAddress(scannedValue);
       return;
     }
 
@@ -291,8 +419,9 @@ export default function ScanScreen() {
     }
 
     await Clipboard.setStringAsync(scannedValue);
-    notice.showNeutralNotice('Result copied because it cannot be opened here.', 1800);
-  }, [mode, notice, router, scannedType, scannedValue]);
+    if (!mountedRef.current) return;
+    notice.showNeutralNotice('Result copied. This target cannot open here.', 1800);
+  }, [clearTimers, handleResolvedAddress, notice, router, scannedType, scannedValue]);
 
   const handleScanAgain = useCallback(() => {
     resetScannerState();
@@ -300,9 +429,13 @@ export default function ScanScreen() {
 
   const handlePickFromGallery = useCallback(async () => {
     try {
+      if (scanLockedRef.current || leavingRef.current || !mountedRef.current) return;
+
       const mediaPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!mediaPermission.granted) {
-        notice.showNeutralNotice('Photo access is required to read QR from gallery.', 1800);
+        if (mountedRef.current && !leavingRef.current) {
+          notice.showNeutralNotice('Allow photo access to scan QR from gallery.', 1800);
+        }
         return;
       }
 
@@ -312,7 +445,7 @@ export default function ScanScreen() {
         quality: 1,
       });
 
-      if (picked.canceled || !picked.assets?.[0]?.uri) {
+      if (picked.canceled || !picked.assets?.[0]?.uri || !mountedRef.current || leavingRef.current) {
         return;
       }
 
@@ -320,61 +453,58 @@ export default function ScanScreen() {
 
       const results = await Camera.scanFromURLAsync(picked.assets[0].uri, ['qr']);
 
+      if (!mountedRef.current || leavingRef.current) return;
+
       if (!results?.length || !results[0]?.data) {
-        notice.showNeutralNotice('No QR code found in selected image.', 2200);
+        notice.showNeutralNotice('No QR code found in that image.', 2200);
         return;
       }
 
       handleResolvedValue(results[0].data);
     } catch (error) {
       console.error('Failed to scan image QR:', error);
-      notice.showErrorNotice('Failed to process selected image.', 2200);
+      if (mountedRef.current && !leavingRef.current) {
+        notice.showErrorNotice('Image QR scan failed.', 2200);
+      }
     } finally {
-      setProcessingImage(false);
+      if (mountedRef.current) {
+        setProcessingImage(false);
+      }
     }
   }, [handleResolvedValue, notice]);
 
-  if (!permission) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={styles.screen}>
-          <View style={styles.headerSlot}>
-            <AppHeader onMenuPress={() => setMenuOpen(true)} onScanPress={() => {}} />
-          </View>
+  const scanLineTravel = Math.max(0, scanWindowHeight - 2);
 
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}
-          >
-            <SubmenuHeader title="SCAN" onBack={() => router.back()} />
+  const scanLineTranslateY = scanLineAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, scanLineTravel],
+  });
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <View style={styles.screen}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: navInsets.top,
+              paddingBottom: navInsets.bottom,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces={permission?.granted}
+        >
+          <ScreenBrow label="SCAN" variant="back" />
+
+          {!permission ? (
             <View style={styles.stubCard}>
               <Text style={styles.stubTitle}>Preparing camera</Text>
               <Text style={styles.stubText}>Checking camera permission status.</Text>
             </View>
-          </ScrollView>
+          ) : null}
 
-          <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <View style={styles.screen}>
-          <View style={styles.headerSlot}>
-            <AppHeader onMenuPress={() => setMenuOpen(true)} onScanPress={() => {}} />
-          </View>
-
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}
-          >
-            <SubmenuHeader title="SCAN" onBack={() => router.back()} />
-
+          {permission && !permission.granted ? (
             <View style={styles.stubCard}>
               <Text style={styles.stubTitle}>Camera access required</Text>
               <Text style={styles.stubText}>
@@ -389,139 +519,124 @@ export default function ScanScreen() {
                 <Text style={styles.primaryButtonText}>Allow Camera</Text>
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          ) : null}
 
-          <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const scanLineTravel = Math.max(0, scanWindowHeight - 2);
-
-  const scanLineTranslateY = scanLineAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, scanLineTravel],
-  });
-
-  return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onScanPress={() => {}} />
-        </View>
-
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-        >
-          <SubmenuHeader title="SCAN" onBack={() => router.back()} />
-
-          <View style={styles.cameraCard}>
-            <CameraView
-              style={styles.camera}
-              facing="back"
-              barcodeScannerSettings={{
-                barcodeTypes: ['qr'],
-              }}
-              onBarcodeScanned={hasResult || timedOut ? undefined : handleBarcodeScanned}
-            />
-
-            <View style={styles.overlayRoot} pointerEvents="none">
-              <View style={styles.overlayTop} />
-              <View style={styles.overlayMiddle}>
-                <View style={styles.overlaySide} />
+          {permission?.granted ? (
+            <>
+              <View style={styles.cameraCard}>
+                <CameraView
+                  style={[styles.camera, !scanViewReady ? styles.cameraHidden : null]}
+                  facing="back"
+                  barcodeScannerSettings={{
+                    barcodeTypes: ['qr'],
+                  }}
+                  onCameraReady={() => {
+                    if (!mountedRef.current || leavingRef.current) return;
+                    setCameraReady(true);
+                  }}
+                  onBarcodeScanned={scannerPaused || hasResult || timedOut ? undefined : handleBarcodeScanned}
+                />
 
                 <View
-                  style={styles.scanWindow}
-                  onLayout={(event) => {
-                    const nextHeight = Math.round(event.nativeEvent.layout.height);
-                    if (nextHeight > 0 && nextHeight !== scanWindowHeight) {
-                      setScanWindowHeight(nextHeight);
-                    }
-                  }}
+                  style={[styles.overlayRoot, !scanViewReady ? styles.overlayHidden : null]}
+                  pointerEvents="none"
                 >
-                  <View style={styles.overlayFrame} />
+                  <View style={styles.overlayTop} />
+                  <View style={styles.overlayMiddle}>
+                    <View style={styles.overlaySide} />
 
-                  {!hasResult && !timedOut ? (
-                    <Animated.View
-                      style={[
-                        styles.scanLine,
-                        {
-                          transform: [{ translateY: scanLineTranslateY }],
-                        },
-                      ]}
-                    />
-                  ) : null}
+                    <View
+                      style={styles.scanWindow}
+                      onLayout={(event) => {
+                        const nextHeight = Math.round(event.nativeEvent.layout.height);
+                        if (nextHeight > 0 && nextHeight !== scanWindowHeight) {
+                          setScanWindowHeight(nextHeight);
+                        }
+                      }}
+                    >
+                      <View style={styles.overlayFrame} />
+
+                      {!hasResult && !timedOut ? (
+                        <Animated.View
+                          style={[
+                            styles.scanLine,
+                            {
+                              transform: [{ translateY: scanLineTranslateY }],
+                            },
+                          ]}
+                        />
+                      ) : null}
+                    </View>
+
+                    <View style={styles.overlaySide} />
+                  </View>
+                  <View style={styles.overlayBottom} />
                 </View>
 
-                <View style={styles.overlaySide} />
-              </View>
-              <View style={styles.overlayBottom} />
-            </View>
-
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={styles.galleryButton}
-              onPress={() => void handlePickFromGallery()}
-              disabled={processingImage}
-            >
-              <Ionicons name="images-outline" size={18} color={colors.white} />
-            </TouchableOpacity>
-
-            {hasResult ? (
-              <View style={styles.cameraActionsWrap}>
                 <TouchableOpacity
                   activeOpacity={0.9}
-                  style={styles.scanAgainButton}
-                  onPress={handleScanAgain}
+                  style={styles.galleryButton}
+                  onPress={() => void handlePickFromGallery()}
+                  disabled={processingImage}
                 >
-                  <Text style={styles.scanAgainButtonText}>Scan again</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            {!hasResult && timeoutStage === 'warn' ? (
-              <View style={styles.timeoutNoticeWrap} pointerEvents="none">
-                <Text style={styles.timeoutNoticeText}>Nothing found yet</Text>
-              </View>
-            ) : null}
-          </View>
-
-          {hasResult ? (
-            <View style={styles.resultCard}>
-              <View style={styles.resultTopRow}>
-                <Text style={styles.resultLabel}>Scanned result</Text>
-                <Text style={styles.resultType}>{scanLabel}</Text>
-              </View>
-
-              <Text style={styles.resultValue}>{scannedValue}</Text>
-
-              <View style={styles.actionsColumn}>
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={[styles.actionButton, styles.primaryButton, styles.fullWidthButton]}
-                  onPress={() => void handlePrimaryAction()}
-                >
-                  <Text style={styles.primaryButtonText}>
-                    {getPrimaryButtonLabel(scannedType, mode)}
-                  </Text>
+                  <Ionicons name="images-outline" size={18} color={colors.white} />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={[styles.actionButton, styles.secondaryButton, styles.fullWidthButton]}
-                  onPress={() => void handleCopy()}
-                >
-                  <Text style={styles.secondaryButtonText}>Copy</Text>
-                </TouchableOpacity>
+                {hasResult && !(scannedType === 'address' && mode !== 'default') ? (
+                  <View style={styles.cameraActionsWrap}>
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      style={styles.scanAgainButton}
+                      onPress={handleScanAgain}
+                    >
+                      <Text style={styles.scanAgainButtonText}>Scan again</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
+                {!hasResult && timeoutStage === 'warn' ? (
+                  <View style={styles.timeoutNoticeWrap} pointerEvents="none">
+                    <Text style={styles.timeoutNoticeText}>Nothing found yet</Text>
+                  </View>
+                ) : null}
+
+                {!scanViewReady ? <View pointerEvents="none" style={styles.cameraBootMask} /> : null}
               </View>
-            </View>
+
+              {hasResult && !(scannedType === 'address' && mode !== 'default') ? (
+                <View style={styles.resultCard}>
+                  <View style={styles.resultTopRow}>
+                    <Text style={styles.resultLabel}>Scanned result</Text>
+                    <Text style={styles.resultType}>{scanLabel}</Text>
+                  </View>
+
+                  <Text style={styles.resultValue}>{scannedValue}</Text>
+
+                  <View style={styles.actionsColumn}>
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      style={[styles.actionButton, styles.primaryButton, styles.fullWidthButton]}
+                      onPress={() => void handlePrimaryAction()}
+                    >
+                      <Text style={styles.primaryButtonText}>
+                        {getPrimaryButtonLabel(scannedType, mode)}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      style={[styles.actionButton, styles.secondaryButton, styles.fullWidthButton]}
+                      onPress={() => void handleCopy()}
+                    >
+                      <Text style={styles.secondaryButtonText}>Copy</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
+            </>
           ) : null}
         </ScrollView>
 
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -536,13 +651,6 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
-    paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -551,8 +659,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
-    paddingBottom: spacing[7],
+    paddingHorizontal: layout.screenPaddingX,
     gap: 12,
   },
 
@@ -563,17 +670,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.lineStrong,
     backgroundColor: colors.bg,
+    minHeight: 340,
   },
 
   camera: {
     width: '100%',
     aspectRatio: 1,
+    minHeight: 340,
     backgroundColor: colors.bg,
+  },
+
+  cameraHidden: {
+    opacity: 0,
   },
 
   overlayRoot: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
+  },
+
+  overlayHidden: {
+    opacity: 0,
   },
 
   overlayTop: {
@@ -644,6 +761,11 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 14,
     alignItems: 'center',
+  },
+
+  cameraBootMask: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.bg,
   },
 
   scanAgainButton: {
@@ -770,10 +892,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,
-    backgroundColor: 'rgba(255,105,0,0.05)',
+    backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 8,
+    paddingVertical: 18,
+    gap: 10,
   },
 
   stubTitle: {
@@ -781,9 +903,7 @@ const styles = StyleSheet.create({
   },
 
   stubText: {
-    color: colors.textDim,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: 'Sora_600SemiBold',
+    ...ui.body,
+    color: colors.textSoft,
   },
 });

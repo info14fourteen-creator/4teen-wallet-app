@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -9,13 +8,11 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import MenuSheet from '../src/ui/menu-sheet';
 import { colors, layout, radius, spacing, typography } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
 
 const bullets = [
   'You control the wallet and recovery phrase.',
@@ -30,23 +27,23 @@ const placeholders = Array.from({ length: 12 }, (_, index) => ({
 
 export default function CreateWalletScreen() {
   const router = useRouter();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const navInsets = useNavigationInsets({ topExtra: 14 });
   const [accepted, setAccepted] = useState(false);
+  const contentBottomInset = useBottomInset();
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
-
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          <Text style={ui.eyebrow}>Create Wallet</Text>
+          <ScreenBrow label="CREATE WALLET" variant="back" />
 
           <Text style={styles.title}>
             Create a new <Text style={styles.titleAccent}>self-custody</Text> wallet
@@ -132,8 +129,6 @@ export default function CreateWalletScreen() {
             </TouchableOpacity>
           </View>
         </ScrollView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -149,12 +144,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -163,7 +152,6 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
     paddingBottom: spacing[7],
   },
 

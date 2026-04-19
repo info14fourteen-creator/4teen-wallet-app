@@ -1,19 +1,14 @@
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import SubmenuHeader from '../src/ui/submenu-header';
-import MenuSheet from '../src/ui/menu-sheet';
 import ExpandChevron from '../src/ui/expand-chevron';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { hasPasscode } from '../src/security/local-auth';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
 
 const options = [
   {
@@ -41,7 +36,7 @@ const options = [
 
 export default function ImportWalletScreen() {
   const router = useRouter();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
 
   const handleOptionPress = async (path: string, requiresPasscode: boolean) => {
@@ -72,20 +67,18 @@ export default function ImportWalletScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
-
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           showsVerticalScrollIndicator={false}
           bounces
         >
-          <SubmenuHeader title="IMPORT WALLET" onBack={() => router.back()} />
-
+          <ScreenBrow label="IMPORT WALLET" variant="back" />
           <Text style={styles.title}>
             Reconnect your <Text style={styles.titleAccent}>wallet access</Text>
           </Text>
@@ -113,8 +106,6 @@ export default function ImportWalletScreen() {
             ))}
           </View>
         </ScrollView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -130,12 +121,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -144,7 +129,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
+    gap: 0,
   },
 
   title: {

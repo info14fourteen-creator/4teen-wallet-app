@@ -8,16 +8,12 @@ import {
   View,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import SubmenuHeader from '../src/ui/submenu-header';
-import MenuSheet from '../src/ui/menu-sheet';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
 import KeyboardView from '../src/ui/KeyboardView';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -43,14 +39,10 @@ function maskWord(value: string) {
 
 export default function ImportSeedScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ backTo?: string }>();
-  const backTo = typeof params.backTo === 'string' ? params.backTo : '/import-wallet';
+  const navInsets = useNavigationInsets({ topExtra: 14 });
 
   const notice = useNotice();
-  const insets = useSafeAreaInsets();
-  const contentBottomInset = 62 + Math.max(insets.bottom, 6);
-
-  const [menuOpen, setMenuOpen] = useState(false);
+  const contentBottomInset = useBottomInset();
   const [wordCount, setWordCount] = useState<12 | 24>(12);
   const [words, setWords] = useState<string[]>(buildWords(12));
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -230,21 +222,16 @@ export default function ImportSeedScreen() {
       setWordCount(count);
       setWords(nextWords);
       setActiveIndex(null);
-      notice.showSuccessNotice(`Recognized ${count} recovery words.`, 2200);
+      notice.showSuccessNotice(`Detected ${count} recovery words.`, 2200);
       focusWalletName();
       return;
     }
 
     if (parsed.length > 1) {
       spreadParsedWords(parsed, 0);
-      notice.showSuccessNotice(`Inserted ${parsed.length} words from clipboard.`, 2200);
+      notice.showSuccessNotice(`Pasted ${parsed.length} recovery words.`, 2200);
     }
   }, [focusWalletName, notice, spreadParsedWords]);
-
-  const handleBack = useCallback(() => {
-    notice.hideNotice();
-    router.replace(backTo as any);
-  }, [backTo, notice, router]);
 
   const handleImport = useCallback(async () => {
     if (!allFilled) {
@@ -281,8 +268,8 @@ export default function ImportSeedScreen() {
         mnemonic,
       });
 
-      notice.showSuccessNotice('Wallet imported from seed phrase.', 2400);
-      router.replace('/home');
+      notice.showSuccessNotice('Seed wallet imported.', 2400);
+      router.replace('/wallet');
     } catch (error) {
       console.error('IMPORT FAILED', error);
       const message = error instanceof Error ? error.message : 'Failed to import wallet.';
@@ -303,17 +290,16 @@ export default function ImportSeedScreen() {
   ]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
-
         <KeyboardView
-          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           extraScrollHeight={56}
         >
-          <SubmenuHeader title="IMPORT BY SEED PHRASE" onBack={handleBack} />
+          <ScreenBrow label="IMPORT SEED PHRASE" variant="back" />
 
           <Text style={styles.title}>
             Restore from <Text style={styles.titleAccent}>seed phrase</Text>
@@ -450,8 +436,6 @@ export default function ImportSeedScreen() {
             </Text>
           </TouchableOpacity>
         </KeyboardView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -467,16 +451,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   content: {
-    paddingTop: 14,
+    gap: 0,
   },
 
   title: {

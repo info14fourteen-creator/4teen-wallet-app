@@ -8,16 +8,12 @@ import {
   View,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import SubmenuHeader from '../src/ui/submenu-header';
-import MenuSheet from '../src/ui/menu-sheet';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
 import KeyboardView from '../src/ui/KeyboardView';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -35,14 +31,10 @@ const KEY_BOX_HEIGHT = 152;
 
 export default function ImportPrivateKeyScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ backTo?: string }>();
-  const backTo = typeof params.backTo === 'string' ? params.backTo : '/import-wallet';
+  const navInsets = useNavigationInsets({ topExtra: 14 });
 
   const notice = useNotice();
-  const insets = useSafeAreaInsets();
-  const contentBottomInset = 62 + Math.max(insets.bottom, 6);
-
-  const [menuOpen, setMenuOpen] = useState(false);
+  const contentBottomInset = useBottomInset();
   const [privateKey, setPrivateKey] = useState('');
   const [walletName, setWalletName] = useState('');
   const [visible, setVisible] = useState(false);
@@ -53,6 +45,12 @@ export default function ImportPrivateKeyScreen() {
   const normalized = useMemo(() => normalizePrivateKey(privateKey), [privateKey]);
   const keyValid = useMemo(() => isValidPrivateKey(privateKey), [privateKey]);
   const walletNameTrimmed = walletName.trim();
+  const privateKeyFontSize = useMemo(() => {
+    if (normalized.length > 56) return 11;
+    if (normalized.length > 44) return 12;
+    if (normalized.length > 32) return 13;
+    return 14;
+  }, [normalized.length]);
 
   const canImport =
     keyValid &&
@@ -68,11 +66,6 @@ export default function ImportPrivateKeyScreen() {
     if (text) {
       setPrivateKey(text.trim());
     }
-  };
-
-  const handleBack = () => {
-    notice.hideNotice();
-    router.replace(backTo as any);
   };
 
   const handleImport = async () => {
@@ -107,8 +100,8 @@ export default function ImportPrivateKeyScreen() {
         privateKey: normalized,
       });
 
-      notice.showSuccessNotice('Wallet imported from private key.', 2400);
-      router.replace('/home');
+      notice.showSuccessNotice('Private-key wallet imported.', 2400);
+      router.replace('/wallet');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to import wallet.';
       notice.showErrorNotice(message, 3000);
@@ -118,17 +111,16 @@ export default function ImportPrivateKeyScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
-
         <KeyboardView
-          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           extraScrollHeight={56}
         >
-          <SubmenuHeader title="IMPORT BY PRIVATE KEY" onBack={handleBack} />
+          <ScreenBrow label="IMPORT PRIVATE KEY" variant="back" />
 
           <Text style={styles.title}>
             Restore from <Text style={styles.titleAccent}>private key</Text>
@@ -174,16 +166,22 @@ export default function ImportPrivateKeyScreen() {
               {visible ? (
                 <TextInput
                   value={normalized}
-                  onChangeText={setPrivateKey}
+                  onChangeText={(value) => setPrivateKey(value.replace(/\s+/g, ''))}
                   placeholder="Paste private key"
                   placeholderTextColor={colors.textDim}
-                  style={styles.privateKeyInput}
+                  style={[
+                    styles.privateKeyInput,
+                    { fontSize: privateKeyFontSize, lineHeight: privateKeyFontSize + 4 },
+                  ]}
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="off"
-                  multiline
-                  textAlignVertical="top"
-                  returnKeyType="default"
+                  keyboardAppearance="dark"
+                  selectionColor={colors.accent}
+                  multiline={false}
+                  numberOfLines={1}
+                  returnKeyType="next"
+                  onSubmitEditing={() => walletNameRef.current?.focus()}
                 />
               ) : (
                 <View style={styles.hiddenStateArea}>
@@ -242,8 +240,6 @@ export default function ImportPrivateKeyScreen() {
             </Text>
           </TouchableOpacity>
         </KeyboardView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -259,16 +255,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   content: {
-    paddingTop: 14,
+    gap: 0,
   },
 
   title: {

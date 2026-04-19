@@ -236,6 +236,47 @@ async function writePortfolioCache(
   }
 }
 
+function formatAssetAmountDisplay(amount: number, decimals = 6) {
+  const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+  const maxFractionDigits = Math.max(0, Math.min(6, decimals));
+
+  return safeAmount.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxFractionDigits,
+  });
+}
+
+function rebuildPortfolioSnapshot(
+  address: string,
+  assets: PortfolioAsset[]
+): WalletPortfolioSnapshot {
+  const normalizedAssets = assets.map((asset) => ({
+    ...asset,
+    amount: Number.isFinite(asset.amount) ? Math.max(0, asset.amount) : 0,
+    amountDisplay: formatAssetAmountDisplay(asset.amount, asset.id === 'trx' ? 6 : 6),
+    valueInUsd: Number.isFinite(asset.valueInUsd) ? Math.max(0, asset.valueInUsd) : 0,
+    valueDisplay: formatUsd(Number.isFinite(asset.valueInUsd) ? Math.max(0, asset.valueInUsd) : 0),
+    deltaUsd24h: Number.isFinite(asset.deltaUsd24h) ? asset.deltaUsd24h : 0,
+  }));
+
+  const totalBalanceUsd = normalizedAssets.reduce((sum, asset) => sum + asset.valueInUsd, 0);
+  const totalDeltaUsd24h = normalizedAssets.reduce((sum, asset) => sum + asset.deltaUsd24h, 0);
+  const previousTotalUsd = totalBalanceUsd - totalDeltaUsd24h;
+  const totalDeltaPercent24h =
+    previousTotalUsd > 0 ? (totalDeltaUsd24h / previousTotalUsd) * 100 : 0;
+
+  return {
+    address,
+    totalBalanceUsd,
+    totalBalanceDisplay: formatUsd(totalBalanceUsd),
+    totalDeltaUsd24h,
+    totalDeltaPercent24h,
+    totalDeltaDisplay: `${formatSignedUsd(totalDeltaUsd24h)} (${formatSignedPercent(totalDeltaPercent24h)})`,
+    totalDeltaTone: normalizeDeltaTone(totalDeltaPercent24h),
+    assets: normalizedAssets,
+  };
+}
+
 export async function clearWalletPortfolioCache(address: string): Promise<void> {
   const cacheKey = buildPortfolioCacheKey(address);
   portfolioMemoryCache.delete(cacheKey);
@@ -245,6 +286,58 @@ export async function clearWalletPortfolioCache(address: string): Promise<void> 
   } catch (error) {
     console.error('Failed to clear wallet portfolio cache:', error);
   }
+}
+
+export async function applyOutgoingTransferToPortfolioCache(input: {
+  walletAddress: string;
+  tokenId: string;
+  tokenDecimals: number;
+  amountRaw: string;
+  estimatedBurnSun: number;
+}): Promise<void> {
+  const walletAddress = String(input.walletAddress || '').trim();
+  if (!walletAddress) return;
+
+  const current = await readPortfolioCache(walletAddress);
+  if (!current) return;
+
+  const tokenAmount =
+    Number(String(input.amountRaw || '0')) / Math.pow(10, Math.max(0, input.tokenDecimals));
+  const burnTrx = Math.max(0, Number(input.estimatedBurnSun || 0)) / 1_000_000;
+
+  const nextAssets = current.assets.map((asset) => {
+    const previousAmount = Number.isFinite(asset.amount) ? Math.max(0, asset.amount) : 0;
+    const unitPrice =
+      previousAmount > 0 && Number.isFinite(asset.valueInUsd) ? asset.valueInUsd / previousAmount : 0;
+    const unitDeltaUsd24h =
+      previousAmount > 0 && Number.isFinite(asset.deltaUsd24h) ? asset.deltaUsd24h / previousAmount : 0;
+
+    if (asset.id === 'trx') {
+      const trxDelta = input.tokenId === 'trx' ? tokenAmount + burnTrx : burnTrx;
+      const nextAmount = Math.max(0, asset.amount - trxDelta);
+      return {
+        ...asset,
+        amount: nextAmount,
+        valueInUsd: nextAmount * unitPrice,
+        deltaUsd24h: nextAmount * unitDeltaUsd24h,
+      };
+    }
+
+    if (asset.id === input.tokenId) {
+      const nextAmount = Math.max(0, asset.amount - tokenAmount);
+      return {
+        ...asset,
+        amount: nextAmount,
+        valueInUsd: nextAmount * unitPrice,
+        deltaUsd24h: nextAmount * unitDeltaUsd24h,
+      };
+    }
+
+    return asset;
+  });
+
+  const nextSnapshot = rebuildPortfolioSnapshot(walletAddress, nextAssets);
+  await writePortfolioCache(walletAddress, nextSnapshot);
 }
 
 function buildPortfolioSnapshot(

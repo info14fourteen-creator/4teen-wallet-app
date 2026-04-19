@@ -11,14 +11,14 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
+import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenLoadingState from '../src/ui/screen-loading-state';
+import ScreenBrow from '../src/ui/screen-brow';
+import useChromeLoading from '../src/ui/use-chrome-loading';
 
-import AppHeader, {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header';
-import MenuSheet from '../src/ui/menu-sheet';
-import SubmenuHeader from '../src/ui/submenu-header';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
 import {
@@ -135,10 +135,9 @@ async function buildManageFallbackAsset(
 
 export default function ManageCryptoScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const notice = useNotice();
+  const navInsets = useNavigationInsets({ topExtra: 14 });
 
-  const [menuOpen, setMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [portfolio, setPortfolio] = useState<WalletPortfolioSnapshot | null>(null);
@@ -146,8 +145,9 @@ export default function ManageCryptoScreen() {
     ...DEFAULT_HOME_VISIBLE_TOKEN_IDS,
   ]);
   const [errorText, setErrorText] = useState('');
+  useChromeLoading((loading && !portfolio) || refreshing);
 
-  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
+  const contentBottomInset = useBottomInset();
 
   const load = useCallback(async (force = false) => {
     try {
@@ -340,16 +340,19 @@ export default function ManageCryptoScreen() {
     return sortAssetsByName(portfolio?.assets ?? []);
   }, [portfolio?.assets]);
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} onSearchPress={() => router.push('/search-lab')} />
-        </View>
+  if (loading && !portfolio) {
+    return <ScreenLoadingState />;
+  }
 
+  return (
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <View style={styles.screen}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -361,7 +364,8 @@ export default function ManageCryptoScreen() {
             />
           }
         >
-          <SubmenuHeader title="MANAGE CRYPTO" onBack={() => router.back()} />
+          <ScreenBrow label="MANAGE CRYPTO" variant="back" />
+          <InlineRefreshLoader visible={refreshing} />
 
           {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
@@ -427,8 +431,6 @@ export default function ManageCryptoScreen() {
             <Text style={styles.addCustomTokenText}>Add custom token</Text>
           </TouchableOpacity>
         </ScrollView>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -444,12 +446,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   scroll: {
@@ -458,7 +454,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingTop: 14,
+    gap: 0,
   },
 
   errorText: {
