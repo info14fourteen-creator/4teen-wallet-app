@@ -392,7 +392,7 @@ export default function UnlockTimelineScreen() {
                 } as any)
               }
             >
-              <Text style={styles.secondaryActionLabel}>OPEN SWAP</Text>
+              <Text style={styles.secondaryActionLabel}>SWAP</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: layout.screenPaddingX,
-    gap: 16,
+    gap: 0,
   },
 
   infoPanel: {
@@ -571,6 +571,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
     padding: 14,
     gap: 8,
+    marginBottom: 16,
   },
 
   infoTitle: {
@@ -585,7 +586,8 @@ const styles = StyleSheet.create({
   heroActions: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 16,
+    marginTop: 0,
+    marginBottom: 16,
   },
 
   primaryAction: {
@@ -604,6 +606,7 @@ const styles = StyleSheet.create({
   },
 
   secondaryAction: {
+    flex: 1,
     minHeight: 54,
     borderRadius: radius.sm,
     alignItems: 'center',
@@ -746,6 +749,7 @@ const styles = StyleSheet.create({
     gap: 12,
     overflow: 'hidden',
     position: 'relative',
+    marginBottom: 16,
   },
 
   emptyWalletTitle: {
@@ -760,6 +764,7 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 16,
   },
 
   summaryCard: {
@@ -800,6 +805,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginBottom: 16,
   },
 
   detailCard: {
@@ -863,6 +869,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
+    marginBottom: 16,
   },
 
   statusDanger: {
@@ -887,7 +894,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: 12,
-    marginTop: 4,
+    marginBottom: 12,
   },
 
   historyEyebrow: {

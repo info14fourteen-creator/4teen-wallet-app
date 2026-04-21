@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    gap: 16,
+    gap: 0,
   },
 
   heroCard: {
@@ -268,6 +268,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     gap: 8,
+    marginBottom: 16,
   },
 
   heroTitle: {
@@ -290,6 +291,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginBottom: 16,
   },
 
   statCard: {
@@ -325,6 +327,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     gap: 8,
+    marginBottom: 16,
   },
 
   sectionTitle: {

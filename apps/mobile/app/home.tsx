@@ -46,9 +46,9 @@ export default function HomeScreen() {
             body: 'Controller-side daily release with explicit on-chain conditions.',
           },
           {
-            eyebrow: 'Expansion',
-            value: 'Earn',
-            body: 'Airdrop and ambassador layers live as separate product pages.',
+            eyebrow: 'Architecture',
+            value: 'Info',
+            body: 'Contract map, routing rules, vaults, executors, and verification links.',
           },
         ]}
       />
@@ -91,17 +91,22 @@ export default function HomeScreen() {
         />
       </ProductSection>
 
-      <ProductSection eyebrow="EARNING LAYERS" title="Reward and community rails">
+      <ProductSection eyebrow="SYSTEM INFO" title="Blockchain architecture">
         <ProductRouteCard
-          eyebrow="EARN"
-          title="Airdrop and ambassador flows"
-          body="The earn area groups the two external-facing growth flows: airdrop participation and ambassador registration plus cabinet access."
-          value="2 FLOWS"
-          icon="hand-coin-outline"
-          primaryLabel="Open Earn"
+          eyebrow="INFO"
+          title="Contracts, routing, vaults and executors"
+          body="Open the compact architecture map: token, controller, liquidity module, vaults, ambassador accounting, and the Tronscan links needed to verify the system."
+          value="ON-CHAIN"
+          icon="information-outline"
+          primaryLabel="Open Info"
           onPrimaryPress={() => router.push('/earn')}
-          secondaryLabel="Open Airdrop"
-          onSecondaryPress={() => router.push('/airdrop')}
+          secondaryLabel="Contracts Repo"
+          onSecondaryPress={() =>
+            void openInAppBrowser(
+              router,
+              'https://github.com/info14fourteen-creator/4teen-smart-contracts'
+            )
+          }
         />
       </ProductSection>
     </ProductScreen>

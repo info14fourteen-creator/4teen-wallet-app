@@ -227,8 +227,8 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
           {
             label: 'MAIN',
             active: false,
-            icon: 'home-variant-outline',
-            activeIcon: 'home-variant',
+            icon: 'menu',
+            activeIcon: 'menu',
             onPress: goWallet,
           },
           {
@@ -279,8 +279,8 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
             {
               label: 'MAIN',
               active: false,
-              icon: 'view-dashboard-outline',
-              activeIcon: 'view-dashboard',
+              icon: 'menu',
+              activeIcon: 'menu',
               onPress: goWallet,
             },
           ]
