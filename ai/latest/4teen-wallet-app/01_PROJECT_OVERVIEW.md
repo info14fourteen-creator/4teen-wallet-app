@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-21T12:49:44.034Z
+Generated: 2026-04-21T19:51:42.888Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 18ebf50652dbc535f072fe68439d9dca6a5b7dcd
-Short commit: 18ebf50
-Commit subject: Build buy swap referral unlock flows
+Last commit: 701448b1110ab537d77614840f0d099091033ad1
+Short commit: 701448b
+Commit subject: Build info and liquidity architecture surfaces
 Commit author: info14fourteen-creator
-Commit date: 2026-04-21T17:17:46+05:00
+Commit date: 2026-04-22T00:51:01+05:00
 
 ## Curated project tree
 
@@ -212,8 +212,10 @@ Commit date: 2026-04-21T17:17:46+05:00
           - storage.ts
         - address-book.ts
         - ambassador.ts
+        - asset-wallets.ts
         - direct-buy-draft.ts
         - direct-buy.ts
+        - liquidity-controller.ts
         - recent-recipients.ts
         - referral.ts
         - unlock-timeline.ts
@@ -260,8 +262,6 @@ Commit date: 2026-04-21T17:17:46+05:00
 - backups/
   - search-header-20260415-210130/
     - about.tsx
-    - add-custom-token.tsx
-    - address-book.tsx
 - docs/
   - ai-snapshots/
     - 2026-04-09-wallet-home-wired.md

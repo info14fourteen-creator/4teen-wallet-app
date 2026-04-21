@@ -1,91 +1,32 @@
 {
-  "generatedAt": "2026-04-21T12:49:44.036Z",
+  "generatedAt": "2026-04-21T19:51:42.890Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "18ebf50652dbc535f072fe68439d9dca6a5b7dcd",
-    "shortHash": "18ebf50",
-    "subject": "Build buy swap referral unlock flows",
+    "hash": "701448b1110ab537d77614840f0d099091033ad1",
+    "shortHash": "701448b",
+    "subject": "Build info and liquidity architecture surfaces",
     "author": "info14fourteen-creator",
-    "date": "2026-04-21T17:17:46+05:00"
+    "date": "2026-04-22T00:51:01+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/_layout.tsx",
-    "M\tapps/mobile/app/add-custom-token.tsx",
-    "M\tapps/mobile/app/address-book.tsx",
-    "M\tapps/mobile/app/airdrop.tsx",
-    "M\tapps/mobile/app/ambassador-program.tsx",
-    "M\tapps/mobile/app/authentication-method.tsx",
-    "M\tapps/mobile/app/browser.tsx",
-    "M\tapps/mobile/app/buy-4teen.tsx",
-    "A\tapps/mobile/app/buy-confirm.tsx",
-    "A\tapps/mobile/app/buy.tsx",
-    "M\tapps/mobile/app/confirm-passcode.tsx",
-    "M\tapps/mobile/app/create-passcode.tsx",
     "M\tapps/mobile/app/earn.tsx",
-    "M\tapps/mobile/app/enable-biometrics.tsx",
-    "M\tapps/mobile/app/export-mnemonic.tsx",
     "M\tapps/mobile/app/home.tsx",
-    "M\tapps/mobile/app/import-private-key.tsx",
-    "M\tapps/mobile/app/import-seed.tsx",
-    "M\tapps/mobile/app/import-watch-only.tsx",
-    "M\tapps/mobile/app/index.tsx",
     "M\tapps/mobile/app/liquidity-controller.tsx",
-    "M\tapps/mobile/app/manage-crypto.tsx",
-    "M\tapps/mobile/app/scan.tsx",
-    "M\tapps/mobile/app/select-wallet.tsx",
-    "M\tapps/mobile/app/send-confirm.tsx",
-    "M\tapps/mobile/app/send.tsx",
-    "M\tapps/mobile/app/settings.tsx",
-    "A\tapps/mobile/app/swap-confirm.tsx",
-    "M\tapps/mobile/app/swap.tsx",
-    "M\tapps/mobile/app/token-details.tsx",
-    "M\tapps/mobile/app/ui-shell-lab.tsx",
     "M\tapps/mobile/app/unlock-timeline.tsx",
-    "M\tapps/mobile/app/unlock.tsx",
-    "A\tapps/mobile/app/wallet-access.tsx",
-    "A\tapps/mobile/app/wallet-manager.tsx",
-    "M\tapps/mobile/app/wallet.tsx",
-    "M\tapps/mobile/app/wallets.tsx",
-    "A\tapps/mobile/modules/install-referrer/android/build.gradle",
-    "A\tapps/mobile/modules/install-referrer/android/src/main/java/expo/modules/installreferrer/InstallReferrerModule.kt",
-    "A\tapps/mobile/modules/install-referrer/expo-module.config.json",
-    "A\tapps/mobile/modules/install-referrer/index.ts",
-    "A\tapps/mobile/modules/install-referrer/package.json",
-    "A\tapps/mobile/modules/install-referrer/src/InstallReferrerModule.ts",
     "M\tapps/mobile/package.json",
     "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/config/tron.ts",
-    "M\tapps/mobile/src/search/search-routes.ts",
-    "M\tapps/mobile/src/search/search-sheet.tsx",
-    "A\tapps/mobile/src/services/ambassador.ts",
-    "A\tapps/mobile/src/services/direct-buy-draft.ts",
-    "A\tapps/mobile/src/services/direct-buy.ts",
-    "A\tapps/mobile/src/services/referral.ts",
-    "A\tapps/mobile/src/services/swap/draft.ts",
-    "A\tapps/mobile/src/services/swap/sunio.ts",
-    "M\tapps/mobile/src/services/tron/api.ts",
-    "M\tapps/mobile/src/services/tron/index.ts",
-    "A\tapps/mobile/src/services/unlock-timeline.ts",
-    "M\tapps/mobile/src/services/wallet/portfolio.ts",
-    "A\tapps/mobile/src/services/wallet/resources.ts",
-    "M\tapps/mobile/src/services/wallet/send.ts",
-    "M\tapps/mobile/src/services/wallet/storage.ts",
-    "M\tapps/mobile/src/ui/app-header.tsx",
-    "M\tapps/mobile/src/ui/expand-chevron.tsx",
+    "A\tapps/mobile/src/services/asset-wallets.ts",
+    "A\tapps/mobile/src/services/liquidity-controller.ts",
     "M\tapps/mobile/src/ui/footer-nav.tsx",
-    "M\tapps/mobile/src/ui/menu-sheet.tsx",
-    "M\tapps/mobile/src/ui/navigation-routes.ts",
-    "A\tapps/mobile/src/ui/product-shell.tsx",
-    "M\tapps/mobile/src/ui/screen-brow.tsx",
-    "M\tapps/mobile/src/ui/screen-loading-state.tsx",
-    "M\tapps/mobile/src/ui/top-chrome.tsx",
-    "A\tapps/mobile/src/ui/ui-icons.tsx",
-    "A\tapps/mobile/src/ui/use-swipe-down-dismiss.ts",
-    "M\tapps/mobile/src/wallet/wallet-session.tsx"
+    "M\tapps/mobile/src/ui/product-shell.tsx"
   ],
   "activeFiles": [
+    {
+      "file": "apps/mobile/src/config/app-version.ts",
+      "count": 6
+    },
     {
       "file": "apps/mobile/app/address-book.tsx",
       "count": 5
@@ -96,10 +37,6 @@
     },
     {
       "file": "apps/mobile/app/wallets.tsx",
-      "count": 5
-    },
-    {
-      "file": "apps/mobile/src/config/app-version.ts",
       "count": 5
     },
     {
@@ -124,6 +61,10 @@
     },
     {
       "file": "apps/mobile/app/token-details.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/package.json",
       "count": 4
     },
     {
@@ -159,6 +100,10 @@
       "count": 3
     },
     {
+      "file": "apps/mobile/app/earn.tsx",
+      "count": 3
+    },
+    {
       "file": "apps/mobile/app/enable-biometrics.tsx",
       "count": 3
     },
@@ -175,6 +120,10 @@
       "count": 3
     },
     {
+      "file": "apps/mobile/app/liquidity-controller.tsx",
+      "count": 3
+    },
+    {
       "file": "apps/mobile/app/manage-crypto.tsx",
       "count": 3
     },
@@ -187,23 +136,11 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/package.json",
+      "file": "apps/mobile/app/unlock-timeline.tsx",
       "count": 3
     },
     {
       "file": "apps/mobile/src/search/search-types.ts",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/services/tron/api.ts",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/services/wallet/portfolio.ts",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/services/wallet/send.ts",
       "count": 3
     }
   ],
@@ -392,8 +329,10 @@
     "apps/mobile/src/security/local-auth.ts",
     "apps/mobile/src/services/address-book.ts",
     "apps/mobile/src/services/ambassador.ts",
+    "apps/mobile/src/services/asset-wallets.ts",
     "apps/mobile/src/services/direct-buy-draft.ts",
     "apps/mobile/src/services/direct-buy.ts",
+    "apps/mobile/src/services/liquidity-controller.ts",
     "apps/mobile/src/services/recent-recipients.ts",
     "apps/mobile/src/services/referral.ts",
     "apps/mobile/src/services/swap/draft.ts",
@@ -439,9 +378,7 @@
     "apps/mobile/src/wallet/wallet-session.tsx",
     "apps/mobile/svg.d.ts",
     "apps/mobile/tsconfig.json",
-    "backups/search-header-20260415-210130/about.tsx",
-    "backups/search-header-20260415-210130/add-custom-token.tsx",
-    "backups/search-header-20260415-210130/address-book.tsx"
+    "backups/search-header-20260415-210130/about.tsx"
   ],
   "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
   "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"
