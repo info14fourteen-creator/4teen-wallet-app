@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-19T02:27:44.040Z
+Generated: 2026-04-21T12:49:44.034Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 1293b5ab16bf25a50afee081dc980b53288d6185
-Short commit: 1293b5a
-Commit subject: feat(mobile): polish wallet send flow
+Last commit: 18ebf50652dbc535f072fe68439d9dca6a5b7dcd
+Short commit: 18ebf50
+Commit subject: Build buy swap referral unlock flows
 Commit author: info14fourteen-creator
-Commit date: 2026-04-19T07:27:25+05:00
+Commit date: 2026-04-21T17:17:46+05:00
 
 ## Curated project tree
 
@@ -34,6 +34,8 @@ Commit date: 2026-04-19T07:27:25+05:00
       - backup-private-key.tsx
       - browser.tsx
       - buy-4teen.tsx
+      - buy-confirm.tsx
+      - buy.tsx
       - confirm-passcode.tsx
       - connections.tsx
       - create-passcode.tsx
@@ -59,6 +61,7 @@ Commit date: 2026-04-19T07:27:25+05:00
       - send-confirm.tsx
       - send.tsx
       - settings.tsx
+      - swap-confirm.tsx
       - swap.tsx
       - terms.tsx
       - token-details.tsx
@@ -66,6 +69,8 @@ Commit date: 2026-04-19T07:27:25+05:00
       - ui-shell-lab.tsx
       - unlock-timeline.tsx
       - unlock.tsx
+      - wallet-access.tsx
+      - wallet-manager.tsx
       - wallet.tsx
       - wallets.tsx
       - whitepaper.tsx
@@ -166,6 +171,13 @@ Commit date: 2026-04-19T07:27:25+05:00
       - use-color-scheme.ts
       - use-color-scheme.web.ts
       - use-theme-color.ts
+    - modules/
+      - install-referrer/
+        - src/
+          - InstallReferrerModule.ts
+        - expo-module.config.json
+        - index.ts
+        - package.json
     - scripts/
       - create-stub-screen.mjs
       - reset-project.js
@@ -184,6 +196,9 @@ Commit date: 2026-04-19T07:27:25+05:00
       - security/
         - local-auth.ts
       - services/
+        - swap/
+          - draft.ts
+          - sunio.ts
         - tron/
           - api.ts
           - fourteen-price.ts
@@ -192,10 +207,16 @@ Commit date: 2026-04-19T07:27:25+05:00
           - import.ts
           - index.ts
           - portfolio.ts
+          - resources.ts
           - send.ts
           - storage.ts
         - address-book.ts
+        - ambassador.ts
+        - direct-buy-draft.ts
+        - direct-buy.ts
         - recent-recipients.ts
+        - referral.ts
+        - unlock-timeline.ts
       - theme/
         - patterns.ts
         - tokens.ts
@@ -215,13 +236,16 @@ Commit date: 2026-04-19T07:27:25+05:00
         - navigation.constants.ts
         - navigation.tsx
         - numeric-keypad.tsx
+        - product-shell.tsx
         - screen-brow.tsx
         - screen-loading-state.tsx
         - stub-screen.tsx
         - thin-orange-loader.tsx
         - top-chrome.tsx
+        - ui-icons.tsx
         - use-bottom-inset.ts
         - use-chrome-loading.ts
+        - use-swipe-down-dismiss.ts
       - utils/
         - open-in-app-browser.ts
       - wallet/
@@ -238,24 +262,6 @@ Commit date: 2026-04-19T07:27:25+05:00
     - about.tsx
     - add-custom-token.tsx
     - address-book.tsx
-    - backup-private-key.tsx
-    - confirm-passcode.tsx
-    - connections.tsx
-    - create-passcode.tsx
-    - create-wallet.tsx
-    - enable-biometrics.tsx
-    - export-mnemonic.tsx
-    - import-private-key.tsx
-    - import-seed.tsx
-    - import-wallet.tsx
-    - import-watch-only.tsx
-    - manage-crypto.tsx
-    - multisig-transactions.tsx
-    - settings.tsx
-    - terms.tsx
-    - token-details.tsx
-    - ui-lab.tsx
-    - whitepaper.tsx
 - docs/
   - ai-snapshots/
     - 2026-04-09-wallet-home-wired.md
@@ -263,8 +269,6 @@ Commit date: 2026-04-19T07:27:25+05:00
 - scripts/
   - build-wallet-ai-bundles.mjs
 - package.json
-- pnpm-workspace.yaml
-- turbo.json
 ```
 
 ## Included files

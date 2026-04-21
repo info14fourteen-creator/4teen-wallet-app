@@ -1,13 +1,13 @@
 # 4teen-wallet-app — APP STRUCTURE
 
-Generated: 2026-04-19T02:27:44.041Z
+Generated: 2026-04-21T12:49:44.034Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 1293b5ab16bf25a50afee081dc980b53288d6185
-Short commit: 1293b5a
-Commit subject: feat(mobile): polish wallet send flow
+Last commit: 18ebf50652dbc535f072fe68439d9dca6a5b7dcd
+Short commit: 18ebf50
+Commit subject: Build buy swap referral unlock flows
 Commit author: info14fourteen-creator
-Commit date: 2026-04-19T07:27:25+05:00
+Commit date: 2026-04-21T17:17:46+05:00
 
 ## Included files
 
