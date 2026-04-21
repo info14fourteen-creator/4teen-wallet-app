@@ -40,8 +40,7 @@ import {
   type WalletPortfolioSnapshot,
 } from '../src/services/wallet/portfolio';
 
-import ToggleOffIcon from '../assets/icons/ui/toggle_off_btn.svg';
-import ToggleOnIcon from '../assets/icons/ui/toggle_on_btn.svg';
+import { ToggleOffIcon, ToggleOnIcon } from '../src/ui/ui-icons';
 
 const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
   TRX_TOKEN_ID,

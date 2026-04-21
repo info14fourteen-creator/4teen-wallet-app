@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,11 +12,6 @@ import {
   APP_HEADER_SIDE_PADDING,
 } from './app-header.constants';
 import { shouldRenderSharedNavigation } from './navigation-routes';
-
-import MenuIcon from '../../assets/icons/ui/menu.svg';
-import SearchIcon from '../../assets/icons/ui/search.svg';
-import ScanIcon from '../../assets/icons/ui/scan.svg';
-import CloseIcon from '../../assets/icons/ui/close.svg';
 
 type AppHeaderProps = {
   onMenuPress?: () => void;
@@ -112,7 +108,11 @@ export default function AppHeader({
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <View style={styles.iconBox}>
-              {showClose ? <CloseIcon width={22} height={22} /> : <MenuIcon width={24} height={24} />}
+              <MaterialCommunityIcons
+                name={showClose ? 'close' : 'menu'}
+                size={showClose ? 22 : 22}
+                color={colors.white}
+              />
             </View>
           </TouchableOpacity>
 
@@ -121,7 +121,7 @@ export default function AppHeader({
             style={({ pressed }) => [styles.searchButton, pressed && styles.searchButtonPressed]}
           >
             <View style={styles.searchLeft}>
-              <SearchIcon width={16} height={16} />
+              <MaterialCommunityIcons name="magnify" size={17} color={colors.textDim} />
               <Text style={styles.searchText}>crypto, address, dapp...</Text>
             </View>
           </Pressable>
@@ -133,7 +133,7 @@ export default function AppHeader({
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <View style={styles.iconBox}>
-              <ScanIcon width={22} height={22} />
+              <MaterialCommunityIcons name="qrcode-scan" size={20} color={colors.white} />
             </View>
           </TouchableOpacity>
         </View>

@@ -4,7 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/tokens';
 import ThinOrangeLoader from './thin-orange-loader';
 
-export default function ScreenLoadingState() {
+type ScreenLoadingStateProps = {
+  label?: string;
+};
+
+export default function ScreenLoadingState(_props: ScreenLoadingStateProps) {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>

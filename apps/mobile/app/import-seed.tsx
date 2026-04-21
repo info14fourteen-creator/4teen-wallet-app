@@ -22,8 +22,7 @@ import {
   importWalletFromMnemonic,
   normalizeMnemonicInput,
 } from '../src/services/wallet/import';
-
-import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
+import { ConfirmIcon } from '../src/ui/ui-icons';
 
 const MAX_WALLET_NAME_LENGTH = 18;
 

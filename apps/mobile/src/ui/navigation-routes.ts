@@ -5,6 +5,8 @@ const ROUTES_WITHOUT_SHARED_NAVIGATION = new Set([
   '/create-passcode',
   '/confirm-passcode',
   '/modal',
+  '/ui-lab',
+  '/wallet-access',
 ]);
 
 const ROUTES_WITH_LOCAL_NAVIGATION = new Set([

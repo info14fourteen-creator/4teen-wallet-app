@@ -33,8 +33,7 @@ import {
   type TronscanTokenListItem,
 } from '../src/services/tron/api';
 
-import ToggleOffIcon from '../assets/icons/ui/toggle_off_btn.svg';
-import ToggleOnIcon from '../assets/icons/ui/toggle_on_btn.svg';
+import { ToggleOffIcon, ToggleOnIcon } from '../src/ui/ui-icons';
 import {
   buildWalletHomeVisibleTokensStorageKey,
   getActiveWallet,

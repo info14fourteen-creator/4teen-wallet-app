@@ -11,9 +11,7 @@ import {
   verifyPasscode,
 } from '../src/security/local-auth';
 import { useWalletSession } from '../src/wallet/wallet-session';
-
-import BioLoginIcon from '../assets/icons/ui/biologin_btn.svg';
-import BackspaceIcon from '../assets/icons/ui/backspace_btn.svg';
+import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 
 const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'BIO', '0', 'DELETE'] as const;
 

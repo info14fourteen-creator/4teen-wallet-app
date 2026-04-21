@@ -1,0 +1,11 @@
+{
+  "name": "fourteen-install-referrer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Deferred install referral bridge for 4TEEN Wallet",
+  "main": "index.ts",
+  "peerDependencies": {
+    "expo": "*",
+    "react-native": "*"
+  }
+}

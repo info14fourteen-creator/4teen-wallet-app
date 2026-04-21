@@ -21,10 +21,7 @@ import {
   importWalletFromWatchOnly,
   isValidTronAddress,
 } from '../src/services/wallet/import';
-
-import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
-import PasteIcon from '../assets/icons/ui/paste_btn.svg';
-import ScanIcon from '../assets/icons/ui/scan.svg';
+import { ConfirmIcon, PasteIcon, ScanIcon } from '../src/ui/ui-icons';
 
 const MAX_WALLET_NAME_LENGTH = 18;
 const ADDRESS_BOX_HEIGHT = 92;

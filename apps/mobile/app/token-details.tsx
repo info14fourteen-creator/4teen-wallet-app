@@ -23,7 +23,7 @@ import useChromeLoading from '../src/ui/use-chrome-loading';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
-import { getActiveWallet } from '../src/services/wallet/storage';
+import { ensureSigningWalletActive, getActiveWallet } from '../src/services/wallet/storage';
 import {
   clearTokenHistoryCache,
   getTokenDetails,
@@ -36,11 +36,13 @@ import {
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
 
-import CopyIcon from '../assets/icons/ui/copy_btn.svg';
-import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
-import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
-import ShareIcon from '../assets/icons/ui/share_btn.svg';
-import BrowserRefreshIcon from '../assets/icons/ui/browser_refresh_btn.svg';
+import {
+  BrowserRefreshIcon,
+  CopyIcon,
+  OpenDownIcon,
+  OpenRightIcon,
+  ShareIcon,
+} from '../src/ui/ui-icons';
 
 function formatUsd(value?: number, maximumFractionDigits = 2) {
   const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -120,11 +122,11 @@ function formatHistoryAmount(item: TokenHistoryItem) {
   const clean = item.amountFormatted.replace(/^[+-]\s*/, '');
 
   if (item.displayType === 'RECEIVE') {
-    return `+${clean}`;
+    return `+ ${clean}`;
   }
 
   if (item.displayType === 'SEND') {
-    return `-${clean}`;
+    return `- ${clean}`;
   }
 
   return clean;
@@ -164,7 +166,6 @@ export default function TokenDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [poolsOpen, setPoolsOpen] = useState(false);
   const [marketInfoOpen, setMarketInfoOpen] = useState(false);
   const [details, setDetails] = useState<TokenDetails | null>(null);
@@ -218,11 +219,9 @@ export default function TokenDetailsScreen() {
           ...nextDetails,
           history: dedupeHistory(nextDetails.history),
         });
-        setHistoryLoaded(true);
       } catch (error) {
         console.error(error);
         setDetails(null);
-        setHistoryLoaded(false);
         setErrorText('Failed to load token details.');
         notice.showErrorNotice('Token details failed to load.', 2600);
       } finally {
@@ -300,8 +299,6 @@ export default function TokenDetailsScreen() {
           historyHasMore: page.hasMore,
         };
       });
-
-      setHistoryLoaded(true);
     } catch (error) {
       console.error(error);
       notice.showErrorNotice('Token history failed to load.', 2200);
@@ -329,13 +326,12 @@ export default function TokenDetailsScreen() {
         if (!current) return current;
 
         const merged = dedupeHistory([...current.history, ...page.items]);
-        const appendedUniqueCount = merged.length - current.history.length;
 
         return {
           ...current,
           history: merged,
-          historyNextFingerprint: appendedUniqueCount > 0 ? page.nextFingerprint : undefined,
-          historyHasMore: appendedUniqueCount > 0 ? page.hasMore : false,
+          historyNextFingerprint: page.nextFingerprint,
+          historyHasMore: page.hasMore,
         };
       });
     } catch (error) {
@@ -553,12 +549,25 @@ export default function TokenDetailsScreen() {
                 <TouchableOpacity
                   activeOpacity={0.9}
                   style={styles.tokenPrimaryButton}
-                  onPress={() =>
+                  onPress={() => void (async () => {
+                    const wallet = await getActiveWallet();
+
+                    if (wallet?.kind === 'watch-only') {
+                      const signingWallet = await ensureSigningWalletActive();
+                      if (!signingWallet) {
+                        notice.showNeutralNotice(
+                          'Send requires a signing wallet. Import or switch to a full-access wallet first.',
+                          3200
+                        );
+                        return;
+                      }
+                    }
+
                     router.push({
                       pathname: '/send',
                       params: { tokenId: details.tokenId },
-                    } as any)
-                  }
+                    } as any);
+                  })()}
                 >
                   <Text style={styles.tokenPrimaryButtonText}>Send</Text>
                 </TouchableOpacity>
@@ -566,7 +575,33 @@ export default function TokenDetailsScreen() {
                 <TouchableOpacity
                   activeOpacity={0.9}
                   style={styles.tokenSecondaryButton}
-                  onPress={() => router.push('/swap')}
+                  onPress={() => void (async () => {
+                    const wallet = await getActiveWallet();
+                    let targetWalletId: string | undefined;
+
+                    if (wallet?.kind === 'watch-only') {
+                      const signingWallet = await ensureSigningWalletActive();
+                      if (!signingWallet) {
+                        notice.showNeutralNotice(
+                          'Swap requires a signing wallet. Import or switch to a full-access wallet first.',
+                          3200
+                        );
+                        return;
+                      }
+
+                      targetWalletId = signingWallet.id;
+                    } else if (wallet?.id) {
+                      targetWalletId = wallet.id;
+                    }
+
+                    router.push({
+                      pathname: '/swap',
+                      params: {
+                        tokenId: details.tokenId,
+                        walletId: targetWalletId,
+                      },
+                    } as any);
+                  })()}
                 >
                   <Text style={styles.tokenSecondaryButtonText}>Swap</Text>
                 </TouchableOpacity>

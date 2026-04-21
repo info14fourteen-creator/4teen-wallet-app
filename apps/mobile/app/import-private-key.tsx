@@ -22,9 +22,7 @@ import {
   isValidPrivateKey,
   normalizePrivateKey,
 } from '../src/services/wallet/import';
-
-import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
-import PasteIcon from '../assets/icons/ui/paste_btn.svg';
+import { ConfirmIcon, PasteIcon } from '../src/ui/ui-icons';
 
 const MAX_WALLET_NAME_LENGTH = 18;
 const KEY_BOX_HEIGHT = 152;

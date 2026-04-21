@@ -155,6 +155,32 @@ export async function getActiveWallet(): Promise<WalletMeta | null> {
   return getWalletById(id);
 }
 
+export async function getFirstSigningWallet(excludeId?: string): Promise<WalletMeta | null> {
+  const wallets = await listWallets();
+  const excluded = String(excludeId || '').trim();
+
+  return (
+    wallets.find((wallet) => wallet.kind !== 'watch-only' && wallet.id !== excluded) ?? null
+  );
+}
+
+export async function ensureSigningWalletActive(): Promise<WalletMeta | null> {
+  const activeWallet = await getActiveWallet();
+
+  if (activeWallet?.kind !== 'watch-only') {
+    return activeWallet;
+  }
+
+  const fallbackWallet = await getFirstSigningWallet(activeWallet?.id);
+
+  if (!fallbackWallet) {
+    return null;
+  }
+
+  await setActiveWalletId(fallbackWallet.id);
+  return fallbackWallet;
+}
+
 export async function renameWallet(id: string, nextName: string): Promise<WalletMeta> {
   const name = nextName.trim();
 

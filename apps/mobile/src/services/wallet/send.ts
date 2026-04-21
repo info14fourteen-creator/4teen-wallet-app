@@ -1,7 +1,7 @@
 import { TronWeb } from 'tronweb';
 
 import {
-  TRONGRID_API_KEYS,
+  buildTrongridHeaders,
   TRONGRID_BASE_URL,
 } from '../../config/tron';
 import {
@@ -91,15 +91,10 @@ export type SendAssetTransferEstimate = {
   };
 };
 
-function getTrongridHeader() {
-  const apiKey = TRONGRID_API_KEYS.find((item) => String(item || '').trim());
-  return apiKey ? { 'TRON-PRO-API-KEY': apiKey } : {};
-}
-
 function createTronWeb(privateKey?: string) {
   return new TronWeb({
     fullHost: TRONGRID_BASE_URL,
-    headers: getTrongridHeader(),
+    headers: buildTrongridHeaders(),
     privateKey,
   });
 }

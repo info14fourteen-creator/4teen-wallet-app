@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TronWeb } from 'tronweb';
 import {
   assertTronConfig,
   TRONGRID_API_KEYS,
@@ -31,7 +32,7 @@ export const FOURTEEN_CONTRACT = 'TMLXiCW2ZAkvjmn79ZXa4vdHX5BE3n9x4A';
 
 const TOKEN_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
 const TOKEN_HISTORY_CACHE_PREFIX = 'fourteen_token_history_cache_v10';
-const WALLET_HISTORY_CACHE_PREFIX = 'fourteen_wallet_history_cache_v1';
+const WALLET_HISTORY_CACHE_PREFIX = 'fourteen_wallet_history_cache_v3';
 const DEFAULT_WALLET_HISTORY_LIMIT = 20;
 
 const KEY_COOLDOWN_MS = 30_000;
@@ -43,7 +44,6 @@ const ACCOUNT_INFO_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACCOUNT_TRC20_ASSETS_CACHE_TTL_MS = 2 * 60 * 1000;
 const WALLET_SNAPSHOT_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACCOUNT_RESOURCES_CACHE_TTL_MS = 2 * 60 * 1000;
-const CUSTOM_TOKEN_CATALOG_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const CUSTOM_TOKEN_CATALOG_STORAGE_KEY_PREFIX = 'wallet.customTokenCatalog.v2';
 
 function normalizeCustomTokenCatalogWalletId(walletId: string) {
@@ -53,8 +53,6 @@ function normalizeCustomTokenCatalogWalletId(walletId: string) {
 function buildCustomTokenCatalogStorageKey(walletId: string) {
   return `${CUSTOM_TOKEN_CATALOG_STORAGE_KEY_PREFIX}:${normalizeCustomTokenCatalogWalletId(walletId)}`;
 }
-const TRONSCAN_PRICED_TOKENS_URL = 'https://apilist.tronscanapi.com/api/getAssetWithPriceList';
-
 type ProviderName = 'tronscan' | 'trongrid';
 
 type MarketMeta = {
@@ -135,11 +133,6 @@ export type CmcDexSearchToken = {
   abbr: string;
   logo?: string;
   liquidityUsd?: number;
-};
-
-type CustomTokenCatalogCachePayload = {
-  savedAt: number;
-  items: CustomTokenCatalogItem[];
 };
 
 export type CustomTokenCatalogItem = {
@@ -247,6 +240,7 @@ export type TokenPoolInfo = {
 };
 
 export type TokenHistoryDisplayType = 'RECEIVE' | 'SEND';
+export type HistoryTransactionStatus = 'success' | 'failed' | 'pending';
 
 export type TokenHistoryItem = {
   id: string;
@@ -262,6 +256,10 @@ export type TokenHistoryItem = {
   counterpartyLabel?: string;
   isKnownContact: boolean;
   tronscanUrl: string;
+  transactionStatus?: HistoryTransactionStatus;
+  contractType?: string;
+  eventType?: string;
+  methodName?: string;
 };
 
 export type TokenHistoryPage = {
@@ -281,6 +279,28 @@ export type WalletHistoryPage = {
   items: WalletHistoryItem[];
   nextFingerprint?: string;
   hasMore: boolean;
+};
+
+type WalletHistoryCursor = {
+  txFingerprint?: string;
+  bufferedItems?: WalletHistoryItem[];
+};
+
+type WalletHistorySourceItem = WalletHistoryItem & {
+  sourceRowIndex: number;
+};
+
+type WalletTrc20HistorySourceRow = {
+  txHash: string;
+  timestamp: number;
+  tokenId: string;
+  fromAddress: string;
+  toAddress: string;
+  amountRaw: string;
+  eventName?: string;
+  methodName?: string;
+  contractType?: string;
+  transactionStatus?: HistoryTransactionStatus;
 };
 
 export type TokenDetails = {
@@ -313,6 +333,87 @@ type TrongridAccountItem = {
 
 type TrongridAccountResponse = {
   data?: TrongridAccountItem[];
+};
+
+type TrongridTransactionRet = {
+  contractRet?: string;
+  fee?: number | string;
+};
+
+type TrongridTransactionContract = {
+  parameter?: {
+    value?: Record<string, unknown>;
+    type_url?: string;
+  };
+  type?: string;
+};
+
+type TrongridTransactionItem = {
+  txID?: string;
+  block_timestamp?: number;
+  ret?: TrongridTransactionRet[];
+  raw_data?: {
+    contract?: TrongridTransactionContract[];
+    timestamp?: number;
+  };
+};
+
+type TrongridTransactionsResponse = {
+  data?: TrongridTransactionItem[];
+  success?: boolean;
+  meta?: {
+    at?: number;
+    fingerprint?: string;
+    links?: {
+      next?: string;
+    };
+    page_size?: number;
+  };
+};
+
+type TrongridTransactionEventItem = {
+  block_timestamp?: number;
+  contract_address?: string;
+  event_name?: string;
+  transaction_id?: string;
+  result?: Record<string, unknown>;
+};
+
+type TrongridTransactionEventsResponse = {
+  data?: TrongridTransactionEventItem[];
+  success?: boolean;
+  meta?: {
+    at?: number;
+    fingerprint?: string;
+    links?: {
+      next?: string;
+    };
+    page_size?: number;
+  };
+};
+
+type TrongridInternalTransactionItem = {
+  from_address?: string;
+  to_address?: string;
+  tx_id?: string;
+  block_timestamp?: number;
+  data?: {
+    rejected?: boolean;
+    call_value?: Record<string, number | string>;
+  };
+};
+
+type TrongridInternalTransactionsResponse = {
+  data?: TrongridInternalTransactionItem[];
+  success?: boolean;
+  meta?: {
+    at?: number;
+    fingerprint?: string;
+    links?: {
+      next?: string;
+    };
+    page_size?: number;
+  };
 };
 
 type TronscanTokenItem = {
@@ -451,6 +552,10 @@ type CmcDexTokenResponse = {
 
 type TronscanTransferItem = {
   contractRet?: string;
+  contractType?: string | number;
+  finalResult?: string;
+  result?: string;
+  event_type?: string;
   amount?: string | number;
   transactionHash?: string;
   tokenInfo?: {
@@ -477,6 +582,8 @@ type TronscanTransferResponse = {
 type TronscanTrc20TransferItem = {
   transaction_id?: string;
   status?: number;
+  contract_type?: string | number;
+  event_type?: string;
   block_ts?: number;
   from_address?: string;
   to_address?: string;
@@ -2066,6 +2173,55 @@ function formatHistoryAmount(
   return `-${base}`;
 }
 
+function normalizeHistoryContractType(value: unknown) {
+  const safe = String(value ?? '').trim();
+  return safe || undefined;
+}
+
+function normalizeHistoryEventType(value: unknown) {
+  const safe = String(value ?? '').trim();
+  return safe || undefined;
+}
+
+function normalizeHistoryMethodName(value: unknown) {
+  const safe = String(value ?? '').trim();
+  return safe || undefined;
+}
+
+function resolveHistoryTransactionStatus(input: {
+  confirmed?: boolean;
+  revert?: boolean;
+  contractRet?: unknown;
+  finalResult?: unknown;
+  result?: unknown;
+}): HistoryTransactionStatus {
+  if (input.revert) {
+    return 'failed';
+  }
+
+  const labels = [input.contractRet, input.finalResult, input.result]
+    .map((value) => String(value ?? '').trim().toUpperCase())
+    .filter(Boolean);
+
+  if (
+    labels.some(
+      (label) =>
+        label !== 'SUCCESS' &&
+        label !== 'SUCCESSFUL' &&
+        label !== 'SUCESS' &&
+        label !== 'OK'
+    )
+  ) {
+    return 'failed';
+  }
+
+  if (input.confirmed === false) {
+    return 'pending';
+  }
+
+  return 'success';
+}
+
 function isTokenHistoryItem(item: TokenHistoryItem | null): item is TokenHistoryItem {
   return item !== null;
 }
@@ -2137,6 +2293,17 @@ function buildTrc20TransferHistoryItems(
           counterpartyLabel: contactName || shortenAddress(counterpartyAddress),
           isKnownContact: Boolean(contactName),
           tronscanUrl: buildTronscanTxUrl(txHash),
+          transactionStatus: resolveHistoryTransactionStatus({
+            confirmed: item.confirmed,
+            revert: item.revert,
+            contractRet: item.contractRet,
+            finalResult: item.finalResult,
+          }),
+          contractType: normalizeHistoryContractType(item.contract_type),
+          eventType: normalizeHistoryEventType(item.event_type),
+          methodName: normalizeHistoryMethodName(
+            item.trigger_info?.methodName || item.trigger_info?.method
+          ),
         };
       })
       .filter(isTokenHistoryItem)
@@ -2194,13 +2361,21 @@ function buildTrxTransferHistoryItems(
           counterpartyLabel: contactName || shortenAddress(counterpartyAddress),
           isKnownContact: Boolean(contactName),
           tronscanUrl: buildTronscanTxUrl(txHash),
+          transactionStatus: resolveHistoryTransactionStatus({
+            confirmed: item.confirmed,
+            contractRet: item.contractRet,
+            finalResult: item.finalResult,
+            result: item.result,
+          }),
+          contractType: normalizeHistoryContractType(item.contractType),
+          eventType: normalizeHistoryEventType(item.event_type),
         };
       })
       .filter(isTokenHistoryItem)
   );
 }
 
-function dedupeWalletHistoryItems(items: WalletHistoryItem[]) {
+function dedupeWalletHistoryItems<T extends WalletHistoryItem>(items: T[]) {
   const seen = new Set<string>();
 
   return items.filter((item) => {
@@ -2215,18 +2390,378 @@ function dedupeWalletHistoryItems(items: WalletHistoryItem[]) {
   });
 }
 
+function normalizeTrongridAddress(value: unknown) {
+  const safe = String(value ?? '').trim();
+  if (!safe) return '';
+  if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(safe)) return safe;
+
+  let hex = safe;
+  if (hex.startsWith('0x') || hex.startsWith('0X')) {
+    hex = hex.slice(2);
+  }
+
+  if (hex.length === 40) {
+    hex = `41${hex}`;
+  }
+
+  if (!/^41[0-9a-fA-F]{40}$/.test(hex)) {
+    return safe;
+  }
+
+  try {
+    return TronWeb.address.fromHex(hex);
+  } catch {
+    return safe;
+  }
+}
+
+function getTrongridTransactionContract(tx: TrongridTransactionItem | null | undefined) {
+  return tx?.raw_data?.contract?.[0];
+}
+
+function getTrongridTransactionContractValue(tx: TrongridTransactionItem | null | undefined) {
+  return (getTrongridTransactionContract(tx)?.parameter?.value ?? {}) as Record<string, unknown>;
+}
+
+async function getTrongridTransactionEvents(txHash: string) {
+  const safeTxHash = String(txHash || '').trim();
+  if (!safeTxHash) return [];
+
+  try {
+    const response = await trongridFetch<TrongridTransactionEventsResponse>(
+      `/v1/transactions/${safeTxHash}/events`
+    );
+    return response.data ?? [];
+  } catch (error) {
+    console.warn('Failed to load Trongrid transaction events:', safeTxHash, error);
+    return [];
+  }
+}
+
+async function getTrongridInternalTransactions(txHash: string) {
+  const safeTxHash = String(txHash || '').trim();
+  if (!safeTxHash) return [];
+
+  try {
+    const response = await trongridFetch<TrongridInternalTransactionsResponse>(
+      `/v1/transactions/${safeTxHash}/internal-transactions`
+    );
+    return response.data ?? [];
+  } catch (error) {
+    console.warn('Failed to load Trongrid internal transactions:', safeTxHash, error);
+    return [];
+  }
+}
+
+function buildWalletTrc20RowsFromTransaction(
+  walletAddress: string,
+  tx: TrongridTransactionItem,
+  events: TrongridTransactionEventItem[]
+): WalletTrc20HistorySourceRow[] {
+  const txHash = String(tx.txID || '').trim();
+  if (!txHash) {
+    return [];
+  }
+
+  const timestamp = Number(tx.block_timestamp ?? tx.raw_data?.timestamp ?? 0);
+  const contractType = normalizeHistoryContractType(getTrongridTransactionContract(tx)?.type);
+  const transactionStatus = resolveHistoryTransactionStatus({
+    contractRet: tx.ret?.[0]?.contractRet,
+  });
+  const walletKey = normalizeAddressKey(walletAddress);
+
+  return (events ?? [])
+    .map((event): WalletTrc20HistorySourceRow | null => {
+      const eventName = String(event.event_name || '').trim();
+      const normalizedEventName = eventName.toLowerCase();
+      const tokenId = normalizeTokenId(event.contract_address || '');
+      if (!tokenId) {
+        return null;
+      }
+
+      const result = event.result ?? {};
+
+      if (normalizedEventName === 'transfer') {
+        const fromAddress = normalizeTrongridAddress(result.from ?? result['0']);
+        const toAddress = normalizeTrongridAddress(result.to ?? result['1']);
+
+        if (
+          normalizeAddressKey(fromAddress) !== walletKey &&
+          normalizeAddressKey(toAddress) !== walletKey
+        ) {
+          return null;
+        }
+
+        return {
+          txHash,
+          timestamp: Number(event.block_timestamp ?? timestamp),
+          tokenId,
+          fromAddress,
+          toAddress,
+          amountRaw: String(result.value ?? result['2'] ?? '0'),
+          eventName,
+          methodName: 'transfer',
+          contractType,
+          transactionStatus,
+        };
+      }
+
+      if (normalizedEventName === 'approval') {
+        const ownerAddress = normalizeTrongridAddress(result.owner ?? result['0']);
+        const spenderAddress = normalizeTrongridAddress(result.spender ?? result['1']);
+
+        if (normalizeAddressKey(ownerAddress) !== walletKey) {
+          return null;
+        }
+
+        return {
+          txHash,
+          timestamp: Number(event.block_timestamp ?? timestamp),
+          tokenId,
+          fromAddress: ownerAddress,
+          toAddress: spenderAddress,
+          amountRaw: String(result.value ?? result['2'] ?? '0'),
+          eventName,
+          methodName: 'approve',
+          contractType,
+          transactionStatus,
+        };
+      }
+
+      return null;
+    })
+    .filter((item): item is WalletTrc20HistorySourceRow => Boolean(item));
+}
+
+function buildWalletInternalTrxHistoryItems(
+  walletAddress: string,
+  txHash: string,
+  contractType: string | undefined,
+  transactionStatus: HistoryTransactionStatus,
+  rows: TrongridInternalTransactionItem[],
+  addressBook: Record<string, string>
+): WalletHistorySourceItem[] {
+  const walletKey = normalizeAddressKey(walletAddress);
+  const totals = new Map<
+    'IN' | 'OUT',
+    {
+      amountSun: bigint;
+      timestamp: number;
+      fromAddress?: string;
+      toAddress?: string;
+      failed: boolean;
+    }
+  >();
+
+  for (const item of rows) {
+    const fromAddress = normalizeTrongridAddress(item.from_address);
+    const toAddress = normalizeTrongridAddress(item.to_address);
+
+    if (
+      normalizeAddressKey(fromAddress) !== walletKey &&
+      normalizeAddressKey(toAddress) !== walletKey
+    ) {
+      continue;
+    }
+
+    const amountRaw = String(item.data?.call_value?._ ?? '0').trim();
+    if (!amountRaw || !/^\d+$/.test(amountRaw)) {
+      continue;
+    }
+
+    const baseType = normalizeHistoryType(walletAddress, fromAddress, toAddress);
+    if (baseType === 'SELF') {
+      continue;
+    }
+
+    const current = totals.get(baseType) ?? {
+      amountSun: 0n,
+      timestamp: Number(item.block_timestamp || 0),
+      fromAddress,
+      toAddress,
+      failed: false,
+    };
+
+    current.amountSun += BigInt(amountRaw);
+    current.timestamp = Math.max(current.timestamp, Number(item.block_timestamp || 0));
+    current.fromAddress = current.fromAddress || fromAddress;
+    current.toAddress = current.toAddress || toAddress;
+    current.failed = current.failed || item.data?.rejected === true;
+    totals.set(baseType, current);
+  }
+
+  return dedupeWalletHistoryItems(
+    Array.from(totals.entries())
+      .map(([baseType, item], index): WalletHistorySourceItem | null => {
+        if (item.amountSun <= 0n) {
+          return null;
+        }
+
+        const amountRaw = item.amountSun.toString();
+        const fromAddress = String(item.fromAddress || '').trim();
+        const toAddress = String(item.toAddress || '').trim();
+        const displayType: TokenHistoryDisplayType = baseType === 'IN' ? 'RECEIVE' : 'SEND';
+        const counterpartyAddress = getCounterpartyAddress(
+          walletAddress,
+          baseType,
+          fromAddress,
+          toAddress
+        );
+        const counterpartyKey = normalizeAddressKey(counterpartyAddress);
+        const contactName = counterpartyKey ? addressBook[counterpartyKey] : undefined;
+
+        return {
+          id: `${TRX_TOKEN_ID}:${txHash}:internal:${baseType}:${index}`,
+          txHash,
+          type: baseType,
+          displayType,
+          amountRaw,
+          amountFormatted: formatHistoryAmount(amountRaw, 6, displayType),
+          timestamp: item.timestamp,
+          from: fromAddress,
+          to: toAddress,
+          counterpartyAddress,
+          counterpartyLabel: contactName || shortenAddress(counterpartyAddress),
+          isKnownContact: Boolean(contactName),
+          tronscanUrl: buildTronscanTxUrl(txHash),
+          transactionStatus: item.failed ? 'failed' : transactionStatus,
+          contractType,
+          eventType: 'InternalTransfer',
+          methodName: 'internal-transfer',
+          tokenId: TRX_TOKEN_ID,
+          tokenName: 'TRON',
+          tokenSymbol: TRX_SYMBOL,
+          tokenLogo: TRX_LOGO,
+          sourceRowIndex: index,
+        };
+      })
+      .filter(
+        isTokenHistoryItem as unknown as (
+          item: WalletHistorySourceItem | null
+        ) => item is WalletHistorySourceItem
+      )
+  );
+}
+
+function extractWalletActionAmountRaw(value: Record<string, unknown>) {
+  const amountKeysByPriority = [
+    'balance',
+    'amount',
+    'frozen_balance',
+    'unfreeze_balance',
+    'withdraw_expire_amount',
+    'quant',
+  ];
+
+  for (const key of amountKeysByPriority) {
+    const raw = value[key];
+    if (raw === undefined || raw === null || raw === '') {
+      continue;
+    }
+
+    const safe = String(raw).trim();
+    if (/^\d+$/.test(safe)) {
+      return safe;
+    }
+  }
+
+  return '';
+}
+
+function resolveWalletActionCounterpartyAddress(
+  walletAddress: string,
+  value: Record<string, unknown>
+) {
+  const candidateKeys = [
+    'receiver_address',
+    'resource_receiver_address',
+    'to_address',
+    'contract_address',
+    'witness_address',
+    'account_address',
+  ];
+
+  for (const key of candidateKeys) {
+    const address = normalizeTrongridAddress(value[key]);
+    if (address && !isSameAddress(address, walletAddress)) {
+      return address;
+    }
+  }
+
+  return '';
+}
+
+function buildWalletActionHistoryItem(
+  walletAddress: string,
+  tx: TrongridTransactionItem,
+  addressBook: Record<string, string>,
+  sourceRowIndex: number
+): WalletHistorySourceItem | null {
+  const txHash = String(tx.txID || '').trim();
+  if (!txHash) {
+    return null;
+  }
+
+  const contract = getTrongridTransactionContract(tx);
+  const contractType = normalizeHistoryContractType(contract?.type);
+  if (!contractType || contractType === 'TransferContract' || contractType === 'TriggerSmartContract') {
+    return null;
+  }
+
+  const value = getTrongridTransactionContractValue(tx);
+  const amountRaw = extractWalletActionAmountRaw(value);
+  const likelyReceive =
+    contractType.startsWith('Un') ||
+    contractType.includes('Withdraw') ||
+    contractType.includes('Cancel');
+  const displayType: TokenHistoryDisplayType = likelyReceive ? 'RECEIVE' : 'SEND';
+  const counterpartyAddress = resolveWalletActionCounterpartyAddress(walletAddress, value);
+  const counterpartyKey = normalizeAddressKey(counterpartyAddress);
+  const contactName = counterpartyKey ? addressBook[counterpartyKey] : undefined;
+
+  return {
+    id: `${TRX_TOKEN_ID}:${txHash}:action`,
+    txHash,
+    type: likelyReceive ? 'IN' : 'OUT',
+    displayType,
+    amountRaw: amountRaw || '0',
+    amountFormatted: amountRaw ? formatHistoryAmount(amountRaw, 6, displayType) : '',
+    timestamp: Number(tx.block_timestamp ?? tx.raw_data?.timestamp ?? 0),
+    from: normalizeTrongridAddress(value.owner_address),
+    to: counterpartyAddress,
+    counterpartyAddress: counterpartyAddress || undefined,
+    counterpartyLabel: counterpartyAddress
+      ? contactName || shortenAddress(counterpartyAddress)
+      : undefined,
+    isKnownContact: Boolean(contactName),
+    tronscanUrl: buildTronscanTxUrl(txHash),
+    transactionStatus: resolveHistoryTransactionStatus({
+      contractRet: tx.ret?.[0]?.contractRet,
+    }),
+    contractType,
+    eventType: 'Transaction',
+    methodName: 'contract-action',
+    tokenId: TRX_TOKEN_ID,
+    tokenName: 'TRON',
+    tokenSymbol: TRX_SYMBOL,
+    tokenLogo: TRX_LOGO,
+    sourceRowIndex,
+  };
+}
+
 function buildWalletTrc20HistoryItems(
   walletAddress: string,
-  rows: TronscanTrc20TransferItem[],
-  addressBook: Record<string, string>
-): WalletHistoryItem[] {
+  rows: WalletTrc20HistorySourceRow[],
+  addressBook: Record<string, string>,
+  overviewMap: Record<string, TokenMetaFallback>
+): WalletHistorySourceItem[] {
   return dedupeWalletHistoryItems(
     rows
-      .map((item, index): WalletHistoryItem | null => {
-        const txHash = String(item.transaction_id || `wallet-trc20-${index}`);
-        const amountRaw = String(item.quant ?? '0');
-        const fromAddress = String(item.from_address || '').trim();
-        const toAddress = String(item.to_address || '').trim();
+      .map((item, index): WalletHistorySourceItem | null => {
+        const txHash = String(item.txHash || `wallet-trc20-${index}`);
+        const amountRaw = String(item.amountRaw ?? '0');
+        const fromAddress = String(item.fromAddress || '').trim();
+        const toAddress = String(item.toAddress || '').trim();
         const walletKey = normalizeAddressKey(walletAddress);
 
         if (
@@ -2252,18 +2787,23 @@ function buildWalletTrc20HistoryItems(
         const counterpartyKey = normalizeAddressKey(counterpartyAddress);
         const contactName = counterpartyKey ? addressBook[counterpartyKey] : undefined;
 
-        const tokenId =
-          normalizeTokenId(item.contract_address || '') ||
-          normalizeTokenId(item.tokenInfo?.tokenId || '');
+        const tokenId = normalizeTokenId(item.tokenId || '');
+        if (!tokenId) {
+          return null;
+        }
 
-        const tokenDecimals =
-          Number(item.tokenInfo?.tokenDecimal ?? 0) || 0;
+        const overview = overviewMap[tokenId] ?? {};
+        const known = getKnownTokenMeta(tokenId);
+
+        const tokenDecimals = Number(overview.decimals ?? known?.tokenDecimal ?? 0) || 0;
 
         const tokenSymbol =
-          String(item.tokenInfo?.tokenAbbr || '').trim() || tokenId.slice(0, 6) || 'TOKEN';
+          String(overview.symbol || known?.tokenAbbr || '').trim() ||
+          tokenId.slice(0, 6) ||
+          'TOKEN';
 
         const tokenName =
-          String(item.tokenInfo?.tokenName || '').trim() || tokenSymbol || 'Token';
+          String(overview.name || known?.tokenName || '').trim() || tokenSymbol || 'Token';
 
         return {
           id: `${tokenId}:${txHash}`,
@@ -2272,43 +2812,51 @@ function buildWalletTrc20HistoryItems(
           displayType,
           amountRaw,
           amountFormatted: formatHistoryAmount(amountRaw, tokenDecimals, displayType),
-          timestamp: Number(item.block_ts || 0),
+          timestamp: Number(item.timestamp || 0),
           from: fromAddress,
           to: toAddress,
           counterpartyAddress,
           counterpartyLabel: contactName || shortenAddress(counterpartyAddress),
           isKnownContact: Boolean(contactName),
           tronscanUrl: buildTronscanTxUrl(txHash),
+          transactionStatus: item.transactionStatus ?? 'success',
+          contractType: normalizeHistoryContractType(item.contractType),
+          eventType: normalizeHistoryEventType(item.eventName),
+          methodName: normalizeHistoryMethodName(item.methodName ?? item.eventName),
           tokenId,
           tokenName,
           tokenSymbol,
-          tokenLogo: undefined,
+          tokenLogo: overview.logo || known?.tokenLogo,
+          sourceRowIndex: index,
         };
       })
-      .filter(isTokenHistoryItem as unknown as (item: WalletHistoryItem | null) => item is WalletHistoryItem)
+      .filter(
+        isTokenHistoryItem as unknown as (
+          item: WalletHistorySourceItem | null
+        ) => item is WalletHistorySourceItem
+      )
   );
 }
 
 function buildWalletTrxHistoryItems(
   walletAddress: string,
-  rows: TronscanTransferItem[],
+  rows: TrongridTransactionItem[],
   addressBook: Record<string, string>
-): WalletHistoryItem[] {
+): WalletHistorySourceItem[] {
   return dedupeWalletHistoryItems(
     rows
-      .map((item, index): WalletHistoryItem | null => {
-        const tokenAbbr = String(item.tokenInfo?.tokenAbbr || '').trim().toLowerCase();
-        const tokenName = String(item.tokenInfo?.tokenName || '').trim().toLowerCase();
-        const tokenId = String(item.tokenInfo?.tokenId || '').trim();
-
-        if (!(tokenAbbr === 'trx' || tokenName === 'trx' || tokenId === '_')) {
+      .map((item, index): WalletHistorySourceItem | null => {
+        const contract = getTrongridTransactionContract(item);
+        const contractType = String(contract?.type || '').trim();
+        if (contractType !== 'TransferContract') {
           return null;
         }
 
-        const txHash = String(item.transactionHash || `wallet-trx-${index}`);
-        const amountRaw = String(item.amount ?? '0');
-        const fromAddress = String(item.transferFromAddress || '').trim();
-        const toAddress = String(item.transferToAddress || '').trim();
+        const txHash = String(item.txID || `wallet-trx-${index}`);
+        const value = contract?.parameter?.value ?? {};
+        const amountRaw = String(value.amount ?? '0');
+        const fromAddress = normalizeTrongridAddress(value.owner_address);
+        const toAddress = normalizeTrongridAddress(value.to_address);
         const baseType = normalizeHistoryType(walletAddress, fromAddress, toAddress);
 
         if (baseType === 'SELF') {
@@ -2332,20 +2880,30 @@ function buildWalletTrxHistoryItems(
           displayType,
           amountRaw,
           amountFormatted: formatHistoryAmount(amountRaw, 6, displayType),
-          timestamp: Number(item.timestamp || 0),
+          timestamp: Number(item.block_timestamp ?? item.raw_data?.timestamp ?? 0),
           from: fromAddress,
           to: toAddress,
           counterpartyAddress,
           counterpartyLabel: contactName || shortenAddress(counterpartyAddress),
           isKnownContact: Boolean(contactName),
           tronscanUrl: buildTronscanTxUrl(txHash),
+          transactionStatus: resolveHistoryTransactionStatus({
+            contractRet: item.ret?.[0]?.contractRet,
+          }),
+          contractType: normalizeHistoryContractType(contractType),
+          eventType: undefined,
           tokenId: TRX_TOKEN_ID,
           tokenName: 'TRON',
           tokenSymbol: TRX_SYMBOL,
           tokenLogo: TRX_LOGO,
+          sourceRowIndex: index,
         };
       })
-      .filter(isTokenHistoryItem as unknown as (item: WalletHistoryItem | null) => item is WalletHistoryItem)
+      .filter(
+        isTokenHistoryItem as unknown as (
+          item: WalletHistorySourceItem | null
+        ) => item is WalletHistorySourceItem
+      )
   );
 }
 
@@ -2362,6 +2920,52 @@ function resolveHasMore(params: {
   }
 
   return rowsLength >= limit;
+}
+
+function isWalletHistoryItemShape(value: unknown): value is WalletHistoryItem {
+  if (!value || typeof value !== 'object') return false;
+
+  const item = value as Partial<WalletHistoryItem>;
+  return (
+    typeof item.txHash === 'string' &&
+    typeof item.tokenId === 'string' &&
+    typeof item.amountRaw === 'string' &&
+    typeof item.amountFormatted === 'string' &&
+    typeof item.timestamp === 'number'
+  );
+}
+
+function parseWalletHistoryCursor(fingerprint?: string): WalletHistoryCursor {
+  const safe = String(fingerprint || '').trim();
+
+  if (!safe) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(safe) as Partial<WalletHistoryCursor>;
+    const txFingerprint =
+      typeof parsed.txFingerprint === 'string' && parsed.txFingerprint.trim()
+        ? parsed.txFingerprint.trim()
+        : undefined;
+    const bufferedItems = Array.isArray(parsed.bufferedItems)
+      ? parsed.bufferedItems.filter(isWalletHistoryItemShape)
+      : [];
+
+    return {
+      txFingerprint,
+      bufferedItems,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function stringifyWalletHistoryCursor(cursor: WalletHistoryCursor) {
+  return JSON.stringify({
+    txFingerprint: String(cursor.txFingerprint || '').trim() || undefined,
+    bufferedItems: Array.isArray(cursor.bufferedItems) ? cursor.bufferedItems : [],
+  });
 }
 
 export async function getTokenHistoryPage(
@@ -2479,10 +3083,12 @@ export async function getWalletHistoryPage(
   }
 ): Promise<WalletHistoryPage> {
   const limit = Math.max(1, Math.min(50, options?.limit ?? DEFAULT_WALLET_HISTORY_LIMIT));
-  const start = Math.max(0, Number.parseInt(String(options?.fingerprint || '0'), 10) || 0);
+  const cursor = parseWalletHistoryCursor(options?.fingerprint);
   const cacheKey = buildWalletHistoryCacheKey(walletAddress, limit);
 
-  if (!options?.force && start === 0) {
+  const hasBufferedItems = Array.isArray(cursor.bufferedItems) && cursor.bufferedItems.length > 0;
+
+  if (!options?.force && !cursor.txFingerprint && !hasBufferedItems) {
     const cached = await readWalletHistoryCache(cacheKey, limit);
     if (cached) {
       return cached;
@@ -2491,100 +3097,152 @@ export async function getWalletHistoryPage(
 
   try {
     const addressBook = await getAddressBookMap().catch(() => ({} as Record<string, string>));
-
-    const [trxResponse, trc20Response] = await Promise.all([
-      tronscanFetch<TronscanTransferResponse>('/transfer', {
-        sort: '-timestamp',
-        count: true,
-        limit,
-        start,
-        address: walletAddress,
-        token: '_',
-        filterTokenValue: 1,
-      }).catch((): TronscanTransferResponse => ({})),
-      tronscanFetch<TronscanTrc20TransferResponse>('/token_trc20/transfers', {
-        relatedAddress: walletAddress,
-        start,
-        limit,
-        reverse: true,
-      }).catch((): TronscanTrc20TransferResponse => ({})),
-    ]);
-
-    const trxItems = buildWalletTrxHistoryItems(
-      walletAddress,
-      trxResponse.data ?? [],
-      addressBook
+    const batchSize = Math.max(limit * 2, DEFAULT_WALLET_HISTORY_LIMIT);
+    const buffer = dedupeWalletHistoryItems(cursor.bufferedItems ?? []).sort(
+      (left, right) => right.timestamp - left.timestamp
     );
+    let txFingerprint = cursor.txFingerprint;
+    let txHasMore = false;
+    let attempts = 0;
 
-    const trc20Items = buildWalletTrc20HistoryItems(
-      walletAddress,
-      trc20Response.token_transfers ?? [],
-      addressBook
-    );
+    while (buffer.length < limit && attempts < 8) {
+      attempts += 1;
 
-    const tokenIdsToLoad = Array.from(
-      new Set(
-        trc20Items
-          .map((item) => normalizeTokenId(item.tokenId))
-          .filter((tokenId) => Boolean(tokenId) && tokenId !== TRX_TOKEN_ID)
-      )
-    );
-
-    const overviewMap = tokenIdsToLoad.length
-      ? await getTronscanTokenOverviewMap(tokenIdsToLoad)
-      : {};
-
-    const items = dedupeWalletHistoryItems([...trxItems, ...trc20Items])
-      .map((item) => {
-        if (item.tokenId === TRX_TOKEN_ID) {
-          return item;
+      const response = await trongridFetch<TrongridTransactionsResponse>(
+        `/v1/accounts/${walletAddress}/transactions`,
+        {
+          limit: batchSize,
+          order_by: 'block_timestamp,desc',
+          ...(txFingerprint ? { fingerprint: txFingerprint } : {}),
         }
+      ).catch((): TrongridTransactionsResponse => ({}));
 
-        const overview = overviewMap[item.tokenId] ?? {};
-        const tokenName =
-          String(item.tokenName || '').trim() ||
-          String(overview.name || '').trim() ||
-          shortenAddress(item.tokenId);
+      const txRows = response.data ?? [];
+      const nextTxFingerprint =
+        String(response.meta?.fingerprint || '').trim() || undefined;
+      txHasMore = Boolean(nextTxFingerprint);
+      txFingerprint = nextTxFingerprint;
 
-        const tokenSymbol =
-          String(item.tokenSymbol || '').trim() ||
-          String(overview.symbol || '').trim() ||
-          shortenAddress(item.tokenId);
+      if (txRows.length === 0) {
+        break;
+      }
 
-        return {
-          ...item,
-          tokenName,
-          tokenSymbol,
-          tokenLogo: item.tokenLogo || overview.logo,
-        };
-      })
-      .sort((a, b) => b.timestamp - a.timestamp)
-      .slice(0, limit);
+      const transactionEntries = await Promise.all(
+        txRows.map(async (tx, txIndex) => {
+          const contractType = normalizeHistoryContractType(
+            getTrongridTransactionContract(tx)?.type
+          );
+          const transactionStatus = resolveHistoryTransactionStatus({
+            contractRet: tx.ret?.[0]?.contractRet,
+          });
 
-    const trxTotal = parsePositiveCount(trxResponse.rangeTotal) ?? parsePositiveCount(trxResponse.total);
-    const trc20Total = parsePositiveCount(trc20Response.rangeTotal) ?? parsePositiveCount(trc20Response.total);
+          const trxItems = buildWalletTrxHistoryItems(walletAddress, [tx], addressBook).map(
+            (item, index) => ({
+              ...item,
+              sourceRowIndex: txIndex * 100 + index,
+            })
+          );
 
-    const trxHasMore = resolveHasMore({
-      total: trxTotal,
-      start,
-      rowsLength: (trxResponse.data ?? []).length,
-      limit,
-    });
+          const isTriggerSmartContract = contractType === 'TriggerSmartContract';
+          const [events, internalTransactions] = isTriggerSmartContract
+            ? await Promise.all([
+                getTrongridTransactionEvents(tx.txID || ''),
+                getTrongridInternalTransactions(tx.txID || ''),
+              ])
+            : [[], []];
 
-    const trc20HasMore = resolveHasMore({
-      total: trc20Total,
-      start,
-      rowsLength: (trc20Response.token_transfers ?? []).length,
-      limit,
-    });
+          const trc20Rows = buildWalletTrc20RowsFromTransaction(walletAddress, tx, events);
+          const internalTrxItems = buildWalletInternalTrxHistoryItems(
+            walletAddress,
+            String(tx.txID || '').trim(),
+            contractType,
+            transactionStatus,
+            internalTransactions,
+            addressBook
+          ).map((item, index) => ({
+            ...item,
+            sourceRowIndex: txIndex * 100 + 50 + index,
+          }));
+          const actionItem =
+            trxItems.length === 0 &&
+            trc20Rows.length === 0 &&
+            internalTrxItems.length === 0
+              ? buildWalletActionHistoryItem(
+                  walletAddress,
+                  tx,
+                  addressBook,
+                  txIndex * 100 + 90
+                )
+              : null;
+
+          return {
+            trxItems,
+            trc20Rows,
+            internalTrxItems,
+            actionItems: actionItem ? [actionItem] : [],
+          };
+        })
+      );
+
+      const trc20Rows = transactionEntries.flatMap((entry) => entry.trc20Rows);
+      const tokenIdsToLoad = Array.from(
+        new Set(
+          trc20Rows
+            .map((item) => normalizeTokenId(item.tokenId))
+            .filter((tokenId) => Boolean(tokenId) && tokenId !== TRX_TOKEN_ID)
+        )
+      );
+      const overviewMap = tokenIdsToLoad.length
+        ? await getTronscanTokenOverviewMap(tokenIdsToLoad)
+        : {};
+
+      const trc20Items = buildWalletTrc20HistoryItems(
+        walletAddress,
+        trc20Rows,
+        addressBook,
+        overviewMap
+      ).map((item, index) => ({
+        ...item,
+        sourceRowIndex: transactionEntries.length * 100 + index,
+      }));
+
+      const pageItems = dedupeWalletHistoryItems(
+        transactionEntries
+          .flatMap((entry) => [...entry.trxItems, ...entry.internalTrxItems, ...entry.actionItems])
+          .concat(trc20Items)
+      )
+        .sort((left, right) => right.timestamp - left.timestamp)
+        .map(({ sourceRowIndex, ...item }) => item);
+
+      if (pageItems.length === 0 && !txHasMore) {
+        break;
+      }
+
+      buffer.push(...pageItems);
+      buffer.sort((left, right) => right.timestamp - left.timestamp);
+
+      if (!txHasMore) {
+        break;
+      }
+    }
+
+    const items = dedupeWalletHistoryItems(buffer).sort((left, right) => right.timestamp - left.timestamp);
+    const visibleItems = items.slice(0, limit);
+    const bufferedItems = items.slice(limit);
+    const hasMore = bufferedItems.length > 0 || txHasMore;
 
     const page: WalletHistoryPage = {
-      items,
-      nextFingerprint: trxHasMore || trc20HasMore ? String(start + limit) : undefined,
-      hasMore: trxHasMore || trc20HasMore,
+      items: visibleItems,
+      nextFingerprint: hasMore
+        ? stringifyWalletHistoryCursor({
+            txFingerprint,
+            bufferedItems,
+          })
+        : undefined,
+      hasMore,
     };
 
-    if (start === 0) {
+    if (!cursor.txFingerprint && !hasBufferedItems) {
       await writeWalletHistoryCache(cacheKey, page, limit);
     }
 

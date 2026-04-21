@@ -21,6 +21,23 @@ export const TRONGRID_API_KEYS = compact([
   readEnv('EXPO_PUBLIC_TRONGRID_API_KEY_3'),
 ]);
 
+let trongridNextIndex = 0;
+
+export function getNextTrongridApiKey() {
+  if (TRONGRID_API_KEYS.length === 0) {
+    return '';
+  }
+
+  const index = trongridNextIndex % TRONGRID_API_KEYS.length;
+  trongridNextIndex = (index + 1) % TRONGRID_API_KEYS.length;
+  return TRONGRID_API_KEYS[index] || '';
+}
+
+export function buildTrongridHeaders() {
+  const apiKey = getNextTrongridApiKey();
+  return apiKey ? { 'TRON-PRO-API-KEY': apiKey } : {};
+}
+
 export function assertTronConfig() {
   if (TRONSCAN_API_KEYS.length === 0) {
     throw new Error('Missing EXPO_PUBLIC_TRONSCAN_API_KEY_1..3');

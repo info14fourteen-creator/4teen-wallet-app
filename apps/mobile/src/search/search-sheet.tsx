@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 
-import { colors, layout, radius } from '../theme/tokens';
+import { colors, radius } from '../theme/tokens';
 import { APP_HEADER_HEIGHT, APP_HEADER_TOP_PADDING, APP_HEADER_DROP_OFFSET, APP_HEADER_SIDE_PADDING } from '../ui/app-header.constants';
 import ThinOrangeLoader from '../ui/thin-orange-loader';
 import { APP_SEARCH_ROUTES } from './search-routes';
@@ -44,24 +44,24 @@ import {
   type SavedContact,
 } from '../services/address-book';
 
-import SearchIcon from '../../assets/icons/ui/search.svg';
-import PasteIcon from '../../assets/icons/ui/paste_btn.svg';
-import CloseIcon from '../../assets/icons/ui/close.svg';
-
-import CreateAddWalletQuickIcon from '../../assets/icons/ui/create_add_wallet_qp_btn.svg';
-import SendQuickIcon from '../../assets/icons/ui/send_qp_btn.svg';
-import SwapQuickIcon from '../../assets/icons/ui/swap_qp_btn.svg';
-import BuyQuickIcon from '../../assets/icons/ui/buy_4teen_qp_btn.svg';
-import UnlockQuickIcon from '../../assets/icons/ui/unlock_qp_btn.svg';
-import LiquidityQuickIcon from '../../assets/icons/ui/liquidity_qp_btn.svg';
-import AmbassadorQuickIcon from '../../assets/icons/ui/ambassador_qp_btn.svg';
-import AirdropQuickIcon from '../../assets/icons/ui/airdrop_qp_btn.svg';
-import SelectWalletQuickIcon from '../../assets/icons/ui/select_wallet_qp_btn.svg';
-
-import PreferencesIcon from '../../assets/icons/ui/preferences_btn.svg';
-import WalletIcon from '../../assets/icons/ui/wallet_btn.svg';
-import ContactIcon from '../../assets/icons/ui/add_contact_btn.svg';
-import AddressIcon from '../../assets/icons/ui/address_btn.svg';
+import {
+  AddressIcon,
+  AirdropQuickIcon,
+  AmbassadorQuickIcon,
+  BuyQuickIcon,
+  CloseIcon,
+  CreateAddWalletQuickIcon,
+  LiquidityQuickIcon,
+  PasteIcon,
+  PreferencesIcon,
+  SearchIcon,
+  SelectWalletQuickIcon,
+  SendQuickIcon,
+  SwapQuickIcon,
+  UnlockQuickIcon,
+  WalletIcon,
+  AddContactIcon as ContactIcon,
+} from '../ui/ui-icons';
 
 function isTronAddress(value: string) {
   return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(value.trim());
@@ -529,16 +529,21 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
 
     for (const route of APP_SEARCH_ROUTES) {
       const routeTerms = routeToSearchTerms(route.route);
-
-      const score = scoreTextMatch(q, [
+      const routeCandidates = [
         route.title,
         route.subtitle,
         route.route,
         ...routeTerms,
         ...route.keywords,
         ...(route.aliases ?? []),
-      ]);
+      ];
+
+      const score = scoreTextMatch(q, routeCandidates);
       if (score <= 0) continue;
+
+      const exactRouteIntent = routeCandidates.some(
+        (candidate) => normalize(candidate) === normalizedQuery
+      );
 
       next.push({
         id: route.id,
@@ -546,7 +551,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
         title: route.title,
         subtitle: route.subtitle,
         route: route.route,
-        score: score + 80,
+        score: score + 80 + (exactRouteIntent ? 900 : 0),
       });
     }
 
@@ -622,7 +627,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
     if (suggestions[0]) {
       await handlePrimaryPress(suggestions[0]);
     }
-  }, [normalized, onClose, router, suggestions]);
+  }, [handlePrimaryPress, normalized, onClose, router, suggestions]);
 
   const handlePrimaryPress = useCallback(
     async (item: SearchSuggestion) => {
@@ -639,7 +644,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
 
       if (item.type === 'wallet') {
         onClose();
-        router.push('/wallets');
+        router.push('/wallet-manager');
         return;
       }
 

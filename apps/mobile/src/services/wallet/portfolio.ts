@@ -425,29 +425,29 @@ export async function getAllWalletPortfolios(
   options?: { force?: boolean }
 ): Promise<WalletPortfolioAggregate> {
   const wallets = await listWallets();
-  const items: WalletPortfolioListItem[] = [];
+  const items = await Promise.all(
+    wallets.map(async (wallet): Promise<WalletPortfolioListItem> => {
+      const includedInTotal = wallet.kind !== 'watch-only';
 
-  for (const wallet of wallets) {
-    const includedInTotal = wallet.kind !== 'watch-only';
+      try {
+        const portfolio = await getWalletPortfolio(wallet.address, options);
 
-    try {
-      const portfolio = await getWalletPortfolio(wallet.address, options);
+        return {
+          wallet,
+          portfolio,
+          includedInTotal,
+        };
+      } catch (error) {
+        console.error('Failed to load wallet portfolio:', wallet.address, error);
 
-      items.push({
-        wallet,
-        portfolio,
-        includedInTotal,
-      });
-    } catch (error) {
-      console.error('Failed to load wallet portfolio:', wallet.address, error);
-
-      items.push({
-        wallet,
-        portfolio: null,
-        includedInTotal,
-      });
-    }
-  }
+        return {
+          wallet,
+          portfolio: null,
+          includedInTotal,
+        };
+      }
+    })
+  );
 
   const totalBalanceUsd = items.reduce((sum, item) => {
     if (!item.includedInTotal || !item.portfolio) return sum;

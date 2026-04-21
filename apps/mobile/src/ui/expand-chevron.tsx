@@ -1,5 +1,4 @@
-import OpenDownIcon from '../../assets/icons/ui/open_down_btn.svg';
-import OpenRightIcon from '../../assets/icons/ui/open_right_btn.svg';
+import { OpenDownIcon, OpenRightIcon } from './ui-icons';
 
 type ExpandChevronProps = {
   open: boolean;

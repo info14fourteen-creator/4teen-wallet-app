@@ -18,13 +18,14 @@ import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
-
-import AddContactIcon from '../assets/icons/ui/add_contact_btn.svg';
-import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
-import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
-import RemoveContactIcon from '../assets/icons/ui/remove_contact_btn.svg';
-import PasteIcon from '../assets/icons/ui/paste_btn.svg';
-import ScanIcon from '../assets/icons/ui/scan.svg';
+import {
+  AddContactIcon,
+  ConfirmIcon,
+  OpenDownIcon,
+  PasteIcon,
+  RemoveContactIcon,
+  ScanIcon,
+} from '../src/ui/ui-icons';
 
 type ContactItem = {
   id: string;
@@ -104,12 +105,12 @@ export default function AddressBookScreen() {
 
   useEffect(() => {
     void loadContacts();
-  }, []);
+  }, [loadContacts]);
 
   useEffect(() => {
     if (!loaded) return;
     void persistContacts(contacts);
-  }, [contacts, loaded]);
+  }, [contacts, loaded, persistContacts]);
 
   useEffect(() => {
     return () => {
@@ -139,7 +140,7 @@ export default function AddressBookScreen() {
     }
   }, [loaded, params.openAdd, params.prefillAddress, params.prefillName]);
 
-  const loadContacts = async () => {
+  const loadContacts = useCallback(async () => {
     try {
       const raw = await SecureStore.getItemAsync(STORAGE_KEY);
 
@@ -162,16 +163,16 @@ export default function AddressBookScreen() {
     } finally {
       setLoaded(true);
     }
-  };
+  }, [notice]);
 
-  const persistContacts = async (nextContacts: ContactItem[]) => {
+  const persistContacts = useCallback(async (nextContacts: ContactItem[]) => {
     try {
       await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(nextContacts));
     } catch (error) {
       console.error('Failed to save address book', error);
       notice.showErrorNotice('Address book update failed.', 2600);
     }
-  };
+  }, [notice]);
 
   const handlePaste = async () => {
     const text = await Clipboard.getStringAsync();

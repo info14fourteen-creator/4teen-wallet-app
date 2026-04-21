@@ -15,10 +15,7 @@ import { FOOTER_NAV_HEIGHT, FOOTER_NAV_BOTTOM_OFFSET } from './footer-nav';
 import { shouldRenderSharedNavigation } from './navigation-routes';
 import ScreenBrow from './screen-brow';
 
-import WalletIcon from '../../assets/icons/ui/wallet_btn.svg';
-import SettingsIcon from '../../assets/icons/ui/setings_btn.svg';
-import AddressIcon from '../../assets/icons/ui/address_btn.svg';
-import InfoIcon from '../../assets/icons/ui/info_btn.svg';
+import { AddressIcon, InfoIcon, PreferencesIcon as SettingsIcon, WalletIcon } from './ui-icons';
 
 type MenuSheetProps = {
   open: boolean;
@@ -74,7 +71,7 @@ export default function MenuSheet({ open, onClose, forceVisible = false }: MenuS
           <View style={styles.menuBlock}>
             <MenuItem
               label="Wallet Management"
-              onPress={() => go('/wallets')}
+              onPress={() => go('/wallet-manager')}
               icon={<WalletIcon width={20} height={20} />}
             />
 

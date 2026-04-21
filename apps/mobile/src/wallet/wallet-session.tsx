@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -52,6 +52,8 @@ type WalletSessionContextValue = {
   navigationIntroKey: number;
   chromeLoaderVisible: boolean;
   chromeHidden: boolean;
+  setPendingWalletSelectionId: (walletId: string | null) => void;
+  consumePendingWalletSelectionId: () => string | null;
   triggerWalletDataRefresh: () => void;
   triggerNavigationIntro: () => void;
   consumeNavigationIntro: () => void;
@@ -67,6 +69,8 @@ const WalletSessionContext = createContext<WalletSessionContextValue>({
   navigationIntroKey: 0,
   chromeLoaderVisible: false,
   chromeHidden: false,
+  setPendingWalletSelectionId: () => {},
+  consumePendingWalletSelectionId: () => null,
   triggerWalletDataRefresh: () => {},
   triggerNavigationIntro: () => {},
   consumeNavigationIntro: () => {},
@@ -123,6 +127,7 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
   const [hasWallet, setHasWallet] = useState(false);
   const [activeWalletKind, setActiveWalletKind] = useState<WalletKind | null>(null);
   const [footerTickerItems, setFooterTickerItems] = useState<FooterTickerItem[]>([]);
+  const pendingWalletSelectionIdRef = useRef<string | null>(null);
 
   const triggerNavigationIntro = useCallback(() => {
     setNavigationIntroKey((current) => current + 1);
@@ -134,6 +139,17 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
 
   const consumeNavigationIntro = useCallback(() => {
     return;
+  }, []);
+
+  const setPendingWalletSelectionId = useCallback((walletId: string | null) => {
+    const next = String(walletId || '').trim();
+    pendingWalletSelectionIdRef.current = next || null;
+  }, []);
+
+  const consumePendingWalletSelectionId = useCallback(() => {
+    const nextValue = pendingWalletSelectionIdRef.current;
+    pendingWalletSelectionIdRef.current = null;
+    return nextValue;
   }, []);
 
   const syncWalletSession = useCallback(async () => {
@@ -254,6 +270,8 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
       navigationIntroKey,
       chromeLoaderVisible,
       chromeHidden,
+      setPendingWalletSelectionId,
+      consumePendingWalletSelectionId,
       triggerWalletDataRefresh,
       triggerNavigationIntro,
       consumeNavigationIntro,
@@ -264,11 +282,13 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
     chromeHidden,
     chromeLoaderVisible,
     consumeNavigationIntro,
+    consumePendingWalletSelectionId,
     footerTickerItems,
     hasWallet,
     activeWalletKind,
     walletDataRefreshKey,
     navigationIntroKey,
+    setPendingWalletSelectionId,
     setChromeHidden,
     triggerWalletDataRefresh,
     triggerNavigationIntro,

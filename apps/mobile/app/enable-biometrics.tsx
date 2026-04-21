@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 
@@ -70,9 +70,10 @@ export default function EnableBiometricsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <Stack.Screen options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <View style={styles.screen}>
         <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
-          <ScreenBrow label="ENABLE BIOMETRICS" variant="back" />
+          <ScreenBrow label="ENABLE BIOMETRICS" />
           <Text style={styles.title}>
             Enable <Text style={styles.titleAccent}>{supportedLabel}</Text>
           </Text>

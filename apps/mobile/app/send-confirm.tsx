@@ -41,8 +41,7 @@ import {
 } from '../src/security/local-auth';
 import { useWalletSession } from '../src/wallet/wallet-session';
 
-import BackspaceIcon from '../assets/icons/ui/backspace_btn.svg';
-import BioLoginIcon from '../assets/icons/ui/biologin_btn.svg';
+import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 
 function formatResourceValue(value: number) {
   const safe = Math.max(0, Math.floor(Number(value) || 0));
@@ -227,6 +226,7 @@ export default function SendConfirmScreen() {
     estimate &&
       (estimate.resources.energyShortfall > 0 || estimate.resources.bandwidthShortfall > 0)
   );
+  const hasNoEnergyAvailable = energyAvailable <= 0;
   const hasTrxForBurn = Boolean(estimate?.trxCoverage.canCoverBurn);
   const isApproveDisabled = sending || !estimate || !hasTrxForBurn;
 
@@ -367,6 +367,14 @@ export default function SendConfirmScreen() {
           await performSend();
           return;
         }
+
+        if (
+          result.error === 'user_cancel' ||
+          result.error === 'system_cancel' ||
+          result.error === 'app_cancel'
+        ) {
+          return;
+        }
       } catch (error) {
         console.error(error);
       }
@@ -479,6 +487,24 @@ export default function SendConfirmScreen() {
                 </View>
               </View>
 
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={[
+                  styles.primaryButton,
+                  isApproveDisabled && styles.primaryButtonDisabled,
+                ]}
+                onPress={() => void handleApprove()}
+                disabled={isApproveDisabled}
+              >
+                {sending ? (
+                  <ActivityIndicator color={colors.white} />
+                ) : (
+                  <Text style={styles.primaryButtonText}>
+                    {hasTrxForBurn ? 'APPROVE & SEND' : 'TOP UP TRX'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
               <View style={styles.detailCard}>
                 <View style={styles.detailRowFirst}>
                   <Text style={styles.detailLabel}>Asset</Text>
@@ -512,12 +538,28 @@ export default function SendConfirmScreen() {
                 ) : null}
                 <View style={styles.resourcesInlineRow}>
                   <View style={styles.resourceInlineCol}>
-                    <Text style={[styles.resourceInlineLabel, styles.resourcesEnergyText]}>
+                    <Text
+                      style={[
+                        styles.resourceInlineLabel,
+                        styles.resourcesEnergyText,
+                        hasNoEnergyAvailable ? styles.resourcesEnergyTextRisk : null,
+                      ]}
+                    >
                       Energy {formatResourceValue(estimate.resources.estimatedEnergy)}/
                       {formatResourceValue(energyAvailable)}
                     </Text>
-                    <View style={styles.resourceBarTrack}>
-                      <View style={styles.resourceBarAvailable} />
+                    <View
+                      style={[
+                        styles.resourceBarTrack,
+                        hasNoEnergyAvailable ? styles.resourceBarTrackRisk : null,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.resourceBarAvailable,
+                          hasNoEnergyAvailable ? styles.resourceBarAvailableRisk : null,
+                        ]}
+                      />
                       <View style={[styles.resourceBarUsed, { width: `${energyBarPercent}%` }]} />
                     </View>
                   </View>
@@ -545,34 +587,14 @@ export default function SendConfirmScreen() {
                 </Text>
               </View>
 
-              <View style={styles.actions}>
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.secondaryButton}
-                  onPress={handleReject}
-                  disabled={sending}
-                >
-                  <Text style={styles.secondaryButtonText}>Reject</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={[
-                    styles.primaryButton,
-                    isApproveDisabled && styles.primaryButtonDisabled,
-                  ]}
-                  onPress={() => void handleApprove()}
-                  disabled={isApproveDisabled}
-                >
-                  {sending ? (
-                    <ActivityIndicator color={colors.white} />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>
-                      {hasTrxForBurn ? 'Approve & Send' : 'Top Up TRX'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.secondaryButton}
+                onPress={handleReject}
+                disabled={sending}
+              >
+                <Text style={styles.secondaryButtonText}>REJECT</Text>
+              </TouchableOpacity>
             </>
           )}
         </ScrollView>
@@ -639,7 +661,7 @@ export default function SendConfirmScreen() {
                     onPress={() => setPasscodeOpen(false)}
                     disabled={sending}
                   >
-                    <Text style={styles.authCancelButtonText}>Cancel</Text>
+                    <Text style={styles.authCancelButtonText}>CANCEL</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -673,7 +695,7 @@ const styles = StyleSheet.create({
 
   heroCard: {
     marginTop: 10,
-    borderRadius: 18,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineStrong,
     backgroundColor: 'rgba(255,105,0,0.08)',
@@ -810,7 +832,7 @@ const styles = StyleSheet.create({
 
   detailCard: {
     marginTop: 14,
-    borderRadius: 18,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     backgroundColor: colors.surfaceSoft,
@@ -878,6 +900,9 @@ const styles = StyleSheet.create({
   resourcesEnergyText: {
     color: colors.accent,
   },
+  resourcesEnergyTextRisk: {
+    color: colors.red,
+  },
 
   resourceBarTrack: {
     height: 6,
@@ -885,11 +910,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: 'rgba(24,224,58,0.14)',
   },
+  resourceBarTrackRisk: {
+    backgroundColor: 'rgba(255,48,73,0.14)',
+  },
 
   resourceBarAvailable: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: colors.green,
     opacity: 0.9,
+  },
+  resourceBarAvailableRisk: {
+    backgroundColor: colors.red,
   },
 
   resourceBarUsed: {
@@ -924,9 +955,9 @@ const styles = StyleSheet.create({
   },
 
   secondaryButton: {
-    flex: 1,
+    marginTop: 18,
     minHeight: 54,
-    borderRadius: 18,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     backgroundColor: 'rgba(255,255,255,0.04)',
@@ -943,9 +974,8 @@ const styles = StyleSheet.create({
   },
 
   primaryButton: {
-    flex: 1,
     minHeight: 54,
-    borderRadius: 18,
+    borderRadius: radius.sm,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1073,6 +1103,7 @@ const styles = StyleSheet.create({
   authCancelButton: {
     marginTop: 16,
     minHeight: 48,
+    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },

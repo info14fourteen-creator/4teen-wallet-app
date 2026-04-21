@@ -17,11 +17,13 @@ import { WebView } from 'react-native-webview';
 
 import { colors, radius } from '../src/theme/tokens';
 
-import BrowserCloseIcon from '../assets/icons/ui/browser_close_btn.svg';
-import BrowserBackIcon from '../assets/icons/ui/browser_back_btn.svg';
-import BrowserForwardIcon from '../assets/icons/ui/browser_forward_btn.svg';
-import BrowserRefreshIcon from '../assets/icons/ui/browser_refresh_btn.svg';
-import BrowserShareIcon from '../assets/icons/ui/browser_share_btn.svg';
+import {
+  BrowserBackIcon,
+  BrowserCloseIcon,
+  BrowserForwardIcon,
+  BrowserRefreshIcon,
+  BrowserShareIcon,
+} from '../src/ui/ui-icons';
 
 const DEFAULT_URL = 'https://tronscan.org';
 

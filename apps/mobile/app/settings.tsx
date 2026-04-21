@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ExpandChevron from '../src/ui/expand-chevron';
@@ -20,6 +20,8 @@ import { clearAllTronCaches } from '../src/services/tron/api';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenBrow from '../src/ui/screen-brow';
+import { useWalletSession } from '../src/wallet/wallet-session';
+import { getBiometricsEnabled, hasPasscode } from '../src/security/local-auth';
 
 const CLEAR_HOLD_MS = 3500;
 const CLEAR_DISPLAY_MAX = 114;
@@ -27,12 +29,14 @@ const CLEAR_DISPLAY_MAX = 114;
 export default function SettingsScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { triggerWalletDataRefresh } = useWalletSession();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
 
   const [clearingCache, setClearingCache] = useState(false);
   const [clearActive, setClearActive] = useState(false);
   const [clearProgress, setClearProgress] = useState(0);
+  const [authValue, setAuthValue] = useState('Not set');
 
   const clearStartedAtRef = useRef<number | null>(null);
   const clearTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -59,6 +63,34 @@ export default function SettingsScreen() {
     };
   }, [clearHoldTimer]);
 
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      const loadAuthValue = async () => {
+        const [passcodeEnabled, biometricsEnabled] = await Promise.all([
+          hasPasscode(),
+          getBiometricsEnabled(),
+        ]);
+
+        if (cancelled) return;
+
+        if (!passcodeEnabled) {
+          setAuthValue('Not set');
+          return;
+        }
+
+        setAuthValue(biometricsEnabled ? 'Passcode + Biometrics' : 'Passcode');
+      };
+
+      void loadAuthValue();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
   const handleClearCacheConfirmed = useCallback(async () => {
     if (clearingCache) {
       resetClearState();
@@ -68,6 +100,7 @@ export default function SettingsScreen() {
     try {
       setClearingCache(true);
       await Promise.all([clearAllWalletPortfolioCaches(), clearAllTronCaches()]);
+      triggerWalletDataRefresh();
       notice.showSuccessNotice('Local cache cleared.', 2200);
     } catch (error) {
       console.error(error);
@@ -76,7 +109,7 @@ export default function SettingsScreen() {
       setClearingCache(false);
       resetClearState();
     }
-  }, [clearingCache, notice, resetClearState]);
+  }, [clearingCache, notice, resetClearState, triggerWalletDataRefresh]);
 
   const handleClearPress = useCallback(() => {
     if (clearingCache) return;
@@ -137,7 +170,7 @@ export default function SettingsScreen() {
             <SettingRow label="Currency" value="USD" onPress={() => router.push('/currency')} />
             <SettingRow
               label="Authentication Method"
-              value="Not set"
+              value={authValue}
               onPress={() => router.push('/authentication-method')}
             />
             <SettingRow label="Appearance" value="Dark" onPress={() => router.push('/appearance')} />

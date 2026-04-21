@@ -51,7 +51,7 @@ export default function BootScreen() {
         return;
       }
 
-      router.replace('/ui-lab');
+      router.replace('/wallet-access');
     };
 
     void run();

@@ -2,8 +2,10 @@ import { Stack, usePathname, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
+import * as Linking from 'expo-linking';
 import { useFonts } from 'expo-font';
 import { Sora_600SemiBold, Sora_700Bold } from '@expo-google-fonts/sora';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { Buffer } from 'buffer';
 import process from 'process';
@@ -13,6 +15,7 @@ import { WalletSessionProvider } from '../src/wallet/wallet-session';
 import { SearchProvider } from '../src/search/search-provider';
 import { NavigationChrome } from '../src/ui/navigation';
 import { shouldRenderSharedNavigation } from '../src/ui/navigation-routes';
+import { captureDeferredReferral, captureReferralFromUrl } from '../src/services/referral';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -35,12 +38,38 @@ function LayoutContent() {
     setMenuOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const syncInitialReferral = async () => {
+      const initialUrl = await Linking.getInitialURL().catch(() => null);
+
+      if (mounted && initialUrl) {
+        await captureReferralFromUrl(initialUrl).catch(() => null);
+      }
+
+      if (!mounted) return;
+      await captureDeferredReferral().catch(() => null);
+    };
+
+    void syncInitialReferral();
+
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      void captureReferralFromUrl(url).catch(() => null);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
   return (
     <>
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: 'fade',
+          animation: 'slide_from_right',
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
           animationMatchesGesture: true,
@@ -54,8 +83,10 @@ function LayoutContent() {
           options={{ contentStyle: { backgroundColor: 'rgb(10,10,10)', paddingBottom: 0 } }}
         />
         <Stack.Screen name="browser" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="scan" options={{ animation: 'fade' }} />
+        <Stack.Screen name="scan" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="ui-lab" />
+        <Stack.Screen name="wallet-access" />
+        <Stack.Screen name="wallet-manager" />
         <Stack.Screen name="about" />
         <Stack.Screen name="terms" />
         <Stack.Screen name="whitepaper" />
@@ -88,12 +119,14 @@ export default function RootLayout() {
   if (!loaded) return null;
 
   return (
-    <NoticeProvider>
-      <WalletSessionProvider>
-        <SearchProvider>
-          <LayoutContent />
-        </SearchProvider>
-      </WalletSessionProvider>
-    </NoticeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <NoticeProvider>
+        <WalletSessionProvider>
+          <SearchProvider>
+            <LayoutContent />
+          </SearchProvider>
+        </WalletSessionProvider>
+      </NoticeProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -15,14 +15,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import { useWalletSession } from '../src/wallet/wallet-session';
 
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import {
   getActiveWalletId,
+  listWallets,
   removeWallet,
   renameWallet,
   setActiveWalletId,
@@ -33,11 +36,13 @@ import {
   type WalletPortfolioAggregate,
 } from '../src/services/wallet/portfolio';
 
-import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
-import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
-import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
-import ConfirmIcon from '../assets/icons/ui/confirm_btn.svg';
-import DeclineIcon from '../assets/icons/ui/decline_btn.svg';
+import {
+  AddWalletIcon,
+  ConfirmIcon,
+  DeclineIcon,
+  OpenDownIcon,
+  OpenRightIcon,
+} from '../src/ui/ui-icons';
 
 function formatWalletKind(kind: WalletMeta['kind']) {
   if (kind === 'mnemonic') return 'Seed Phrase';
@@ -52,14 +57,17 @@ const REMOVE_DISPLAY_MAX = 114;
 export default function WalletsScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { setPendingWalletSelectionId } = useWalletSession();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const [expandedWalletId, setExpandedWalletId] = useState<string | null>(null);
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
   const [activeWalletId, setActiveWalletIdState] = useState<string | null>(null);
+  const [walletList, setWalletList] = useState<WalletMeta[]>([]);
   const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  useChromeLoading(refreshing);
+  useChromeLoading(loading || refreshing);
 
   const [removalWalletId, setRemovalWalletId] = useState<string | null>(null);
   const [removalProgress, setRemovalProgress] = useState(0);
@@ -87,18 +95,27 @@ export default function WalletsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [activeId, nextAggregate] = await Promise.all([
+      if (!aggregate) {
+        setLoading(true);
+      }
+
+      const [activeId, nextWalletList] = await Promise.all([
         getActiveWalletId(),
-        getAllWalletPortfolios(),
+        listWallets(),
       ]);
 
       setActiveWalletIdState(activeId);
+      setWalletList(nextWalletList);
+
+      const nextAggregate = await getAllWalletPortfolios();
       setAggregate(nextAggregate);
     } catch (error) {
       console.error(error);
       notice.showErrorNotice('Wallet manager failed to load.', 2600);
+    } finally {
+      setLoading(false);
     }
-  }, [notice]);
+  }, [aggregate, notice]);
 
   const handleRefresh = useCallback(async () => {
     try {
@@ -121,7 +138,19 @@ export default function WalletsScreen() {
     };
   }, [clearRemovalTimer]);
 
-  const wallets = aggregate?.items ?? [];
+  const aggregateIndex = useMemo(() => {
+    return new Map((aggregate?.items ?? []).map((item) => [item.wallet.id, item] as const));
+  }, [aggregate?.items]);
+
+  const wallets = useMemo(() => {
+    return walletList.reduce<NonNullable<WalletPortfolioAggregate['items'][number]>[]>((acc, wallet) => {
+      const item = aggregateIndex.get(wallet.id);
+      if (item) {
+        acc.push(item);
+      }
+      return acc;
+    }, []);
+  }, [aggregateIndex, walletList]);
 
   const totalDeltaStyle = useMemo(() => {
     if (aggregate?.totalDeltaTone === 'green') return styles.deltaPositive;
@@ -132,6 +161,7 @@ export default function WalletsScreen() {
   const handleSelectWallet = async (wallet: WalletMeta) => {
     try {
       await setActiveWalletId(wallet.id);
+      setPendingWalletSelectionId(wallet.id);
       setActiveWalletIdState(wallet.id);
       notice.showSuccessNotice(`Active wallet: ${wallet.name}`, 2200);
       router.replace('/wallet');
@@ -247,6 +277,10 @@ export default function WalletsScreen() {
     }
   };
 
+  if (loading && !aggregate) {
+    return <ScreenLoadingState />;
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
@@ -324,11 +358,11 @@ export default function WalletsScreen() {
                       <View style={styles.walletText}>
                         <View style={styles.walletTitleRow}>
                           <Text style={ui.actionLabel}>{wallet.name}</Text>
-                          {active ? <Text style={styles.activeBadge}>ACTIVE</Text> : null}
+                          {active ? <Text style={styles.activeBadge}>SELECTED</Text> : null}
                         </View>
 
                         <Text style={styles.meta}>Balance: {balanceDisplay}</Text>
-                        <Text style={styles.meta}>Type: {formatWalletKind(wallet.kind)}</Text>
+                        <Text style={styles.meta}>Access: {formatWalletKind(wallet.kind)}</Text>
                         <Text
                           style={styles.address}
                           numberOfLines={1}
@@ -431,7 +465,7 @@ export default function WalletsScreen() {
           <TouchableOpacity
             activeOpacity={0.9}
             style={styles.addWalletRow}
-            onPress={() => router.push('/ui-lab')}
+            onPress={() => router.push('/wallet-access')}
           >
             <Text style={ui.actionLabel}>Add Wallet</Text>
             <AddWalletIcon width={20} height={20} />

@@ -24,8 +24,7 @@ import {
   patternPress,
 } from '../src/theme/patterns';
 
-import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
-import WalletIcon from '../assets/icons/ui/wallet_btn.svg';
+import { OpenRightIcon, WalletIcon } from '../src/ui/ui-icons';
 
 const BROW_SYSTEM_RULES = `Brow System
 

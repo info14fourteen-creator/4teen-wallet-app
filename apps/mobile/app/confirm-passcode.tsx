@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AppHeader from '../src/ui/app-header';
@@ -14,7 +14,7 @@ import NumericKeypad from '../src/ui/numeric-keypad';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { clearPasscodeDraft, getPasscodeDraft, savePasscode } from '../src/security/local-auth';
-import BackspaceIcon from '../assets/icons/ui/backspace_btn.svg';
+import { BackspaceIcon } from '../src/ui/ui-icons';
 
 export default function ConfirmPasscodeScreen() {
   const router = useRouter();
@@ -69,6 +69,7 @@ export default function ConfirmPasscodeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <View style={styles.screen}>
         <View style={styles.headerSlot}>
           <AppHeader onMenuPress={() => setMenuOpen(true)} />

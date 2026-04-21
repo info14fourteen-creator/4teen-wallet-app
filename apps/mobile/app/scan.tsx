@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Linking,
@@ -573,15 +574,6 @@ export default function ScanScreen() {
                   <View style={styles.overlayBottom} />
                 </View>
 
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.galleryButton}
-                  onPress={() => void handlePickFromGallery()}
-                  disabled={processingImage}
-                >
-                  <Ionicons name="images-outline" size={18} color={colors.white} />
-                </TouchableOpacity>
-
                 {hasResult && !(scannedType === 'address' && mode !== 'default') ? (
                   <View style={styles.cameraActionsWrap}>
                     <TouchableOpacity
@@ -600,7 +592,24 @@ export default function ScanScreen() {
                   </View>
                 ) : null}
 
-                {!scanViewReady ? <View pointerEvents="none" style={styles.cameraBootMask} /> : null}
+                {!scanViewReady ? (
+                  <View style={styles.cameraBootMask}>
+                    <ActivityIndicator size="small" color={colors.accent} />
+                    <Text style={styles.cameraBootTitle}>Preparing camera</Text>
+                    <Text style={styles.cameraBootText}>
+                      If the live preview does not appear, scan a QR code from your photo library.
+                    </Text>
+                  </View>
+                ) : null}
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.galleryButton}
+                  onPress={() => void handlePickFromGallery()}
+                  disabled={processingImage}
+                >
+                  <Ionicons name="images-outline" size={18} color={colors.white} />
+                </TouchableOpacity>
               </View>
 
               {hasResult && !(scannedType === 'address' && mode !== 'default') ? (
@@ -766,6 +775,25 @@ const styles = StyleSheet.create({
   cameraBootMask: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 28,
+  },
+
+  cameraBootTitle: {
+    color: colors.text,
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  cameraBootText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    fontFamily: 'Sora_400Regular',
   },
 
   scanAgainButton: {

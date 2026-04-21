@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { colors } from '../theme/tokens';
@@ -11,8 +11,6 @@ import {
   patternPress,
 } from '../theme/patterns';
 
-import OpenRightIcon from '../../assets/icons/ui/open_right_btn.svg';
-
 type ScreenBrowVariant = 'plain' | 'back' | 'backLink' | 'linkIcon';
 
 type ScreenBrowProps = {
@@ -22,6 +20,7 @@ type ScreenBrowProps = {
   rightIcon?: ReactNode;
   onRightPress?: () => void;
   onLabelPress?: () => void;
+  labelChevron?: 'right' | 'down' | 'up';
 };
 
 export default function ScreenBrow({
@@ -31,6 +30,7 @@ export default function ScreenBrow({
   rightIcon,
   onRightPress,
   onLabelPress,
+  labelChevron = 'right',
 }: ScreenBrowProps) {
   const router = useRouter();
 
@@ -59,10 +59,20 @@ export default function ScreenBrow({
   }
 
   if (variant === 'backLink') {
+    const chevronName =
+      labelChevron === 'down'
+        ? 'chevron-down'
+        : labelChevron === 'up'
+          ? 'chevron-up'
+          : 'chevron-right';
     const labelNode = (
       <View style={patterns.browLeftCluster}>
         <Text style={patterns.browLabel}>{label}</Text>
-        <OpenRightIcon width={patternIcons.browChevron} height={patternIcons.browChevron} />
+        <MaterialCommunityIcons
+          name={chevronName}
+          size={patternIcons.browChevron}
+          color={colors.accent}
+        />
       </View>
     );
 
@@ -84,10 +94,20 @@ export default function ScreenBrow({
     );
   }
 
+  const chevronName =
+    labelChevron === 'down'
+      ? 'chevron-down'
+      : labelChevron === 'up'
+        ? 'chevron-up'
+        : 'chevron-right';
   const labelNode = (
     <View style={patterns.browLeftCluster}>
       <Text style={patterns.browLabel}>{label}</Text>
-      <OpenRightIcon width={patternIcons.browChevron} height={patternIcons.browChevron} />
+      <MaterialCommunityIcons
+        name={chevronName}
+        size={patternIcons.browChevron}
+        color={colors.accent}
+      />
     </View>
   );
 
@@ -124,7 +144,7 @@ function BackAction({ onPress }: { onPress: () => void }) {
       hitSlop={patternHitSlop.comfort}
       onPress={onPress}
     >
-      <Ionicons name="arrow-back" size={patternIcons.browBack} color={colors.accent} />
+      <MaterialCommunityIcons name="arrow-left" size={patternIcons.browBack} color={colors.accent} />
       <Text style={patterns.browBackText}>back</Text>
     </TouchableOpacity>
   );

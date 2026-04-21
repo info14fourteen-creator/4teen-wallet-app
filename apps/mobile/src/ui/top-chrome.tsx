@@ -10,7 +10,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -18,12 +17,8 @@ import { colors, fontFamilies, radius, spacing } from '../theme/tokens';
 import { getCompactVersionDisplayString } from '../config/app-version';
 import { openInAppBrowser } from '../utils/open-in-app-browser';
 
-import MenuIcon from '../../assets/icons/ui/menu.svg';
-import SearchIcon from '../../assets/icons/ui/search.svg';
-import ScanIcon from '../../assets/icons/ui/scan.svg';
-import CloseIcon from '../../assets/icons/ui/close.svg';
-import InfoIcon from '../../assets/icons/ui/info_btn.svg';
 import LogoWhite from '../../assets/icons/ui/logo_white.svg';
+import { CloseIcon, InfoIcon, MenuIcon, ScanIcon, SearchIcon } from './ui-icons';
 
 import DiscordIcon from '../../assets/icons/ui/socials/discord_social.svg';
 import FacebookIcon from '../../assets/icons/ui/socials/facebook_social.svg';

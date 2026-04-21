@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Keyboard,
   LayoutChangeEvent,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,7 +14,8 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureDetector } from 'react-native-gesture-handler';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
 import KeyboardView from '../src/ui/KeyboardView';
@@ -23,6 +25,7 @@ import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
+import { useSwipeDownDismiss } from '../src/ui/use-swipe-down-dismiss';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -40,13 +43,17 @@ import {
 } from '../src/services/wallet/portfolio';
 import { setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
 
-import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
-import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
-import PasteIcon from '../assets/icons/ui/paste_btn.svg';
-import ScanIcon from '../assets/icons/ui/scan.svg';
-import SwapQuickIcon from '../assets/icons/ui/swap_qp_btn.svg';
 import NumericKeypad from '../src/ui/numeric-keypad';
-import BackspaceIcon from '../assets/icons/ui/backspace_btn.svg';
+import { FOOTER_NAV_BOTTOM_OFFSET, FOOTER_NAV_RESERVED_SPACE } from '../src/ui/footer-nav';
+import {
+  BackspaceIcon,
+  CloseIcon,
+  OpenDownIcon,
+  OpenRightIcon,
+  PasteIcon,
+  ScanIcon,
+  SwapQuickIcon,
+} from '../src/ui/ui-icons';
 
 type SendDraft = Awaited<ReturnType<typeof getSendAssetDraft>>;
 
@@ -57,6 +64,12 @@ type WalletSwitcherItem = {
   kind: WalletMeta['kind'];
   balanceDisplay: string;
 };
+
+function formatWalletAccessLabel(kind: WalletMeta['kind']) {
+  if (kind === 'mnemonic') return 'Seed Phrase';
+  if (kind === 'private-key') return 'Private Key';
+  return 'Watch Only';
+}
 
 function isValidTronAddress(value: string) {
   return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(value || '').trim());
@@ -128,6 +141,7 @@ function normalizeAddressMatch(value: string) {
 export default function SendScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const insets = useSafeAreaInsets();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const params = useLocalSearchParams<{
     tokenId?: string | string[];
@@ -184,7 +198,7 @@ export default function SendScreen() {
   const recipientIsValid = isValidTronAddress(recipientTrimmed);
   useChromeLoading((loading && !draft) || refreshing);
 
-  const contentBottomInset = useBottomInset(amountKeyboardVisible ? 52 : 0);
+  const contentBottomInset = useBottomInset(amountKeyboardVisible ? 312 : 0);
 
   const recipientFontSize = useMemo(() => {
     if (recipientTrimmed.length > 32) return 11;
@@ -382,10 +396,6 @@ export default function SendScreen() {
     }
   }, [load]);
 
-  const tokenLabel = useMemo(() => {
-    return draft?.token?.symbol || draft?.token?.name || 'TOKEN';
-  }, [draft?.token?.name, draft?.token?.symbol]);
-
   const visibleWalletChoices = useMemo(
     () => walletChoices.filter((wallet) => wallet.id !== draft?.wallet.id),
     [draft?.wallet.id, walletChoices]
@@ -465,6 +475,7 @@ export default function SendScreen() {
 
   const amountPrecision = amountInputMode === 'token' ? 6 : 2;
   const maxAmountValue = amountInputMode === 'token' ? maxTokenAmountValue : maxUsdAmountValue;
+  const amountBackspaceActsAsClose = amount === '' || amount === '0';
 
   const normalizeAmountInput = useCallback(
     (rawValue: string) => {
@@ -503,10 +514,11 @@ export default function SendScreen() {
     setWalletOptionsOpen(false);
     setTokenOptionsOpen(false);
     setContactsOpen(false);
+    Keyboard.dismiss();
     setAmountKeyboardVisible(true);
     requestAnimationFrame(() => {
       setTimeout(() => {
-        const targetY = Math.max(0, amountSectionY - 64);
+        const targetY = Math.max(0, amountSectionY - 120);
         if (typeof scrollRef.current?.scrollToPosition === 'function') {
           scrollRef.current.scrollToPosition(0, targetY, true);
           return;
@@ -519,6 +531,7 @@ export default function SendScreen() {
   const closeAmountKeyboard = useCallback(() => {
     setAmountKeyboardVisible(false);
   }, []);
+  const amountKeyboardSwipeGesture = useSwipeDownDismiss(closeAmountKeyboard);
 
   const closeInlinePickers = useCallback(() => {
     setWalletOptionsOpen(false);
@@ -563,8 +576,14 @@ export default function SendScreen() {
   }, [normalizeAmountInput]);
 
   const handleAmountBackspace = useCallback(() => {
-    setAmount((prev) => prev.slice(0, -1));
-  }, []);
+    setAmount((prev) => {
+      if (prev === '' || prev === '0') {
+        closeAmountKeyboard();
+        return prev;
+      }
+      return prev.slice(0, -1);
+    });
+  }, [closeAmountKeyboard]);
 
   const handlePasteRecipient = useCallback(async () => {
     closeAmountKeyboard();
@@ -775,8 +794,8 @@ export default function SendScreen() {
             { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
           ]}
           keyboardShouldPersistTaps="handled"
-          enableAutomaticScroll={!amountKeyboardVisible}
-          extraScrollHeight={amountKeyboardVisible ? 140 : 120}
+          enableAutomaticScroll={false}
+          extraScrollHeight={0}
           onScrollBeginDrag={() => {
             closeAmountKeyboard();
             closeInlinePickers();
@@ -800,7 +819,7 @@ export default function SendScreen() {
           ) : draft ? (
             <>
               <View style={styles.selectionBlock}>
-                <Text style={styles.selectionEyebrow}>ACTIVE WALLET · TAP TO SWITCH</Text>
+                <Text style={styles.selectionEyebrow}>SELECTED WALLET · TAP TO SWITCH</Text>
 
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -813,11 +832,14 @@ export default function SendScreen() {
                   <View style={styles.walletCardText}>
                     <View style={styles.walletTitleRow}>
                       <Text style={styles.walletName}>{draft.wallet.name}</Text>
-                      <Text style={styles.activeBadge}>ACTIVE</Text>
+                      <Text style={styles.activeBadge}>SELECTED</Text>
                     </View>
 
                     <Text style={styles.walletBalance}>
                       Balance: {selectedWalletOption?.balanceDisplay ?? '$0.00'}
+                    </Text>
+                    <Text style={styles.walletBalance}>
+                      Access: {formatWalletAccessLabel(draft.wallet.kind)}
                     </Text>
                     <Text style={styles.walletAddress}>{draft.wallet.address}</Text>
                   </View>
@@ -848,6 +870,9 @@ export default function SendScreen() {
                           </View>
 
                           <Text style={styles.optionBalance}>Balance: {wallet.balanceDisplay}</Text>
+                          <Text style={styles.optionBalance}>
+                            Access: {formatWalletAccessLabel(wallet.kind)}
+                          </Text>
                           <Text style={styles.optionAddress}>{wallet.address}</Text>
                         </View>
 
@@ -863,7 +888,7 @@ export default function SendScreen() {
               ) : null}
 
               <View style={styles.selectionBlock}>
-                <Text style={styles.selectionEyebrow}>ACTIVE ASSET · TAP TO SWITCH</Text>
+                <Text style={styles.selectionEyebrow}>SELECTED ASSET · TAP TO SWITCH</Text>
 
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -951,7 +976,7 @@ export default function SendScreen() {
                 </View>
               ) : null}
 
-              <View style={styles.sectionBlock}>
+              <View style={styles.sectionBlock} onLayout={handleAmountSectionLayout}>
                 <View style={styles.fieldHeaderRow}>
                   <Text style={styles.sectionFieldTitle}>RECIPIENT</Text>
 
@@ -1111,7 +1136,7 @@ export default function SendScreen() {
                 ) : null}
               </View>
 
-              <View style={styles.sectionBlock} onLayout={handleAmountSectionLayout}>
+              <View style={styles.sectionBlock}>
                 <View style={styles.amountHeaderRow}>
                   <Text style={styles.sectionFieldTitle}>AMOUNT</Text>
 
@@ -1169,18 +1194,6 @@ export default function SendScreen() {
                 </Text>
               </View>
 
-              {amountKeyboardVisible ? (
-                <View style={styles.amountKeyboardWrap}>
-                  <NumericKeypad
-                    onDigitPress={handleAmountDigitPress}
-                    onBackspacePress={handleAmountBackspace}
-                    showDot
-                    onDotPress={handleAmountDotPress}
-                    backspaceIcon={<BackspaceIcon width={22} height={22} />}
-                  />
-                </View>
-              ) : null}
-
               <TouchableOpacity
                 activeOpacity={0.9}
                 style={[styles.sendButton, sending && styles.sendButtonDisabled]}
@@ -1190,7 +1203,7 @@ export default function SendScreen() {
                 {sending ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
-                  <Text style={styles.sendButtonText}>Confirm {tokenLabel} Transfer</Text>
+                  <Text style={styles.sendButtonText}>CONFIRM TRANSFER</Text>
                 )}
               </TouchableOpacity>
             </>
@@ -1200,6 +1213,38 @@ export default function SendScreen() {
             </View>
           )}
         </KeyboardView>
+
+        {amountKeyboardVisible ? (
+          <Pressable style={styles.amountKeyboardBackdrop} onPress={closeAmountKeyboard} />
+        ) : null}
+
+        {amountKeyboardVisible ? (
+          <View
+            style={[
+              styles.amountKeyboardDock,
+              { paddingBottom: Math.max(insets.bottom, 8) + 8 },
+            ]}
+          >
+            <GestureDetector gesture={amountKeyboardSwipeGesture}>
+              <View style={styles.amountKeyboardHandleArea}>
+                <View style={styles.amountKeyboardHandle} />
+              </View>
+            </GestureDetector>
+            <NumericKeypad
+              onDigitPress={handleAmountDigitPress}
+              onBackspacePress={handleAmountBackspace}
+              showDot
+              onDotPress={handleAmountDotPress}
+              backspaceIcon={
+                amountBackspaceActsAsClose ? (
+                  <CloseIcon width={22} height={22} />
+                ) : (
+                  <BackspaceIcon width={22} height={22} />
+                )
+              }
+            />
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -1378,7 +1423,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 18,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: 'rgba(24,224,58,0.22)',
     backgroundColor: 'rgba(24,224,58,0.06)',
@@ -1391,7 +1436,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 18,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     backgroundColor: colors.surfaceSoft,
@@ -1411,14 +1456,14 @@ const styles = StyleSheet.create({
   assetLogo: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: radius.pill,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
 
   assetFallbackLogo: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,105,0,0.12)',
@@ -1536,9 +1581,34 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,105,0,0.08)',
   },
 
-  amountKeyboardWrap: {
-    marginTop: -4,
-    marginBottom: 14,
+  amountKeyboardBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+  },
+
+  amountKeyboardDock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: FOOTER_NAV_RESERVED_SPACE + FOOTER_NAV_BOTTOM_OFFSET - 23,
+    backgroundColor: colors.bg,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: 18,
+  },
+
+  amountKeyboardHandleArea: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 12,
+  },
+
+  amountKeyboardHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.textDim,
   },
 
   inputWithIcons: {
