@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -24,51 +24,24 @@ import useChromeLoading from '../src/ui/use-chrome-loading';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
+import { clearWalletRuntimeCaches, FOURTEEN_LOGO } from '../src/services/tron/api';
 import {
-  TRX_TOKEN_ID,
-  clearWalletRuntimeCaches,
-  prependTokenHistoryCacheItem,
-  prependWalletHistoryCacheItem,
-} from '../src/services/tron/api';
-import {
-  clearFourteenSwapDraft,
-  getFourteenSwapDraft,
-} from '../src/services/swap/draft';
-import {
-  buildSwapReview,
-  executeSwap,
-  type FourteenSwapReview,
-} from '../src/services/swap/sunio';
-import {
-  getBiometricsEnabled,
-  verifyPasscode,
-} from '../src/security/local-auth';
-import { useWalletSession } from '../src/wallet/wallet-session';
+  executeLiquidityController,
+  estimateLiquidityControllerExecution,
+  shortLiquidityTx,
+  type LiquidityExecutionReview,
+} from '../src/services/liquidity-controller';
 import {
   getEnergyResaleQuote,
   rentEnergyForPurpose,
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
-
+import {
+  getBiometricsEnabled,
+  verifyPasscode,
+} from '../src/security/local-auth';
+import { useWalletSession } from '../src/wallet/wallet-session';
 import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
-
-function decimalToRaw(amount: string, decimals: number) {
-  const safe = String(amount || '').replace(',', '.').trim();
-
-  if (!/^\d+(\.\d*)?$/.test(safe)) {
-    return '0';
-  }
-
-  const [wholePart, fractionPart = ''] = safe.split('.');
-  const paddedFraction = fractionPart.padEnd(decimals, '0').slice(0, decimals);
-  const normalized = `${wholePart}${paddedFraction}`.replace(/^0+(?=\d)/, '');
-
-  return normalized || '0';
-}
-
-function buildTronscanTxUrl(txHash: string) {
-  return `https://tronscan.org/#/transaction/${txHash}`;
-}
 
 function formatResourceValue(value: number) {
   const safe = Math.max(0, Math.floor(Number(value) || 0));
@@ -86,61 +59,30 @@ function formatResourceValue(value: number) {
 
 function formatTrxAmountFromSun(value: number) {
   const trx = Math.max(0, Number(value || 0)) / 1_000_000;
-  return trx.toFixed(trx >= 1 ? 3 : 6).replace(/\.?0+$/, '');
+  return trx.toFixed(trx >= 1 ? 3 : 6).replace(/\.?0+$/, '') || '0';
 }
 
-function formatCompactHeroAmount(value: string | number) {
-  const safe = Math.max(0, Number(value || 0));
-
-  if (!Number.isFinite(safe) || safe <= 0) {
-    return '0.00';
-  }
-
-  if (safe >= 1_000_000_000) {
-    return `${(safe / 1_000_000_000).toFixed(2).replace(/\.?0+$/, '')}b`;
-  }
-
-  if (safe >= 1_000_000) {
-    return `${(safe / 1_000_000).toFixed(2).replace(/\.?0+$/, '')}m`;
-  }
-
-  if (safe >= 1_000) {
-    return `${(safe / 1_000).toFixed(2).replace(/\.?0+$/, '')}k`;
-  }
-
-  return safe.toFixed(2).replace(/\.?0+$/, '');
+function shortAddress(address: string) {
+  const safe = String(address || '').trim();
+  if (safe.length <= 14) return safe || '—';
+  return `${safe.slice(0, 6)}...${safe.slice(-6)}`;
 }
 
 function clampPercent(value: number) {
   return Math.max(0, Math.min(100, value));
 }
 
-function isRateLimitError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || '');
-  return message.includes('429');
-}
-
-function getSwapConfirmErrorText(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || '');
-
-  if (isRateLimitError(error)) {
-    return 'Rate limit reached while refreshing swap data. Pull to refresh in a few seconds.';
-  }
-
-  return message || 'Failed to build swap confirmation.';
-}
-
-export default function SwapConfirmScreen() {
+export default function LiquidityConfirmScreen() {
   const router = useRouter();
   const notice = useNotice();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
-  const { triggerWalletDataRefresh, setChromeHidden } = useWalletSession();
+  const { setChromeHidden, triggerWalletDataRefresh } = useWalletSession();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [review, setReview] = useState<FourteenSwapReview | null>(null);
+  const [review, setReview] = useState<LiquidityExecutionReview | null>(null);
   const [errorText, setErrorText] = useState('');
   const [passcodeOpen, setPasscodeOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
@@ -151,77 +93,85 @@ export default function SwapConfirmScreen() {
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
   const [energyRenting, setEnergyRenting] = useState(false);
-  const [pendingApprovalMode, setPendingApprovalMode] = useState<'swap' | 'rent'>('swap');
-  const routeChangedNoticeShownRef = useRef(false);
+  const [pendingApprovalMode, setPendingApprovalMode] = useState<'execute' | 'rent'>('execute');
   const preserveNoticeOnExitRef = useRef(false);
+  const burnWarningShownRef = useRef(false);
 
   useChromeLoading(loading || refreshing);
 
-  const approvalAvailableEnergy = review?.resources.approval
+  const energyAvailable = review
+    ? Math.max(0, review.resources.available.energyLimit - review.resources.available.energyUsed)
+    : 0;
+  const bandwidthAvailable = review
     ? Math.max(
         0,
-        review.resources.approval.available.energyLimit -
-          review.resources.approval.available.energyUsed
+        review.resources.available.bandwidthLimit - review.resources.available.bandwidthUsed
       )
     : 0;
-  const swapAvailableEnergy = review?.resources.swap
-    ? Math.max(0, review.resources.swap.available.energyLimit - review.resources.swap.available.energyUsed)
-    : 0;
-  const approvalAvailableBandwidth = review?.resources.approval
-    ? Math.max(
-        0,
-        review.resources.approval.available.bandwidthLimit -
-          review.resources.approval.available.bandwidthUsed
-      )
-    : 0;
-  const swapAvailableBandwidth = review?.resources.swap
-    ? Math.max(
-        0,
-        review.resources.swap.available.bandwidthLimit - review.resources.swap.available.bandwidthUsed
-      )
-    : 0;
-  const estimatedEnergy =
-    Number(review?.resources.approval?.estimatedEnergy || 0) +
-    Number(review?.resources.swap?.estimatedEnergy || 0);
-  const estimatedBandwidth =
-    Number(review?.resources.approval?.estimatedBandwidth || 0) +
-    Number(review?.resources.swap?.estimatedBandwidth || 0);
-  const totalAvailableEnergy = Math.max(approvalAvailableEnergy, swapAvailableEnergy);
-  const totalAvailableBandwidth = Math.max(approvalAvailableBandwidth, swapAvailableBandwidth);
-  const hasNoEnergyAvailable = totalAvailableEnergy <= 0;
-  const resourceEnergyShortfall =
-    Number(review?.resources.approval?.energyShortfall || 0) +
-    Number(review?.resources.swap?.energyShortfall || 0);
-  const resourceBandwidthShortfall =
-    Number(review?.resources.approval?.bandwidthShortfall || 0) +
-    Number(review?.resources.swap?.bandwidthShortfall || 0);
-  const hasResourceShortfall = resourceEnergyShortfall > 0 || resourceBandwidthShortfall > 0;
-  const canRentResources = estimatedEnergy > 0 || estimatedBandwidth > 0;
-  const energyBarPercent = clampPercent(
-    (estimatedEnergy / Math.max(estimatedEnergy, totalAvailableEnergy, 1)) * 100
+  const hasNoEnergyAvailable = energyAvailable <= 0;
+  const hasResourceShortfall = Boolean(
+    review &&
+      (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
-  const bandwidthBarPercent = clampPercent(
-    (estimatedBandwidth / Math.max(estimatedBandwidth, totalAvailableBandwidth, 1)) * 100
+  const canRentResources = Boolean(
+    review &&
+      (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
   );
+  const energyBarPercent = useMemo(() => {
+    if (!review) return 0;
+    const base = Math.max(review.resources.estimatedEnergy, energyAvailable, 1);
+    return clampPercent((review.resources.estimatedEnergy / base) * 100);
+  }, [energyAvailable, review]);
+  const bandwidthBarPercent = useMemo(() => {
+    if (!review) return 0;
+    const base = Math.max(review.resources.estimatedBandwidth, bandwidthAvailable, 1);
+    return clampPercent((review.resources.estimatedBandwidth / base) * 100);
+  }, [bandwidthAvailable, review]);
+  const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
+  const isApproveDisabled = submitting || !review || !hasTrxForBurn;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!review || !canRentResources || review.wallet.kind === 'watch-only') {
+      setEnergyQuote(null);
+      setEnergyQuoteLoading(false);
+      return;
+    }
+
+    setEnergyQuoteLoading(true);
+    getEnergyResaleQuote({
+      purpose: 'liquidity_execute',
+      wallet: review.wallet.address,
+      requiredEnergy: review.resources.energyShortfall || review.resources.estimatedEnergy,
+      requiredBandwidth:
+        review.resources.bandwidthShortfall || review.resources.estimatedBandwidth,
+    }).then((quote) => {
+      if (!cancelled) setEnergyQuote(quote);
+    }).finally(() => {
+      if (!cancelled) setEnergyQuoteLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canRentResources, review]);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setErrorText('');
-
-      const draft = await getFourteenSwapDraft();
-
-      if (!draft) {
-        throw new Error('Swap request is missing. Go back and build the swap again.');
-      }
-
-      const nextReview = await buildSwapReview(draft);
+      const nextReview = await estimateLiquidityControllerExecution();
       setReview(nextReview);
     } catch (error) {
+      console.error(error);
       setReview(null);
-      setErrorText(getSwapConfirmErrorText(error));
+      setErrorText(
+        error instanceof Error ? error.message : 'Failed to build liquidity confirmation.'
+      );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -263,18 +213,31 @@ export default function SwapConfirmScreen() {
   }, [loadBiometricsState]);
 
   useEffect(() => {
-    if (!review?.routeChanged || routeChangedNoticeShownRef.current) return;
-    routeChangedNoticeShownRef.current = true;
-    notice.showNeutralNotice('Route updated before approval. Review the latest quote.', 2600);
-  }, [notice, review?.routeChanged]);
-
-  useEffect(() => {
     setChromeHidden(passcodeOpen);
   }, [passcodeOpen, setChromeHidden]);
 
   useEffect(() => {
+    if (!review) return;
+
+    if (!review.trxCoverage.canCoverBurn) {
+      if (burnWarningShownRef.current) return;
+      burnWarningShownRef.current = true;
+      notice.showErrorNotice(
+        `Not enough TRX for network burn. Top up at least ${formatTrxAmountFromSun(
+          review.trxCoverage.missingTrxSun
+        )} TRX first.`,
+        3200
+      );
+      return;
+    }
+
+    burnWarningShownRef.current = false;
+    notice.hideNotice();
+  }, [notice, review]);
+
+  useEffect(() => {
     return () => {
-      routeChangedNoticeShownRef.current = false;
+      burnWarningShownRef.current = false;
       setChromeHidden(false);
       if (!preserveNoticeOnExitRef.current) {
         notice.hideNotice();
@@ -284,46 +247,9 @@ export default function SwapConfirmScreen() {
   }, [notice, setChromeHidden]);
 
   const handleRefresh = useCallback(async () => {
-    try {
-      setRefreshing(true);
-      await load();
-    } finally {
-      setRefreshing(false);
-    }
+    setRefreshing(true);
+    await load();
   }, [load]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!review || !canRentResources || review.wallet.kind === 'watch-only') {
-      setEnergyQuote(null);
-      setEnergyQuoteLoading(false);
-      return;
-    }
-
-    setEnergyQuoteLoading(true);
-    getEnergyResaleQuote({
-      purpose: 'swap',
-      wallet: review.wallet.address,
-      requiredEnergy: resourceEnergyShortfall || estimatedEnergy,
-      requiredBandwidth: resourceBandwidthShortfall || estimatedBandwidth,
-    }).then((quote) => {
-      if (!cancelled) setEnergyQuote(quote);
-    }).finally(() => {
-      if (!cancelled) setEnergyQuoteLoading(false);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    canRentResources,
-    estimatedBandwidth,
-    estimatedEnergy,
-    resourceBandwidthShortfall,
-    resourceEnergyShortfall,
-    review,
-  ]);
 
   const performRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || energyRenting) return;
@@ -332,7 +258,7 @@ export default function SwapConfirmScreen() {
       setEnergyRenting(true);
       notice.showNeutralNotice('Sending Energy rental payment...', 2500);
       await rentEnergyForPurpose({
-        purpose: 'swap',
+        purpose: 'liquidity_execute',
         wallet: review.wallet.address,
         quote: energyQuote,
       });
@@ -354,116 +280,27 @@ export default function SwapConfirmScreen() {
     setPasscodeError('');
   }, [energyQuote, energyRenting, load, notice, review]);
 
-  const performSwap = useCallback(async () => {
+  const performLiquidityExecution = useCallback(async () => {
     if (!review || submitting) return;
 
     try {
       setSubmitting(true);
-
-      const result = await executeSwap({
-        route: review.route,
-        amountIn: review.amountIn,
-        slippage: review.slippage,
-        sourceToken: review.inputToken,
-        walletId: review.wallet.id,
-        feeLimitSun: review.resources.swap?.recommendedFeeLimitSun,
-        approvalFeeLimitSun: review.resources.approval?.recommendedFeeLimitSun,
-        onProgress(progress) {
-          if (
-            progress.step === 'approval-submitted' ||
-            progress.step === 'swap-submitted' ||
-            progress.step === 'swap-confirmed'
-          ) {
-            notice.showNeutralNotice(progress.message, 2200);
-          }
-        },
+      const receipt = await executeLiquidityController({
+        feeLimitSun: review.resources.recommendedFeeLimitSun,
       });
 
-      const timestamp = Date.now();
-      const explorerUrl = buildTronscanTxUrl(result.txid);
-      const sourceAmountRaw = decimalToRaw(review.amountIn, review.inputToken.decimals);
-      const sourceAmountFormatted = `-${review.amountIn}`;
-      const outputAmountRaw = String(review.route.expectedOutRaw || '0');
-      const outputAmountFormatted = `+ ${review.expectedOut}`;
-
-      await prependWalletHistoryCacheItem(review.wallet.address, {
-        id: `${review.inputToken.tokenId}:${result.txid}:SEND:${sourceAmountRaw}`,
-        txHash: result.txid,
-        type: 'OUT',
-        displayType: 'SEND',
-        amountRaw: sourceAmountRaw,
-        amountFormatted: sourceAmountFormatted,
-        timestamp,
-        from: review.wallet.address,
-        counterpartyLabel: review.route.providerName,
-        isKnownContact: false,
-        tronscanUrl: explorerUrl,
-        tokenId: review.inputToken.tokenId,
-        tokenName: review.inputToken.name || review.inputToken.symbol,
-        tokenSymbol: review.inputToken.symbol,
-        tokenLogo: review.inputToken.logo || undefined,
-      });
-
-      await prependTokenHistoryCacheItem(review.wallet.address, review.inputToken.tokenId, {
-        id: `${result.txid}:source`,
-        txHash: result.txid,
-        type: 'OUT',
-        displayType: 'SEND',
-        amountRaw: sourceAmountRaw,
-        amountFormatted: sourceAmountFormatted,
-        timestamp,
-        from: review.wallet.address,
-        counterpartyLabel: review.route.providerName,
-        isKnownContact: false,
-        tronscanUrl: explorerUrl,
-      });
-
-      await prependWalletHistoryCacheItem(review.wallet.address, {
-        id: `${review.outputToken.tokenId}:${result.txid}:RECEIVE:${outputAmountRaw}`,
-        txHash: result.txid,
-        type: 'IN',
-        displayType: 'RECEIVE',
-        amountRaw: outputAmountRaw,
-        amountFormatted: outputAmountFormatted,
-        timestamp,
-        to: review.wallet.address,
-        counterpartyLabel: review.route.providerName,
-        isKnownContact: false,
-        tronscanUrl: explorerUrl,
-        tokenId: review.outputToken.tokenId,
-        tokenName:
-          review.outputToken.name ||
-          (review.outputToken.tokenId === TRX_TOKEN_ID ? 'TRON' : review.outputToken.symbol),
-        tokenSymbol: review.outputToken.symbol,
-        tokenLogo: review.outputToken.logo || undefined,
-      });
-
-      await prependTokenHistoryCacheItem(review.wallet.address, review.outputToken.tokenId, {
-        id: `${result.txid}:output`,
-        txHash: result.txid,
-        type: 'IN',
-        displayType: 'RECEIVE',
-        amountRaw: outputAmountRaw,
-        amountFormatted: outputAmountFormatted,
-        timestamp,
-        to: review.wallet.address,
-        counterpartyLabel: review.route.providerName,
-        isKnownContact: false,
-        tronscanUrl: explorerUrl,
-      });
-
-      await clearFourteenSwapDraft();
-      clearWalletRuntimeCaches(review.wallet.address);
+      setPasscodeOpen(false);
+      setPasscodeDigits('');
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice(
-        `Swap confirmed. ${review.outputToken.symbol} will appear in your wallet shortly.`,
-        3000
-      );
-      router.replace('/wallet');
+      notice.showSuccessNotice(`Liquidity trigger sent: ${shortLiquidityTx(receipt.txId)}`, 3000);
+      router.replace('/liquidity-controller');
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice(error instanceof Error ? error.message : 'Swap failed.', 3200);
+      notice.showErrorNotice(
+        error instanceof Error ? error.message : 'Liquidity execution failed.',
+        3200
+      );
     } finally {
       setSubmitting(false);
     }
@@ -486,13 +323,20 @@ export default function SwapConfirmScreen() {
         return;
       }
 
-      await performSwap();
+      await performLiquidityExecution();
     } catch (error) {
       console.error(error);
       setPasscodeError('Failed to verify passcode.');
       setPasscodeDigits('');
     }
-  }, [energyRenting, passcodeDigits, pendingApprovalMode, performRentEnergy, performSwap, submitting]);
+  }, [
+    energyRenting,
+    passcodeDigits,
+    pendingApprovalMode,
+    performLiquidityExecution,
+    performRentEnergy,
+    submitting,
+  ]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -501,19 +345,19 @@ export default function SwapConfirmScreen() {
   }, [handlePasscodeSubmit, passcodeDigits, passcodeOpen]);
 
   const handleApprove = useCallback(async () => {
-    if (!review || submitting) return;
-    setPendingApprovalMode('swap');
+    if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
+    setPendingApprovalMode('execute');
 
     if (biometricAvailable && biometricsEnabled) {
       try {
         const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Confirm Swap',
+          promptMessage: 'Confirm Liquidity',
           fallbackLabel: 'Use Passcode',
           cancelLabel: 'Cancel',
         });
 
         if (result.success) {
-          await performSwap();
+          await performLiquidityExecution();
           return;
         }
 
@@ -532,7 +376,13 @@ export default function SwapConfirmScreen() {
     setPasscodeError('');
     setPasscodeDigits('');
     setPasscodeOpen(true);
-  }, [biometricAvailable, biometricsEnabled, performSwap, review, submitting]);
+  }, [
+    biometricAvailable,
+    biometricsEnabled,
+    performLiquidityExecution,
+    review,
+    submitting,
+  ]);
 
   const handleRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || submitting || energyRenting) return;
@@ -577,11 +427,10 @@ export default function SwapConfirmScreen() {
     submitting,
   ]);
 
-  const handleReject = useCallback(async () => {
+  const handleReject = useCallback(() => {
     if (submitting) return;
     preserveNoticeOnExitRef.current = true;
-    await clearFourteenSwapDraft();
-    notice.showNeutralNotice('Swap rejected by user.', 2200);
+    notice.showNeutralNotice('Liquidity execution rejected by user.', 2200);
     router.back();
   }, [notice, router, submitting]);
 
@@ -598,7 +447,7 @@ export default function SwapConfirmScreen() {
   }, [submitting]);
 
   if (loading && !review) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Building liquidity confirmation" />;
   }
 
   return (
@@ -621,17 +470,19 @@ export default function SwapConfirmScreen() {
             />
           }
         >
-          <ScreenBrow label="SWAP" variant="back" />
+          <ScreenBrow label="LIQUIDITY" variant="back" />
 
           {errorText || !review ? (
             <View style={styles.errorWrap}>
-              <Text style={styles.errorText}>{errorText || 'Unable to build swap review.'}</Text>
+              <Text style={styles.errorText}>
+                {errorText || 'Unable to build liquidity confirmation.'}
+              </Text>
             </View>
           ) : (
             <>
               <View style={styles.heroCard}>
                 <Image
-                  source={{ uri: review.outputToken.logo }}
+                  source={{ uri: FOURTEEN_LOGO }}
                   style={styles.heroWatermark}
                   contentFit="contain"
                 />
@@ -641,57 +492,53 @@ export default function SwapConfirmScreen() {
 
                 <View style={styles.heroMetricRow}>
                   <View style={[styles.heroMetricCard, styles.heroMetricCardSpend]}>
-                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelSpend]}>SPEND</Text>
-                    <Text style={[styles.heroMetricValue, styles.heroMetricValueSpend]}>
-                      {formatCompactHeroAmount(review.amountIn)}
+                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelSpend]}>
+                      CONTRACT
                     </Text>
-                    <View style={styles.heroMetricTokenRow}>
-                      <Image
-                        source={{ uri: review.inputToken.logo }}
-                        style={styles.heroMetricTokenLogo}
-                        contentFit="contain"
-                      />
-                      <Text style={styles.heroMetricToken}>{review.inputToken.symbol}</Text>
-                    </View>
+                    <Text style={[styles.heroMetricValue, styles.heroMetricValueSpend]}>
+                      Bootstrap
+                    </Text>
+                    <Text style={styles.heroMetricToken}>
+                      {shortAddress(review.bootstrapperAddress)}
+                    </Text>
                   </View>
 
                   <View style={[styles.heroMetricCard, styles.heroMetricCardReceive]}>
-                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelReceive]}>RECEIVE</Text>
-                    <Text style={[styles.heroMetricValue, styles.heroMetricValueReceive]}>
-                      {formatCompactHeroAmount(review.expectedOut)}
+                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelReceive]}>
+                      ACTION
                     </Text>
-                    <View style={styles.heroMetricTokenRow}>
-                      <Image
-                        source={{ uri: review.outputToken.logo }}
-                        style={styles.heroMetricTokenLogo}
-                        contentFit="contain"
-                      />
-                      <Text style={styles.heroMetricToken}>{review.outputToken.symbol}</Text>
-                    </View>
+                    <Text style={[styles.heroMetricValue, styles.heroMetricValueReceive]}>
+                      Execute
+                    </Text>
+                    <Text style={styles.heroMetricToken}>daily liquidity</Text>
                   </View>
                 </View>
 
                 <View style={styles.heroMetaRow}>
-                  <Text style={styles.heroMetaLabel}>Minimum out</Text>
-                  <Text style={styles.heroMetaValue}>
-                    {review.minReceived} {review.outputToken.symbol}
+                  <Text style={styles.heroMetaLabel}>Estimated burn</Text>
+                  <Text
+                    style={[
+                      styles.heroMetaValue,
+                      hasResourceShortfall ? styles.heroMetaValueRisk : null,
+                    ]}
+                  >
+                    {formatTrxAmountFromSun(review.resources.estimatedBurnSun)} TRX
                   </Text>
                 </View>
               </View>
 
               <TouchableOpacity
                 activeOpacity={0.9}
-                style={[
-                  styles.primaryButton,
-                  (submitting || review.wallet.kind === 'watch-only') && styles.primaryButtonDisabled,
-                ]}
+                style={[styles.primaryButton, isApproveDisabled && styles.primaryButtonDisabled]}
                 onPress={() => void handleApprove()}
-                disabled={submitting || review.wallet.kind === 'watch-only'}
+                disabled={isApproveDisabled}
               >
                 {submitting ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
-                  <Text style={styles.primaryButtonText}>APPROVE & SWAP</Text>
+                  <Text style={styles.primaryButtonText}>
+                    {hasTrxForBurn ? 'APPROVE & EXECUTE' : 'TOP UP TRX'}
+                  </Text>
                 )}
               </TouchableOpacity>
 
@@ -705,45 +552,18 @@ export default function SwapConfirmScreen() {
 
               <View style={styles.detailCard}>
                 <View style={styles.detailRowFirst}>
-                  <Text style={styles.detailLabel}>From</Text>
-                  <Text style={styles.detailValue}>{review.inputToken.symbol}</Text>
+                  <Text style={styles.detailLabel}>Wallet</Text>
+                  <Text style={styles.detailValue}>{review.wallet.name}</Text>
                 </View>
 
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>To</Text>
-                  <Text style={styles.detailValue}>{review.outputToken.symbol}</Text>
+                  <Text style={styles.detailLabel}>Controller</Text>
+                  <Text style={styles.detailValue}>{shortAddress(review.controllerAddress)}</Text>
                 </View>
 
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Route</Text>
-                  <Text style={styles.detailValue}>{review.route.routeLabel}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Path</Text>
-                  <Text style={styles.detailValue}>{review.route.symbols.join(' → ')}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Provider</Text>
-                  <Text style={styles.detailValue}>{review.route.providerName}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Slippage</Text>
-                  <Text style={styles.detailValue}>{review.slippage}%</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Approve</Text>
-                  <Text
-                    style={[
-                      styles.detailValue,
-                      review.approvalRequired ? styles.detailValueAccent : null,
-                    ]}
-                  >
-                    {review.approvalRequired ? 'Required before swap' : 'Already approved'}
-                  </Text>
+                  <Text style={styles.detailLabel}>Bootstrapper</Text>
+                  <Text style={styles.detailValue}>{shortAddress(review.bootstrapperAddress)}</Text>
                 </View>
 
                 <View style={styles.detailRow}>
@@ -756,31 +576,36 @@ export default function SwapConfirmScreen() {
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Fee Cap</Text>
                   <Text style={styles.detailValue}>
-                    {formatTrxAmountFromSun(
-                      Number(review.resources.swap?.recommendedFeeLimitSun || 0) +
-                        Number(review.resources.approval?.recommendedFeeLimitSun || 0)
-                    )}{' '}
-                    TRX
+                    {formatTrxAmountFromSun(review.resources.recommendedFeeLimitSun)} TRX
                   </Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>TRX Available</Text>
+                  <Text style={styles.detailValue}>{review.trxCoverage.trxBalanceDisplay}</Text>
                 </View>
               </View>
 
               <View style={styles.detailCard}>
                 <View style={styles.detailRowFirst}>
                   <Text style={styles.detailLabel}>Energy</Text>
-                  <Text style={styles.detailValue}>{formatResourceValue(estimatedEnergy)}</Text>
+                  <Text style={styles.detailValue}>
+                    {formatResourceValue(review.resources.estimatedEnergy)}
+                  </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Bandwidth</Text>
-                  <Text style={styles.detailValue}>{formatResourceValue(estimatedBandwidth)}</Text>
+                  <Text style={styles.detailValue}>
+                    {formatResourceValue(review.resources.estimatedBandwidth)}
+                  </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Shortfall</Text>
                   <Text style={styles.detailValue}>
-                    {formatResourceValue(resourceEnergyShortfall)} energy ·{' '}
-                    {formatResourceValue(resourceBandwidthShortfall)} bandwidth
+                    {formatResourceValue(review.resources.energyShortfall)} energy ·{' '}
+                    {formatResourceValue(review.resources.bandwidthShortfall)} bandwidth
                   </Text>
                 </View>
 
@@ -792,8 +617,8 @@ export default function SwapConfirmScreen() {
                         hasNoEnergyAvailable ? styles.resourceInlineLabelRisk : null,
                       ]}
                     >
-                      Energy {formatResourceValue(estimatedEnergy)}/
-                      {formatResourceValue(totalAvailableEnergy)}
+                      Energy {formatResourceValue(review.resources.estimatedEnergy)}/
+                      {formatResourceValue(energyAvailable)}
                     </Text>
                     <View
                       style={[
@@ -813,8 +638,8 @@ export default function SwapConfirmScreen() {
 
                   <View style={styles.resourceInlineCol}>
                     <Text style={styles.resourceInlineLabel}>
-                      Bandwidth {formatResourceValue(estimatedBandwidth)}/
-                      {formatResourceValue(totalAvailableBandwidth)}
+                      Bandwidth {formatResourceValue(review.resources.estimatedBandwidth)}/
+                      {formatResourceValue(bandwidthAvailable)}
                     </Text>
                     <View style={styles.resourceBarTrack}>
                       <View style={styles.resourceBarAvailable} />
@@ -830,37 +655,30 @@ export default function SwapConfirmScreen() {
                 <Text
                   style={[
                     styles.infoRowText,
-                    hasResourceShortfall ? styles.infoRowTextRisk : null,
+                    (!review.trxCoverage.canCoverBurn || hasResourceShortfall)
+                      ? styles.infoRowTextRisk
+                      : null,
                   ]}
                 >
-                  {hasResourceShortfall
-                    ? 'Resources are short. Network burn is included in the estimate above.'
-                    : review.approvalRequired
-                      ? 'This flow will first approve 4TEEN, then submit the swap.'
-                      : 'Approval is already live. The wallet should go straight to the swap.'}
+                  {!review.trxCoverage.canCoverBurn
+                    ? 'TRX is too low to cover the estimated network burn.'
+                    : hasResourceShortfall
+                      ? 'Resources are short. Network burn is included in the estimate above.'
+                      : 'Resources are sufficient. This execution should avoid extra burn.'}
                 </Text>
               </View>
 
-              {review.routeChanged ? (
-                <View style={styles.noticeCard}>
-                  <Text style={styles.noticeCardText}>
-                    Route changed before approval. You are looking at the latest live quote.
-                  </Text>
-                </View>
-              ) : null}
-
-              {review.wallet.kind === 'watch-only' ? (
-                <View style={styles.noticeCard}>
-                  <Text style={styles.noticeCardText}>
-                    Watch-only wallet cannot sign swap. Switch to a full-access wallet first.
-                  </Text>
-                </View>
-              ) : null}
+              <View style={styles.noticeCard}>
+                <Text style={styles.noticeCardText}>
+                  This calls the LiquidityBootstrapper. The contracts still enforce the daily
+                  cadence, threshold, release percentage, and executor split.
+                </Text>
+              </View>
 
               <TouchableOpacity
                 activeOpacity={0.9}
                 style={styles.secondaryButton}
-                onPress={() => void handleReject()}
+                onPress={handleReject}
                 disabled={submitting}
               >
                 <Text style={styles.secondaryButtonText}>REJECT</Text>
@@ -881,14 +699,14 @@ export default function SwapConfirmScreen() {
             <View style={styles.authOverlay}>
               <View style={styles.authScreen}>
                 <View style={styles.authContent}>
-                  <Text style={ui.eyebrow}>SWAP</Text>
+                  <Text style={ui.eyebrow}>LIQUIDITY</Text>
 
                   <Text style={styles.authTitle}>
                     Confirm with <Text style={styles.authTitleAccent}>Passcode</Text>
                   </Text>
 
                   <Text style={styles.authLead}>
-                    Authorize this swap with your 6-digit passcode
+                    Authorize this liquidity execution with your 6-digit passcode
                     {biometricAvailable && biometricsEnabled
                       ? ` or ${biometricLabel === 'Face ID' ? 'face unlock' : 'fingerprint'}`
                       : ''}.
@@ -998,14 +816,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
 
-  heroAmountRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-
   heroMetricRow: {
     marginTop: 10,
     flexDirection: 'row',
@@ -1026,8 +836,8 @@ const styles = StyleSheet.create({
   },
 
   heroMetricCardSpend: {
-    borderColor: 'rgba(255,48,73,0.18)',
-    backgroundColor: 'rgba(255,48,73,0.08)',
+    borderColor: 'rgba(255,105,0,0.22)',
+    backgroundColor: 'rgba(255,105,0,0.08)',
   },
 
   heroMetricCardReceive: {
@@ -1043,7 +853,7 @@ const styles = StyleSheet.create({
   },
 
   heroMetricLabelSpend: {
-    color: colors.red,
+    color: colors.accent,
   },
 
   heroMetricLabelReceive: {
@@ -1051,30 +861,18 @@ const styles = StyleSheet.create({
   },
 
   heroMetricValue: {
-    fontSize: 22,
-    lineHeight: 26,
+    fontSize: 20,
+    lineHeight: 25,
     fontFamily: 'Sora_700Bold',
     color: colors.white,
   },
 
   heroMetricValueSpend: {
-    color: colors.red,
+    color: colors.accent,
   },
 
   heroMetricValueReceive: {
     color: colors.green,
-  },
-
-  heroMetricTokenRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-
-  heroMetricTokenLogo: {
-    width: 18,
-    height: 18,
-    borderRadius: radius.pill,
   },
 
   heroMetricToken: {
@@ -1106,6 +904,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_700Bold',
+  },
+
+  heroMetaValueRisk: {
+    color: colors.red,
   },
 
   detailCard: {
@@ -1150,7 +952,12 @@ const styles = StyleSheet.create({
   },
 
   detailValueAccent: {
+    flex: 1,
     color: colors.accent,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+    textAlign: 'right',
   },
 
   infoRow: {
@@ -1163,6 +970,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
   },
+
   infoRowTextRisk: {
     color: colors.red,
   },
@@ -1181,12 +989,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
-  },
-
-  actions: {
-    marginTop: 18,
-    flexDirection: 'row',
-    gap: 12,
   },
 
   secondaryButton: {
@@ -1335,6 +1137,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  authCancelButtonText: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
   resourcesInlineRow: {
     marginTop: 14,
     flexDirection: 'row',
@@ -1352,6 +1161,7 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontFamily: 'Sora_600SemiBold',
   },
+
   resourceInlineLabelRisk: {
     color: colors.red,
   },
@@ -1362,6 +1172,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: 'rgba(24,224,58,0.14)',
   },
+
   resourceBarTrackRisk: {
     backgroundColor: 'rgba(255,48,73,0.14)',
   },
@@ -1371,6 +1182,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.green,
     opacity: 0.9,
   },
+
   resourceBarAvailableRisk: {
     backgroundColor: colors.red,
   },
@@ -1381,12 +1193,5 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     backgroundColor: colors.red,
-  },
-
-  authCancelButtonText: {
-    color: colors.white,
-    fontSize: 15,
-    lineHeight: 18,
-    fontFamily: 'Sora_700Bold',
   },
 });

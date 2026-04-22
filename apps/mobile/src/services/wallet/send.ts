@@ -18,6 +18,7 @@ import {
 } from './storage';
 
 const DEFAULT_TRC20_FEE_LIMIT_SUN = 100_000_000;
+const DEFAULT_TRC20_TRANSFER_ESTIMATED_ENERGY = 65_000;
 const DEFAULT_BANDWIDTH_PRICE_SUN = 1_000;
 const DEFAULT_ENERGY_PRICE_SUN = 420;
 const RESOURCE_PRICING_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -34,6 +35,10 @@ let resourceUnitPricingCache:
       expiresAt: number;
     }
   | null = null;
+
+export function clearSendAssetCaches(): void {
+  resourceUnitPricingCache = null;
+}
 
 function formatUsd(value: number) {
   return value.toLocaleString('en-US', {
@@ -304,34 +309,40 @@ async function estimateTrc20TransferEnergy(
       walletAddress
     );
 
-    return Math.max(0, Number((directEstimate as any)?.energy_required || 0));
-  } catch (error) {
-    const safeMessage = error instanceof Error ? error.message : '';
-    const canFallback =
-      safeMessage.includes('does not support estimate energy') ||
-      safeMessage.includes('this node does not support estimate energy');
+    const estimated = Math.max(0, Number((directEstimate as any)?.energy_required || 0));
 
-    if (!canFallback) {
-      throw error;
+    if (estimated > 0) {
+      return estimated;
     }
+  } catch {
+    // Some Trongrid nodes either do not support estimateEnergy or rate-limit it.
+    // Keep the confirmation usable and fall back to constant call/default sizing.
   }
 
-  const constantResult = await tronWeb.transactionBuilder.triggerConstantContract(
-    contractAddress,
-    'transfer(address,uint256)',
-    {
-      feeLimit: feeLimitSun,
-      callValue: 0,
-    },
-    parameters,
-    walletAddress
-  );
+  try {
+    const constantResult = await tronWeb.transactionBuilder.triggerConstantContract(
+      contractAddress,
+      'transfer(address,uint256)',
+      {
+        feeLimit: feeLimitSun,
+        callValue: 0,
+      },
+      parameters,
+      walletAddress
+    );
 
-  return Math.max(
-    0,
-    Number((constantResult as any)?.energy_used || 0) +
-      Number((constantResult as any)?.energy_penalty || 0)
-  );
+    const estimated = Math.max(
+      0,
+      Number((constantResult as any)?.energy_used || 0) +
+        Number((constantResult as any)?.energy_penalty || 0)
+    );
+
+    if (estimated > 0) {
+      return estimated;
+    }
+  } catch {}
+
+  return DEFAULT_TRC20_TRANSFER_ESTIMATED_ENERGY;
 }
 
 async function getSigningContext(): Promise<{

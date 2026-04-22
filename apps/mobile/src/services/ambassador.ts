@@ -2,6 +2,12 @@ import { TronWeb } from 'tronweb';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { buildTrongridHeaders, FOURTEEN_API_BASE_URL, TRONGRID_BASE_URL } from '../config/tron';
+import { getAccountResources, getTokenDetails, TRX_TOKEN_ID } from './tron/api';
+import {
+  estimateContractCallResources,
+  getResourceUnitPricing,
+  type ContractCallResourceEstimate,
+} from './wallet/resources';
 import { normalizePrivateKey, isValidPrivateKey } from './wallet/import';
 import {
   getActiveWallet,
@@ -22,6 +28,8 @@ const AMBASSADOR_CACHE_TTL_MS = 45_000;
 const AMBASSADOR_POSITIVE_IDENTITY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_REGISTER_FEE_LIMIT_SUN = 120_000_000;
 const DEFAULT_WITHDRAW_FEE_LIMIT_SUN = 80_000_000;
+const DEFAULT_WITHDRAW_ESTIMATED_ENERGY = 80_000;
+const DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH = 420;
 const LOCAL_AMBASSADOR_SLUG_KEY_PREFIX = 'fourteen_ambassador_local_slug_v1';
 const LOCAL_AMBASSADOR_IDENTITY_KEY_PREFIX = 'fourteen_ambassador_identity_v1';
 const AMBASSADOR_IDENTITY_CACHE_VERSION = 2;
@@ -71,26 +79,6 @@ type FourteenControllerContract = {
   };
 };
 
-type BackendAmbassadorProfilePayload = {
-  ok?: boolean;
-  registered?: boolean;
-  exists?: boolean;
-  isRegistered?: boolean;
-  result?: {
-    wallet?: string;
-    ambassadorWallet?: string;
-    slug?: string;
-    referralSlug?: string;
-    handle?: string;
-    status?: string;
-    referralLink?: string;
-    link?: string;
-    registered?: boolean;
-    exists?: boolean;
-    isRegistered?: boolean;
-  };
-};
-
 type CabinetRowsPayload = {
   ok?: boolean;
   total?: number;
@@ -100,6 +88,11 @@ type CabinetRowsPayload = {
 type CabinetSummaryPayload = {
   ok?: boolean;
   summary?: AmbassadorCabinetSummary;
+};
+
+type WalletApiCabinetPayload = {
+  ok?: boolean;
+  result?: AmbassadorCabinetDashboard;
 };
 
 export type AmbassadorProfile = {
@@ -151,6 +144,12 @@ export type AmbassadorCabinetDashboard = {
   buyersTotal: number;
   purchasesTotal: number;
   pendingTotal: number;
+  source?: {
+    onChain?: boolean;
+    db?: boolean;
+    dbError?: string | null;
+    onChainError?: string | null;
+  };
 };
 
 export type AmbassadorScreenSnapshot = {
@@ -175,12 +174,14 @@ export type AmbassadorRegistrationReceipt = {
 };
 
 export type AmbassadorRegistrationEnergyQuote = {
+  mode?: 'api' | 'resale' | string;
   wallet: string;
   slug: string;
   paymentAddress: string;
   amountSun: string;
   amountTrx: string;
   energyQuantity: number;
+  readyEnergy?: number;
 };
 
 export type AmbassadorRegistrationEnergyConfirmation = {
@@ -199,6 +200,19 @@ export type AmbassadorWithdrawalReceipt = {
   wallet: WalletMeta;
   txId: string;
   explorerUrl: string;
+};
+
+export type AmbassadorWithdrawalReview = {
+  wallet: WalletMeta;
+  controllerAddress: string;
+  claimableRewardsSun: string;
+  resources: ContractCallResourceEstimate;
+  trxCoverage: {
+    trxBalanceSun: number;
+    trxBalanceDisplay: string;
+    missingTrxSun: number;
+    canCoverBurn: boolean;
+  };
 };
 
 type AmbassadorCacheEntry = {
@@ -417,36 +431,6 @@ async function fetchJsonOrThrow<T>(
   return payload as T;
 }
 
-function normalizeRegisteredProfile(payload: BackendAmbassadorProfilePayload | null) {
-  if (!payload || typeof payload !== 'object') return null;
-
-  const result =
-    payload.result && typeof payload.result === 'object'
-      ? payload.result
-      : (payload as NonNullable<BackendAmbassadorProfilePayload['result']>);
-  const registered =
-    payload.registered === true ||
-    payload.exists === true ||
-    payload.isRegistered === true ||
-    result?.registered === true ||
-    result?.exists === true ||
-    result?.isRegistered === true ||
-    Boolean(result?.slug || result?.referralSlug || result?.handle);
-
-  if (!registered || !result) return null;
-
-  const slug = normalizeAmbassadorSlug(result.slug || result.referralSlug || result.handle || '');
-  const wallet = normalizeAddress(result.wallet || result.ambassadorWallet || '');
-  const referralLink = String(result.referralLink || result.link || '').trim();
-
-  return {
-    wallet,
-    slug,
-    status: String(result.status || '').trim().toLowerCase() || 'active',
-    referralLink: referralLink || buildAmbassadorReferralLink(slug),
-  } satisfies AmbassadorProfile;
-}
-
 function readTupleValue(raw: unknown, index: number, name?: string) {
   const record = raw as Record<string, unknown> | null | undefined;
   const value =
@@ -571,36 +555,6 @@ async function lookupAmbassadorOnChain(
   return profile;
 }
 
-function mergeAmbassadorProfiles(
-  onChainProfile: AmbassadorProfile,
-  backendProfile: AmbassadorProfile | null
-) {
-  const slug = backendProfile?.slug || onChainProfile.slug;
-
-  return {
-    wallet: onChainProfile.wallet,
-    slug,
-    status: onChainProfile.status,
-    referralLink:
-      backendProfile?.referralLink ||
-      onChainProfile.referralLink ||
-      buildAmbassadorReferralLink(slug),
-  } satisfies AmbassadorProfile;
-}
-
-async function lookupAmbassadorByWallet(walletAddress: string) {
-  const payload = await fetchJsonOrThrow<BackendAmbassadorProfilePayload>(
-    buildBackendUrl('/ambassador/by-wallet', { wallet: walletAddress }),
-    {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      notFoundAsNull: true,
-    }
-  );
-
-  return normalizeRegisteredProfile(payload);
-}
-
 async function fetchCabinetRows(path: string) {
   const payload = await fetchJsonOrThrow<CabinetRowsPayload>(buildBackendUrl(path), {
     method: 'GET',
@@ -629,6 +583,21 @@ export function formatTrxFromSun(value: unknown) {
   return trx >= 1 ? trx.toFixed(2) : trx.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
 }
 
+function formatTrxBalanceDisplay(valueSun: number) {
+  const value = Math.max(0, Number(valueSun || 0)) / 1_000_000;
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return '0.00 TRX';
+  }
+
+  return `${value.toFixed(value >= 1 ? 2 : 6).replace(/\.?0+$/, '')} TRX`;
+}
+
+function normalizeSunInteger(value: unknown) {
+  const raw = String(value ?? '0').trim();
+  return /^\d+$/.test(raw) ? raw : '0';
+}
+
 export function levelToLabel(level: unknown) {
   const numeric = Number(level || 0);
   if (numeric === 0) return 'Bronze';
@@ -643,6 +612,52 @@ export async function loadAmbassadorCabinet(
 ): Promise<AmbassadorCabinetDashboard | null> {
   const wallet = normalizeAddress(profile.wallet);
   if (!wallet) return null;
+
+  const proxyPayload = await fetchJsonOrThrow<WalletApiCabinetPayload>(
+    buildWalletApiUrl(`/ambassador/cabinet/${encodeURIComponent(wallet)}`, {
+      limit: 100,
+      offset: 0,
+    }),
+    {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      notFoundAsNull: true,
+    }
+  ).catch((error) => {
+    console.error('[4TEEN] ambassador proxy cabinet failed', error);
+    return null;
+  });
+
+  if (proxyPayload?.result?.summary) {
+    const proxyProfile = proxyPayload.result.profile || profile;
+    const summarySlug = normalizeAmbassadorSlug(String(proxyPayload.result.summary.slug || ''));
+    const slug = normalizeAmbassadorSlug(proxyProfile.slug || profile.slug || summarySlug);
+    const resolvedProfile = {
+      ...profile,
+      ...proxyProfile,
+      wallet,
+      slug,
+      referralLink:
+        proxyProfile.referralLink ||
+        profile.referralLink ||
+        buildAmbassadorReferralLink(slug),
+      status:
+        proxyPayload.result.summary.active === false
+          ? 'inactive'
+          : proxyProfile.status || profile.status || 'active',
+    };
+
+    return {
+      ...proxyPayload.result,
+      profile: resolvedProfile,
+      buyersRows: Array.isArray(proxyPayload.result.buyersRows) ? proxyPayload.result.buyersRows : [],
+      purchasesRows: Array.isArray(proxyPayload.result.purchasesRows) ? proxyPayload.result.purchasesRows : [],
+      pendingRows: Array.isArray(proxyPayload.result.pendingRows) ? proxyPayload.result.pendingRows : [],
+      buyersTotal: Number(proxyPayload.result.buyersTotal || 0) || 0,
+      purchasesTotal: Number(proxyPayload.result.purchasesTotal || 0) || 0,
+      pendingTotal: Number(proxyPayload.result.pendingTotal || 0) || 0,
+    };
+  }
 
   const summaryPayload = await fetchJsonOrThrow<CabinetSummaryPayload>(
     buildBackendUrl(`/cabinet/ambassador/${encodeURIComponent(wallet)}/summary`),
@@ -1038,12 +1053,14 @@ export async function getAmbassadorRegistrationEnergyQuote(input: {
   }
 
   return {
+    mode: String(result.mode || 'api'),
     wallet: normalizeAddress(result.wallet || wallet),
     slug: normalizeAmbassadorSlug(result.slug || slug),
     paymentAddress: normalizeAddress(result.paymentAddress),
     amountSun: String(result.amountSun || '0'),
     amountTrx: String(result.amountTrx || '0'),
     energyQuantity: Number(result.energyQuantity || 0),
+    readyEnergy: Number(result.readyEnergy || 0) || undefined,
   };
 }
 
@@ -1098,14 +1115,14 @@ export async function withdrawAmbassadorRewards(): Promise<AmbassadorWithdrawalR
     throw new Error('Withdrawal transaction sent but txid was not returned.');
   }
 
-  await fetchJsonOrThrow(buildBackendUrl('/cabinet/confirm-withdrawal'), {
+  await fetchJsonOrThrow(buildWalletApiUrl('/ambassador/withdrawal/confirm'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       wallet: wallet.address,
       txid: txId,
     }),
-  }).catch(() => null);
+  });
 
   ambassadorMemoryCache.delete(wallet.address);
 
@@ -1113,6 +1130,97 @@ export async function withdrawAmbassadorRewards(): Promise<AmbassadorWithdrawalR
     wallet,
     txId,
     explorerUrl: `https://tronscan.org/#/transaction/${txId}`,
+  };
+}
+
+async function buildFallbackAmbassadorWithdrawalResourceEstimate(input: {
+  wallet: WalletMeta;
+  privateKey: string;
+}): Promise<ContractCallResourceEstimate> {
+  const tronWeb = createTronWeb(input.privateKey, input.wallet.address);
+  const [available, pricing] = await Promise.all([
+    getAccountResources(input.wallet.address),
+    getResourceUnitPricing(tronWeb),
+  ]);
+
+  const availableEnergy = Math.max(0, available.energyLimit - available.energyUsed);
+  const availableBandwidth = Math.max(0, available.bandwidthLimit - available.bandwidthUsed);
+  const energyShortfall = Math.max(0, DEFAULT_WITHDRAW_ESTIMATED_ENERGY - availableEnergy);
+  const bandwidthShortfall = Math.max(
+    0,
+    DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH - availableBandwidth
+  );
+  const estimatedBurnSun =
+    energyShortfall * pricing.energySun + bandwidthShortfall * pricing.bandwidthSun;
+
+  return {
+    available,
+    estimatedEnergy: DEFAULT_WITHDRAW_ESTIMATED_ENERGY,
+    estimatedBandwidth: DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH,
+    energyShortfall,
+    bandwidthShortfall,
+    estimatedBurnSun,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+    recommendedFeeLimitSun: Math.max(
+      1_000_000,
+      Math.min(
+        DEFAULT_WITHDRAW_FEE_LIMIT_SUN,
+        Math.ceil(Math.max(estimatedBurnSun, 1_000_000) * 1.15)
+      )
+    ),
+  };
+}
+
+export async function estimateAmbassadorWithdrawal(): Promise<AmbassadorWithdrawalReview> {
+  const { wallet, privateKey } = await getSigningWalletContext();
+  const profile = await lookupAmbassadorOnChain(wallet.address, { force: true });
+
+  if (!profile) {
+    throw new Error('This wallet is not registered as ambassador.');
+  }
+
+  const cabinet = await loadAmbassadorCabinet(profile).catch(() => null);
+  const claimableRewardsSun = normalizeSunInteger(cabinet?.summary?.claimable_rewards_sun);
+
+  if (BigInt(claimableRewardsSun) <= 0n) {
+    throw new Error('No on-chain rewards are available for withdrawal yet.');
+  }
+
+  const tronWeb = createTronWeb(privateKey, wallet.address);
+  let resources = await estimateContractCallResources({
+    tronWeb,
+    privateKey,
+    ownerAddress: wallet.address,
+    contractAddress: FOURTEEN_CONTROLLER_ADDRESS,
+    functionSelector: 'withdrawRewards()',
+    feeLimitSun: DEFAULT_WITHDRAW_FEE_LIMIT_SUN,
+    maxFeeLimitSun: DEFAULT_WITHDRAW_FEE_LIMIT_SUN,
+  }).catch(async (error) => {
+    console.warn('Ambassador withdrawal resource estimate fallback:', error);
+    return buildFallbackAmbassadorWithdrawalResourceEstimate({ wallet, privateKey });
+  });
+
+  if (resources.estimatedEnergy <= 0) {
+    console.warn('Ambassador withdrawal resource estimate returned zero energy; using fallback.');
+    resources = await buildFallbackAmbassadorWithdrawalResourceEstimate({ wallet, privateKey });
+  }
+
+  const trxBalance = await getTokenDetails(wallet.address, TRX_TOKEN_ID, false, wallet.id);
+  const trxBalanceSun = Math.max(0, Number(trxBalance.balanceRaw || '0'));
+  const missingTrxSun = Math.max(0, resources.estimatedBurnSun - trxBalanceSun);
+
+  return {
+    wallet,
+    controllerAddress: FOURTEEN_CONTROLLER_ADDRESS,
+    claimableRewardsSun,
+    resources,
+    trxCoverage: {
+      trxBalanceSun,
+      trxBalanceDisplay: formatTrxBalanceDisplay(trxBalanceSun),
+      missingTrxSun,
+      canCoverBurn: trxBalanceSun >= resources.estimatedBurnSun,
+    },
   };
 }
 
@@ -1200,11 +1308,13 @@ async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<Am
     };
   }
 
-  const backendProfile = await lookupAmbassadorByWallet(wallet.address).catch(() => null);
-  const profile = mergeAmbassadorProfiles(onChainProfile, backendProfile);
-  if (backendProfile?.slug) {
-    await saveLocalAmbassadorSlug(wallet.address, backendProfile.slug);
+  const cabinet = await loadAmbassadorCabinet(onChainProfile).catch(() => null);
+  const profile = cabinet?.profile || onChainProfile;
+
+  if (profile.slug) {
+    await saveLocalAmbassadorSlug(wallet.address, profile.slug);
   }
+
   await writeAmbassadorIdentityCache({
     wallet: wallet.address,
     registered: true,
@@ -1212,7 +1322,6 @@ async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<Am
     slug: profile.slug,
     referralLink: profile.referralLink,
   });
-  const cabinet = await loadAmbassadorCabinet(profile).catch(() => null);
 
   return {
     wallet,

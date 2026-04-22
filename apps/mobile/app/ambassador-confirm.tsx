@@ -23,9 +23,11 @@ import {
   registerAmbassador,
   type AmbassadorRegistrationEnergyQuote,
 } from '../src/services/ambassador';
-import { TRX_TOKEN_ID } from '../src/services/tron/api';
+import { clearWalletRuntimeCaches, TRX_TOKEN_ID } from '../src/services/tron/api';
 import { sendAssetTransfer } from '../src/services/wallet/send';
+import EnergyResaleCard from '../src/ui/energy-resale-card';
 import { getActiveWallet, type WalletMeta } from '../src/services/wallet/storage';
+import type { EnergyResaleQuote } from '../src/services/energy-resale';
 import { getBiometricsEnabled, verifyPasscode } from '../src/security/local-auth';
 import { useNotice } from '../src/notice/notice-provider';
 import { colors, layout, radius } from '../src/theme/tokens';
@@ -112,6 +114,23 @@ export default function AmbassadorConfirmScreen() {
     !slugAvailable ||
     !isValidAmbassadorSlug(requestedSlug);
   const isRentApproveDisabled = isApproveDisabled || !energyQuote;
+  const energyResaleQuote = useMemo<EnergyResaleQuote | null>(() => {
+    if (!energyQuote) return null;
+
+    return {
+      purpose: 'ambassador_registration',
+      mode: energyQuote.mode,
+      wallet: energyQuote.wallet || wallet?.address || null,
+      paymentAddress: energyQuote.paymentAddress,
+      amountSun: energyQuote.amountSun,
+      amountTrx: energyQuote.amountTrx,
+      energyQuantity: energyQuote.energyQuantity,
+      readyEnergy: energyQuote.readyEnergy,
+      requiredEnergy: energyQuote.energyQuantity,
+      packageCount: 1,
+      label: 'Ambassador registration',
+    };
+  }, [energyQuote, wallet?.address]);
 
   const load = useCallback(async () => {
     try {
@@ -240,8 +259,12 @@ export default function AmbassadorConfirmScreen() {
           throw new Error('Energy rental quote is unavailable.');
         }
 
+        const isResaleRental = String(energyQuote.mode || '').toLowerCase() === 'resale';
+
         setEnergyRentalText(
-          `Sending ${energyQuote.amountTrx} TRX rental payment, then requesting ${energyQuote.energyQuantity.toLocaleString('en-US')} Energy.`
+          isResaleRental
+            ? `Sending ${energyQuote.amountTrx} TRX to GasStation resale package. Waiting for ${energyQuote.energyQuantity.toLocaleString('en-US')} Energy distribution.`
+            : `Sending ${energyQuote.amountTrx} TRX rental payment, then requesting ${energyQuote.energyQuantity.toLocaleString('en-US')} Energy.`
         );
         const payment = await sendAssetTransfer({
           tokenId: TRX_TOKEN_ID,
@@ -249,13 +272,18 @@ export default function AmbassadorConfirmScreen() {
           amount: energyQuote.amountTrx,
         });
 
-        setEnergyRentalText('Payment confirmed. Requesting Energy sublease from GasStation...');
+        setEnergyRentalText(
+          isResaleRental
+            ? 'Payment confirmed. Waiting for GasStation automatic Energy distribution...'
+            : 'Payment confirmed. Requesting Energy sublease from GasStation...'
+        );
         await confirmAmbassadorRegistrationEnergy({
           wallet: wallet.address,
           slug: requestedSlug,
           paymentTxId: payment.txId,
         });
-        setEnergyRentalText('Energy rental completed. Sending ambassador registration...');
+        clearWalletRuntimeCaches(wallet.address);
+        setEnergyRentalText('Energy is available. Sending ambassador registration...');
       }
 
       const receipt = await registerAmbassador(requestedSlug);
@@ -434,25 +462,12 @@ export default function AmbassadorConfirmScreen() {
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={[
-                  styles.energyRentButton,
-                  isRentApproveDisabled && styles.primaryButtonDisabled,
-                ]}
-                onPress={() => void handleApprove('rent')}
+              <EnergyResaleCard
+                quote={energyResaleQuote}
+                processing={submitting && pendingApprovalMode === 'rent'}
                 disabled={isRentApproveDisabled}
-              >
-                {submitting && pendingApprovalMode === 'rent' ? (
-                  <ActivityIndicator color={colors.green} />
-                ) : (
-                  <Text style={styles.energyRentButtonText}>
-                    {energyQuote
-                      ? `RENT ENERGY · ${energyQuote.amountTrx} TRX`
-                      : 'RENT ENERGY'}
-                  </Text>
-                )}
-              </TouchableOpacity>
+                onRent={() => void handleApprove('rent')}
+              />
 
               <View style={styles.detailCard}>
                 <DetailRow label="Access" value={formatWalletAccessLabel(wallet.kind)} />
@@ -464,6 +479,11 @@ export default function AmbassadorConfirmScreen() {
                 <DetailRow label="Resource Note" value="~98K Energy / ~345 Bandwidth" accent />
                 {energyQuote ? (
                   <>
+                    <DetailRow
+                      label="Rental Mode"
+                      value={String(energyQuote.mode || 'api').toUpperCase()}
+                      accent
+                    />
                     <DetailRow label="Rental Energy" value={`${energyQuote.energyQuantity.toLocaleString('en-US')} Energy`} accent />
                     <DetailRow label="Rental Payment" value={`${energyQuote.amountTrx} TRX`} accent />
                     <DetailRow label="Rental Receiver" value={shortenAddress(energyQuote.paymentAddress)} />
@@ -707,7 +727,7 @@ const styles = StyleSheet.create({
   },
   energyRentButtonText: {
     ...ui.actionLabel,
-    color: colors.green,
+    color: colors.white,
   },
   energyRentalStatusCard: {
     marginTop: 10,
