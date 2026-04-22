@@ -70,7 +70,7 @@ export default function EnergyResaleCard({
   );
   const burnTrx = formatTrxFromSun(estimatedBurnSun);
   const safeActionLabel = String(actionLabel || 'APPROVE').trim().toUpperCase();
-  const buttonLabel = `RENT -> APPROVE -> ${safeActionLabel}`;
+  const buttonLabel = `RENT → APPROVE → ${safeActionLabel}`;
   const resourceLabel = [
     readyEnergy > 0 ? `${formatEnergy(readyEnergy)} Energy` : '',
     readyBandwidth > 0 ? `${formatEnergy(readyBandwidth)} Bandwidth` : '',
@@ -166,8 +166,8 @@ const styles = StyleSheet.create({
   },
   rentAmount: {
     color: colors.green,
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 24,
+    lineHeight: 30,
     fontFamily: 'Sora_700Bold',
   },
   burnLabel: {
@@ -180,8 +180,8 @@ const styles = StyleSheet.create({
   },
   burnAmount: {
     color: colors.red,
-    fontSize: 18,
-    lineHeight: 23,
+    fontSize: 24,
+    lineHeight: 30,
     fontFamily: 'Sora_700Bold',
     textDecorationLine: 'line-through',
     textDecorationColor: colors.red,
