@@ -1040,10 +1040,14 @@ export async function getAmbassadorRegistrationEnergyQuote(input: {
   const payload = await fetchJsonOrThrow<{
     ok?: boolean;
     result?: AmbassadorRegistrationEnergyQuote;
-  }>(buildWalletApiUrl('/ambassador/registration-energy/quote'), {
+  }>(buildWalletApiUrl('/resources/rental/quote'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ wallet, slug }),
+    body: JSON.stringify({
+      purpose: 'ambassador_registration',
+      wallet,
+      slug,
+    }),
   });
 
   const result = payload?.result;
@@ -1088,10 +1092,11 @@ export async function confirmAmbassadorRegistrationEnergy(input: {
   const payload = await fetchJsonOrThrow<{
     ok?: boolean;
     result?: AmbassadorRegistrationEnergyConfirmation;
-  }>(buildWalletApiUrl('/ambassador/registration-energy/confirm'), {
+  }>(buildWalletApiUrl('/resources/rental/confirm'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      purpose: 'ambassador_registration',
       wallet,
       slug,
       paymentTxId,

@@ -115,7 +115,7 @@ export async function getEnergyResaleQuote(input: {
 }): Promise<EnergyResaleQuote | null> {
   try {
     const payload = await fetchJsonOrThrow<{ ok?: boolean; result?: EnergyResaleQuote }>(
-      buildApiUrl('/energy-resale/quote'),
+      buildApiUrl('/resources/rental/quote'),
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -141,7 +141,7 @@ export async function confirmEnergyResalePayment(input: {
     const payload = await fetchJsonOrThrow<{
       ok?: boolean;
       result?: EnergyResaleConfirmation;
-    }>(buildApiUrl('/energy-resale/confirm'), {
+    }>(buildApiUrl('/resources/rental/confirm'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
@@ -177,7 +177,7 @@ export async function getEnergyResaleStatus(input: {
   requiredBandwidth?: number;
 }): Promise<EnergyResaleStatus> {
   const payload = await fetchJsonOrThrow<{ ok?: boolean; result?: EnergyResaleStatus }>(
-    buildApiUrl('/energy-resale/status', {
+    buildApiUrl('/resources/rental/status', {
       purpose: input.purpose,
       wallet: input.wallet,
       requiredEnergy: input.requiredEnergy ? String(input.requiredEnergy) : '',

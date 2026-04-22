@@ -4,7 +4,7 @@ const healthRouter = require('./routes/health');
 const proxyRouter = require('./routes/proxy');
 const walletRouter = require('./routes/wallet');
 const ambassadorRouter = require('./routes/ambassador');
-const energyResaleRouter = require('./routes/energyResale');
+const resourcesRouter = require('./routes/resources');
 const gasStationRouter = require('./routes/gasstation');
 
 const app = express();
@@ -48,7 +48,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use('/', healthRouter);
 app.use('/', proxyRouter);
 app.use('/wallet', walletRouter);
-app.use('/energy-resale', energyResaleRouter);
+app.use('/resources', resourcesRouter);
 app.use('/gasstation', gasStationRouter);
 app.use('/ambassador', ambassadorRouter);
 

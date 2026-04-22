@@ -170,6 +170,24 @@ function getFallbackRegistrationPackage(purpose) {
   });
 }
 
+function getDefaultPurposeRequirements(purpose) {
+  if (purpose !== 'ambassador_registration') {
+    return {
+      requiredEnergy: 0,
+      requiredBandwidth: 0
+    };
+  }
+
+  return {
+    requiredEnergy: Math.max(
+      100000,
+      Number(env.GASSTATION_REGISTRATION_ENERGY || 0),
+      Number(env.GASSTATION_MIN_ENERGY || 0)
+    ),
+    requiredBandwidth: 0
+  };
+}
+
 function getResalePackage(purposeInput, requirements = {}) {
   const purpose = normalizePurpose(purposeInput);
 
@@ -201,12 +219,13 @@ function getResalePackage(purposeInput, requirements = {}) {
 
 async function getEnergyResalePackage(purposeInput, requirements = {}) {
   const purpose = normalizePurpose(purposeInput);
+  const defaults = getDefaultPurposeRequirements(purpose);
   const requiredEnergy = normalizeResourceRequirement(
     requirements.requiredEnergy || requirements.energyShortfall
-  );
+  ) || defaults.requiredEnergy;
   const requiredBandwidth = normalizeResourceRequirement(
     requirements.requiredBandwidth || requirements.bandwidthShortfall
-  );
+  ) || defaults.requiredBandwidth;
 
   if (getEnergyRentalMode() === 'api' && isGasStationApiEnabled()) {
     const quote = await quoteResourceRental({
