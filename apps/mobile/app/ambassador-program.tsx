@@ -1,210 +1,1412 @@
-import { useCallback, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import { openInAppBrowser } from '../src/utils/open-in-app-browser';
+import { useNotice } from '../src/notice/notice-provider';
+import {
+  formatTrxFromSun,
+  generateAmbassadorSlug,
+  levelToLabel,
+  loadAmbassadorScreenSnapshot,
+  normalizeAmbassadorSlug,
+  replayAmbassadorPendingRewards,
+  withdrawAmbassadorRewards,
+  type AmbassadorCabinetDashboard,
+  type AmbassadorScreenSnapshot,
+} from '../src/services/ambassador';
+import { getCachedWalletPortfolio } from '../src/services/wallet/portfolio';
+import { listWallets, setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
+import { colors, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
 import {
   ProductActionRow,
-  ProductBulletList,
-  ProductHero,
   ProductScreen,
   ProductSection,
   ProductStatGrid,
 } from '../src/ui/product-shell';
-import { colors } from '../src/theme/tokens';
-import { ui } from '../src/theme/ui';
-import {
-  clearStoredReferral,
-  formatReferralExpiry,
-  formatReferralSourceLabel,
-  getStoredReferral,
-  type StoredReferralRecord,
-} from '../src/services/referral';
-import { useNotice } from '../src/notice/notice-provider';
+import ScreenLoadingState from '../src/ui/screen-loading-state';
+import useChromeLoading from '../src/ui/use-chrome-loading';
+import { OpenDownIcon, OpenRightIcon } from '../src/ui/ui-icons';
+import { openInAppBrowser } from '../src/utils/open-in-app-browser';
+
+type WalletSwitcherItem = {
+  id: string;
+  name: string;
+  address: string;
+  kind: WalletMeta['kind'];
+  balanceDisplay: string;
+};
+
+type BusyAction = 'register' | 'withdraw' | 'replay' | 'wallet' | null;
+
+type CabinetSectionId =
+  | 'actions'
+  | 'operations'
+  | 'identity'
+  | 'overview'
+  | 'rewards'
+  | 'buyers'
+  | 'purchases'
+  | 'pending'
+  | 'advanced';
+
+const DEFAULT_CABINET_SECTIONS: Record<CabinetSectionId, boolean> = {
+  actions: true,
+  operations: true,
+  identity: true,
+  overview: true,
+  rewards: true,
+  buyers: false,
+  purchases: false,
+  pending: false,
+  advanced: false,
+};
+
+function formatWalletAccessLabel(kind: WalletMeta['kind']) {
+  if (kind === 'mnemonic') return 'SEED PHRASE';
+  if (kind === 'private-key') return 'PRIVATE KEY';
+  return 'WATCH ONLY';
+}
+
+function shortenAddress(address: string) {
+  if (!address) return '—';
+  return address.length > 14 ? `${address.slice(0, 7)}...${address.slice(-6)}` : address;
+}
+
+function asCount(value: unknown) {
+  const count = Number(value || 0);
+  return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+}
+
+function formatChainDate(value: unknown) {
+  const raw = Number(value || 0);
+  if (!Number.isFinite(raw) || raw <= 0) return '—';
+
+  const ms = raw > 1_000_000_000_000 ? raw : raw * 1000;
+  return new Date(ms).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function formatMaybeDate(value: unknown) {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw === '—') return '—';
+
+  const numeric = Number(raw);
+  const dateMs = Number.isFinite(numeric)
+    ? numeric > 1_000_000_000_000
+      ? numeric
+      : numeric * 1000
+    : Date.parse(raw);
+
+  if (!Number.isFinite(dateMs)) return raw;
+
+  return new Date(dateMs).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  });
+}
+
+function shortenMiddle(value: string, start = 10, end = 8) {
+  const text = String(value || '').trim();
+  if (!text || text.length <= start + end + 3) return text || '—';
+  return `${text.slice(0, start)}...${text.slice(-end)}`;
+}
+
+function readRowText(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== null && value !== undefined && String(value).trim()) {
+      return String(value);
+    }
+  }
+
+  return '—';
+}
+
+function readRowSun(row: Record<string, unknown>, keys: string[]) {
+  const value = readRowText(row, keys);
+  return value === '—' ? '0.00' : formatTrxFromSun(value);
+}
 
 export default function AmbassadorProgramScreen() {
   const router = useRouter();
   const notice = useNotice();
-  const [referral, setReferral] = useState<StoredReferralRecord | null>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [busyAction, setBusyAction] = useState<BusyAction>(null);
+  const [snapshot, setSnapshot] = useState<AmbassadorScreenSnapshot | null>(null);
+  const [walletChoices, setWalletChoices] = useState<WalletSwitcherItem[]>([]);
+  const [walletOptionsOpen, setWalletOptionsOpen] = useState(false);
+  const [switchingWalletId, setSwitchingWalletId] = useState<string | null>(null);
+  const [slug, setSlug] = useState('');
+  const [slugStatus, setSlugStatus] = useState('');
+  const [errorText, setErrorText] = useState('');
+  const [cabinetSections, setCabinetSections] = useState(DEFAULT_CABINET_SECTIONS);
+
+  useChromeLoading((loading && !snapshot) || refreshing || Boolean(busyAction));
+
+  const load = useCallback(async (options?: { silent?: boolean; force?: boolean }) => {
+    const silent = options?.silent === true;
+
+    if (!silent) {
+      setLoading(true);
+      setSnapshot(null);
+    }
+
+    try {
+      const [nextSnapshot, wallets] = await Promise.all([
+        loadAmbassadorScreenSnapshot({ force: Boolean(options?.force) }),
+        listWallets(),
+      ]);
+      const walletOptions = await Promise.all(
+        wallets.map(async (wallet) => {
+          const cachedPortfolio = await getCachedWalletPortfolio(wallet.address, {
+            allowStale: true,
+          });
+
+          return {
+            id: wallet.id,
+            name: wallet.name,
+            address: wallet.address,
+            kind: wallet.kind,
+            balanceDisplay: cachedPortfolio?.totalBalanceDisplay ?? '—',
+          };
+        })
+      );
+
+      setSnapshot(nextSnapshot);
+      setErrorText('');
+      setWalletOptionsOpen(false);
+      setWalletChoices(walletOptions);
+
+      if (nextSnapshot.status === 'register') {
+        setSlug((current) => current.trim() || generateAmbassadorSlug());
+      } else {
+        setSlugStatus('');
+      }
+    } catch (error) {
+      console.error(error);
+      setSnapshot(null);
+      setErrorText(error instanceof Error ? error.message : 'Failed to load ambassador data.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-
-      const loadReferral = async () => {
-        const nextReferral = await getStoredReferral();
-        if (!cancelled) {
-          setReferral(nextReferral);
-        }
-      };
-
-      void loadReferral();
-
-      return () => {
-        cancelled = true;
-      };
-    }, [])
+      void load();
+    }, [load])
   );
 
-  const handleClearReferral = useCallback(async () => {
-    await clearStoredReferral();
-    setReferral(null);
-    notice.showSuccessNotice('Referral cleared.', 2200);
-  }, [notice]);
+  const activeWallet = snapshot?.wallet ?? null;
+  const cabinet = snapshot?.cabinet ?? null;
+  const profile = snapshot?.profile ?? cabinet?.profile ?? null;
+  const summary = cabinet?.summary ?? null;
+  const fullAccessWalletChoices = useMemo(
+    () => walletChoices.filter((wallet) => wallet.kind !== 'watch-only'),
+    [walletChoices]
+  );
+
+  const selectedWalletOption = useMemo(
+    () => walletChoices.find((wallet) => wallet.id === activeWallet?.id) ?? null,
+    [activeWallet?.id, walletChoices]
+  );
+
+  const visibleWalletChoices = useMemo(
+    () => fullAccessWalletChoices.filter((wallet) => wallet.id !== activeWallet?.id),
+    [activeWallet?.id, fullAccessWalletChoices]
+  );
+
+  const isWatchOnlyWallet = activeWallet?.kind === 'watch-only' || snapshot?.status === 'watch-only';
+  const canRegister =
+    snapshot?.status === 'register' &&
+    !isWatchOnlyWallet &&
+    Boolean(snapshot.signingWalletAvailable) &&
+    normalizeAmbassadorSlug(slug).length >= 3;
+  const canWithdraw = asCount(summary?.claimable_rewards_sun) > 0 && activeWallet?.kind !== 'watch-only';
+  const hasPendingRows = (cabinet?.pendingTotal || cabinet?.pendingRows.length || 0) > 0;
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    void load({ silent: true, force: true });
+  }, [load]);
+
+  const handleToggleCabinetSection = useCallback((section: CabinetSectionId) => {
+    setCabinetSections((current) => ({
+      ...current,
+      [section]: !current[section],
+    }));
+  }, []);
+
+  const handleCopy = useCallback(
+    async (value: string, label: string) => {
+      if (!value) return;
+      await Clipboard.setStringAsync(value);
+      notice.showSuccessNotice(`${label} copied.`, 1800);
+    },
+    [notice]
+  );
+
+  const handleToggleWalletOptions = useCallback(() => {
+    const availableFullAccessWallets = walletChoices.filter((wallet) => wallet.kind !== 'watch-only');
+
+    if (availableFullAccessWallets.length === 0) {
+      notice.showNeutralNotice('No full-access wallets available.', 2400);
+      return;
+    }
+
+    if (
+      availableFullAccessWallets.length === 1 &&
+      availableFullAccessWallets[0]?.id === activeWallet?.id
+    ) {
+      notice.showNeutralNotice('No other full-access wallets available.', 2200);
+      return;
+    }
+
+    setWalletOptionsOpen((prev) => !prev);
+  }, [activeWallet?.id, notice, walletChoices]);
+
+  const handleChooseWallet = useCallback(
+    async (wallet: WalletSwitcherItem) => {
+      if (wallet.kind === 'watch-only') {
+        notice.showNeutralNotice('Watch-only wallets are not available here.', 2400);
+        return;
+      }
+
+      try {
+        setBusyAction('wallet');
+        setSwitchingWalletId(wallet.id);
+        setWalletOptionsOpen(false);
+        await setActiveWalletId(wallet.id);
+        setSlugStatus('');
+        await load({ silent: true, force: true });
+        notice.showSuccessNotice(`Ambassador wallet: ${wallet.name}`, 2200);
+      } catch (error) {
+        console.error(error);
+        notice.showErrorNotice('Failed to switch ambassador wallet.', 2400);
+      } finally {
+        setSwitchingWalletId(null);
+        setBusyAction(null);
+      }
+    },
+    [load, notice]
+  );
+
+  const handleNormalizeSlug = useCallback((value: string) => {
+    setSlug(normalizeAmbassadorSlug(value));
+    setSlugStatus('');
+  }, []);
+
+  const handleRegister = useCallback(async () => {
+    if (!canRegister) {
+      notice.showErrorNotice('Enter a valid ambassador slug.', 2200);
+      return;
+    }
+
+    router.push({
+      pathname: '/ambassador-confirm',
+      params: {
+        slug: normalizeAmbassadorSlug(slug),
+      },
+    });
+  }, [canRegister, notice, router, slug]);
+
+  const handleWithdraw = useCallback(async () => {
+    try {
+      setBusyAction('withdraw');
+      const receipt = await withdrawAmbassadorRewards();
+      notice.showSuccessNotice('Withdrawal transaction sent.', 2600);
+      await openInAppBrowser(router, receipt.explorerUrl);
+      await load({ silent: true, force: true });
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice(
+        error instanceof Error ? error.message : 'Withdrawal failed.',
+        3200
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }, [load, notice, router]);
+
+  const handleReplayPending = useCallback(async () => {
+    if (!profile?.wallet) return;
+
+    try {
+      setBusyAction('replay');
+      await replayAmbassadorPendingRewards(profile.wallet);
+      notice.showSuccessNotice('Pending rewards replay requested.', 2600);
+      await load({ silent: true, force: true });
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice(
+        error instanceof Error ? error.message : 'Replay request failed.',
+        3200
+      );
+    } finally {
+      setBusyAction(null);
+    }
+  }, [load, notice, profile?.wallet]);
+
+  if (loading && !snapshot) {
+    return <ScreenLoadingState label="Loading ambassador module" />;
+  }
 
   return (
-    <ProductScreen eyebrow="AMBASSADOR PROGRAM">
-      <ProductHero
-        eyebrow="COMMUNITY GROWTH"
-        title="Register, reserve a slug, and use the cabinet when you are live."
-        body="The ambassador system is not one page. There is a registration surface, a cabinet surface, and protected attribution logic behind them. This screen keeps that structure understandable."
-      >
-        <ProductActionRow
-          primaryLabel="Open Registration"
-          onPrimaryPress={() => void openInAppBrowser(router, 'https://4teen.me/a/reg')}
-          secondaryLabel="Open Cabinet"
-          onSecondaryPress={() => void openInAppBrowser(router, 'https://4teen.me/a/cab')}
+    <ProductScreen
+      eyebrow="AMBASSADOR"
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.accent}
+          colors={[colors.accent]}
+          progressBackgroundColor={colors.bg}
         />
-      </ProductHero>
-
-      <ProductStatGrid
-        items={[
-          {
-            eyebrow: 'Step one',
-            value: 'Slug',
-            body: 'Registration reserves the ambassador identity and referral handle.',
-          },
-          {
-            eyebrow: 'Step two',
-            value: 'Cabinet',
-            body: 'The cabinet is the operational dashboard for stats and reward-side actions.',
-          },
-          {
-            eyebrow: 'Resource note',
-            value: '~98K Energy',
-            body: 'Registration is a real contract action and may require resources.',
-          },
-          {
-            eyebrow: 'Referral model',
-            value: 'Tracked',
-            body: 'Attribution and settlement are separated into their own backend-backed layer.',
-          },
-        ]}
-      />
-
-      <ProductSection eyebrow="REGISTRATION" title="What happens when someone becomes ambassador">
-        <ProductBulletList
-          items={[
-            'A referral slug is checked for availability before the contract call is sent.',
-            'Wallet signs a live registration transaction instead of filling a fake web form.',
-            'Backend completes the protected mapping layer after the on-chain step succeeds.',
-          ]}
+      }
+    >
+      {activeWallet ? (
+        <WalletSelector
+          activeWallet={activeWallet}
+          selectedWalletOption={selectedWalletOption}
+          visibleWalletChoices={visibleWalletChoices}
+          walletOptionsOpen={walletOptionsOpen}
+          switchingWalletId={switchingWalletId}
+          onToggle={handleToggleWalletOptions}
+          onChooseWallet={handleChooseWallet}
         />
-      </ProductSection>
+      ) : (
+        <ProductSection eyebrow="WALLET REQUIRED" title="No active wallet">
+          <Text style={ui.body}>
+            Import or create a wallet before ambassador registration or cabinet lookup can run.
+          </Text>
+          <ProductActionRow
+            primaryLabel="Import Wallet"
+            onPrimaryPress={() => router.push('/import-wallet')}
+            secondaryLabel="Create Wallet"
+            onSecondaryPress={() => router.push('/create-wallet')}
+          />
+        </ProductSection>
+      )}
 
-      <ProductSection eyebrow="REFERRAL STATE" title="What this device currently remembers">
-        <View style={styles.referralCard}>
-          <View style={styles.referralRowFirst}>
-            <Text style={styles.referralLabel}>Stored slug</Text>
-            <Text style={[styles.referralValue, referral ? styles.referralValueAccent : null]}>
-              {referral?.slug || 'NONE'}
-            </Text>
-          </View>
-          <View style={styles.referralRow}>
-            <Text style={styles.referralLabel}>Source</Text>
-            <Text style={styles.referralValue}>
-              {referral ? formatReferralSourceLabel(referral.source) : '—'}
-            </Text>
-          </View>
-          <View style={styles.referralRow}>
-            <Text style={styles.referralLabel}>Expires</Text>
-            <Text style={styles.referralValue}>
-              {referral ? formatReferralExpiry(referral.expiresAt) : '—'}
-            </Text>
-          </View>
-        </View>
+      {errorText ? <StatusCard tone="danger" text={errorText} /> : null}
+      {snapshot?.message ? (
+        <StatusCard tone={isWatchOnlyWallet ? 'danger' : 'neutral'} text={snapshot.message} />
+      ) : null}
 
-        {referral ? (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            style={styles.clearButton}
-            onPress={() => void handleClearReferral()}
-          >
-            <Text style={styles.clearButtonText}>CLEAR REFERRAL</Text>
-          </TouchableOpacity>
-        ) : null}
-      </ProductSection>
+      {isWatchOnlyWallet ? (
+        <ProductSection eyebrow="FULL ACCESS REQUIRED" title="Ambassador is locked for this wallet">
+          <Text style={ui.body}>
+            Watch-only wallets cannot register, withdraw, replay rewards, or open the ambassador cabinet here.
+            Switch to a seed phrase or private-key wallet.
+          </Text>
+          <ProductActionRow
+            primaryLabel="Import Wallet"
+            onPrimaryPress={() => router.push('/import-wallet')}
+            secondaryLabel="Create Wallet"
+            onSecondaryPress={() => router.push('/create-wallet')}
+          />
+        </ProductSection>
+      ) : null}
 
-      <ProductSection eyebrow="CABINET" title="What the cabinet is for">
-        <ProductBulletList
-          items={[
-            'Open personal ambassador dashboard instead of mixing stats into the wallet core.',
-            'Review purchases, activity, pending reward-side actions, and profile state.',
-            'Keep the ambassador workflow separate from send, swap, and portfolio screens.',
-          ]}
+      {snapshot?.status === 'cabinet' && cabinet && summary && !isWatchOnlyWallet ? (
+        <CabinetView
+          cabinet={cabinet}
+          activeWallet={activeWallet}
+          canWithdraw={canWithdraw}
+          hasPendingRows={hasPendingRows}
+          busyAction={busyAction}
+          sections={cabinetSections}
+          onCopy={handleCopy}
+          onOpenLink={(url) => void openInAppBrowser(router, url)}
+          onWithdraw={() => void handleWithdraw()}
+          onReplay={() => void handleReplayPending()}
+          onToggleSection={handleToggleCabinetSection}
         />
-        <ProductActionRow
-          primaryLabel="Open Cabinet"
-          onPrimaryPress={() => void openInAppBrowser(router, 'https://4teen.me/a/cab')}
-          secondaryLabel="Back to Earn"
-          onSecondaryPress={() => router.push('/earn')}
+      ) : null}
+
+      {snapshot?.status === 'register' && !isWatchOnlyWallet ? (
+        <RegistrationView
+          slug={slug}
+          slugStatus={slugStatus}
+          signingWalletAvailable={snapshot.signingWalletAvailable}
+          walletKind={snapshot.wallet?.kind}
+          busyAction={busyAction}
+          canRegister={canRegister}
+          onChangeSlug={handleNormalizeSlug}
+          onRegister={() => void handleRegister()}
         />
-      </ProductSection>
+      ) : null}
     </ProductScreen>
   );
 }
 
+function WalletSelector({
+  activeWallet,
+  selectedWalletOption,
+  visibleWalletChoices,
+  walletOptionsOpen,
+  switchingWalletId,
+  onToggle,
+  onChooseWallet,
+}: {
+  activeWallet: WalletMeta;
+  selectedWalletOption: WalletSwitcherItem | null;
+  visibleWalletChoices: WalletSwitcherItem[];
+  walletOptionsOpen: boolean;
+  switchingWalletId: string | null;
+  onToggle: () => void;
+  onChooseWallet: (wallet: WalletSwitcherItem) => void;
+}) {
+  return (
+    <View style={styles.selectionBlock}>
+      <Text style={styles.selectionEyebrow}>SELECTED WALLET · TAP TO SWITCH</Text>
+
+      <TouchableOpacity
+        activeOpacity={0.9}
+        style={[styles.walletCard, walletOptionsOpen ? styles.walletCardOpen : styles.walletCardClosed]}
+        onPress={onToggle}
+      >
+        <View style={styles.walletCardText}>
+          <View style={styles.walletTitleRow}>
+            <Text style={styles.walletName}>{activeWallet.name}</Text>
+            <Text style={styles.activeBadge}>SELECTED</Text>
+          </View>
+
+          <Text style={styles.walletBalance}>
+            Balance: {selectedWalletOption?.balanceDisplay ?? '—'}
+          </Text>
+          <Text style={styles.walletBalance}>
+            Access: {formatWalletAccessLabel(activeWallet.kind)}
+          </Text>
+          <Text style={styles.walletAddress}>{activeWallet.address}</Text>
+        </View>
+
+        {walletOptionsOpen ? <OpenDownIcon width={22} height={22} /> : <OpenRightIcon width={18} height={18} />}
+      </TouchableOpacity>
+
+      {walletOptionsOpen ? (
+        <View style={styles.walletOptionsList}>
+          {visibleWalletChoices.map((wallet) => {
+            const switching = wallet.id === switchingWalletId;
+
+            return (
+              <TouchableOpacity
+                key={wallet.id}
+                activeOpacity={0.9}
+                style={styles.walletOptionRow}
+                onPress={() => onChooseWallet(wallet)}
+              >
+                <View style={styles.walletOptionText}>
+                  <Text style={ui.actionLabel}>{wallet.name}</Text>
+                  <Text style={styles.optionBalance}>Balance: {wallet.balanceDisplay}</Text>
+                  <Text style={styles.optionBalance}>
+                    Access: {formatWalletAccessLabel(wallet.kind)}
+                  </Text>
+                  <Text style={styles.optionAddress}>{wallet.address}</Text>
+                </View>
+
+                {switching ? <ActivityIndicator color={colors.accent} /> : <OpenRightIcon width={18} height={18} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function CabinetView({
+  cabinet,
+  activeWallet,
+  canWithdraw,
+  hasPendingRows,
+  busyAction,
+  sections,
+  onCopy,
+  onOpenLink,
+  onWithdraw,
+  onReplay,
+  onToggleSection,
+}: {
+  cabinet: AmbassadorCabinetDashboard;
+  activeWallet: WalletMeta | null;
+  canWithdraw: boolean;
+  hasPendingRows: boolean;
+  busyAction: BusyAction;
+  sections: Record<CabinetSectionId, boolean>;
+  onCopy: (value: string, label: string) => void;
+  onOpenLink: (url: string) => void;
+  onWithdraw: () => void;
+  onReplay: () => void;
+  onToggleSection: (section: CabinetSectionId) => void;
+}) {
+  const { profile, summary } = cabinet;
+  const walletExplorerUrl = profile.wallet
+    ? `https://tronscan.org/#/address/${profile.wallet}`
+    : '';
+  const claimableSun = summary.claimable_rewards_sun || '0';
+  const processedRewardSun = summary.buyers_processed_reward_sun || '0';
+  const pendingRewardSun = summary.buyers_pending_reward_sun || '0';
+  const pendingVolumeSun = summary.buyers_pending_purchase_amount_sun || '0';
+  const pendingCount = asCount(cabinet.pendingTotal || cabinet.pendingRows.length);
+  const processedCount = asCount(summary.processed_count);
+
+  return (
+    <>
+      <ProductStatGrid
+        items={[
+          {
+            eyebrow: 'Slug',
+            value: profile.slug || '—',
+            body: profile.status.toUpperCase(),
+          },
+          {
+            eyebrow: 'Level',
+            value: levelToLabel(summary.effective_level),
+            body: `${summary.reward_percent || 0}% reward tier`,
+          },
+          {
+            eyebrow: 'Reward',
+            value: `${summary.reward_percent || 0}%`,
+            body: 'Current effective reward',
+          },
+          {
+            eyebrow: 'Claimable',
+            value: `${formatTrxFromSun(summary.claimable_rewards_sun)} TRX`,
+            body: `${formatTrxFromSun(summary.total_rewards_accrued_sun)} TRX accrued`,
+          },
+        ]}
+      />
+
+      <CabinetAccordionSection
+        id="actions"
+        title="Actions"
+        open={sections.actions}
+        onToggle={onToggleSection}
+      >
+        <Text style={ui.body}>
+          Cabinet shows current backend and on-chain state. Claimable rewards are the
+          real withdrawable amount from contract state.
+        </Text>
+        <View style={styles.actionGrid}>
+          <ActionPill
+            label="COPY SLUG"
+            icon="identifier"
+            variant="secondary"
+            disabled={!profile.slug}
+            onPress={() => onCopy(profile.slug, 'Ambassador slug')}
+          />
+          <ActionPill
+            label="COPY LINK"
+            icon="content-copy"
+            variant="secondary"
+            disabled={!profile.referralLink}
+            onPress={() => onCopy(profile.referralLink, 'Referral link')}
+          />
+        </View>
+        <View style={styles.actionGrid}>
+          <ActionPill
+            label="OPEN LINK"
+            icon="open-in-new"
+            variant="secondary"
+            disabled={!profile.referralLink}
+            onPress={() => onOpenLink(profile.referralLink)}
+          />
+          <ActionPill
+            label="TRONSCAN"
+            icon="wallet-outline"
+            variant="secondary"
+            disabled={!walletExplorerUrl}
+            onPress={() => onOpenLink(walletExplorerUrl)}
+          />
+        </View>
+      </CabinetAccordionSection>
+
+      <CabinetAccordionSection
+        id="identity"
+        title="Identity"
+        open={sections.identity}
+        onToggle={onToggleSection}
+      >
+        <View style={styles.flatPanel}>
+          <InfoRow label="Slug" value={profile.slug || 'Not assigned yet'} accent={Boolean(profile.slug)} />
+          <InfoRow label="Referral link" value={profile.referralLink || '—'} accent />
+          <InfoRow label="Wallet" value={shortenAddress(profile.wallet)} />
+          <InfoRow label="Status" value={summary.active === false ? 'Inactive' : 'Active'} accent={summary.active !== false} />
+          <InfoRow label="Level" value={levelToLabel(summary.effective_level)} />
+          <InfoRow label="Reward percent" value={`${summary.reward_percent || 0}%`} />
+          <InfoRow label="Created" value={formatChainDate(summary.created_at_chain)} />
+        </View>
+      </CabinetAccordionSection>
+
+      <CabinetAccordionSection
+        id="overview"
+        title="Overview"
+        open={sections.overview}
+        onToggle={onToggleSection}
+      >
+        <View style={styles.flatPanel}>
+          <InfoRow label="Linked buyers" value={String(asCount(summary.buyers_count || summary.total_buyers))} />
+          <InfoRow label="Attributed volume" value={`${formatTrxFromSun(summary.buyers_total_purchase_amount_sun || summary.total_volume_sun)} TRX`} />
+          <InfoRow label="Total reward" value={`${formatTrxFromSun(summary.buyers_total_reward_sun || summary.total_rewards_accrued_sun)} TRX`} />
+          <InfoRow label="Processed reward" value={`${formatTrxFromSun(processedRewardSun)} TRX`} />
+          <InfoRow label="Pending reward" value={`${formatTrxFromSun(pendingRewardSun)} TRX`} accent={pendingCount > 0} />
+          <InfoRow label="Processed rows" value={String(processedCount)} />
+          <InfoRow label="Pending rows" value={String(pendingCount)} accent={pendingCount > 0} />
+          <InfoRow label="Level" value={`${levelToLabel(summary.effective_level)} · ${summary.reward_percent || 0}%`} />
+        </View>
+      </CabinetAccordionSection>
+
+      <CabinetAccordionSection
+        id="rewards"
+        title="Reward status"
+        open={sections.rewards}
+        onToggle={onToggleSection}
+      >
+        <View style={styles.statusGrid}>
+          <RewardStatusCard
+            label="Claimable now"
+            value={`${formatTrxFromSun(claimableSun)} TRX`}
+            meta={`${claimableSun} SUN`}
+            tone={canWithdraw ? 'green' : 'default'}
+          />
+          <RewardStatusCard
+            label="Processed reward in DB"
+            value={`${formatTrxFromSun(processedRewardSun)} TRX`}
+            meta={`${processedRewardSun} SUN · ${processedCount} rows`}
+          />
+          <RewardStatusCard
+            label="Pending backend sync"
+            value={`${formatTrxFromSun(pendingRewardSun)} TRX`}
+            meta={`${pendingRewardSun} SUN · ${pendingCount} rows`}
+            tone={pendingCount > 0 ? 'amber' : 'default'}
+          />
+        </View>
+      </CabinetAccordionSection>
+
+      <CabinetAccordionSection
+        id="operations"
+        title="Reward operations"
+        open={sections.operations}
+        onToggle={onToggleSection}
+      >
+        {activeWallet?.kind === 'watch-only' ? (
+          <StatusCard
+            tone="danger"
+            text="Watch-only wallet cannot use ambassador cabinet actions here."
+          />
+        ) : null}
+
+        <View style={styles.actionGrid}>
+          <ActionPill
+            label="WITHDRAW"
+            icon="cash-fast"
+            disabled={!canWithdraw || busyAction === 'withdraw'}
+            busy={busyAction === 'withdraw'}
+            onPress={onWithdraw}
+          />
+          <ActionPill
+            label="REPLAY PENDING"
+            icon="reload"
+            variant="secondary"
+            disabled={!hasPendingRows || busyAction === 'replay'}
+            busy={busyAction === 'replay'}
+            onPress={onReplay}
+          />
+        </View>
+        {pendingCount > 0 ? (
+          <StatusCard
+            tone="neutral"
+            text={`Pending backend sync: ${formatTrxFromSun(pendingRewardSun)} TRX reward from ${formatTrxFromSun(pendingVolumeSun)} TRX purchase volume.`}
+          />
+        ) : null}
+      </CabinetAccordionSection>
+
+      <RowsPreview
+        sectionId="buyers"
+        open={sections.buyers}
+        onToggle={onToggleSection}
+        eyebrow="BUYERS"
+        title="Bound buyers"
+        empty="No bound buyers yet."
+        rows={cabinet.buyersRows}
+        total={cabinet.buyersTotal}
+        renderTitle={(row) => shortenAddress(readRowText(row, ['buyer_wallet', 'buyer', 'wallet']))}
+        renderMeta={(row) =>
+          [
+            `Bound ${formatMaybeDate(readRowText(row, ['binding_at', 'created_at']))}`,
+            `${readRowText(row, ['purchase_count'])} purchases`,
+            `${readRowSun(row, ['total_purchase_amount_sun', 'purchase_amount_sun'])} TRX volume`,
+            `${readRowSun(row, ['total_reward_amount_sun', 'ambassador_reward_sun'])} TRX reward`,
+            `${readRowText(row, ['processed_purchase_count'])} processed`,
+            `${readRowText(row, ['pending_purchase_count'])} pending`,
+          ].join(' · ')
+        }
+      />
+
+      <RowsPreview
+        sectionId="purchases"
+        open={sections.purchases}
+        onToggle={onToggleSection}
+        eyebrow="PURCHASES"
+        title="Tracked purchases"
+        empty="No tracked purchases yet."
+        rows={cabinet.purchasesRows}
+        total={cabinet.purchasesTotal}
+        renderTitle={(row) =>
+          `${formatMaybeDate(readRowText(row, ['token_block_time', 'created_at']))} · ${shortenAddress(readRowText(row, ['buyer_wallet', 'buyer', 'wallet']))}`
+        }
+        renderMeta={(row) =>
+          [
+            `${readRowSun(row, ['purchase_amount_sun'])} TRX purchase`,
+            `${readRowSun(row, ['ambassador_reward_sun', 'reward_sun'])} TRX reward`,
+            `status ${readRowText(row, ['status'])}`,
+            `processed ${readRowText(row, ['controller_processed']) === 'true' ? 'yes' : 'no'}`,
+            shortenMiddle(readRowText(row, ['tx_hash', 'txid', 'transaction_id'])),
+          ].join(' · ')
+        }
+      />
+
+      <RowsPreview
+        sectionId="pending"
+        open={sections.pending}
+        onToggle={onToggleSection}
+        eyebrow="PENDING"
+        title="Pending allocation"
+        empty="No pending allocation rows."
+        rows={cabinet.pendingRows}
+        total={cabinet.pendingTotal}
+        renderTitle={(row) =>
+          `${formatMaybeDate(readRowText(row, ['token_block_time', 'created_at']))} · ${shortenAddress(readRowText(row, ['buyer_wallet', 'buyer', 'wallet']))}`
+        }
+        renderMeta={(row) =>
+          [
+            `${readRowSun(row, ['purchase_amount_sun'])} TRX purchase`,
+            `${readRowSun(row, ['ambassador_reward_sun', 'reward_sun'])} TRX reward`,
+            `status ${readRowText(row, ['status'])}`,
+            shortenMiddle(readRowText(row, ['tx_hash', 'txid', 'transaction_id'])),
+          ].join(' · ')
+        }
+      />
+
+      <CabinetAccordionSection
+        id="advanced"
+        title="Advanced details"
+        open={sections.advanced}
+        onToggle={onToggleSection}
+      >
+        <View style={styles.flatPanel}>
+          <InfoRow label="Slug hash" value={String(summary.slug_hash || '—')} />
+          <InfoRow label="Meta hash" value={String(summary.meta_hash || '—')} />
+          <InfoRow
+            label="Registration mode"
+            value={
+              summary.self_registered
+                ? 'Self-registered'
+                : summary.manual_assigned
+                  ? 'Manually assigned'
+                  : 'Registered'
+            }
+          />
+          <InfoRow label="Override" value={summary.override_enabled ? 'Enabled' : 'Disabled'} />
+          <InfoRow label="Current level" value={levelToLabel(summary.current_level ?? summary.effective_level)} />
+          <InfoRow label="Override level" value={levelToLabel(summary.override_level ?? 0)} />
+          <InfoRow label="Lifetime rewards" value={`${formatTrxFromSun(summary.total_rewards_accrued_sun)} TRX`} />
+          <InfoRow label="Withdrawn rewards" value={`${formatTrxFromSun(summary.total_rewards_claimed_sun)} TRX`} />
+          <InfoRow
+            label="Rows loaded"
+            value={`${cabinet.purchasesRows.length} purchases / ${cabinet.pendingRows.length} pending / ${cabinet.buyersRows.length} buyers`}
+          />
+        </View>
+      </CabinetAccordionSection>
+    </>
+  );
+}
+
+function RegistrationView({
+  slug,
+  slugStatus,
+  signingWalletAvailable,
+  walletKind,
+  busyAction,
+  canRegister,
+  onChangeSlug,
+  onRegister,
+}: {
+  slug: string;
+  slugStatus: string;
+  signingWalletAvailable: boolean;
+  walletKind?: WalletMeta['kind'];
+  busyAction: BusyAction;
+  canRegister: boolean;
+  onChangeSlug: (value: string) => void;
+  onRegister: () => void;
+}) {
+  return (
+    <ProductSection eyebrow="AMBASSADOR PROFILE" title="No ambassador profile yet">
+      <Text style={ui.body}>
+        This full-access wallet is not registered as an ambassador. Pick a slug, then
+        continue to the confirmation screen.
+      </Text>
+
+      <View style={styles.inputBlock}>
+        <Text style={styles.inputLabel}>Referral slug</Text>
+        <TextInput
+          value={slug}
+          onChangeText={onChangeSlug}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="your-slug"
+          placeholderTextColor={colors.textDim}
+          style={styles.slugInput}
+        />
+        <Text style={styles.inputHint}>
+          3-24 chars. Lowercase letters, numbers, dash or underscore.
+        </Text>
+      </View>
+
+      {slugStatus ? <StatusCard tone={slugStatus.includes('available') ? 'success' : 'danger'} text={slugStatus} /> : null}
+      {walletKind === 'watch-only' ? (
+        <StatusCard
+          tone="danger"
+          text="Watch-only wallet cannot register. Select or import a seed/private-key wallet first."
+        />
+      ) : null}
+
+      <View style={styles.actionGrid}>
+        <ActionPill
+          label="REGISTER"
+          icon="account-check"
+          disabled={!canRegister || !signingWalletAvailable || busyAction === 'register'}
+          busy={busyAction === 'register'}
+          onPress={onRegister}
+        />
+      </View>
+    </ProductSection>
+  );
+}
+
+function RowsPreview({
+  sectionId,
+  open,
+  onToggle,
+  eyebrow,
+  title,
+  empty,
+  rows,
+  total,
+  renderTitle,
+  renderMeta,
+}: {
+  sectionId: CabinetSectionId;
+  open: boolean;
+  onToggle: (section: CabinetSectionId) => void;
+  eyebrow: string;
+  title: string;
+  empty: string;
+  rows: Record<string, unknown>[];
+  total: number;
+  renderTitle: (row: Record<string, unknown>) => string;
+  renderMeta: (row: Record<string, unknown>) => string;
+}) {
+  return (
+    <CabinetAccordionSection
+      id={sectionId}
+      title={`${title} (${total || rows.length})`}
+      open={open}
+      onToggle={onToggle}
+      eyebrow={eyebrow}
+    >
+      {rows.length ? (
+        <View style={styles.rowsList}>
+          {rows.map((row, index) => (
+            <View key={`${eyebrow}-${index}`} style={styles.previewRow}>
+              <View style={styles.previewRowIcon}>
+                <MaterialCommunityIcons name="link-variant" size={17} color={colors.accent} />
+              </View>
+              <View style={styles.previewRowText}>
+                <Text style={styles.previewRowTitle} numberOfLines={1}>
+                  {renderTitle(row)}
+                </Text>
+                <Text style={styles.previewRowMeta} numberOfLines={2}>
+                  {renderMeta(row)}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Text style={ui.body}>{empty}</Text>
+      )}
+    </CabinetAccordionSection>
+  );
+}
+
+function CabinetAccordionSection({
+  id,
+  title,
+  open,
+  onToggle,
+  children,
+  eyebrow,
+}: {
+  id: CabinetSectionId;
+  title: string;
+  open: boolean;
+  onToggle: (section: CabinetSectionId) => void;
+  children: ReactNode;
+  eyebrow?: string;
+}) {
+  return (
+    <View style={styles.accordionCard}>
+      <TouchableOpacity
+        activeOpacity={0.88}
+        style={styles.accordionHeader}
+        onPress={() => onToggle(id)}
+      >
+        <View style={styles.accordionHeaderText}>
+          {eyebrow ? <Text style={ui.sectionEyebrow}>{eyebrow}</Text> : null}
+          <Text style={styles.accordionTitle}>{title}</Text>
+        </View>
+        <MaterialCommunityIcons
+          name={open ? 'minus' : 'plus'}
+          size={20}
+          color={open ? colors.green : colors.accent}
+        />
+      </TouchableOpacity>
+      {open ? <View style={styles.accordionContent}>{children}</View> : null}
+    </View>
+  );
+}
+
+function InfoRow({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={[styles.infoValue, accent ? styles.infoValueAccent : null]} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function StatusCard({ tone, text }: { tone: 'neutral' | 'danger' | 'success'; text: string }) {
+  return (
+    <View
+      style={[
+        styles.statusCard,
+        tone === 'danger' ? styles.statusDanger : tone === 'success' ? styles.statusSuccess : null,
+      ]}
+    >
+      <Text style={styles.statusText}>{text}</Text>
+    </View>
+  );
+}
+
+function RewardStatusCard({
+  label,
+  value,
+  meta,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  meta: string;
+  tone?: 'default' | 'green' | 'amber';
+}) {
+  return (
+    <View
+      style={[
+        styles.rewardStatusCard,
+        tone === 'green' ? styles.rewardStatusCardGreen : null,
+        tone === 'amber' ? styles.rewardStatusCardAmber : null,
+      ]}
+    >
+      <Text style={styles.rewardStatusLabel}>{label}</Text>
+      <Text style={styles.rewardStatusValue}>{value}</Text>
+      <Text style={styles.rewardStatusMeta}>{meta}</Text>
+    </View>
+  );
+}
+
+function ActionPill({
+  label,
+  icon,
+  variant = 'primary',
+  disabled,
+  busy,
+  onPress,
+}: {
+  label: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  variant?: 'primary' | 'secondary';
+  disabled?: boolean;
+  busy?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      disabled={disabled || busy}
+      style={[
+        styles.actionPill,
+        variant === 'secondary' ? styles.actionPillSecondary : styles.actionPillPrimary,
+        disabled || busy ? styles.actionPillDisabled : null,
+      ]}
+      onPress={onPress}
+    >
+      {busy ? (
+        <ActivityIndicator color={colors.white} />
+      ) : (
+        <MaterialCommunityIcons
+          name={icon}
+          size={18}
+          color={variant === 'secondary' ? colors.accent : colors.white}
+        />
+      )}
+      <Text style={styles.actionPillText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
-  referralCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.surfaceSoft,
-    padding: 16,
+  selectionBlock: {
+    marginBottom: 18,
   },
-  referralRowFirst: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  referralRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  referralLabel: {
+  selectionEyebrow: {
     color: colors.textDim,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+  },
+  walletCard: {
+    minHeight: 86,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  walletCardClosed: {
+    borderColor: 'rgba(24,224,58,0.22)',
+    backgroundColor: 'rgba(24,224,58,0.06)',
+  },
+  walletCardOpen: {
+    borderColor: 'rgba(24,224,58,0.22)',
+    backgroundColor: 'rgba(24,224,58,0.06)',
+  },
+  walletCardText: {
+    flex: 1,
+    gap: 4,
+  },
+  walletTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  walletName: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: 'Sora_700Bold',
+  },
+  walletBalance: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
   },
-  referralValue: {
+  activeBadge: {
+    color: colors.green,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+  },
+  walletAddress: {
+    color: colors.textSoft,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+  walletOptionsList: {
+    gap: 10,
+    marginTop: 10,
+  },
+  walletOptionRow: {
+    minHeight: 86,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255,105,0,0.14)',
+    backgroundColor: 'rgba(255,105,0,0.04)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  walletOptionText: {
+    flex: 1,
+    gap: 4,
+  },
+  optionBalance: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+  optionAddress: {
+    color: colors.textSoft,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+  flatPanel: {
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
+  },
+  accordionCard: {
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  accordionHeader: {
+    minHeight: 60,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+  accordionHeaderText: {
+    flex: 1,
+    gap: 3,
+  },
+  accordionTitle: {
+    ...ui.titleSm,
+  },
+  accordionContent: {
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  infoRow: {
+    minHeight: 45,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lineSoft,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+  infoLabel: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    flexShrink: 0,
+  },
+  infoValue: {
     color: colors.white,
     fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
     textAlign: 'right',
-    flexShrink: 1,
+    flex: 1,
   },
-  referralValueAccent: {
+  infoValueAccent: {
     color: colors.green,
   },
-  clearButton: {
-    marginTop: 12,
-    minHeight: 50,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+  actionGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  actionPill: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    paddingHorizontal: 12,
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    gap: 8,
   },
-  clearButtonText: {
+  actionPillPrimary: {
+    backgroundColor: colors.accent,
+  },
+  actionPillSecondary: {
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'rgba(255,105,0,0.06)',
+  },
+  actionPillDisabled: {
+    opacity: 0.42,
+  },
+  actionPillText: {
     ...ui.actionLabel,
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
+  },
+  inputBlock: {
+    gap: 8,
+  },
+  inputLabel: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  slugInput: {
+    minHeight: 54,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
     color: colors.white,
+    fontSize: 18,
+    lineHeight: 22,
+    fontFamily: 'Sora_700Bold',
+  },
+  inputHint: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  statusCard: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
+  },
+  statusDanger: {
+    borderColor: 'rgba(255,48,73,0.28)',
+    backgroundColor: 'rgba(255,48,73,0.08)',
+  },
+  statusSuccess: {
+    borderColor: 'rgba(24,224,58,0.24)',
+    backgroundColor: 'rgba(24,224,58,0.07)',
+  },
+  statusText: {
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  statusGrid: {
+    gap: 10,
+  },
+  rewardStatusCard: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  rewardStatusCardGreen: {
+    borderColor: 'rgba(24,224,58,0.24)',
+    backgroundColor: 'rgba(24,224,58,0.07)',
+  },
+  rewardStatusCardAmber: {
+    borderColor: 'rgba(255,105,0,0.28)',
+    backgroundColor: 'rgba(255,105,0,0.08)',
+  },
+  rewardStatusLabel: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  rewardStatusValue: {
+    color: colors.white,
+    fontSize: 18,
+    lineHeight: 23,
+    fontFamily: 'Sora_700Bold',
+  },
+  rewardStatusMeta: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  rowsList: {
+    gap: 10,
+  },
+  previewRow: {
+    minHeight: 58,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lineSoft,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  previewRowIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,105,0,0.08)',
+  },
+  previewRowText: {
+    flex: 1,
+    gap: 2,
+  },
+  previewRowTitle: {
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+  previewRowMeta: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 17,
   },
 });

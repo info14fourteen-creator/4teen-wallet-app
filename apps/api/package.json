@@ -1,0 +1,17 @@
+{
+  "name": "@4teen/api",
+  "version": "0.1.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "lint": "node -c server.js && find src -name '*.js' -print0 | xargs -0 -n1 node -c"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "tronweb": "^6.2.2",
+    "undici": "^8.0.0"
+  }
+}
