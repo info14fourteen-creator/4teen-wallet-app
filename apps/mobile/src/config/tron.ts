@@ -4,7 +4,7 @@ function readEnv(name: string) {
 
 export const FOURTEEN_API_BASE_URL = (
   readEnv('EXPO_PUBLIC_4TEEN_API_BASE_URL') ||
-  'https://fourteen-wallet-api-7af291023d36.herokuapp.com'
+  'https://api.4teen.me'
 ).replace(/\/+$/, '');
 export const USE_4TEEN_API_PROXY = FOURTEEN_API_BASE_URL.length > 0;
 
