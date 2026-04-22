@@ -102,6 +102,29 @@ function normalizeSunAmount(value, fallback = 0) {
   return Math.floor(parsed);
 }
 
+function getRentalMarkupBps() {
+  const parsed = Number(env.GASSTATION_RENTAL_MARKUP_BPS ?? 3000);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return 3000;
+  }
+
+  return Math.floor(parsed);
+}
+
+function applyRentalMarkup(costAmountSun) {
+  const costSun = normalizeSunAmount(costAmountSun);
+  const markupBps = getRentalMarkupBps();
+  const amountSun = Math.ceil(costSun * (10_000 + markupBps) / 10_000);
+
+  return {
+    amountSun,
+    costAmountSun: costSun,
+    markupAmountSun: Math.max(0, amountSun - costSun),
+    markupBps
+  };
+}
+
 function pkcs7Pad(buffer) {
   const blockSize = 16;
   const remainder = buffer.length % blockSize;
@@ -848,11 +871,17 @@ async function quoteEnergyRental({ energyNum }) {
       energyQuantity: normalizedEnergyNum,
       bandwidthQuantity: 0
     });
+    const marked = applyRentalMarkup(estimate.totalAmountSun);
 
     return {
       energyQuantity: normalizedEnergyNum,
-      amountSun: estimate.totalAmountSun,
-      amountTrx: fromSun(estimate.totalAmountSun),
+      amountSun: marked.amountSun,
+      amountTrx: fromSun(marked.amountSun),
+      costAmountSun: marked.costAmountSun,
+      costAmountTrx: fromSun(marked.costAmountSun),
+      markupAmountSun: marked.markupAmountSun,
+      markupAmountTrx: fromSun(marked.markupAmountSun),
+      markupBps: marked.markupBps,
       estimate,
       gasStationAccount: client.label
     };
@@ -876,12 +905,18 @@ async function quoteResourceRental({ energyNum = 0, bandwidthNum = 0 }) {
       energyQuantity,
       bandwidthQuantity
     });
+    const marked = applyRentalMarkup(estimate.totalAmountSun);
 
     return {
       energyQuantity,
       bandwidthQuantity,
-      amountSun: estimate.totalAmountSun,
-      amountTrx: fromSun(estimate.totalAmountSun),
+      amountSun: marked.amountSun,
+      amountTrx: fromSun(marked.amountSun),
+      costAmountSun: marked.costAmountSun,
+      costAmountTrx: fromSun(marked.costAmountSun),
+      markupAmountSun: marked.markupAmountSun,
+      markupAmountTrx: fromSun(marked.markupAmountSun),
+      markupBps: marked.markupBps,
       estimate,
       gasStationAccount: client.label
     };

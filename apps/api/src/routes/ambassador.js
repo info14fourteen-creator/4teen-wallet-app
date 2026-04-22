@@ -248,6 +248,11 @@ async function buildRegistrationEnergyQuote() {
     paymentAddress: env.OPERATOR_WALLET,
     amountSun,
     amountTrx: formatSunAsTrx(amountSun),
+    costAmountSun: String(quote.costAmountSun || ''),
+    costAmountTrx: quote.costAmountTrx,
+    markupAmountSun: String(quote.markupAmountSun || ''),
+    markupAmountTrx: quote.markupAmountTrx,
+    markupBps: quote.markupBps,
     energyQuantity: quote.energyQuantity
   };
 }
