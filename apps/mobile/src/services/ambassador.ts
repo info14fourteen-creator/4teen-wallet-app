@@ -171,12 +171,14 @@ export type AmbassadorRegistrationReceipt = {
 };
 
 export type AmbassadorRegistrationEnergyQuote = {
+  mode?: 'api' | 'resale' | string;
   wallet: string;
   slug: string;
   paymentAddress: string;
   amountSun: string;
   amountTrx: string;
   energyQuantity: number;
+  readyEnergy?: number;
 };
 
 export type AmbassadorRegistrationEnergyConfirmation = {
@@ -1048,12 +1050,14 @@ export async function getAmbassadorRegistrationEnergyQuote(input: {
   }
 
   return {
+    mode: String(result.mode || 'api'),
     wallet: normalizeAddress(result.wallet || wallet),
     slug: normalizeAmbassadorSlug(result.slug || slug),
     paymentAddress: normalizeAddress(result.paymentAddress),
     amountSun: String(result.amountSun || '0'),
     amountTrx: String(result.amountTrx || '0'),
     energyQuantity: Number(result.energyQuantity || 0),
+    readyEnergy: Number(result.readyEnergy || 0) || undefined,
   };
 }
 

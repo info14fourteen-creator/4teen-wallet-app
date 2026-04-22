@@ -59,6 +59,17 @@ function formatSunAsTrx(value) {
   return fraction ? `${whole}.${fraction}` : String(whole);
 }
 
+function parseTrxToSun(value) {
+  const raw = String(value || '').trim();
+
+  if (!/^\d+(\.\d{1,6})?$/.test(raw)) {
+    return '';
+  }
+
+  const [whole, fraction = ''] = raw.split('.');
+  return String((BigInt(whole) * SUN) + BigInt(fraction.padEnd(6, '0')));
+}
+
 function buildReferralLink(slug) {
   const normalized = normalizeSlug(slug);
   return normalized ? `https://4teen.me/?ref=${normalized}` : '';
@@ -128,6 +139,26 @@ function getRegistrationEnergyQuantity() {
   );
 }
 
+function getRegistrationEnergyMode() {
+  return String(env.GASSTATION_REGISTRATION_ENERGY_MODE || 'api').trim().toLowerCase();
+}
+
+function getResaleRegistrationAmountSun() {
+  const configuredSun = String(env.GASSTATION_RESALE_REGISTRATION_AMOUNT_SUN || '').trim();
+
+  if (/^\d+$/.test(configuredSun) && BigInt(configuredSun) > 0n) {
+    return configuredSun;
+  }
+
+  const configuredTrx = parseTrxToSun(env.GASSTATION_RESALE_REGISTRATION_AMOUNT_TRX);
+
+  if (configuredTrx && BigInt(configuredTrx) > 0n) {
+    return configuredTrx;
+  }
+
+  return '';
+}
+
 async function getAmbassadorByWallet(wallet) {
   const result = await pool.query(
     `
@@ -178,17 +209,83 @@ async function assertRegistrationCandidate(wallet, slug) {
 }
 
 async function buildRegistrationEnergyQuote() {
+  if (getRegistrationEnergyMode() === 'resale') {
+    const paymentAddress = normalizeWallet(env.GASSTATION_RESALE_REGISTRATION_PAYMENT_ADDRESS);
+    const amountSun = getResaleRegistrationAmountSun();
+
+    if (!isValidTronAddress(paymentAddress)) {
+      const error = new Error('GasStation resale registration payment address is not configured');
+      error.status = 503;
+      throw error;
+    }
+
+    if (!amountSun) {
+      const error = new Error('GasStation resale registration amount is not configured');
+      error.status = 503;
+      throw error;
+    }
+
+    return {
+      mode: 'resale',
+      paymentAddress,
+      amountSun,
+      amountTrx: formatSunAsTrx(amountSun),
+      energyQuantity: getRegistrationEnergyQuantity(),
+      readyEnergy: Math.max(
+        Number(env.GASSTATION_RESALE_REGISTRATION_READY_ENERGY || 0),
+        Number(env.GASSTATION_MIN_ENERGY || 0)
+      )
+    };
+  }
+
   const quote = await quoteEnergyRental({
     energyNum: getRegistrationEnergyQuantity()
   });
   const amountSun = String(Math.ceil(Number(quote.amountSun || 0)));
 
   return {
+    mode: 'api',
     paymentAddress: env.OPERATOR_WALLET,
     amountSun,
     amountTrx: formatSunAsTrx(amountSun),
     energyQuantity: quote.energyQuantity
   };
+}
+
+async function readWalletEnergyState(wallet) {
+  const resources = await tronWeb.trx.getAccountResources(wallet);
+  const energyLimit = Number(resources?.EnergyLimit || 0);
+  const energyUsed = Number(resources?.EnergyUsed || 0);
+
+  return {
+    energyLimit,
+    energyUsed,
+    availableEnergy: Math.max(0, energyLimit - energyUsed)
+  };
+}
+
+async function waitForResaleEnergyFulfillment(wallet, requiredEnergy, { attempts = 24, delayMs = 3000 } = {}) {
+  let lastState = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    lastState = await readWalletEnergyState(wallet);
+
+    if (lastState.availableEnergy >= requiredEnergy) {
+      return lastState;
+    }
+
+    if (attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  const error = new Error('GasStation resale energy was not delivered yet');
+  error.status = 202;
+  error.details = {
+    requiredEnergy,
+    lastState
+  };
+  throw error;
 }
 
 router.get('/cabinet/:wallet', async (req, res) => {
@@ -451,6 +548,60 @@ router.post('/registration-energy/confirm', async (req, res) => {
       `,
       [wallet, slug, paymentTxid, payment.amountSun, quote.energyQuantity]
     );
+
+    if (quote.mode === 'resale') {
+      await pool.query(
+        `
+          UPDATE ambassador_energy_rentals
+          SET
+            request_id = $2,
+            status = 'waiting_resale',
+            row_json = $3,
+            updated_at = NOW()
+          WHERE payment_tx_hash = $1
+        `,
+        [
+          paymentTxid,
+          `resale:${paymentTxid.slice(0, 16)}`,
+          JSON.stringify({
+            mode: 'resale',
+            payment,
+            quote
+          })
+        ]
+      );
+
+      const energyState = await waitForResaleEnergyFulfillment(
+        wallet,
+        Number(quote.readyEnergy || quote.energyQuantity || 0)
+      );
+
+      const updated = await pool.query(
+        `
+          UPDATE ambassador_energy_rentals
+          SET
+            status = 'completed',
+            row_json = $2,
+            updated_at = NOW()
+          WHERE payment_tx_hash = $1
+          RETURNING *
+        `,
+        [
+          paymentTxid,
+          JSON.stringify({
+            mode: 'resale',
+            payment,
+            quote,
+            energyState
+          })
+        ]
+      );
+
+      return res.json({
+        ok: true,
+        result: updated.rows[0]
+      });
+    }
 
     try {
       const rented = await rentEnergyForWallet({

@@ -240,8 +240,12 @@ export default function AmbassadorConfirmScreen() {
           throw new Error('Energy rental quote is unavailable.');
         }
 
+        const isResaleRental = String(energyQuote.mode || '').toLowerCase() === 'resale';
+
         setEnergyRentalText(
-          `Sending ${energyQuote.amountTrx} TRX rental payment, then requesting ${energyQuote.energyQuantity.toLocaleString('en-US')} Energy.`
+          isResaleRental
+            ? `Sending ${energyQuote.amountTrx} TRX to GasStation resale package. Waiting for ${energyQuote.energyQuantity.toLocaleString('en-US')} Energy distribution.`
+            : `Sending ${energyQuote.amountTrx} TRX rental payment, then requesting ${energyQuote.energyQuantity.toLocaleString('en-US')} Energy.`
         );
         const payment = await sendAssetTransfer({
           tokenId: TRX_TOKEN_ID,
@@ -249,13 +253,17 @@ export default function AmbassadorConfirmScreen() {
           amount: energyQuote.amountTrx,
         });
 
-        setEnergyRentalText('Payment confirmed. Requesting Energy sublease from GasStation...');
+        setEnergyRentalText(
+          isResaleRental
+            ? 'Payment confirmed. Waiting for GasStation automatic Energy distribution...'
+            : 'Payment confirmed. Requesting Energy sublease from GasStation...'
+        );
         await confirmAmbassadorRegistrationEnergy({
           wallet: wallet.address,
           slug: requestedSlug,
           paymentTxId: payment.txId,
         });
-        setEnergyRentalText('Energy rental completed. Sending ambassador registration...');
+        setEnergyRentalText('Energy is available. Sending ambassador registration...');
       }
 
       const receipt = await registerAmbassador(requestedSlug);
@@ -464,6 +472,11 @@ export default function AmbassadorConfirmScreen() {
                 <DetailRow label="Resource Note" value="~98K Energy / ~345 Bandwidth" accent />
                 {energyQuote ? (
                   <>
+                    <DetailRow
+                      label="Rental Mode"
+                      value={String(energyQuote.mode || 'api').toUpperCase()}
+                      accent
+                    />
                     <DetailRow label="Rental Energy" value={`${energyQuote.energyQuantity.toLocaleString('en-US')} Energy`} accent />
                     <DetailRow label="Rental Payment" value={`${energyQuote.amountTrx} TRX`} accent />
                     <DetailRow label="Rental Receiver" value={shortenAddress(energyQuote.paymentAddress)} />
