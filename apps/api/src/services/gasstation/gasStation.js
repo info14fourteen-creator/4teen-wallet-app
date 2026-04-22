@@ -10,6 +10,10 @@ const DEFAULT_BASE_URL = 'https://openapi.gasstation.ai';
 const DEFAULT_SERVICE_CHARGE_TYPE = '10010';
 const MIN_ENERGY_ORDER = 64400;
 const MIN_BANDWIDTH_ORDER = 5000;
+const ROTATABLE_ERROR_PATTERN =
+  /(rate|limit|too many|forbidden|403|429|insufficient|balance|inventory|quota|busy|timeout|network|fetch failed)/i;
+
+let gasStationCredentialCursor = 0;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -202,6 +206,7 @@ class GasStationClient {
   constructor(config) {
     this.appId = assertNonEmpty(config.appId, 'GASSTATION_API_KEY');
     this.secretKey = assertNonEmpty(config.secretKey, 'GASSTATION_API_SECRET');
+    this.label = String(config.label || this.appId.slice(0, 8)).trim();
     this.baseUrl = normalizeBaseUrl(config.baseUrl);
     this.proxyUrl = config.proxyUrl ? String(config.proxyUrl).trim() : undefined;
     this.timeoutMs = normalizeTimeoutMs(config.timeoutMs);
@@ -302,14 +307,133 @@ class GasStationClient {
   }
 }
 
-function createGasStationClientFromEnv() {
+function readCredentialsJson() {
+  const raw = String(env.GASSTATION_CREDENTIALS_JSON || '').trim();
+
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    throw new Error(`Invalid GASSTATION_CREDENTIALS_JSON: ${error.message}`);
+  }
+}
+
+function addCredential(list, input, fallbackLabel) {
+  const appId = String(input?.appId || input?.appid || input?.APPID || input?.key || '').trim();
+  const secretKey = String(
+    input?.secretKey || input?.secret || input?.SecretKey || input?.GASSTATION_API_SECRET || ''
+  ).trim();
+
+  if (!appId || !secretKey) {
+    return;
+  }
+
+  if (list.some((item) => item.appId === appId)) {
+    return;
+  }
+
+  list.push({
+    appId,
+    secretKey,
+    label: String(input?.label || input?.name || fallbackLabel || appId.slice(0, 8)).trim()
+  });
+}
+
+function getGasStationCredentials() {
+  const credentials = [];
+
+  readCredentialsJson().forEach((item, index) => {
+    addCredential(credentials, item, `json_${index + 1}`);
+  });
+
+  [
+    {
+      appId: env.GASSTATION_API_KEY,
+      secretKey: env.GASSTATION_API_SECRET,
+      label: 'default'
+    },
+    {
+      appId: env.GASSTATION_API_KEY_1,
+      secretKey: env.GASSTATION_API_SECRET_1,
+      label: 'wallet_1'
+    },
+    {
+      appId: env.GASSTATION_API_KEY_2,
+      secretKey: env.GASSTATION_API_SECRET_2,
+      label: 'wallet_2'
+    },
+    {
+      appId: env.GASSTATION_API_KEY_3,
+      secretKey: env.GASSTATION_API_SECRET_3,
+      label: 'wallet_3'
+    }
+  ].forEach((item) => addCredential(credentials, item, item.label));
+
+  return credentials;
+}
+
+function createGasStationClient(credential) {
   return new GasStationClient({
-    appId: env.GASSTATION_API_KEY,
-    secretKey: env.GASSTATION_API_SECRET,
+    ...credential,
     baseUrl: env.GASSTATION_API_BASE_URL,
     proxyUrl: env.QUOTAGUARDSTATIC_URL,
     timeoutMs: Number(process.env.GASSTATION_TIMEOUT_MS || DEFAULT_TIMEOUT_MS)
   });
+}
+
+function createGasStationClientFromEnv() {
+  const credentials = getGasStationCredentials();
+
+  if (!credentials.length) {
+    return createGasStationClient({
+      appId: env.GASSTATION_API_KEY,
+      secretKey: env.GASSTATION_API_SECRET,
+      label: 'default'
+    });
+  }
+
+  const index = gasStationCredentialCursor % credentials.length;
+  gasStationCredentialCursor = (gasStationCredentialCursor + 1) % credentials.length;
+
+  return createGasStationClient(credentials[index]);
+}
+
+function isRotatableGasStationError(error) {
+  return ROTATABLE_ERROR_PATTERN.test(String(error?.message || ''));
+}
+
+async function withGasStationClientPool(operation) {
+  const credentials = getGasStationCredentials();
+
+  if (!credentials.length) {
+    return operation(createGasStationClientFromEnv());
+  }
+
+  const start = gasStationCredentialCursor % credentials.length;
+  const errors = [];
+
+  for (let i = 0; i < credentials.length; i += 1) {
+    const index = (start + i) % credentials.length;
+    const client = createGasStationClient(credentials[index]);
+
+    try {
+      const result = await operation(client);
+      gasStationCredentialCursor = (index + 1) % credentials.length;
+      return result;
+    } catch (error) {
+      errors.push(`${client.label}: ${error.message}`);
+
+      if (!isRotatableGasStationError(error) || i === credentials.length - 1) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error(`All GasStation credentials failed: ${errors.join('; ')}`);
 }
 
 function buildRequestId(prefix) {
@@ -539,77 +663,82 @@ async function ensureOperatorResources() {
     throw new Error('Gas Station is disabled but operator resources are insufficient');
   }
 
-  const client = createGasStationClientFromEnv();
-  const estimate = await estimateRentalCostSun(client, orders);
-  const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun);
+  return withGasStationClientPool(async (client) => {
+    const estimate = await estimateRentalCostSun(client, orders);
+    const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun);
 
-  const createdOrders = [];
+    const createdOrders = [];
 
-  if (orders.energyQuantity > 0) {
-    const requestId = buildRequestId('energy');
-    const created = await client.createEnergyOrder({
-      requestId,
-      receiveAddress: env.OPERATOR_WALLET,
-      energyNum: orders.energyQuantity
-    });
+    if (orders.energyQuantity > 0) {
+      const requestId = buildRequestId('energy');
+      const created = await client.createEnergyOrder({
+        requestId,
+        receiveAddress: env.OPERATOR_WALLET,
+        energyNum: orders.energyQuantity
+      });
 
-    const finalRow = await waitForOrderSuccess(client, requestId);
+      const finalRow = await waitForOrderSuccess(client, requestId);
 
-    createdOrders.push({
-      resourceType: 'energy',
-      requestId,
-      tradeNo: String(created?.trade_no || ''),
-      quantity: orders.energyQuantity,
-      row: finalRow || null
-    });
-  }
+      createdOrders.push({
+        resourceType: 'energy',
+        requestId,
+        tradeNo: String(created?.trade_no || ''),
+        quantity: orders.energyQuantity,
+        row: finalRow || null
+      });
+    }
 
-  if (orders.bandwidthQuantity > 0) {
-    const requestId = buildRequestId('net');
-    const created = await client.createBandwidthOrder({
-      requestId,
-      receiveAddress: env.OPERATOR_WALLET,
-      netNum: orders.bandwidthQuantity
-    });
+    if (orders.bandwidthQuantity > 0) {
+      const requestId = buildRequestId('net');
+      const created = await client.createBandwidthOrder({
+        requestId,
+        receiveAddress: env.OPERATOR_WALLET,
+        netNum: orders.bandwidthQuantity
+      });
 
-    const finalRow = await waitForOrderSuccess(client, requestId);
+      const finalRow = await waitForOrderSuccess(client, requestId);
 
-    createdOrders.push({
-      resourceType: 'net',
-      requestId,
-      tradeNo: String(created?.trade_no || ''),
-      quantity: orders.bandwidthQuantity,
-      row: finalRow || null
-    });
-  }
+      createdOrders.push({
+        resourceType: 'net',
+        requestId,
+        tradeNo: String(created?.trade_no || ''),
+        quantity: orders.bandwidthQuantity,
+        row: finalRow || null
+      });
+    }
 
-  await sleep(2000);
+    await sleep(2000);
 
-  const after = await getOperatorState();
+    const after = await getOperatorState();
 
-  return {
-    rented: true,
-    before,
-    after,
-    orders: createdOrders,
-    topUp
-  };
+    return {
+      rented: true,
+      before,
+      after,
+      orders: createdOrders,
+      topUp,
+      gasStationAccount: client.label
+    };
+  });
 }
 
 async function quoteEnergyRental({ energyNum }) {
   const normalizedEnergyNum = normalizePositiveInteger(energyNum, 'energyNum');
-  const client = createGasStationClientFromEnv();
-  const estimate = await estimateRentalCostSun(client, {
-    energyQuantity: normalizedEnergyNum,
-    bandwidthQuantity: 0
-  });
 
-  return {
-    energyQuantity: normalizedEnergyNum,
-    amountSun: estimate.totalAmountSun,
-    amountTrx: fromSun(estimate.totalAmountSun),
-    estimate
-  };
+  return withGasStationClientPool(async (client) => {
+    const estimate = await estimateRentalCostSun(client, {
+      energyQuantity: normalizedEnergyNum,
+      bandwidthQuantity: 0
+    });
+
+    return {
+      energyQuantity: normalizedEnergyNum,
+      amountSun: estimate.totalAmountSun,
+      amountTrx: fromSun(estimate.totalAmountSun),
+      estimate,
+      gasStationAccount: client.label
+    };
+  });
 }
 
 async function rentEnergyForWallet({ receiveAddress, energyNum, requestPrefix = 'energy' }) {
@@ -618,33 +747,37 @@ async function rentEnergyForWallet({ receiveAddress, energyNum, requestPrefix = 
   }
 
   const normalizedEnergyNum = normalizePositiveInteger(energyNum, 'energyNum');
-  const client = createGasStationClientFromEnv();
-  const estimate = await estimateRentalCostSun(client, {
-    energyQuantity: normalizedEnergyNum,
-    bandwidthQuantity: 0
-  });
-  const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun);
-  const requestId = buildRequestId(requestPrefix);
-  const created = await client.createEnergyOrder({
-    requestId,
-    receiveAddress: assertNonEmpty(receiveAddress, 'receiveAddress'),
-    energyNum: normalizedEnergyNum
-  });
-  const finalRow = await waitForOrderSuccess(client, requestId);
 
-  return {
-    rented: true,
-    resourceType: 'energy',
-    requestId,
-    tradeNo: String(created?.trade_no || ''),
-    quantity: normalizedEnergyNum,
-    row: finalRow || null,
-    estimate,
-    topUp
-  };
+  return withGasStationClientPool(async (client) => {
+    const estimate = await estimateRentalCostSun(client, {
+      energyQuantity: normalizedEnergyNum,
+      bandwidthQuantity: 0
+    });
+    const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun);
+    const requestId = buildRequestId(requestPrefix);
+    const created = await client.createEnergyOrder({
+      requestId,
+      receiveAddress: assertNonEmpty(receiveAddress, 'receiveAddress'),
+      energyNum: normalizedEnergyNum
+    });
+    const finalRow = await waitForOrderSuccess(client, requestId);
+
+    return {
+      rented: true,
+      resourceType: 'energy',
+      requestId,
+      tradeNo: String(created?.trade_no || ''),
+      quantity: normalizedEnergyNum,
+      row: finalRow || null,
+      estimate,
+      topUp,
+      gasStationAccount: client.label
+    };
+  });
 }
 
 module.exports = {
+  getGasStationCredentials,
   ensureOperatorResources,
   quoteEnergyRental,
   rentEnergyForWallet
