@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
+import EnergyResaleCard from '../src/ui/energy-resale-card';
 import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -33,6 +34,11 @@ import {
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import {
+  getEnergyResaleQuote,
+  rentEnergyForPurpose,
+  type EnergyResaleQuote,
+} from '../src/services/energy-resale';
 
 function formatResourceValue(value: number) {
   const safe = Math.max(0, Math.floor(Number(value) || 0));
@@ -74,6 +80,10 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
+  const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
+  const [energyRenting, setEnergyRenting] = useState(false);
+  const [pendingApprovalMode, setPendingApprovalMode] = useState<'withdraw' | 'rent'>('withdraw');
   const preserveNoticeOnExitRef = useRef(false);
   const burnWarningShownRef = useRef(false);
 
@@ -194,6 +204,58 @@ export default function AmbassadorWithdrawConfirmScreen() {
     await load();
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!review || !hasResourceShortfall || review.wallet.kind === 'watch-only') {
+      setEnergyQuote(null);
+      setEnergyQuoteLoading(false);
+      return;
+    }
+
+    setEnergyQuoteLoading(true);
+    getEnergyResaleQuote({
+      purpose: 'ambassador_withdraw',
+      wallet: review.wallet.address,
+    }).then((quote) => {
+      if (!cancelled) setEnergyQuote(quote);
+    }).finally(() => {
+      if (!cancelled) setEnergyQuoteLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasResourceShortfall, review]);
+
+  const performRentEnergy = useCallback(async () => {
+    if (!review || !energyQuote || energyRenting) return;
+
+    try {
+      setEnergyRenting(true);
+      notice.showNeutralNotice('Sending Energy rental payment...', 2500);
+      await rentEnergyForPurpose({
+        purpose: 'ambassador_withdraw',
+        wallet: review.wallet.address,
+        quote: energyQuote,
+      });
+      preserveNoticeOnExitRef.current = true;
+      notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
+      await load();
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice(
+        error instanceof Error ? error.message : 'Energy rental failed.',
+        4200
+      );
+    } finally {
+      setEnergyRenting(false);
+    }
+    setPasscodeOpen(false);
+    setPasscodeDigits('');
+    setPasscodeError('');
+  }, [energyQuote, energyRenting, load, notice, review]);
+
   const performWithdraw = useCallback(async () => {
     if (!review || submitting) return;
 
@@ -219,7 +281,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
   }, [notice, review, router, submitting, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
-    if (submitting || passcodeDigits.length !== 6) return;
+    if (submitting || energyRenting || passcodeDigits.length !== 6) return;
 
     try {
       const ok = await verifyPasscode(passcodeDigits);
@@ -230,13 +292,18 @@ export default function AmbassadorWithdrawConfirmScreen() {
         return;
       }
 
+      if (pendingApprovalMode === 'rent') {
+        await performRentEnergy();
+        return;
+      }
+
       await performWithdraw();
     } catch (error) {
       console.error(error);
       setPasscodeError('Failed to verify passcode.');
       setPasscodeDigits('');
     }
-  }, [passcodeDigits, performWithdraw, submitting]);
+  }, [energyRenting, passcodeDigits, pendingApprovalMode, performRentEnergy, performWithdraw, submitting]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -246,6 +313,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
   const handleApprove = useCallback(async () => {
     if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
+    setPendingApprovalMode('withdraw');
 
     if (biometricAvailable && biometricsEnabled) {
       try {
@@ -276,6 +344,49 @@ export default function AmbassadorWithdrawConfirmScreen() {
     setPasscodeDigits('');
     setPasscodeOpen(true);
   }, [biometricAvailable, biometricsEnabled, performWithdraw, review, submitting]);
+
+  const handleRentEnergy = useCallback(async () => {
+    if (!review || !energyQuote || submitting || energyRenting) return;
+
+    setPendingApprovalMode('rent');
+
+    if (biometricAvailable && biometricsEnabled) {
+      try {
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Confirm Energy Rental',
+          fallbackLabel: 'Use Passcode',
+          cancelLabel: 'Cancel',
+        });
+
+        if (result.success) {
+          await performRentEnergy();
+          return;
+        }
+
+        if (
+          result.error === 'user_cancel' ||
+          result.error === 'system_cancel' ||
+          result.error === 'app_cancel'
+        ) {
+          return;
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    setPasscodeError('');
+    setPasscodeDigits('');
+    setPasscodeOpen(true);
+  }, [
+    biometricAvailable,
+    biometricsEnabled,
+    energyQuote,
+    energyRenting,
+    performRentEnergy,
+    review,
+    submitting,
+  ]);
 
   const handleReject = useCallback(() => {
     if (submitting) return;
@@ -419,6 +530,14 @@ export default function AmbassadorWithdrawConfirmScreen() {
                       : 'Resources are sufficient. This withdrawal should avoid extra burn.'}
                 </Text>
               </View>
+
+              <EnergyResaleCard
+                quote={energyQuote}
+                loading={energyQuoteLoading}
+                processing={energyRenting}
+                disabled={submitting}
+                onRent={() => void handleRentEnergy()}
+              />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>
@@ -629,7 +748,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     marginTop: 14,
     minHeight: 58,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -645,7 +764,7 @@ const styles = StyleSheet.create({
   secondaryButton: {
     marginTop: 14,
     minHeight: 52,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     alignItems: 'center',
@@ -800,7 +919,7 @@ const styles = StyleSheet.create({
   dotFilled: { borderColor: colors.accent, backgroundColor: colors.accent },
   authCancelButton: {
     minHeight: 52,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     alignItems: 'center',

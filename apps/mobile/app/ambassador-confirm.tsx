@@ -452,7 +452,7 @@ export default function AmbassadorConfirmScreen() {
                 disabled={isRentApproveDisabled}
               >
                 {submitting && pendingApprovalMode === 'rent' ? (
-                  <ActivityIndicator color={colors.green} />
+                  <ActivityIndicator color={colors.white} />
                 ) : (
                   <Text style={styles.energyRentButtonText}>
                     {energyQuote
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
   },
   energyRentButtonText: {
     ...ui.actionLabel,
-    color: colors.green,
+    color: colors.white,
   },
   energyRentalStatusCard: {
     marginTop: 10,

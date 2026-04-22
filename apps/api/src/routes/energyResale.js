@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   confirmEnergyResalePayment,
+  getEnergyResaleStatus,
   getEnergyResalePackage,
   isValidTronAddress,
   normalizePurpose,
@@ -45,6 +46,26 @@ router.post('/confirm', async (req, res) => {
       purpose: req.body?.purpose,
       wallet: req.body?.wallet,
       paymentTxid: req.body?.paymentTxId || req.body?.paymentTxHash || req.body?.txid
+    });
+
+    return res.json({
+      ok: true,
+      result
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message,
+      details: error.details || undefined
+    });
+  }
+});
+
+router.get('/status', async (req, res) => {
+  try {
+    const result = await getEnergyResaleStatus({
+      purpose: req.query?.purpose,
+      wallet: req.query?.wallet
     });
 
     return res.json({

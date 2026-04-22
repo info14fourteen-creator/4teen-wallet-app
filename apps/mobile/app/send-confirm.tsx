@@ -16,6 +16,7 @@ import { Image } from 'expo-image';
 
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
+import EnergyResaleCard from '../src/ui/energy-resale-card';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -34,6 +35,11 @@ import {
   sendAssetTransfer,
   type SendAssetTransferEstimate,
 } from '../src/services/wallet/send';
+import {
+  getEnergyResaleQuote,
+  rentEnergyForPurpose,
+  type EnergyResaleQuote,
+} from '../src/services/energy-resale';
 import { rememberRecentRecipient } from '../src/services/recent-recipients';
 import {
   getBiometricsEnabled,
@@ -101,6 +107,10 @@ export default function SendConfirmScreen() {
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
+  const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
+  const [energyRenting, setEnergyRenting] = useState(false);
+  const [pendingApprovalMode, setPendingApprovalMode] = useState<'send' | 'rent'>('send');
   const burnWarningShownRef = useRef(false);
   const preserveNoticeOnExitRef = useRef(false);
 
@@ -230,12 +240,64 @@ export default function SendConfirmScreen() {
   const hasTrxForBurn = Boolean(estimate?.trxCoverage.canCoverBurn);
   const isApproveDisabled = sending || !estimate || !hasTrxForBurn;
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!estimate || !hasResourceShortfall || estimate.wallet.kind === 'watch-only') {
+      setEnergyQuote(null);
+      setEnergyQuoteLoading(false);
+      return;
+    }
+
+    setEnergyQuoteLoading(true);
+    getEnergyResaleQuote({
+      purpose: 'send_transfer',
+      wallet: estimate.wallet.address,
+    }).then((quote) => {
+      if (!cancelled) setEnergyQuote(quote);
+    }).finally(() => {
+      if (!cancelled) setEnergyQuoteLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [estimate, hasResourceShortfall]);
+
   const handleReject = useCallback(() => {
     if (sending) return;
     preserveNoticeOnExitRef.current = true;
     notice.showNeutralNotice('Transfer rejected by user.', 2200);
     router.back();
   }, [notice, router, sending]);
+
+  const performRentEnergy = useCallback(async () => {
+    if (!estimate || !energyQuote || energyRenting) return;
+
+    try {
+      setEnergyRenting(true);
+      notice.showNeutralNotice('Sending Energy rental payment...', 2500);
+      await rentEnergyForPurpose({
+        purpose: 'send_transfer',
+        wallet: estimate.wallet.address,
+        quote: energyQuote,
+      });
+      preserveNoticeOnExitRef.current = true;
+      notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
+      await load();
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice(
+        error instanceof Error ? error.message : 'Energy rental failed.',
+        4200
+      );
+    } finally {
+      setEnergyRenting(false);
+    }
+    setPasscodeOpen(false);
+    setPasscodeDigits('');
+    setPasscodeError('');
+  }, [energyQuote, energyRenting, estimate, load, notice]);
 
   const performSend = useCallback(async () => {
     if (!estimate || sending) return;
@@ -326,7 +388,7 @@ export default function SendConfirmScreen() {
   }, [contactName, estimate, notice, router, sending, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
-    if (sending || passcodeDigits.length !== 6) return;
+    if ((sending || energyRenting) || passcodeDigits.length !== 6) return;
 
     try {
       const ok = await verifyPasscode(passcodeDigits);
@@ -337,13 +399,18 @@ export default function SendConfirmScreen() {
         return;
       }
 
+      if (pendingApprovalMode === 'rent') {
+        await performRentEnergy();
+        return;
+      }
+
       await performSend();
     } catch (error) {
       console.error(error);
       setPasscodeError('Failed to verify passcode.');
       setPasscodeDigits('');
     }
-  }, [passcodeDigits, performSend, sending]);
+  }, [energyRenting, passcodeDigits, pendingApprovalMode, performRentEnergy, performSend, sending]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -354,6 +421,7 @@ export default function SendConfirmScreen() {
   const handleApprove = useCallback(async () => {
     if (!estimate || sending) return;
     if (!estimate.trxCoverage.canCoverBurn) return;
+    setPendingApprovalMode('send');
 
     if (biometricAvailable && biometricsEnabled) {
       try {
@@ -385,20 +453,63 @@ export default function SendConfirmScreen() {
     setPasscodeOpen(true);
   }, [biometricAvailable, biometricsEnabled, estimate, performSend, sending]);
 
+  const handleRentEnergy = useCallback(async () => {
+    if (!estimate || !energyQuote || sending || energyRenting) return;
+
+    setPendingApprovalMode('rent');
+
+    if (biometricAvailable && biometricsEnabled) {
+      try {
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Confirm Energy Rental',
+          fallbackLabel: 'Use Passcode',
+          cancelLabel: 'Cancel',
+        });
+
+        if (result.success) {
+          await performRentEnergy();
+          return;
+        }
+
+        if (
+          result.error === 'user_cancel' ||
+          result.error === 'system_cancel' ||
+          result.error === 'app_cancel'
+        ) {
+          return;
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    setPasscodeError('');
+    setPasscodeDigits('');
+    setPasscodeOpen(true);
+  }, [
+    biometricAvailable,
+    biometricsEnabled,
+    energyQuote,
+    energyRenting,
+    estimate,
+    performRentEnergy,
+    sending,
+  ]);
+
   const handlePasscodeDigitPress = useCallback((digit: string) => {
-    if (sending) return;
+    if (sending || energyRenting) return;
     setPasscodeError('');
     setPasscodeDigits((prev) => {
       if (prev.length >= 6) return prev;
       return `${prev}${digit}`;
     });
-  }, [sending]);
+  }, [energyRenting, sending]);
 
   const handlePasscodeBackspace = useCallback(() => {
-    if (sending) return;
+    if (sending || energyRenting) return;
     setPasscodeError('');
     setPasscodeDigits((prev) => prev.slice(0, -1));
-  }, [sending]);
+  }, [energyRenting, sending]);
 
   const handleRefresh = useCallback(async () => {
     if (sending) return;
@@ -586,6 +697,14 @@ export default function SendConfirmScreen() {
                     : 'Resources are sufficient. This transfer should execute without extra burn.'}
                 </Text>
               </View>
+
+              <EnergyResaleCard
+                quote={energyQuote}
+                loading={energyQuoteLoading}
+                processing={energyRenting}
+                disabled={sending}
+                onRent={() => void handleRentEnergy()}
+              />
 
               <TouchableOpacity
                 activeOpacity={0.9}

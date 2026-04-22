@@ -5,6 +5,7 @@ const proxyRouter = require('./routes/proxy');
 const walletRouter = require('./routes/wallet');
 const ambassadorRouter = require('./routes/ambassador');
 const energyResaleRouter = require('./routes/energyResale');
+const gasStationRouter = require('./routes/gasstation');
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use('/', healthRouter);
 app.use('/', proxyRouter);
 app.use('/wallet', walletRouter);
 app.use('/energy-resale', energyResaleRouter);
+app.use('/gasstation', gasStationRouter);
 app.use('/ambassador', ambassadorRouter);
 
 module.exports = app;

@@ -139,11 +139,18 @@ async function readWalletEnergyState(wallet) {
   const resources = await tronWeb.trx.getAccountResources(wallet);
   const energyLimit = Number(resources?.EnergyLimit || 0);
   const energyUsed = Number(resources?.EnergyUsed || 0);
+  const bandwidthLimit =
+    Number(resources?.freeNetLimit || 0) + Number(resources?.NetLimit || 0);
+  const bandwidthUsed =
+    Number(resources?.freeNetUsed || 0) + Number(resources?.NetUsed || 0);
 
   return {
     energyLimit,
     energyUsed,
-    availableEnergy: Math.max(0, energyLimit - energyUsed)
+    availableEnergy: Math.max(0, energyLimit - energyUsed),
+    bandwidthLimit,
+    bandwidthUsed,
+    availableBandwidth: Math.max(0, bandwidthLimit - bandwidthUsed)
   };
 }
 
@@ -321,8 +328,52 @@ async function confirmEnergyResalePayment({ purpose, wallet, paymentTxid }) {
   return updated.rows[0];
 }
 
+async function getEnergyResaleStatus({ purpose, wallet }) {
+  const resolvedPurpose = normalizePurpose(purpose);
+  const resolvedWallet = normalizeWallet(wallet);
+
+  if (!resolvedPurpose) {
+    const error = new Error('purpose is required');
+    error.status = 400;
+    throw error;
+  }
+
+  if (!isValidTronAddress(resolvedWallet)) {
+    const error = new Error('invalid TRON address');
+    error.status = 400;
+    throw error;
+  }
+
+  const packageConfig = getEnergyResalePackage(resolvedPurpose);
+  const energyState = await readWalletEnergyState(resolvedWallet);
+  const lastOrder = await pool.query(
+    `
+      SELECT *
+      FROM energy_resale_orders
+      WHERE purpose = $1
+        AND lower(wallet) = lower($2)
+      ORDER BY created_at DESC
+      LIMIT 1
+    `,
+    [resolvedPurpose, resolvedWallet]
+  ).catch(() => ({ rows: [] }));
+
+  const requiredEnergy = Number(packageConfig.readyEnergy || packageConfig.energyQuantity || 0);
+
+  return {
+    purpose: resolvedPurpose,
+    wallet: resolvedWallet,
+    ready: energyState.availableEnergy >= requiredEnergy,
+    requiredEnergy,
+    energyState,
+    package: packageConfig,
+    lastOrder: lastOrder.rows[0] || null
+  };
+}
+
 module.exports = {
   confirmEnergyResalePayment,
+  getEnergyResaleStatus,
   getEnergyResalePackage,
   isValidTronAddress,
   normalizePurpose,

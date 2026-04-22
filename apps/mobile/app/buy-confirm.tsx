@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
+import EnergyResaleCard from '../src/ui/energy-resale-card';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -42,6 +43,11 @@ import { clearWalletRuntimeCaches, FOURTEEN_LOGO, TRX_LOGO } from '../src/servic
 import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 import { submitReferralAttribution } from '../src/services/referral';
 import { waitForBuyerAmbassadorBinding } from '../src/services/ambassador';
+import {
+  getEnergyResaleQuote,
+  rentEnergyForPurpose,
+  type EnergyResaleQuote,
+} from '../src/services/energy-resale';
 
 function resolveParam(value: string | string[] | undefined) {
   if (typeof value === 'string') return value;
@@ -165,6 +171,10 @@ export default function BuyConfirmScreen() {
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
+  const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
+  const [energyRenting, setEnergyRenting] = useState(false);
+  const [pendingApprovalMode, setPendingApprovalMode] = useState<'buy' | 'rent'>('buy');
   const preserveNoticeOnExitRef = useRef(false);
   const burnWarningShownRef = useRef(false);
 
@@ -196,6 +206,10 @@ export default function BuyConfirmScreen() {
   const hasNoEnergyAvailable = energyAvailable <= 0;
   const lockReleaseParts = review ? formatLockReleaseParts(review.lockReleaseAt) : null;
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
+  const hasResourceShortfall = Boolean(
+    review &&
+      (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
+  );
 
   const load = useCallback(async () => {
     try {
@@ -314,6 +328,58 @@ export default function BuyConfirmScreen() {
     }
   }, [load]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!review || !hasResourceShortfall || review.wallet.kind === 'watch-only') {
+      setEnergyQuote(null);
+      setEnergyQuoteLoading(false);
+      return;
+    }
+
+    setEnergyQuoteLoading(true);
+    getEnergyResaleQuote({
+      purpose: 'direct_buy',
+      wallet: review.wallet.address,
+    }).then((quote) => {
+      if (!cancelled) setEnergyQuote(quote);
+    }).finally(() => {
+      if (!cancelled) setEnergyQuoteLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasResourceShortfall, review]);
+
+  const performRentEnergy = useCallback(async () => {
+    if (!review || !energyQuote || energyRenting) return;
+
+    try {
+      setEnergyRenting(true);
+      notice.showNeutralNotice('Sending Energy rental payment...', 2500);
+      await rentEnergyForPurpose({
+        purpose: 'direct_buy',
+        wallet: review.wallet.address,
+        quote: energyQuote,
+      });
+      preserveNoticeOnExitRef.current = true;
+      notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
+      await load();
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice(
+        error instanceof Error ? error.message : 'Energy rental failed.',
+        4200
+      );
+    } finally {
+      setEnergyRenting(false);
+    }
+    setPasscodeOpen(false);
+    setPasscodeDigits('');
+    setPasscodeError('');
+  }, [energyQuote, energyRenting, load, notice, review]);
+
   const performBuy = useCallback(async () => {
     if (!review || submitting) return;
 
@@ -391,6 +457,7 @@ export default function BuyConfirmScreen() {
       });
 
       if (result.success) {
+        setPendingApprovalMode('buy');
         await performBuy();
         return;
       }
@@ -415,6 +482,7 @@ export default function BuyConfirmScreen() {
 
   const handleApprove = useCallback(async () => {
     if (!review || submitting) return;
+    setPendingApprovalMode('buy');
 
     if (!review.trxCoverage.canCoverBurn) {
       const message = `Top up at least ${formatTrxAmountFromSun(
@@ -435,6 +503,49 @@ export default function BuyConfirmScreen() {
     setPasscodeOpen(true);
   }, [biometricAvailable, biometricsEnabled, notice, requestBiometricUnlock, review, submitting]);
 
+  const handleRentEnergy = useCallback(async () => {
+    if (!review || !energyQuote || submitting || energyRenting) return;
+
+    setPendingApprovalMode('rent');
+
+    if (biometricsEnabled && biometricAvailable) {
+      try {
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Confirm Energy Rental',
+          cancelLabel: 'Cancel',
+          fallbackLabel: 'Use passcode',
+        });
+
+        if (result.success) {
+          await performRentEnergy();
+          return;
+        }
+
+        if (
+          result.error === 'user_cancel' ||
+          result.error === 'system_cancel' ||
+          result.error === 'app_cancel'
+        ) {
+          return;
+        }
+      } catch {
+        // Fall through to passcode.
+      }
+    }
+
+    setPasscodeError('');
+    setPasscodeDigits('');
+    setPasscodeOpen(true);
+  }, [
+    biometricAvailable,
+    biometricsEnabled,
+    energyQuote,
+    energyRenting,
+    performRentEnergy,
+    review,
+    submitting,
+  ]);
+
   const handlePasscodeDigit = useCallback((digit: string) => {
     setPasscodeDigits((current) => {
       if (current.length >= 6) return current;
@@ -449,7 +560,7 @@ export default function BuyConfirmScreen() {
   }, []);
 
   useEffect(() => {
-    if (passcodeDigits.length !== 6 || submitting) return;
+    if (passcodeDigits.length !== 6 || submitting || energyRenting) return;
 
     let cancelled = false;
 
@@ -464,6 +575,11 @@ export default function BuyConfirmScreen() {
         return;
       }
 
+      if (pendingApprovalMode === 'rent') {
+        await performRentEnergy();
+        return;
+      }
+
       await performBuy();
     };
 
@@ -472,7 +588,7 @@ export default function BuyConfirmScreen() {
     return () => {
       cancelled = true;
     };
-  }, [passcodeDigits, performBuy, submitting]);
+  }, [energyRenting, passcodeDigits, pendingApprovalMode, performBuy, performRentEnergy, submitting]);
 
   if (loading) {
     return <ScreenLoadingState label="Loading buy confirmation..." />;
@@ -629,7 +745,7 @@ export default function BuyConfirmScreen() {
                   onPress={() => void handleApprove()}
                 >
                   {submitting ? (
-                    <ActivityIndicator color={colors.bg} />
+                    <ActivityIndicator color={colors.white} />
                   ) : (
                     <Text style={styles.primaryButtonText}>
                       {hasTrxForBurn ? 'BUY 4TEEN' : 'TOP UP TRX'}
@@ -720,7 +836,7 @@ export default function BuyConfirmScreen() {
                   </View>
 
                   <View style={styles.resourcesInlineRow}>
-                  <View style={styles.resourceInlineCol}>
+                    <View style={styles.resourceInlineCol}>
                       <Text
                         style={[
                           styles.resourceInlineLabel,
@@ -763,7 +879,7 @@ export default function BuyConfirmScreen() {
                   </View>
                 </View>
 
-                <View style={styles.infoRow}>
+              <View style={styles.infoRow}>
                   <Text
                     style={[
                       styles.infoRowText,
@@ -773,8 +889,16 @@ export default function BuyConfirmScreen() {
                     {!review.trxCoverage.canCoverBurn
                       ? 'TRX is short for buy value and network burn. Top up before approving this transaction.'
                       : 'Resources are sufficient. This buy should execute without extra surprises.'}
-                  </Text>
-                </View>
+                </Text>
+              </View>
+
+              <EnergyResaleCard
+                quote={energyQuote}
+                loading={energyQuoteLoading}
+                processing={energyRenting}
+                disabled={submitting}
+                onRent={() => void handleRentEnergy()}
+              />
               </View>
 
               {errorText ? (
