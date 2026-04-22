@@ -287,6 +287,7 @@ export default function SendConfirmScreen() {
         wallet: estimate.wallet.address,
         quote: energyQuote,
       });
+      clearWalletRuntimeCaches(estimate.wallet.address);
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
       await load();
@@ -621,6 +622,14 @@ export default function SendConfirmScreen() {
                 )}
               </TouchableOpacity>
 
+              <EnergyResaleCard
+                quote={energyQuote}
+                loading={energyQuoteLoading}
+                processing={energyRenting}
+                disabled={sending}
+                onRent={() => void handleRentEnergy()}
+              />
+
               <View style={styles.detailCard}>
                 <View style={styles.detailRowFirst}>
                   <Text style={styles.detailLabel}>Asset</Text>
@@ -702,14 +711,6 @@ export default function SendConfirmScreen() {
                     : 'Resources are sufficient. This transfer should execute without extra burn.'}
                 </Text>
               </View>
-
-              <EnergyResaleCard
-                quote={energyQuote}
-                loading={energyQuoteLoading}
-                processing={energyRenting}
-                disabled={sending}
-                onRent={() => void handleRentEnergy()}
-              />
 
               <TouchableOpacity
                 activeOpacity={0.9}

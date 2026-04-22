@@ -326,6 +326,7 @@ export default function SwapConfirmScreen() {
         wallet: review.wallet.address,
         quote: energyQuote,
       });
+      clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
       await load();
@@ -684,6 +685,14 @@ export default function SwapConfirmScreen() {
                 )}
               </TouchableOpacity>
 
+              <EnergyResaleCard
+                quote={energyQuote}
+                loading={energyQuoteLoading}
+                processing={energyRenting}
+                disabled={submitting}
+                onRent={() => void handleRentEnergy()}
+              />
+
               <View style={styles.detailCard}>
                 <View style={styles.detailRowFirst}>
                   <Text style={styles.detailLabel}>From</Text>
@@ -821,14 +830,6 @@ export default function SwapConfirmScreen() {
                       : 'Approval is already live. The wallet should go straight to the swap.'}
                 </Text>
               </View>
-
-              <EnergyResaleCard
-                quote={energyQuote}
-                loading={energyQuoteLoading}
-                processing={energyRenting}
-                disabled={submitting}
-                onRent={() => void handleRentEnergy()}
-              />
 
               {review.routeChanged ? (
                 <View style={styles.noticeCard}>

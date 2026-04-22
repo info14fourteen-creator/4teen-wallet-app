@@ -363,6 +363,7 @@ export default function BuyConfirmScreen() {
         wallet: review.wallet.address,
         quote: energyQuote,
       });
+      clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
       await load();
@@ -752,6 +753,14 @@ export default function BuyConfirmScreen() {
                     </Text>
                   )}
                 </TouchableOpacity>
+
+                <EnergyResaleCard
+                  quote={energyQuote}
+                  loading={energyQuoteLoading}
+                  processing={energyRenting}
+                  disabled={submitting}
+                  onRent={() => void handleRentEnergy()}
+                />
               </View>
 
               <View style={styles.sectionBlock}>
@@ -892,13 +901,6 @@ export default function BuyConfirmScreen() {
                 </Text>
               </View>
 
-              <EnergyResaleCard
-                quote={energyQuote}
-                loading={energyQuoteLoading}
-                processing={energyRenting}
-                disabled={submitting}
-                onRent={() => void handleRentEnergy()}
-              />
               </View>
 
               {errorText ? (

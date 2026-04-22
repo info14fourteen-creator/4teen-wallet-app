@@ -24,7 +24,7 @@ import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useNotice } from '../src/notice/notice-provider';
 import { getBiometricsEnabled, verifyPasscode } from '../src/security/local-auth';
-import { FOURTEEN_LOGO } from '../src/services/tron/api';
+import { clearWalletRuntimeCaches, FOURTEEN_LOGO } from '../src/services/tron/api';
 import {
   estimateAmbassadorWithdrawal,
   formatTrxFromSun,
@@ -239,6 +239,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
         wallet: review.wallet.address,
         quote: energyQuote,
       });
+      clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
       await load();
@@ -485,6 +486,14 @@ export default function AmbassadorWithdrawConfirmScreen() {
                 )}
               </TouchableOpacity>
 
+              <EnergyResaleCard
+                quote={energyQuote}
+                loading={energyQuoteLoading}
+                processing={energyRenting}
+                disabled={submitting}
+                onRent={() => void handleRentEnergy()}
+              />
+
               <View style={styles.detailCard}>
                 <DetailRow label="Wallet" value={review.wallet.name} first />
                 <DetailRow label="Controller" value={shortAddress(review.controllerAddress)} />
@@ -530,14 +539,6 @@ export default function AmbassadorWithdrawConfirmScreen() {
                       : 'Resources are sufficient. This withdrawal should avoid extra burn.'}
                 </Text>
               </View>
-
-              <EnergyResaleCard
-                quote={energyQuote}
-                loading={energyQuoteLoading}
-                processing={energyRenting}
-                disabled={submitting}
-                onRent={() => void handleRentEnergy()}
-              />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>

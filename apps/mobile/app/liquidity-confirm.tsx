@@ -24,7 +24,7 @@ import useChromeLoading from '../src/ui/use-chrome-loading';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
-import { FOURTEEN_LOGO } from '../src/services/tron/api';
+import { clearWalletRuntimeCaches, FOURTEEN_LOGO } from '../src/services/tron/api';
 import {
   executeLiquidityController,
   estimateLiquidityControllerExecution,
@@ -255,6 +255,7 @@ export default function LiquidityConfirmScreen() {
         wallet: review.wallet.address,
         quote: energyQuote,
       });
+      clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
       await load();
@@ -534,6 +535,14 @@ export default function LiquidityConfirmScreen() {
                 )}
               </TouchableOpacity>
 
+              <EnergyResaleCard
+                quote={energyQuote}
+                loading={energyQuoteLoading}
+                processing={energyRenting}
+                disabled={submitting}
+                onRent={() => void handleRentEnergy()}
+              />
+
               <View style={styles.detailCard}>
                 <View style={styles.detailRowFirst}>
                   <Text style={styles.detailLabel}>Wallet</Text>
@@ -651,14 +660,6 @@ export default function LiquidityConfirmScreen() {
                       : 'Resources are sufficient. This execution should avoid extra burn.'}
                 </Text>
               </View>
-
-              <EnergyResaleCard
-                quote={energyQuote}
-                loading={energyQuoteLoading}
-                processing={energyRenting}
-                disabled={submitting}
-                onRent={() => void handleRentEnergy()}
-              />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>
