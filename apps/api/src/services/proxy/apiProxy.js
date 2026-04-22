@@ -100,6 +100,10 @@ function isRateLimit(status, body) {
   );
 }
 
+function isRecoverableKeyFailure(status) {
+  return status === 401 || status === 403;
+}
+
 function buildHeaders(provider, apiKey) {
   const headers = {
     Accept: 'application/json'
@@ -177,7 +181,7 @@ async function proxyRequest({ provider, path, query, method = 'GET', body }) {
     } catch (error) {
       lastError = error;
 
-      if (isRateLimit(error.status, error.body)) {
+      if (isRateLimit(error.status, error.body) || isRecoverableKeyFailure(error.status)) {
         state.cooldownUntil[index] = Date.now() + KEY_COOLDOWN_MS;
         continue;
       }
