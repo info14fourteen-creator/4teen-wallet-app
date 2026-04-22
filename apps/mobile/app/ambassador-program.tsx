@@ -557,6 +557,11 @@ function CabinetView({
   const pendingVolumeSun = summary.buyers_pending_purchase_amount_sun || '0';
   const pendingCount = asCount(cabinet.pendingTotal || cabinet.pendingRows.length);
   const processedCount = asCount(summary.processed_count);
+  const levelBuyersCount = asCount(
+    summary.level_progress_buyers_count ?? summary.buyers_count ?? summary.total_buyers
+  );
+  const nextLevelThreshold = asCount(summary.level_next_threshold);
+  const remainingToNextLevel = asCount(summary.level_remaining_to_next);
 
   return (
     <>
@@ -661,6 +666,15 @@ function CabinetView({
           <InfoRow label="Processed rows" value={String(processedCount)} />
           <InfoRow label="Pending rows" value={String(pendingCount)} accent={pendingCount > 0} />
           <InfoRow label="Level" value={`${levelToLabel(summary.effective_level)} · ${summary.reward_percent || 0}%`} />
+          <InfoRow
+            label="Next level"
+            value={
+              remainingToNextLevel > 0
+                ? `${remainingToNextLevel} buyer(s) left`
+                : 'Max tier reached'
+            }
+            accent={remainingToNextLevel <= 0}
+          />
         </View>
       </CabinetAccordionSection>
 
@@ -818,6 +832,8 @@ function CabinetView({
           <InfoRow label="Override" value={summary.override_enabled ? 'Enabled' : 'Disabled'} />
           <InfoRow label="Current level" value={levelToLabel(summary.current_level ?? summary.effective_level)} />
           <InfoRow label="Override level" value={levelToLabel(summary.override_level ?? 0)} />
+          <InfoRow label="Level progress buyers" value={`${levelBuyersCount}/${nextLevelThreshold || '—'}`} />
+          <InfoRow label="Remaining to next" value={remainingToNextLevel > 0 ? String(remainingToNextLevel) : '0'} />
           <InfoRow label="Lifetime rewards" value={`${formatTrxFromSun(summary.total_rewards_accrued_sun)} TRX`} />
           <InfoRow label="Withdrawn rewards" value={`${formatTrxFromSun(summary.total_rewards_claimed_sun)} TRX`} />
           <InfoRow

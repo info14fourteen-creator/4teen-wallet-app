@@ -49,6 +49,13 @@ import {
   rentEnergyForPurpose,
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
+import {
+  clampResourcePercent,
+  formatResourceAmount,
+  formatTrxFromSunAmount,
+  getAvailableResource,
+  normalizeResourceAmount,
+} from '../src/services/wallet/resources';
 
 import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 
@@ -68,25 +75,6 @@ function decimalToRaw(amount: string, decimals: number) {
 
 function buildTronscanTxUrl(txHash: string) {
   return `https://tronscan.org/#/transaction/${txHash}`;
-}
-
-function formatResourceValue(value: number) {
-  const safe = Math.max(0, Math.floor(Number(value) || 0));
-
-  if (safe >= 1_000_000) {
-    return `${(safe / 1_000_000).toFixed(1).replace(/\.0$/, '')}m`;
-  }
-
-  if (safe >= 1_000) {
-    return `${(safe / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
-  }
-
-  return String(safe);
-}
-
-function formatTrxAmountFromSun(value: number) {
-  const trx = Math.max(0, Number(value || 0)) / 1_000_000;
-  return trx.toFixed(trx >= 1 ? 3 : 6).replace(/\.?0+$/, '');
 }
 
 function formatCompactHeroAmount(value: string | number) {
@@ -109,10 +97,6 @@ function formatCompactHeroAmount(value: string | number) {
   }
 
   return safe.toFixed(2).replace(/\.?0+$/, '');
-}
-
-function clampPercent(value: number) {
-  return Math.max(0, Math.min(100, value));
 }
 
 function isRateLimitError(error: unknown) {
@@ -158,49 +142,38 @@ export default function SwapConfirmScreen() {
   useChromeLoading(loading || refreshing);
 
   const approvalAvailableEnergy = review?.resources.approval
-    ? Math.max(
-        0,
-        review.resources.approval.available.energyLimit -
-          review.resources.approval.available.energyUsed
-      )
+    ? getAvailableResource(review.resources.approval.available, 'energy')
     : 0;
   const swapAvailableEnergy = review?.resources.swap
-    ? Math.max(0, review.resources.swap.available.energyLimit - review.resources.swap.available.energyUsed)
+    ? getAvailableResource(review.resources.swap.available, 'energy')
     : 0;
   const approvalAvailableBandwidth = review?.resources.approval
-    ? Math.max(
-        0,
-        review.resources.approval.available.bandwidthLimit -
-          review.resources.approval.available.bandwidthUsed
-      )
+    ? getAvailableResource(review.resources.approval.available, 'bandwidth')
     : 0;
   const swapAvailableBandwidth = review?.resources.swap
-    ? Math.max(
-        0,
-        review.resources.swap.available.bandwidthLimit - review.resources.swap.available.bandwidthUsed
-      )
+    ? getAvailableResource(review.resources.swap.available, 'bandwidth')
     : 0;
   const estimatedEnergy =
-    Number(review?.resources.approval?.estimatedEnergy || 0) +
-    Number(review?.resources.swap?.estimatedEnergy || 0);
+    normalizeResourceAmount(review?.resources.approval?.estimatedEnergy) +
+    normalizeResourceAmount(review?.resources.swap?.estimatedEnergy);
   const estimatedBandwidth =
-    Number(review?.resources.approval?.estimatedBandwidth || 0) +
-    Number(review?.resources.swap?.estimatedBandwidth || 0);
+    normalizeResourceAmount(review?.resources.approval?.estimatedBandwidth) +
+    normalizeResourceAmount(review?.resources.swap?.estimatedBandwidth);
   const totalAvailableEnergy = Math.max(approvalAvailableEnergy, swapAvailableEnergy);
   const totalAvailableBandwidth = Math.max(approvalAvailableBandwidth, swapAvailableBandwidth);
   const hasNoEnergyAvailable = totalAvailableEnergy <= 0;
   const resourceEnergyShortfall =
-    Number(review?.resources.approval?.energyShortfall || 0) +
-    Number(review?.resources.swap?.energyShortfall || 0);
+    normalizeResourceAmount(review?.resources.approval?.energyShortfall) +
+    normalizeResourceAmount(review?.resources.swap?.energyShortfall);
   const resourceBandwidthShortfall =
-    Number(review?.resources.approval?.bandwidthShortfall || 0) +
-    Number(review?.resources.swap?.bandwidthShortfall || 0);
+    normalizeResourceAmount(review?.resources.approval?.bandwidthShortfall) +
+    normalizeResourceAmount(review?.resources.swap?.bandwidthShortfall);
   const hasResourceShortfall = resourceEnergyShortfall > 0 || resourceBandwidthShortfall > 0;
   const canRentResources = estimatedEnergy > 0 || estimatedBandwidth > 0;
-  const energyBarPercent = clampPercent(
+  const energyBarPercent = clampResourcePercent(
     (estimatedEnergy / Math.max(estimatedEnergy, totalAvailableEnergy, 1)) * 100
   );
-  const bandwidthBarPercent = clampPercent(
+  const bandwidthBarPercent = clampResourcePercent(
     (estimatedBandwidth / Math.max(estimatedBandwidth, totalAvailableBandwidth, 1)) * 100
   );
 
@@ -326,7 +299,7 @@ export default function SwapConfirmScreen() {
   ]);
 
   const performRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || energyRenting) return;
+    if (!review || !energyQuote || energyRenting) return false;
 
     try {
       setEnergyRenting(true);
@@ -335,23 +308,26 @@ export default function SwapConfirmScreen() {
         purpose: 'swap',
         wallet: review.wallet.address,
         quote: energyQuote,
+        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
+      notice.showSuccessNotice('Energy is live. Starting swap...', 3000);
       await load();
+      return true;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : 'Energy rental failed.',
         4200
       );
+      return false;
     } finally {
       setEnergyRenting(false);
+      setPasscodeOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
     }
-    setPasscodeOpen(false);
-    setPasscodeDigits('');
-    setPasscodeError('');
   }, [energyQuote, energyRenting, load, notice, review]);
 
   const performSwap = useCallback(async () => {
@@ -482,7 +458,10 @@ export default function SwapConfirmScreen() {
       }
 
       if (pendingApprovalMode === 'rent') {
-        await performRentEnergy();
+        const rented = await performRentEnergy();
+        if (rented) {
+          await performSwap();
+        }
         return;
       }
 
@@ -517,13 +496,6 @@ export default function SwapConfirmScreen() {
           return;
         }
 
-        if (
-          result.error === 'user_cancel' ||
-          result.error === 'system_cancel' ||
-          result.error === 'app_cancel'
-        ) {
-          return;
-        }
       } catch (error) {
         console.error(error);
       }
@@ -548,17 +520,13 @@ export default function SwapConfirmScreen() {
         });
 
         if (result.success) {
-          await performRentEnergy();
+          const rented = await performRentEnergy();
+          if (rented) {
+            await performSwap();
+          }
           return;
         }
 
-        if (
-          result.error === 'user_cancel' ||
-          result.error === 'system_cancel' ||
-          result.error === 'app_cancel'
-        ) {
-          return;
-        }
       } catch (error) {
         console.error(error);
       }
@@ -573,6 +541,7 @@ export default function SwapConfirmScreen() {
     energyQuote,
     energyRenting,
     performRentEnergy,
+    performSwap,
     review,
     submitting,
   ]);
@@ -751,14 +720,14 @@ export default function SwapConfirmScreen() {
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Estimated Burn</Text>
                   <Text style={styles.detailValueAccent}>
-                    {formatTrxAmountFromSun(review.resources.estimatedBurnSun)} TRX
+                    {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
                   </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Fee Cap</Text>
                   <Text style={styles.detailValue}>
-                    {formatTrxAmountFromSun(
+                    {formatTrxFromSunAmount(
                       Number(review.resources.swap?.recommendedFeeLimitSun || 0) +
                         Number(review.resources.approval?.recommendedFeeLimitSun || 0)
                     )}{' '}
@@ -770,19 +739,19 @@ export default function SwapConfirmScreen() {
               <View style={styles.detailCard}>
                 <View style={styles.detailRowFirst}>
                   <Text style={styles.detailLabel}>Energy</Text>
-                  <Text style={styles.detailValue}>{formatResourceValue(estimatedEnergy)}</Text>
+                  <Text style={styles.detailValue}>{formatResourceAmount(estimatedEnergy)}</Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Bandwidth</Text>
-                  <Text style={styles.detailValue}>{formatResourceValue(estimatedBandwidth)}</Text>
+                  <Text style={styles.detailValue}>{formatResourceAmount(estimatedBandwidth)}</Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Shortfall</Text>
                   <Text style={styles.detailValue}>
-                    {formatResourceValue(resourceEnergyShortfall)} energy ·{' '}
-                    {formatResourceValue(resourceBandwidthShortfall)} bandwidth
+                    {formatResourceAmount(resourceEnergyShortfall)} energy ·{' '}
+                    {formatResourceAmount(resourceBandwidthShortfall)} bandwidth
                   </Text>
                 </View>
 
@@ -794,8 +763,8 @@ export default function SwapConfirmScreen() {
                         hasNoEnergyAvailable ? styles.resourceInlineLabelRisk : null,
                       ]}
                     >
-                      Energy {formatResourceValue(estimatedEnergy)}/
-                      {formatResourceValue(totalAvailableEnergy)}
+                      Energy {formatResourceAmount(estimatedEnergy)}/
+                      {formatResourceAmount(totalAvailableEnergy)}
                     </Text>
                     <View
                       style={[
@@ -815,8 +784,8 @@ export default function SwapConfirmScreen() {
 
                   <View style={styles.resourceInlineCol}>
                     <Text style={styles.resourceInlineLabel}>
-                      Bandwidth {formatResourceValue(estimatedBandwidth)}/
-                      {formatResourceValue(totalAvailableBandwidth)}
+                      Bandwidth {formatResourceAmount(estimatedBandwidth)}/
+                      {formatResourceAmount(totalAvailableBandwidth)}
                     </Text>
                     <View style={styles.resourceBarTrack}>
                       <View style={styles.resourceBarAvailable} />

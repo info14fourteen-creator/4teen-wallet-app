@@ -2,6 +2,12 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 
 import { colors, radius } from '../theme/tokens';
 import type { EnergyResaleQuote } from '../services/energy-resale';
+import {
+  formatResourceAmount,
+  formatTrxFromSunAmountFixed,
+  normalizeResourceAmount,
+  normalizeSunAmount,
+} from '../services/wallet/resources';
 
 function formatTrx(value: number | string | undefined) {
   const trx = Number(value || 0);
@@ -13,21 +19,12 @@ function formatTrx(value: number | string | undefined) {
   return Math.max(0, trx).toFixed(2);
 }
 
-function formatTrxFromSun(value: number | undefined) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
+function formatOptionalTrxFromSun(value: number | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || normalizeSunAmount(value) <= 0) {
     return '';
   }
 
-  return formatTrx(value / 1_000_000);
-}
-
-function formatEnergy(value: number) {
-  const safe = Math.max(0, Math.floor(Number(value) || 0));
-
-  if (safe >= 1_000_000) return `${(safe / 1_000_000).toFixed(1).replace(/\.0$/, '')}m`;
-  if (safe >= 1_000) return `${(safe / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
-
-  return String(safe);
+  return formatTrxFromSunAmountFixed(value, 2);
 }
 
 export default function EnergyResaleCard({
@@ -61,23 +58,20 @@ export default function EnergyResaleCard({
   }
 
   const packageCount = Math.max(1, Math.floor(Number(quote.packageCount || 1)));
-  const requiredEnergy = Math.max(0, Math.floor(Number(quote.requiredEnergy || 0)));
-  const requiredBandwidth = Math.max(0, Math.floor(Number(quote.requiredBandwidth || 0)));
-  const readyEnergy = Math.max(0, Math.floor(Number(quote.readyEnergy || quote.energyQuantity || 0)));
-  const readyBandwidth = Math.max(
-    0,
-    Math.floor(Number(quote.readyBandwidth || quote.bandwidthQuantity || 0))
-  );
-  const burnTrx = formatTrxFromSun(estimatedBurnSun);
+  const requiredEnergy = normalizeResourceAmount(quote.requiredEnergy);
+  const requiredBandwidth = normalizeResourceAmount(quote.requiredBandwidth);
+  const readyEnergy = normalizeResourceAmount(quote.readyEnergy || quote.energyQuantity);
+  const readyBandwidth = normalizeResourceAmount(quote.readyBandwidth || quote.bandwidthQuantity);
+  const burnTrx = formatOptionalTrxFromSun(estimatedBurnSun);
   const safeActionLabel = String(actionLabel || 'APPROVE').trim().toUpperCase();
   const buttonLabel = `RENT → APPROVE → ${safeActionLabel}`;
   const resourceLabel = [
-    readyEnergy > 0 ? `${formatEnergy(readyEnergy)} Energy` : '',
-    readyBandwidth > 0 ? `${formatEnergy(readyBandwidth)} Bandwidth` : '',
+    readyEnergy > 0 ? `${formatResourceAmount(readyEnergy)} Energy` : '',
+    readyBandwidth > 0 ? `${formatResourceAmount(readyBandwidth)} Bandwidth` : '',
   ].filter(Boolean).join(' + ');
   const requiredResourceLabel = [
-    requiredEnergy > 0 ? `${formatEnergy(requiredEnergy)} Energy` : '',
-    requiredBandwidth > 0 ? `${formatEnergy(requiredBandwidth)} Bandwidth` : '',
+    requiredEnergy > 0 ? `${formatResourceAmount(requiredEnergy)} Energy` : '',
+    requiredBandwidth > 0 ? `${formatResourceAmount(requiredBandwidth)} Bandwidth` : '',
   ].filter(Boolean).join(' + ');
 
   return (

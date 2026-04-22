@@ -5,7 +5,11 @@ import { buildTrongridHeaders, FOURTEEN_API_BASE_URL, TRONGRID_BASE_URL } from '
 import { getAccountResources, getTokenDetails, TRX_TOKEN_ID } from './tron/api';
 import {
   estimateContractCallResources,
+  getAvailableResource,
+  getResourceBurnSun,
+  getResourceShortfall,
   getResourceUnitPricing,
+  normalizeResourceAmount,
   type ContractCallResourceEstimate,
 } from './wallet/resources';
 import { normalizePrivateKey, isValidPrivateKey } from './wallet/import';
@@ -60,6 +64,9 @@ type FourteenControllerContract = {
     call: () => Promise<unknown>;
   };
   getDashboardProfile: (ambassadorAddress: string) => {
+    call: () => Promise<unknown>;
+  };
+  getAmbassadorLevelProgress: (ambassadorAddress: string) => {
     call: () => Promise<unknown>;
   };
   getBuyerAmbassador: (buyer: string) => {
@@ -132,6 +139,10 @@ export type AmbassadorCabinetSummary = {
   buyers_total_reward_sun?: number | string;
   buyers_processed_reward_sun?: number | string;
   buyers_pending_reward_sun?: number | string;
+  level_progress_current_level?: number | string;
+  level_progress_buyers_count?: number | string;
+  level_next_threshold?: number | string;
+  level_remaining_to_next?: number | string;
   last_chain_sync_at?: string | null;
 };
 
@@ -598,6 +609,97 @@ function normalizeSunInteger(value: unknown) {
   return /^\d+$/.test(raw) ? raw : '0';
 }
 
+function normalizeSummaryCount(value: unknown) {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
+}
+
+const ON_CHAIN_SUMMARY_KEYS = [
+  'ambassador_wallet',
+  'exists_on_chain',
+  'active',
+  'effective_level',
+  'reward_percent',
+  'created_at_chain',
+  'self_registered',
+  'manual_assigned',
+  'override_enabled',
+  'current_level',
+  'override_level',
+  'slug_hash',
+  'meta_hash',
+  'total_buyers',
+  'buyers_count',
+  'total_volume_sun',
+  'total_rewards_accrued_sun',
+  'total_rewards_claimed_sun',
+  'claimable_rewards_sun',
+  'level_progress_current_level',
+  'level_progress_buyers_count',
+  'level_next_threshold',
+  'level_remaining_to_next',
+] as const satisfies readonly (keyof AmbassadorCabinetSummary)[];
+
+function overlayOnChainSummary(
+  target: AmbassadorCabinetSummary,
+  onChainSummary?: AmbassadorCabinetSummary | null
+) {
+  if (!onChainSummary) return target;
+
+  ON_CHAIN_SUMMARY_KEYS.forEach((key) => {
+    const value = onChainSummary[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      target[key] = value as never;
+    }
+  });
+
+  if (target.total_buyers !== undefined) {
+    target.buyers_count = target.total_buyers;
+  }
+
+  return target;
+}
+
+function mergeCabinetWithOnChain(
+  base: AmbassadorCabinetDashboard,
+  onChainCabinet?: AmbassadorCabinetDashboard | null
+): AmbassadorCabinetDashboard {
+  const onChainSummary = onChainCabinet?.summary || null;
+  const summary = overlayOnChainSummary(
+    {
+      ...(base.summary || {}),
+      slug:
+        normalizeAmbassadorSlug(String(base.summary?.slug || '')) ||
+        normalizeAmbassadorSlug(String(onChainSummary?.slug || '')) ||
+        null,
+    },
+    onChainSummary
+  );
+  const slug = normalizeAmbassadorSlug(String(summary.slug || base.profile?.slug || ''));
+
+  return {
+    ...base,
+    profile: {
+      ...base.profile,
+      wallet: normalizeAddress(summary.ambassador_wallet || base.profile?.wallet) || base.profile.wallet,
+      slug,
+      referralLink: base.profile?.referralLink || buildAmbassadorReferralLink(slug),
+      status: summary.active === false ? 'inactive' : base.profile?.status || 'active',
+    },
+    summary,
+    buyersTotal: Number(base.buyersTotal || normalizeSummaryCount(summary.buyers_count || summary.total_buyers)),
+    purchasesTotal: Number(base.purchasesTotal || 0),
+    pendingTotal: Number(base.pendingTotal || 0),
+    source: {
+      ...(base.source || {}),
+      onChain: Boolean(base.source?.onChain || onChainSummary),
+      db: Boolean(base.source?.db),
+      onChainError: base.source?.onChainError || null,
+      dbError: base.source?.dbError || null,
+    },
+  };
+}
+
 export function levelToLabel(level: unknown) {
   const numeric = Number(level || 0);
   if (numeric === 0) return 'Bronze';
@@ -612,6 +714,11 @@ export async function loadAmbassadorCabinet(
 ): Promise<AmbassadorCabinetDashboard | null> {
   const wallet = normalizeAddress(profile.wallet);
   if (!wallet) return null;
+
+  const onChainCabinetPromise = loadAmbassadorCabinetOnChain(profile).catch((error) => {
+    console.error('[4TEEN] ambassador direct on-chain cabinet failed', error);
+    return null;
+  });
 
   const proxyPayload = await fetchJsonOrThrow<WalletApiCabinetPayload>(
     buildWalletApiUrl(`/ambassador/cabinet/${encodeURIComponent(wallet)}`, {
@@ -647,7 +754,7 @@ export async function loadAmbassadorCabinet(
           : proxyProfile.status || profile.status || 'active',
     };
 
-    return {
+    return mergeCabinetWithOnChain({
       ...proxyPayload.result,
       profile: resolvedProfile,
       buyersRows: Array.isArray(proxyPayload.result.buyersRows) ? proxyPayload.result.buyersRows : [],
@@ -656,7 +763,7 @@ export async function loadAmbassadorCabinet(
       buyersTotal: Number(proxyPayload.result.buyersTotal || 0) || 0,
       purchasesTotal: Number(proxyPayload.result.purchasesTotal || 0) || 0,
       pendingTotal: Number(proxyPayload.result.pendingTotal || 0) || 0,
-    };
+    }, await onChainCabinetPromise);
   }
 
   const summaryPayload = await fetchJsonOrThrow<CabinetSummaryPayload>(
@@ -683,7 +790,7 @@ export async function loadAmbassadorCabinet(
       status: summaryPayload.summary.active === false ? 'inactive' : profile.status || 'active',
     };
 
-    return {
+    return mergeCabinetWithOnChain({
       profile: resolvedProfile,
       summary: summaryPayload.summary,
       buyersRows: buyers.rows,
@@ -692,10 +799,14 @@ export async function loadAmbassadorCabinet(
       buyersTotal: buyers.total,
       purchasesTotal: purchases.total,
       pendingTotal: pending.total,
-    };
+      source: {
+        onChain: false,
+        db: true,
+      },
+    }, await onChainCabinetPromise);
   }
 
-  return loadAmbassadorCabinetOnChain(profile);
+  return onChainCabinetPromise;
 }
 
 async function loadAmbassadorCabinetOnChain(
@@ -705,10 +816,11 @@ async function loadAmbassadorCabinetOnChain(
   if (!wallet) return null;
 
   const contract = await getControllerContract(createTronWeb());
-  const [core, stats, dashboardProfile] = await Promise.all([
+  const [core, stats, dashboardProfile, progress] = await Promise.all([
     contract.getDashboardCore(wallet).call(),
     contract.getDashboardStats(wallet).call(),
     contract.getDashboardProfile(wallet).call(),
+    contract.getAmbassadorLevelProgress(wallet).call(),
   ]);
 
   const exists = readTupleBoolean(core, 0, 'exists');
@@ -716,6 +828,7 @@ async function loadAmbassadorCabinetOnChain(
 
   const slugHash = readTupleValue(dashboardProfile, 5, 'slugHash');
   const metaHash = readTupleValue(dashboardProfile, 6, 'metaHash');
+  const totalBuyers = readTupleValue(stats, 0, 'totalBuyers') || '0';
 
   return {
     profile,
@@ -734,19 +847,27 @@ async function loadAmbassadorCabinetOnChain(
       override_enabled: readTupleBoolean(dashboardProfile, 2, 'overrideEnabled'),
       current_level: readTupleValue(dashboardProfile, 3, 'currentLevel'),
       override_level: readTupleValue(dashboardProfile, 4, 'overrideLevel'),
-      total_buyers: readTupleValue(stats, 0, 'totalBuyers'),
-      buyers_count: readTupleValue(stats, 0, 'totalBuyers'),
+      total_buyers: totalBuyers,
+      buyers_count: totalBuyers,
       total_volume_sun: readTupleValue(stats, 1, 'totalVolumeSun'),
       total_rewards_accrued_sun: readTupleValue(stats, 2, 'totalRewardsAccruedSun'),
       total_rewards_claimed_sun: readTupleValue(stats, 3, 'totalRewardsClaimedSun'),
       claimable_rewards_sun: readTupleValue(stats, 4, 'claimableRewardsSun'),
+      level_progress_current_level: readTupleValue(progress, 0) || '0',
+      level_progress_buyers_count: readTupleValue(progress, 1) || totalBuyers,
+      level_next_threshold: readTupleValue(progress, 2) || '10',
+      level_remaining_to_next: readTupleValue(progress, 3) || '10',
     },
     buyersRows: [],
     purchasesRows: [],
     pendingRows: [],
-    buyersTotal: Number(readTupleValue(stats, 0, 'totalBuyers') || 0) || 0,
+    buyersTotal: Number(totalBuyers || 0) || 0,
     purchasesTotal: 0,
     pendingTotal: 0,
+    source: {
+      onChain: true,
+      db: false,
+    },
   };
 }
 
@@ -847,6 +968,18 @@ async function getControllerContract(tronWeb?: TronWeb) {
           { internalType: 'uint8', name: 'overrideLevel', type: 'uint8' },
           { internalType: 'bytes32', name: 'slugHash', type: 'bytes32' },
           { internalType: 'bytes32', name: 'metaHash', type: 'bytes32' },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+      },
+      {
+        inputs: [{ internalType: 'address', name: 'ambassadorAddress', type: 'address' }],
+        name: 'getAmbassadorLevelProgress',
+        outputs: [
+          { internalType: 'uint8', name: '', type: 'uint8' },
+          { internalType: 'uint256', name: '', type: 'uint256' },
+          { internalType: 'uint256', name: '', type: 'uint256' },
+          { internalType: 'uint256', name: '', type: 'uint256' },
         ],
         stateMutability: 'view',
         type: 'function',
@@ -1148,20 +1281,23 @@ async function buildFallbackAmbassadorWithdrawalResourceEstimate(input: {
     getResourceUnitPricing(tronWeb),
   ]);
 
-  const availableEnergy = Math.max(0, available.energyLimit - available.energyUsed);
-  const availableBandwidth = Math.max(0, available.bandwidthLimit - available.bandwidthUsed);
-  const energyShortfall = Math.max(0, DEFAULT_WITHDRAW_ESTIMATED_ENERGY - availableEnergy);
-  const bandwidthShortfall = Math.max(
-    0,
-    DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH - availableBandwidth
-  );
-  const estimatedBurnSun =
-    energyShortfall * pricing.energySun + bandwidthShortfall * pricing.bandwidthSun;
+  const estimatedEnergy = normalizeResourceAmount(DEFAULT_WITHDRAW_ESTIMATED_ENERGY);
+  const estimatedBandwidth = normalizeResourceAmount(DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH);
+  const availableEnergy = getAvailableResource(available, 'energy');
+  const availableBandwidth = getAvailableResource(available, 'bandwidth');
+  const energyShortfall = getResourceShortfall(estimatedEnergy, availableEnergy);
+  const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
+  const estimatedBurnSun = getResourceBurnSun({
+    energyShortfall,
+    bandwidthShortfall,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+  });
 
   return {
     available,
-    estimatedEnergy: DEFAULT_WITHDRAW_ESTIMATED_ENERGY,
-    estimatedBandwidth: DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH,
+    estimatedEnergy,
+    estimatedBandwidth,
     energyShortfall,
     bandwidthShortfall,
     estimatedBurnSun,

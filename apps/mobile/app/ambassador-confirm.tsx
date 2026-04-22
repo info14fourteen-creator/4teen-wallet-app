@@ -266,12 +266,14 @@ export default function AmbassadorConfirmScreen() {
             ? `Sending ${energyQuote.amountTrx} TRX to GasStation resale package. Waiting for ${energyQuote.energyQuantity.toLocaleString('en-US')} Energy distribution.`
             : `Sending ${energyQuote.amountTrx} TRX rental payment, then requesting ${energyQuote.energyQuantity.toLocaleString('en-US')} Energy.`
         );
+        notice.showNeutralNotice('Sending Energy rental payment...', 2600);
         const payment = await sendAssetTransfer({
           tokenId: TRX_TOKEN_ID,
           toAddress: energyQuote.paymentAddress,
           amount: energyQuote.amountTrx,
         });
 
+        notice.showNeutralNotice('Energy rental payment sent. Waiting for confirmation...', 2600);
         setEnergyRentalText(
           isResaleRental
             ? 'Payment confirmed. Waiting for GasStation automatic Energy distribution...'
@@ -283,6 +285,7 @@ export default function AmbassadorConfirmScreen() {
           paymentTxId: payment.txId,
         });
         clearWalletRuntimeCaches(wallet.address);
+        notice.showNeutralNotice('Energy is live. Sending ambassador registration...', 2600);
         setEnergyRentalText('Energy is available. Sending ambassador registration...');
       }
 
@@ -361,13 +364,6 @@ export default function AmbassadorConfirmScreen() {
           return;
         }
 
-        if (
-          result.error === 'user_cancel' ||
-          result.error === 'system_cancel' ||
-          result.error === 'app_cancel'
-        ) {
-          return;
-        }
       } catch (error) {
         console.error(error);
       }

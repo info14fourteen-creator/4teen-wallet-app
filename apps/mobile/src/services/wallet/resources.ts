@@ -35,6 +35,88 @@ let resourceUnitPricingCache:
     }
   | null = null;
 
+export function clearWalletResourcePricingCache(): void {
+  resourceUnitPricingCache = null;
+}
+
+export function normalizeResourceAmount(value: unknown): number {
+  const num = typeof value === 'bigint' ? Number(value) : Number(value ?? 0);
+
+  if (!Number.isFinite(num) || Math.abs(num) < 1) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(num));
+}
+
+export function normalizeSunAmount(value: unknown): number {
+  const num = typeof value === 'bigint' ? Number(value) : Number(value ?? 0);
+
+  if (!Number.isFinite(num) || Math.abs(num) < 1) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(num));
+}
+
+export function getResourceShortfall(required: unknown, available: unknown): number {
+  return Math.max(0, normalizeResourceAmount(required) - normalizeResourceAmount(available));
+}
+
+export function getResourceBurnSun(input: {
+  energyShortfall?: unknown;
+  bandwidthShortfall?: unknown;
+  energyPriceSun?: unknown;
+  bandwidthPriceSun?: unknown;
+}): number {
+  const energy = normalizeResourceAmount(input.energyShortfall);
+  const bandwidth = normalizeResourceAmount(input.bandwidthShortfall);
+  const energyPrice = normalizeSunAmount(input.energyPriceSun);
+  const bandwidthPrice = normalizeSunAmount(input.bandwidthPriceSun);
+
+  return normalizeSunAmount(energy * energyPrice + bandwidth * bandwidthPrice);
+}
+
+export function clampResourcePercent(value: unknown): number {
+  const num = Number(value ?? 0);
+
+  if (!Number.isFinite(num) || Math.abs(num) < 0.01) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, num));
+}
+
+export function formatResourceAmount(value: unknown): string {
+  const safe = normalizeResourceAmount(value);
+
+  if (safe >= 1_000_000) {
+    return `${(safe / 1_000_000).toFixed(1).replace(/\.0$/, '')}m`;
+  }
+
+  if (safe >= 1_000) {
+    return `${(safe / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+  }
+
+  return String(safe);
+}
+
+export function formatTrxFromSunAmount(value: unknown): string {
+  const sun = normalizeSunAmount(value);
+  const trx = sun / 1_000_000;
+
+  if (trx <= 0) {
+    return '0';
+  }
+
+  return trx.toFixed(trx >= 1 ? 3 : 6).replace(/\.?0+$/, '') || '0';
+}
+
+export function formatTrxFromSunAmountFixed(value: unknown, digits = 2): string {
+  const trx = normalizeSunAmount(value) / 1_000_000;
+  return trx.toFixed(digits);
+}
+
 function parseUnitPriceValue(value: unknown, fallback: number) {
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
     return Math.floor(value);
@@ -115,24 +197,26 @@ export function getAvailableResource(
   kind: 'energy' | 'bandwidth'
 ) {
   if (kind === 'energy') {
-    return Math.max(0, resource.energyLimit - resource.energyUsed);
+    return getResourceShortfall(resource.energyLimit, resource.energyUsed);
   }
 
-  return Math.max(0, resource.bandwidthLimit - resource.bandwidthUsed);
+  return getResourceShortfall(resource.bandwidthLimit, resource.bandwidthUsed);
 }
 
 export function estimateSignedTransactionBandwidth(unsignedTx: any, signedTx?: any) {
-  const rawBytes = Math.ceil(String(unsignedTx?.raw_data_hex || '').length / 2);
+  const rawBytes = normalizeResourceAmount(
+    Math.ceil(String(unsignedTx?.raw_data_hex || '').length / 2)
+  );
   const signatures = Array.isArray(signedTx?.signature) ? signedTx.signature : [];
   const signatureBytes = signatures.reduce((sum: number, item: unknown) => {
-    return sum + Math.ceil(String(item || '').length / 2);
+    return sum + normalizeResourceAmount(Math.ceil(String(item || '').length / 2));
   }, 0);
 
   if (!signatures.length) {
     return rawBytes;
   }
 
-  return rawBytes + signatureBytes + 6;
+  return normalizeResourceAmount(rawBytes + signatureBytes + 6);
 }
 
 async function estimateContractEnergy(input: {
@@ -152,7 +236,7 @@ async function estimateContractEnergy(input: {
       input.ownerAddress
     );
 
-    return Math.max(0, Number((directEstimate as any)?.energy_required || 0));
+    return normalizeResourceAmount((directEstimate as any)?.energy_required);
   } catch {}
 
   try {
@@ -164,8 +248,7 @@ async function estimateContractEnergy(input: {
       input.ownerAddress
     );
 
-    return Math.max(
-      0,
+    return normalizeResourceAmount(
       Number((constantResult as any)?.energy_used || 0) +
         Number((constantResult as any)?.energy_penalty || 0)
     );
@@ -186,11 +269,11 @@ export async function estimateContractCallResources(input: {
   maxFeeLimitSun?: number;
 }): Promise<ContractCallResourceEstimate> {
   const parameters = input.parameters ?? [];
-  const callValue = Math.max(0, Math.floor(Number(input.callValue || 0)));
-  const feeLimitSun = Math.max(1_000_000, Math.floor(Number(input.feeLimitSun || 0)));
+  const callValue = normalizeSunAmount(input.callValue);
+  const feeLimitSun = Math.max(1_000_000, normalizeSunAmount(input.feeLimitSun));
   const maxFeeLimitSun = Math.max(
     feeLimitSun,
-    Math.floor(Number(input.maxFeeLimitSun || feeLimitSun))
+    normalizeSunAmount(input.maxFeeLimitSun || feeLimitSun)
   );
 
   const [available, pricing, triggerResult] = await Promise.all([
@@ -227,13 +310,19 @@ export async function estimateContractCallResources(input: {
     parameters,
     ownerAddress: input.ownerAddress,
   });
-  const estimatedBandwidth = estimateSignedTransactionBandwidth(unsignedTx, signedTx);
+  const estimatedBandwidth = normalizeResourceAmount(
+    estimateSignedTransactionBandwidth(unsignedTx, signedTx)
+  );
   const availableEnergy = getAvailableResource(available, 'energy');
   const availableBandwidth = getAvailableResource(available, 'bandwidth');
-  const energyShortfall = Math.max(0, estimatedEnergy - availableEnergy);
-  const bandwidthShortfall = Math.max(0, estimatedBandwidth - availableBandwidth);
-  const estimatedBurnSun =
-    energyShortfall * pricing.energySun + bandwidthShortfall * pricing.bandwidthSun;
+  const energyShortfall = getResourceShortfall(estimatedEnergy, availableEnergy);
+  const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
+  const estimatedBurnSun = getResourceBurnSun({
+    energyShortfall,
+    bandwidthShortfall,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+  });
   const recommendedFeeLimitSun = Math.max(
     1_000_000,
     Math.min(maxFeeLimitSun, Math.ceil(Math.max(estimatedBurnSun, 1_000_000) * 1.15))

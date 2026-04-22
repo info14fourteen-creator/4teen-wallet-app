@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ScreenBrow from '../src/ui/screen-brow';
@@ -25,6 +26,7 @@ import {
 } from '../src/security/local-auth';
 import {
   getActiveWallet,
+  getWalletById,
   getWalletSecret,
   type WalletMeta,
 } from '../src/services/wallet/storage';
@@ -44,6 +46,7 @@ function resolveBiometricPromptLabel(label: string) {
 
 export default function ExportMnemonicScreen() {
   const notice = useNotice();
+  const params = useLocalSearchParams<{ walletId?: string }>();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
   const { setChromeHidden } = useWalletSession();
@@ -65,16 +68,21 @@ export default function ExportMnemonicScreen() {
       setLoading(true);
       setErrorText('');
 
-      const activeWallet = await getActiveWallet();
-      if (!activeWallet) {
+      const requestedWalletId =
+        typeof params.walletId === 'string' ? params.walletId.trim() : '';
+      const wallet = requestedWalletId
+        ? await getWalletById(requestedWalletId)
+        : await getActiveWallet();
+
+      if (!wallet) {
         throw new Error('No active wallet found.');
       }
 
-      if (activeWallet.kind !== 'mnemonic') {
+      if (wallet.kind !== 'mnemonic') {
         throw new Error('This wallet has no seed phrase to export.');
       }
 
-      const secret = await getWalletSecret(activeWallet.id);
+      const secret = await getWalletSecret(wallet.id);
       const mnemonic = String(secret?.mnemonic || '').trim();
       const words = mnemonic.split(/\s+/).filter(Boolean);
 
@@ -83,7 +91,7 @@ export default function ExportMnemonicScreen() {
       }
 
       setState({
-        wallet: activeWallet,
+        wallet,
         words,
       });
     } catch (error) {
@@ -93,7 +101,7 @@ export default function ExportMnemonicScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [params.walletId]);
 
   const loadBiometricsState = useCallback(async () => {
     try {

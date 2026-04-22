@@ -16,6 +16,12 @@ import {
   getWalletSecret,
   type WalletMeta,
 } from './storage';
+import {
+  getResourceBurnSun,
+  getResourceShortfall,
+  normalizeResourceAmount,
+  normalizeSunAmount,
+} from './resources';
 
 const DEFAULT_TRC20_FEE_LIMIT_SUN = 100_000_000;
 const DEFAULT_TRC20_TRANSFER_ESTIMATED_ENERGY = 65_000;
@@ -264,24 +270,26 @@ async function getResourceUnitPricing(tronWeb: TronWeb): Promise<ResourceUnitPri
 
 function getAvailableResource(resource: WalletAccountResources, kind: 'energy' | 'bandwidth') {
   if (kind === 'energy') {
-    return Math.max(0, resource.energyLimit - resource.energyUsed);
+    return getResourceShortfall(resource.energyLimit, resource.energyUsed);
   }
 
-  return Math.max(0, resource.bandwidthLimit - resource.bandwidthUsed);
+  return getResourceShortfall(resource.bandwidthLimit, resource.bandwidthUsed);
 }
 
 function estimateSignedTransactionBandwidth(unsignedTx: any, signedTx?: any) {
-  const rawBytes = Math.ceil(String(unsignedTx?.raw_data_hex || '').length / 2);
+  const rawBytes = normalizeResourceAmount(
+    Math.ceil(String(unsignedTx?.raw_data_hex || '').length / 2)
+  );
   const signatures = Array.isArray(signedTx?.signature) ? signedTx.signature : [];
   const signatureBytes = signatures.reduce((sum: number, item: unknown) => {
-    return sum + Math.ceil(String(item || '').length / 2);
+    return sum + normalizeResourceAmount(Math.ceil(String(item || '').length / 2));
   }, 0);
 
   if (!signatures.length) {
     return rawBytes;
   }
 
-  return rawBytes + signatureBytes + 6;
+  return normalizeResourceAmount(rawBytes + signatureBytes + 6);
 }
 
 async function estimateTrc20TransferEnergy(
@@ -309,7 +317,7 @@ async function estimateTrc20TransferEnergy(
       walletAddress
     );
 
-    const estimated = Math.max(0, Number((directEstimate as any)?.energy_required || 0));
+    const estimated = normalizeResourceAmount((directEstimate as any)?.energy_required);
 
     if (estimated > 0) {
       return estimated;
@@ -331,8 +339,7 @@ async function estimateTrc20TransferEnergy(
       walletAddress
     );
 
-    const estimated = Math.max(
-      0,
+    const estimated = normalizeResourceAmount(
       Number((constantResult as any)?.energy_used || 0) +
         Number((constantResult as any)?.energy_penalty || 0)
     );
@@ -424,8 +431,11 @@ export async function sendAssetTransfer(
     const available = await getAccountResources(wallet.address);
     const estimatedBandwidth = estimateSignedTransactionBandwidth(unsignedTx, signedTx);
     const availableBandwidth = getAvailableResource(available, 'bandwidth');
-    const bandwidthShortfall = Math.max(0, estimatedBandwidth - availableBandwidth);
-    const estimatedBurnSun = bandwidthShortfall * pricing.bandwidthSun;
+    const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
+    const estimatedBurnSun = getResourceBurnSun({
+      bandwidthShortfall,
+      bandwidthPriceSun: pricing.bandwidthSun,
+    });
     const totalRequiredSun = Number(amountRaw) + estimatedBurnSun;
 
     if (Number(trxBalance.balanceRaw || '0') < totalRequiredSun) {
@@ -506,10 +516,14 @@ export async function sendAssetTransfer(
   const estimatedBandwidth = estimateSignedTransactionBandwidth(unsignedTx, signedTx);
   const availableEnergy = getAvailableResource(available, 'energy');
   const availableBandwidth = getAvailableResource(available, 'bandwidth');
-  const energyShortfall = Math.max(0, estimatedEnergy - availableEnergy);
-  const bandwidthShortfall = Math.max(0, estimatedBandwidth - availableBandwidth);
-  const estimatedBurnSun =
-    energyShortfall * pricing.energySun + bandwidthShortfall * pricing.bandwidthSun;
+  const energyShortfall = getResourceShortfall(estimatedEnergy, availableEnergy);
+  const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
+  const estimatedBurnSun = getResourceBurnSun({
+    energyShortfall,
+    bandwidthShortfall,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+  });
 
   if (Number(trxBalance.balanceRaw || '0') < estimatedBurnSun) {
     throw new Error('Not enough TRX to cover network burn. Top up TRX first.');
@@ -585,8 +599,11 @@ export async function estimateAssetTransfer(
 
     const estimatedBandwidth = estimateSignedTransactionBandwidth(unsignedTx, signedTx);
     const availableBandwidth = getAvailableResource(available, 'bandwidth');
-    const bandwidthShortfall = Math.max(0, estimatedBandwidth - availableBandwidth);
-    const estimatedBurnSun = bandwidthShortfall * pricing.bandwidthSun;
+    const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
+    const estimatedBurnSun = getResourceBurnSun({
+      bandwidthShortfall,
+      bandwidthPriceSun: pricing.bandwidthSun,
+    });
 
     return {
       wallet,
@@ -611,7 +628,7 @@ export async function estimateAssetTransfer(
           trxBalance.symbol
         ),
         requiredTrxSun: Number(amountRaw) + estimatedBurnSun,
-        missingTrxSun: Math.max(0, Number(amountRaw) + estimatedBurnSun - Number(trxBalance.balanceRaw || '0')),
+        missingTrxSun: normalizeSunAmount(Number(amountRaw) + estimatedBurnSun - Number(trxBalance.balanceRaw || '0')),
         canCoverBurn: Number(trxBalance.balanceRaw || '0') >= Number(amountRaw) + estimatedBurnSun,
       },
       resources: {
@@ -675,10 +692,14 @@ export async function estimateAssetTransfer(
   const estimatedBandwidth = estimateSignedTransactionBandwidth(unsignedTx, signedTx);
   const availableEnergy = getAvailableResource(available, 'energy');
   const availableBandwidth = getAvailableResource(available, 'bandwidth');
-  const energyShortfall = Math.max(0, estimatedEnergy - availableEnergy);
-  const bandwidthShortfall = Math.max(0, estimatedBandwidth - availableBandwidth);
-  const estimatedBurnSun =
-    energyShortfall * pricing.energySun + bandwidthShortfall * pricing.bandwidthSun;
+  const energyShortfall = getResourceShortfall(estimatedEnergy, availableEnergy);
+  const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
+  const estimatedBurnSun = getResourceBurnSun({
+    energyShortfall,
+    bandwidthShortfall,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+  });
   const recommendedFeeLimitSun = Math.max(
     1_000_000,
     Math.min(DEFAULT_TRC20_FEE_LIMIT_SUN, Math.ceil(Math.max(estimatedBurnSun, 500_000) * 1.15))
@@ -707,7 +728,7 @@ export async function estimateAssetTransfer(
         trxBalance.symbol
       ),
       requiredTrxSun: estimatedBurnSun,
-      missingTrxSun: Math.max(0, estimatedBurnSun - Number(trxBalance.balanceRaw || '0')),
+      missingTrxSun: normalizeSunAmount(estimatedBurnSun - Number(trxBalance.balanceRaw || '0')),
       canCoverBurn: Number(trxBalance.balanceRaw || '0') >= estimatedBurnSun,
     },
     resources: {

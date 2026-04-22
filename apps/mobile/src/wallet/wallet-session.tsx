@@ -6,6 +6,7 @@ import { getWalletPortfolio } from '../services/wallet/portfolio';
 import {
   buildWalletHomeVisibleTokensStorageKey,
   getActiveWallet,
+  subscribeActiveWalletChange,
   type WalletKind,
 } from '../services/wallet/storage';
 import {
@@ -195,12 +196,12 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
       );
 
       const visibleTickerItems = savedVisibleIds
-        .map((tokenId) => {
+        .flatMap((tokenId): FooterTickerItem[] => {
           const asset = portfolioIndex.get(tokenId);
           const customItem = customCatalogIndex.get(tokenId);
 
           if (!asset && !customItem && !DEFAULT_HOME_VISIBLE_TOKEN_IDS.includes(tokenId as any)) {
-            return null;
+            return [];
           }
 
           const fallbackLogo =
@@ -209,15 +210,19 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
               : tokenId === FOURTEEN_CONTRACT
                 ? FOURTEEN_LOGO
                 : customItem?.logo;
-
-          return {
+          const logoUri = asset?.logo || fallbackLogo;
+          const item: FooterTickerItem = {
             id: tokenId,
             symbol: asset?.symbol || customItem?.abbr || customItem?.name || tokenId,
             balanceLabel: formatTickerBalance(asset?.amount ?? 0),
-            logoUri: asset?.logo || fallbackLogo,
-          } satisfies FooterTickerItem;
-        })
-        .filter((item): item is FooterTickerItem => Boolean(item));
+          };
+
+          if (logoUri) {
+            item.logoUri = logoUri;
+          }
+
+          return [item];
+        });
 
       setHasWallet(true);
       const nextTickerItems = [
@@ -245,6 +250,11 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     void syncWalletSession();
 
+    const unsubscribeActiveWallet = subscribeActiveWalletChange(() => {
+      void syncWalletSession();
+      triggerWalletDataRefresh();
+    });
+
     const intervalId = setInterval(() => {
       void syncWalletSession();
     }, 3000);
@@ -256,10 +266,11 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
     });
 
     return () => {
+      unsubscribeActiveWallet();
       clearInterval(intervalId);
       appStateSubscription.remove();
     };
-  }, [syncWalletSession]);
+  }, [syncWalletSession, triggerWalletDataRefresh]);
 
   const value = useMemo<WalletSessionContextValue>(() => {
     return {

@@ -15,8 +15,7 @@ import ExpandChevron from '../src/ui/expand-chevron';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
-import { clearAllWalletPortfolioCaches } from '../src/services/wallet/portfolio';
-import { clearAllTronCaches } from '../src/services/tron/api';
+import { clearAllAppCaches } from '../src/services/app-cache';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenBrow from '../src/ui/screen-brow';
@@ -99,9 +98,9 @@ export default function SettingsScreen() {
 
     try {
       setClearingCache(true);
-      await Promise.all([clearAllWalletPortfolioCaches(), clearAllTronCaches()]);
+      await clearAllAppCaches();
       triggerWalletDataRefresh();
-      notice.showSuccessNotice('Local cache cleared.', 2200);
+      notice.showSuccessNotice('All temporary cache cleared.', 2400);
     } catch (error) {
       console.error(error);
       notice.showErrorNotice('Cache clear failed.', 2200);
@@ -187,8 +186,9 @@ export default function SettingsScreen() {
           </View>
 
           <Text style={styles.helperText}>
-            Clears temporary market, portfolio, and history cache without removing wallets or your
-            token settings.
+            Clears market, portfolio, history, ambassador, unlock, liquidity, asset wallet,
+            direct-buy, and resource-pricing cache. Wallets, passcode, address book, drafts,
+            referrals, and token settings stay untouched.
           </Text>
         </ScrollView>
       </View>

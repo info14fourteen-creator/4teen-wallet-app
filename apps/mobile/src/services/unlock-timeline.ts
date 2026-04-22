@@ -429,6 +429,11 @@ export async function loadUnlockTimelineSnapshot(input: {
   }
 }
 
+export function clearUnlockTimelineCaches(): void {
+  unlockTimelineMemoryCache.clear();
+  unlockTimelineInflight.clear();
+}
+
 export function formatUnlockCountdown(ms: number) {
   if (ms <= 0) return '00:00:00';
 

@@ -314,3 +314,8 @@ export async function loadAssetWalletsSnapshot(options?: {
   assetWalletsInflight.set(inflightKey, task);
   return task;
 }
+
+export function clearAssetWalletsCaches(): void {
+  assetWalletsMemoryCache.clear();
+  assetWalletsInflight.clear();
+}

@@ -1,6 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import {
   Pressable,
+  type RefreshControlProps,
   ScrollView,
   StyleSheet,
   Text,
@@ -26,7 +27,7 @@ export function ProductScreen({
   eyebrow: string;
   browVariant?: 'plain' | 'back';
   children: ReactNode;
-  refreshControl?: ReactElement;
+  refreshControl?: ReactElement<RefreshControlProps>;
   bottomInsetExtra?: number;
 }) {
   const navInsets = useNavigationInsets({ topExtra: 14 });
@@ -43,7 +44,8 @@ export function ProductScreen({
             { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
           ]}
           showsVerticalScrollIndicator={false}
-          bounces={false}
+          bounces={Boolean(refreshControl)}
+          alwaysBounceVertical={Boolean(refreshControl)}
         >
           <ScreenBrow label={eyebrow} variant={browVariant} />
           {children}

@@ -21,6 +21,8 @@ const ACTIVE_WALLET_ID_KEY = 'fourteen_active_wallet_id_v1';
 const WALLET_HOME_VISIBLE_TOKENS_KEY_PREFIX = 'wallet.homeVisibleTokenIds.v2';
 const WALLET_CUSTOM_TOKEN_CATALOG_KEY_PREFIX = 'wallet.customTokenCatalog.v2';
 
+const activeWalletListeners = new Set<(walletId: string | null) => void>();
+
 function buildSecretKey(id: string) {
   return `fourteen_wallet_secret_${id}`;
 }
@@ -143,10 +145,31 @@ export async function getWalletSecret(id: string): Promise<WalletSecretPayload |
 
 export async function setActiveWalletId(id: string): Promise<void> {
   await AsyncStorage.setItem(ACTIVE_WALLET_ID_KEY, id);
+  notifyActiveWalletChange(id);
 }
 
 export async function getActiveWalletId(): Promise<string | null> {
   return AsyncStorage.getItem(ACTIVE_WALLET_ID_KEY);
+}
+
+export function subscribeActiveWalletChange(
+  listener: (walletId: string | null) => void
+): () => void {
+  activeWalletListeners.add(listener);
+
+  return () => {
+    activeWalletListeners.delete(listener);
+  };
+}
+
+function notifyActiveWalletChange(walletId: string | null) {
+  activeWalletListeners.forEach((listener) => {
+    try {
+      listener(walletId);
+    } catch (error) {
+      console.error('Active wallet listener failed:', error);
+    }
+  });
 }
 
 export async function getActiveWallet(): Promise<WalletMeta | null> {
@@ -232,6 +255,7 @@ export async function removeWallet(id: string): Promise<void> {
       await setActiveWalletId(next[0].id);
     } else {
       await AsyncStorage.removeItem(ACTIVE_WALLET_ID_KEY);
+      notifyActiveWalletChange(null);
     }
   }
 }

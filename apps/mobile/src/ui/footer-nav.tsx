@@ -112,6 +112,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
     pathname === '/buy-4teen' ||
     pathname === '/unlock-timeline' ||
     pathname === '/liquidity-controller' ||
+    pathname === '/liquidity-confirm' ||
     pathname === '/earn';
   const isSendActive =
     pathname === '/send' || pathname === '/send-confirm' || pathname === '/address-book';
@@ -182,7 +183,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
 
   if (!forceVisible && (HIDDEN_ROUTES.has(pathname) || shouldHideFooterByRoute(pathname))) return null;
 
-  const goHome = () => router.replace('/home');
+  const goHome = () => router.push('/unlock-timeline' as any);
   const goSend = async () => {
     if (activeWalletKind === 'watch-only') {
       const signingWallet = await ensureSigningWalletActive();
@@ -240,7 +241,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
           },
           {
             label: 'LIQUIDITY',
-            active: pathname === '/liquidity-controller',
+            active: pathname === '/liquidity-controller' || pathname === '/liquidity-confirm',
             icon: 'chart-timeline-variant',
             activeIcon: 'chart-timeline-variant-shimmer',
             onPress: goLiquidity,

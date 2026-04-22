@@ -47,11 +47,14 @@ export type WalletPortfolioAggregate = {
 
 type PortfolioCachePayload = {
   savedAt: number;
+  marketVersion?: string;
   snapshot: WalletPortfolioSnapshot;
 };
 
-const PORTFOLIO_CACHE_PREFIX = 'fourteen_wallet_portfolio_cache_v1';
+const PORTFOLIO_CACHE_PREFIX = 'fourteen_wallet_portfolio_cache_v3';
+const PORTFOLIO_CACHE_PREFIX_ROOT = 'fourteen_wallet_portfolio_cache_';
 const PORTFOLIO_CACHE_TTL_MS = 2 * 60 * 1000;
+const PORTFOLIO_MARKET_VERSION = 'cmc-pool-v1';
 
 const portfolioMemoryCache = new Map<string, PortfolioCachePayload>();
 const portfolioInflight = new Map<string, Promise<WalletPortfolioSnapshot>>();
@@ -179,12 +182,15 @@ function buildPortfolioCacheKey(address: string) {
   return `${PORTFOLIO_CACHE_PREFIX}:${address.trim().toLowerCase()}`;
 }
 
-async function readPortfolioCache(address: string): Promise<WalletPortfolioSnapshot | null> {
+async function readPortfolioCache(
+  address: string,
+  options?: { allowStale?: boolean }
+): Promise<WalletPortfolioSnapshot | null> {
   const cacheKey = buildPortfolioCacheKey(address);
   const now = Date.now();
 
   const memory = portfolioMemoryCache.get(cacheKey);
-  if (memory && now - memory.savedAt < PORTFOLIO_CACHE_TTL_MS) {
+  if (memory && (options?.allowStale || now - memory.savedAt < PORTFOLIO_CACHE_TTL_MS)) {
     return memory.snapshot;
   }
 
@@ -197,6 +203,7 @@ async function readPortfolioCache(address: string): Promise<WalletPortfolioSnaps
     if (
       !parsed ||
       typeof parsed.savedAt !== 'number' ||
+      parsed.marketVersion !== PORTFOLIO_MARKET_VERSION ||
       !parsed.snapshot ||
       typeof parsed.snapshot.address !== 'string' ||
       !Array.isArray(parsed.snapshot.assets)
@@ -204,7 +211,7 @@ async function readPortfolioCache(address: string): Promise<WalletPortfolioSnaps
       return null;
     }
 
-    if (now - parsed.savedAt >= PORTFOLIO_CACHE_TTL_MS) {
+    if (!options?.allowStale && now - parsed.savedAt >= PORTFOLIO_CACHE_TTL_MS) {
       await AsyncStorage.removeItem(cacheKey);
       return null;
     }
@@ -224,6 +231,7 @@ async function writePortfolioCache(
   const cacheKey = buildPortfolioCacheKey(address);
   const payload: PortfolioCachePayload = {
     savedAt: Date.now(),
+    marketVersion: PORTFOLIO_MARKET_VERSION,
     snapshot,
   };
 
@@ -275,6 +283,16 @@ function rebuildPortfolioSnapshot(
     totalDeltaTone: normalizeDeltaTone(totalDeltaPercent24h),
     assets: normalizedAssets,
   };
+}
+
+export async function getCachedWalletPortfolio(
+  address: string,
+  options?: { allowStale?: boolean }
+): Promise<WalletPortfolioSnapshot | null> {
+  const normalizedAddress = address.trim();
+  if (!normalizedAddress) return null;
+
+  return readPortfolioCache(normalizedAddress, options);
 }
 
 export async function clearWalletPortfolioCache(address: string): Promise<void> {
@@ -374,7 +392,7 @@ export async function clearAllWalletPortfolioCaches(): Promise<void> {
 
   try {
     const allKeys = await AsyncStorage.getAllKeys();
-    const keysToRemove = allKeys.filter((key) => key.startsWith(PORTFOLIO_CACHE_PREFIX));
+    const keysToRemove = allKeys.filter((key) => key.startsWith(PORTFOLIO_CACHE_PREFIX_ROOT));
 
     if (keysToRemove.length > 0) {
       await AsyncStorage.multiRemove(keysToRemove);
@@ -406,10 +424,21 @@ export async function getWalletPortfolio(
   }
 
   const request = (async () => {
-    const snapshot = await getWalletSnapshot(normalizedAddress, options);
-    const portfolio = buildPortfolioSnapshot(snapshot);
-    await writePortfolioCache(normalizedAddress, portfolio);
-    return portfolio;
+    try {
+      const snapshot = await getWalletSnapshot(normalizedAddress, options);
+      const portfolio = buildPortfolioSnapshot(snapshot);
+      await writePortfolioCache(normalizedAddress, portfolio);
+      return portfolio;
+    } catch (error) {
+      const stale = await readPortfolioCache(normalizedAddress, { allowStale: true });
+
+      if (stale) {
+        console.warn('Using stale wallet portfolio cache:', normalizedAddress, error);
+        return stale;
+      }
+
+      throw error;
+    }
   })();
 
   portfolioInflight.set(inflightKey, request);
@@ -425,29 +454,29 @@ export async function getAllWalletPortfolios(
   options?: { force?: boolean }
 ): Promise<WalletPortfolioAggregate> {
   const wallets = await listWallets();
-  const items = await Promise.all(
-    wallets.map(async (wallet): Promise<WalletPortfolioListItem> => {
-      const includedInTotal = wallet.kind !== 'watch-only';
+  const items: WalletPortfolioListItem[] = [];
 
-      try {
-        const portfolio = await getWalletPortfolio(wallet.address, options);
+  for (const wallet of wallets) {
+    const includedInTotal = wallet.kind !== 'watch-only';
 
-        return {
-          wallet,
-          portfolio,
-          includedInTotal,
-        };
-      } catch (error) {
-        console.error('Failed to load wallet portfolio:', wallet.address, error);
+    try {
+      const portfolio = await getWalletPortfolio(wallet.address, options);
 
-        return {
-          wallet,
-          portfolio: null,
-          includedInTotal,
-        };
-      }
-    })
-  );
+      items.push({
+        wallet,
+        portfolio,
+        includedInTotal,
+      });
+    } catch (error) {
+      console.error('Failed to load wallet portfolio:', wallet.address, error);
+
+      items.push({
+        wallet,
+        portfolio: null,
+        includedInTotal,
+      });
+    }
+  }
 
   const totalBalanceUsd = items.reduce((sum, item) => {
     if (!item.includedInTotal || !item.portfolio) return sum;

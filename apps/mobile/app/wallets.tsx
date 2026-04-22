@@ -277,6 +277,26 @@ export default function WalletsScreen() {
     }
   };
 
+  const handleOpenMnemonicExport = async (wallet: WalletMeta) => {
+    if (wallet.kind !== 'mnemonic') {
+      notice.showErrorNotice('This wallet has no seed phrase to export.', 2400);
+      return;
+    }
+
+    try {
+      await setActiveWalletId(wallet.id);
+      setPendingWalletSelectionId(wallet.id);
+      setActiveWalletIdState(wallet.id);
+      router.push({
+        pathname: '/export-mnemonic',
+        params: { walletId: wallet.id },
+      });
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice('Seed phrase export failed to open.', 2400);
+    }
+  };
+
   if (loading && !aggregate) {
     return <ScreenLoadingState />;
   }
@@ -425,10 +445,12 @@ export default function WalletsScreen() {
                           />
                         )}
 
-                        <StubRow
-                          label="Export Mnemonic"
-                          onPress={() => router.push('/export-mnemonic')}
-                        />
+                        {wallet.kind === 'mnemonic' ? (
+                          <StubRow
+                            label="Export Mnemonic"
+                            onPress={() => void handleOpenMnemonicExport(wallet)}
+                          />
+                        ) : null}
 
                         <StubRow
                           label="Back Up Private Key"

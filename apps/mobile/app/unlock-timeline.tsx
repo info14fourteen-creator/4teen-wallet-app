@@ -257,7 +257,6 @@ export default function UnlockTimelineScreen() {
             tintColor={colors.accent}
           />
         }
-        onScrollBeginDrag={() => setWalletOptionsOpen(false)}
         scrollEventThrottle={16}
       >
         <ScreenBrow

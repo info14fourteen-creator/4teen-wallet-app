@@ -22,7 +22,6 @@ import {
   LIQUIDITY_INFO_TITLE,
   LIQUIDITY_JUSTMONEY_EXECUTOR_CONTRACT_URL,
   LIQUIDITY_SUN_V3_EXECUTOR_CONTRACT_URL,
-  executeLiquidityController,
   formatLiquidityDate,
   formatLiquidityTrx,
   loadLiquidityControllerSnapshot,
@@ -73,7 +72,6 @@ export default function LiquidityControllerScreen() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [executing, setExecuting] = useState(false);
   const [snapshot, setSnapshot] = useState<LiquidityControllerSnapshot | null>(null);
   const [activeWallet, setActiveWallet] = useState<WalletMeta | null>(null);
   const [walletChoices, setWalletChoices] = useState<WalletSwitcherItem[]>([]);
@@ -83,7 +81,7 @@ export default function LiquidityControllerScreen() {
   const [statusText, setStatusText] = useState('');
   const [errorText, setErrorText] = useState('');
 
-  useChromeLoading((loading && !snapshot) || refreshing || executing);
+  useChromeLoading((loading && !snapshot) || refreshing);
 
   const load = useCallback(async (options?: { silent?: boolean; force?: boolean }) => {
     const silent = options?.silent === true;
@@ -163,32 +161,20 @@ export default function LiquidityControllerScreen() {
   );
 
   const handleExecute = useCallback(async () => {
-    if (executing) return;
-
     if (!activeWallet) {
       setStatusText('');
       setErrorText('Create or import a wallet before execution.');
       return;
     }
 
-    try {
-      setExecuting(true);
-      setStatusText('Sending liquidity bootstrap transaction...');
-      setErrorText('');
-
-      const receipt = await executeLiquidityController();
-      setStatusText(`Liquidity trigger sent: ${shortLiquidityTx(receipt.txId)}`);
-      notice.showSuccessNotice('Liquidity trigger sent.', 2400);
-      await load({ silent: true, force: true });
-    } catch (error) {
-      console.error(error);
+    if (activeWallet.kind === 'watch-only') {
       setStatusText('');
-      setErrorText(error instanceof Error ? error.message : 'Liquidity execution failed.');
-      notice.showErrorNotice('Liquidity execution failed.', 2600);
-    } finally {
-      setExecuting(false);
+      setErrorText('Liquidity execution requires a full-access wallet.');
+      return;
     }
-  }, [activeWallet, executing, load, notice]);
+
+    router.push('/liquidity-confirm');
+  }, [activeWallet, router]);
 
   const visibleWalletChoices = useMemo(() => {
     return walletChoices.filter((wallet) => wallet.id !== activeWallet?.id);
@@ -262,7 +248,6 @@ export default function LiquidityControllerScreen() {
             tintColor={colors.accent}
           />
         }
-        onScrollBeginDrag={() => setWalletOptionsOpen(false)}
         scrollEventThrottle={16}
       >
         <ScreenBrow
@@ -377,15 +362,11 @@ export default function LiquidityControllerScreen() {
         <View style={styles.heroActions}>
           <TouchableOpacity
             activeOpacity={0.88}
-            style={[styles.primaryAction, (!activeWallet || executing) && styles.actionDisabled]}
-            disabled={!activeWallet || executing}
+            style={[styles.primaryAction, !activeWallet && styles.actionDisabled]}
+            disabled={!activeWallet}
             onPress={() => void handleExecute()}
           >
-            {executing ? (
-              <ActivityIndicator color={colors.bg} />
-            ) : (
-              <Text style={styles.primaryActionLabel}>TRIGGER LIQUIDITY</Text>
-            )}
+            <Text style={styles.primaryActionLabel}>TRIGGER LIQUIDITY</Text>
           </TouchableOpacity>
 
           <TouchableOpacity

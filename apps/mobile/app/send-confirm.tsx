@@ -40,6 +40,12 @@ import {
   rentEnergyForPurpose,
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
+import {
+  clampResourcePercent,
+  formatResourceAmount,
+  formatTrxFromSunAmount,
+  getAvailableResource,
+} from '../src/services/wallet/resources';
 import { rememberRecentRecipient } from '../src/services/recent-recipients';
 import {
   getBiometricsEnabled,
@@ -48,29 +54,6 @@ import {
 import { useWalletSession } from '../src/wallet/wallet-session';
 
 import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
-
-function formatResourceValue(value: number) {
-  const safe = Math.max(0, Math.floor(Number(value) || 0));
-
-  if (safe >= 1_000_000) {
-    return `${(safe / 1_000_000).toFixed(1).replace(/\.0$/, '')}m`;
-  }
-
-  if (safe >= 1_000) {
-    return `${(safe / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
-  }
-
-  return String(safe);
-}
-
-function formatTrxAmountFromSun(value: number) {
-  const trx = Math.max(0, Number(value || 0)) / 1_000_000;
-  return trx.toFixed(trx >= 1 ? 3 : 6).replace(/\.?0+$/, '');
-}
-
-function clampPercent(value: number) {
-  return Math.max(0, Math.min(100, value));
-}
 
 function resolveParam(value: string | string[] | undefined) {
   if (typeof value === 'string') return value;
@@ -186,7 +169,7 @@ export default function SendConfirmScreen() {
 
       burnWarningShownRef.current = true;
       notice.showErrorNotice(
-        `Not enough TRX for network burn. Top up at least ${formatTrxAmountFromSun(
+        `Not enough TRX for network burn. Top up at least ${formatTrxFromSunAmount(
           estimate.trxCoverage.missingTrxSun
         )} TRX first.`,
         3200
@@ -214,22 +197,22 @@ export default function SendConfirmScreen() {
   }, [passcodeOpen, setChromeHidden]);
 
   const energyAvailable = estimate
-    ? Math.max(0, estimate.resources.available.energyLimit - estimate.resources.available.energyUsed)
+    ? getAvailableResource(estimate.resources.available, 'energy')
     : 0;
   const bandwidthAvailable = estimate
-    ? Math.max(0, estimate.resources.available.bandwidthLimit - estimate.resources.available.bandwidthUsed)
+    ? getAvailableResource(estimate.resources.available, 'bandwidth')
     : 0;
 
   const energyBarPercent = useMemo(() => {
     if (!estimate) return 0;
     const base = Math.max(estimate.resources.estimatedEnergy, energyAvailable, 1);
-    return clampPercent((estimate.resources.estimatedEnergy / base) * 100);
+    return clampResourcePercent((estimate.resources.estimatedEnergy / base) * 100);
   }, [energyAvailable, estimate]);
 
   const bandwidthBarPercent = useMemo(() => {
     if (!estimate) return 0;
     const base = Math.max(estimate.resources.estimatedBandwidth, bandwidthAvailable, 1);
-    return clampPercent((estimate.resources.estimatedBandwidth / base) * 100);
+    return clampResourcePercent((estimate.resources.estimatedBandwidth / base) * 100);
   }, [bandwidthAvailable, estimate]);
 
   const hasResourceShortfall = Boolean(
@@ -280,7 +263,7 @@ export default function SendConfirmScreen() {
   }, [notice, router, sending]);
 
   const performRentEnergy = useCallback(async () => {
-    if (!estimate || !energyQuote || energyRenting) return;
+    if (!estimate || !energyQuote || energyRenting) return false;
 
     try {
       setEnergyRenting(true);
@@ -289,23 +272,26 @@ export default function SendConfirmScreen() {
         purpose: 'send_transfer',
         wallet: estimate.wallet.address,
         quote: energyQuote,
+        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
       });
       clearWalletRuntimeCaches(estimate.wallet.address);
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
+      notice.showSuccessNotice('Energy is live. Sending transfer...', 3000);
       await load();
+      return true;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : 'Energy rental failed.',
         4200
       );
+      return false;
     } finally {
       setEnergyRenting(false);
+      setPasscodeOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
     }
-    setPasscodeOpen(false);
-    setPasscodeDigits('');
-    setPasscodeError('');
   }, [energyQuote, energyRenting, estimate, load, notice]);
 
   const performSend = useCallback(async () => {
@@ -409,7 +395,10 @@ export default function SendConfirmScreen() {
       }
 
       if (pendingApprovalMode === 'rent') {
-        await performRentEnergy();
+        const rented = await performRentEnergy();
+        if (rented) {
+          await performSend();
+        }
         return;
       }
 
@@ -445,13 +434,6 @@ export default function SendConfirmScreen() {
           return;
         }
 
-        if (
-          result.error === 'user_cancel' ||
-          result.error === 'system_cancel' ||
-          result.error === 'app_cancel'
-        ) {
-          return;
-        }
       } catch (error) {
         console.error(error);
       }
@@ -476,17 +458,13 @@ export default function SendConfirmScreen() {
         });
 
         if (result.success) {
-          await performRentEnergy();
+          const rented = await performRentEnergy();
+          if (rented) {
+            await performSend();
+          }
           return;
         }
 
-        if (
-          result.error === 'user_cancel' ||
-          result.error === 'system_cancel' ||
-          result.error === 'app_cancel'
-        ) {
-          return;
-        }
       } catch (error) {
         console.error(error);
       }
@@ -502,6 +480,7 @@ export default function SendConfirmScreen() {
     energyRenting,
     estimate,
     performRentEnergy,
+    performSend,
     sending,
   ]);
 
@@ -593,7 +572,7 @@ export default function SendConfirmScreen() {
                         hasResourceShortfall ? styles.heroBurnValueRisk : null,
                       ]}
                     >
-                      {formatTrxAmountFromSun(estimate.resources.estimatedBurnSun)} TRX
+                      {formatTrxFromSunAmount(estimate.resources.estimatedBurnSun)} TRX
                     </Text>
                   </View>
                 </View>
@@ -649,7 +628,7 @@ export default function SendConfirmScreen() {
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Estimated Burn</Text>
                   <Text style={styles.detailValueAccent}>
-                    {formatTrxAmountFromSun(estimate.resources.estimatedBurnSun)} TRX
+                    {formatTrxFromSunAmount(estimate.resources.estimatedBurnSun)} TRX
                   </Text>
                 </View>
 
@@ -662,7 +641,7 @@ export default function SendConfirmScreen() {
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Fee Limit</Text>
                     <Text style={styles.detailValue}>
-                      {formatTrxAmountFromSun(estimate.token.recommendedFeeLimitSun)} TRX
+                      {formatTrxFromSunAmount(estimate.token.recommendedFeeLimitSun)} TRX
                     </Text>
                   </View>
                 ) : null}
@@ -675,8 +654,8 @@ export default function SendConfirmScreen() {
                         hasNoEnergyAvailable ? styles.resourcesEnergyTextRisk : null,
                       ]}
                     >
-                      Energy {formatResourceValue(estimate.resources.estimatedEnergy)}/
-                      {formatResourceValue(energyAvailable)}
+                      Energy {formatResourceAmount(estimate.resources.estimatedEnergy)}/
+                      {formatResourceAmount(energyAvailable)}
                     </Text>
                     <View
                       style={[
@@ -696,8 +675,8 @@ export default function SendConfirmScreen() {
 
                   <View style={styles.resourceInlineCol}>
                     <Text style={styles.resourceInlineLabel}>
-                      Bandwidth {formatResourceValue(estimate.resources.estimatedBandwidth)}/
-                      {formatResourceValue(bandwidthAvailable)}
+                      Bandwidth {formatResourceAmount(estimate.resources.estimatedBandwidth)}/
+                      {formatResourceAmount(bandwidthAvailable)}
                     </Text>
                     <View style={styles.resourceBarTrack}>
                       <View style={styles.resourceBarAvailable} />
@@ -1104,6 +1083,7 @@ const styles = StyleSheet.create({
   },
 
   primaryButton: {
+    marginTop: 14,
     minHeight: 54,
     borderRadius: radius.sm,
     backgroundColor: colors.accent,

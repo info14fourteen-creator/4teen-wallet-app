@@ -56,6 +56,11 @@ export type EnergyResaleStatus = {
   } | null;
 };
 
+export type EnergyResaleProgress = {
+  step: 'payment-submitted' | 'waiting-energy' | 'energy-ready';
+  message: string;
+};
+
 class EnergyResaleApiError extends Error {
   status: number;
   details: unknown;
@@ -136,6 +141,7 @@ export async function confirmEnergyResalePayment(input: {
   paymentTxId: string;
   requiredEnergy?: number;
   requiredBandwidth?: number;
+  onProgress?: (progress: EnergyResaleProgress) => void;
 }): Promise<EnergyResaleConfirmation> {
   try {
     const payload = await fetchJsonOrThrow<{
@@ -147,17 +153,28 @@ export async function confirmEnergyResalePayment(input: {
       body: JSON.stringify(input),
     });
 
+    input.onProgress?.({
+      step: 'energy-ready',
+      message: 'Energy rental confirmed. Continuing transaction...',
+    });
+
     return payload.result || {};
   } catch (error) {
     if (!(error instanceof EnergyResaleApiError) || error.status !== 202) {
       throw error;
     }
 
+    input.onProgress?.({
+      step: 'waiting-energy',
+      message: 'Payment confirmed. Waiting for Energy distribution...',
+    });
+
     const status = await waitForEnergyResaleReady({
       purpose: input.purpose,
       wallet: input.wallet,
       requiredEnergy: input.requiredEnergy,
       requiredBandwidth: input.requiredBandwidth,
+      onProgress: input.onProgress,
     });
 
     return {
@@ -198,6 +215,7 @@ async function waitForEnergyResaleReady(input: {
   wallet: string;
   requiredEnergy?: number;
   requiredBandwidth?: number;
+  onProgress?: (progress: EnergyResaleProgress) => void;
 }) {
   let lastStatus: EnergyResaleStatus | null = null;
 
@@ -205,8 +223,20 @@ async function waitForEnergyResaleReady(input: {
     lastStatus = await getEnergyResaleStatus(input);
 
     if (lastStatus.ready) {
+      input.onProgress?.({
+        step: 'energy-ready',
+        message: 'Energy is live. Continuing transaction...',
+      });
       return lastStatus;
     }
+
+    input.onProgress?.({
+      step: 'waiting-energy',
+      message:
+        attempt < 5
+          ? 'Waiting for Energy distribution...'
+          : 'Energy is still pending. Keeping the transaction queued...',
+    });
 
     await wait(attempt < 5 ? 3000 : 5000);
   }
@@ -221,11 +251,17 @@ export async function rentEnergyForPurpose(input: {
   purpose: EnergyResalePurpose;
   wallet: string;
   quote: EnergyResaleQuote;
+  onProgress?: (progress: EnergyResaleProgress) => void;
 }) {
   const payment = await sendAssetTransfer({
     tokenId: TRX_TOKEN_ID,
     toAddress: input.quote.paymentAddress,
     amount: input.quote.amountTrx,
+  });
+
+  input.onProgress?.({
+    step: 'payment-submitted',
+    message: 'Energy rental payment sent. Waiting for confirmation...',
   });
 
   const confirmation = await confirmEnergyResalePayment({
@@ -234,6 +270,7 @@ export async function rentEnergyForPurpose(input: {
     paymentTxId: payment.txId,
     requiredEnergy: input.quote.requiredEnergy,
     requiredBandwidth: input.quote.requiredBandwidth,
+    onProgress: input.onProgress,
   });
 
   return {

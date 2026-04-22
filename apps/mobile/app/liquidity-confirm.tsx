@@ -37,39 +37,22 @@ import {
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
+  clampResourcePercent,
+  formatResourceAmount,
+  formatTrxFromSunAmount,
+  getAvailableResource,
+} from '../src/services/wallet/resources';
+import {
   getBiometricsEnabled,
   verifyPasscode,
 } from '../src/security/local-auth';
 import { useWalletSession } from '../src/wallet/wallet-session';
 import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 
-function formatResourceValue(value: number) {
-  const safe = Math.max(0, Math.floor(Number(value) || 0));
-
-  if (safe >= 1_000_000) {
-    return `${(safe / 1_000_000).toFixed(1).replace(/\.0$/, '')}m`;
-  }
-
-  if (safe >= 1_000) {
-    return `${(safe / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
-  }
-
-  return String(safe);
-}
-
-function formatTrxAmountFromSun(value: number) {
-  const trx = Math.max(0, Number(value || 0)) / 1_000_000;
-  return trx.toFixed(trx >= 1 ? 3 : 6).replace(/\.?0+$/, '') || '0';
-}
-
 function shortAddress(address: string) {
   const safe = String(address || '').trim();
   if (safe.length <= 14) return safe || '—';
   return `${safe.slice(0, 6)}...${safe.slice(-6)}`;
-}
-
-function clampPercent(value: number) {
-  return Math.max(0, Math.min(100, value));
 }
 
 export default function LiquidityConfirmScreen() {
@@ -99,14 +82,9 @@ export default function LiquidityConfirmScreen() {
 
   useChromeLoading(loading || refreshing);
 
-  const energyAvailable = review
-    ? Math.max(0, review.resources.available.energyLimit - review.resources.available.energyUsed)
-    : 0;
+  const energyAvailable = review ? getAvailableResource(review.resources.available, 'energy') : 0;
   const bandwidthAvailable = review
-    ? Math.max(
-        0,
-        review.resources.available.bandwidthLimit - review.resources.available.bandwidthUsed
-      )
+    ? getAvailableResource(review.resources.available, 'bandwidth')
     : 0;
   const hasNoEnergyAvailable = energyAvailable <= 0;
   const hasResourceShortfall = Boolean(
@@ -120,12 +98,12 @@ export default function LiquidityConfirmScreen() {
   const energyBarPercent = useMemo(() => {
     if (!review) return 0;
     const base = Math.max(review.resources.estimatedEnergy, energyAvailable, 1);
-    return clampPercent((review.resources.estimatedEnergy / base) * 100);
+    return clampResourcePercent((review.resources.estimatedEnergy / base) * 100);
   }, [energyAvailable, review]);
   const bandwidthBarPercent = useMemo(() => {
     if (!review) return 0;
     const base = Math.max(review.resources.estimatedBandwidth, bandwidthAvailable, 1);
-    return clampPercent((review.resources.estimatedBandwidth / base) * 100);
+    return clampResourcePercent((review.resources.estimatedBandwidth / base) * 100);
   }, [bandwidthAvailable, review]);
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
   const isApproveDisabled = submitting || !review || !hasTrxForBurn;
@@ -223,7 +201,7 @@ export default function LiquidityConfirmScreen() {
       if (burnWarningShownRef.current) return;
       burnWarningShownRef.current = true;
       notice.showErrorNotice(
-        `Not enough TRX for network burn. Top up at least ${formatTrxAmountFromSun(
+        `Not enough TRX for network burn. Top up at least ${formatTrxFromSunAmount(
           review.trxCoverage.missingTrxSun
         )} TRX first.`,
         3200
@@ -252,7 +230,7 @@ export default function LiquidityConfirmScreen() {
   }, [load]);
 
   const performRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || energyRenting) return;
+    if (!review || !energyQuote || energyRenting) return false;
 
     try {
       setEnergyRenting(true);
@@ -261,23 +239,26 @@ export default function LiquidityConfirmScreen() {
         purpose: 'liquidity_execute',
         wallet: review.wallet.address,
         quote: energyQuote,
+        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
+      notice.showSuccessNotice('Energy is live. Triggering liquidity...', 3000);
       await load();
+      return true;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : 'Energy rental failed.',
         4200
       );
+      return false;
     } finally {
       setEnergyRenting(false);
+      setPasscodeOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
     }
-    setPasscodeOpen(false);
-    setPasscodeDigits('');
-    setPasscodeError('');
   }, [energyQuote, energyRenting, load, notice, review]);
 
   const performLiquidityExecution = useCallback(async () => {
@@ -319,7 +300,10 @@ export default function LiquidityConfirmScreen() {
       }
 
       if (pendingApprovalMode === 'rent') {
-        await performRentEnergy();
+        const rented = await performRentEnergy();
+        if (rented) {
+          await performLiquidityExecution();
+        }
         return;
       }
 
@@ -361,13 +345,6 @@ export default function LiquidityConfirmScreen() {
           return;
         }
 
-        if (
-          result.error === 'user_cancel' ||
-          result.error === 'system_cancel' ||
-          result.error === 'app_cancel'
-        ) {
-          return;
-        }
       } catch (error) {
         console.error(error);
       }
@@ -398,17 +375,13 @@ export default function LiquidityConfirmScreen() {
         });
 
         if (result.success) {
-          await performRentEnergy();
+          const rented = await performRentEnergy();
+          if (rented) {
+            await performLiquidityExecution();
+          }
           return;
         }
 
-        if (
-          result.error === 'user_cancel' ||
-          result.error === 'system_cancel' ||
-          result.error === 'app_cancel'
-        ) {
-          return;
-        }
       } catch (error) {
         console.error(error);
       }
@@ -423,6 +396,7 @@ export default function LiquidityConfirmScreen() {
     energyQuote,
     energyRenting,
     performRentEnergy,
+    performLiquidityExecution,
     review,
     submitting,
   ]);
@@ -522,7 +496,7 @@ export default function LiquidityConfirmScreen() {
                       hasResourceShortfall ? styles.heroMetaValueRisk : null,
                     ]}
                   >
-                    {formatTrxAmountFromSun(review.resources.estimatedBurnSun)} TRX
+                    {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
                   </Text>
                 </View>
               </View>
@@ -571,14 +545,14 @@ export default function LiquidityConfirmScreen() {
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Estimated Burn</Text>
                   <Text style={styles.detailValueAccent}>
-                    {formatTrxAmountFromSun(review.resources.estimatedBurnSun)} TRX
+                    {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
                   </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Fee Cap</Text>
                   <Text style={styles.detailValue}>
-                    {formatTrxAmountFromSun(review.resources.recommendedFeeLimitSun)} TRX
+                    {formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX
                   </Text>
                 </View>
 
@@ -592,22 +566,22 @@ export default function LiquidityConfirmScreen() {
                 <View style={styles.detailRowFirst}>
                   <Text style={styles.detailLabel}>Energy</Text>
                   <Text style={styles.detailValue}>
-                    {formatResourceValue(review.resources.estimatedEnergy)}
+                    {formatResourceAmount(review.resources.estimatedEnergy)}
                   </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Bandwidth</Text>
                   <Text style={styles.detailValue}>
-                    {formatResourceValue(review.resources.estimatedBandwidth)}
+                    {formatResourceAmount(review.resources.estimatedBandwidth)}
                   </Text>
                 </View>
 
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Shortfall</Text>
                   <Text style={styles.detailValue}>
-                    {formatResourceValue(review.resources.energyShortfall)} energy ·{' '}
-                    {formatResourceValue(review.resources.bandwidthShortfall)} bandwidth
+                    {formatResourceAmount(review.resources.energyShortfall)} energy ·{' '}
+                    {formatResourceAmount(review.resources.bandwidthShortfall)} bandwidth
                   </Text>
                 </View>
 
@@ -619,8 +593,8 @@ export default function LiquidityConfirmScreen() {
                         hasNoEnergyAvailable ? styles.resourceInlineLabelRisk : null,
                       ]}
                     >
-                      Energy {formatResourceValue(review.resources.estimatedEnergy)}/
-                      {formatResourceValue(energyAvailable)}
+                      Energy {formatResourceAmount(review.resources.estimatedEnergy)}/
+                      {formatResourceAmount(energyAvailable)}
                     </Text>
                     <View
                       style={[
@@ -640,8 +614,8 @@ export default function LiquidityConfirmScreen() {
 
                   <View style={styles.resourceInlineCol}>
                     <Text style={styles.resourceInlineLabel}>
-                      Bandwidth {formatResourceValue(review.resources.estimatedBandwidth)}/
-                      {formatResourceValue(bandwidthAvailable)}
+                      Bandwidth {formatResourceAmount(review.resources.estimatedBandwidth)}/
+                      {formatResourceAmount(bandwidthAvailable)}
                     </Text>
                     <View style={styles.resourceBarTrack}>
                       <View style={styles.resourceBarAvailable} />

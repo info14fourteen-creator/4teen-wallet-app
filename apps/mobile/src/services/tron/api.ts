@@ -31,7 +31,7 @@ export const FOURTEEN_CONTRACT = 'TMLXiCW2ZAkvjmn79ZXa4vdHX5BE3n9x4A';
 const TOKEN_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
 const TOKEN_HISTORY_CACHE_PREFIX = 'fourteen_token_history_cache_v10';
 const TOKEN_HISTORY_CACHE_PREFIX_ROOT = 'fourteen_token_history_cache_';
-const WALLET_HISTORY_CACHE_PREFIX = 'fourteen_wallet_history_cache_v3';
+const WALLET_HISTORY_CACHE_PREFIX = 'fourteen_wallet_history_cache_v4';
 const WALLET_HISTORY_CACHE_PREFIX_ROOT = 'fourteen_wallet_history_cache_';
 const DEFAULT_WALLET_HISTORY_LIMIT = 20;
 
@@ -286,6 +286,7 @@ export type WalletHistoryPage = {
 
 type WalletHistoryCursor = {
   txFingerprint?: string;
+  trc20Fingerprint?: string;
   bufferedItems?: WalletHistoryItem[];
 };
 
@@ -363,6 +364,36 @@ type TrongridTransactionItem = {
 
 type TrongridTransactionsResponse = {
   data?: TrongridTransactionItem[];
+  success?: boolean;
+  meta?: {
+    at?: number;
+    fingerprint?: string;
+    links?: {
+      next?: string;
+    };
+    page_size?: number;
+  };
+};
+
+type TrongridTrc20TransactionItem = {
+  transaction_id?: string;
+  block_timestamp?: number;
+  from?: string;
+  from_address?: string;
+  to?: string;
+  to_address?: string;
+  type?: string;
+  value?: string | number;
+  token_info?: {
+    address?: string;
+    symbol?: string;
+    name?: string;
+    decimals?: number | string;
+  };
+};
+
+type TrongridTrc20TransactionsResponse = {
+  data?: TrongridTrc20TransactionItem[];
   success?: boolean;
   meta?: {
     at?: number;
@@ -2247,6 +2278,15 @@ function normalizeHistoryMethodName(value: unknown) {
   return safe || undefined;
 }
 
+function isUnlimitedApprovalAmount(amountRaw: string) {
+  const safe = String(amountRaw || '').trim();
+  if (!/^\d+$/.test(safe)) {
+    return false;
+  }
+
+  return safe.length >= 60;
+}
+
 function resolveHistoryTransactionStatus(input: {
   confirmed?: boolean;
   revert?: boolean;
@@ -2592,6 +2632,51 @@ function buildWalletTrc20RowsFromTransaction(
     .filter((item): item is WalletTrc20HistorySourceRow => Boolean(item));
 }
 
+function buildWalletTrc20RowsFromTrongrid(
+  walletAddress: string,
+  rows: TrongridTrc20TransactionItem[]
+): WalletTrc20HistorySourceRow[] {
+  const walletKey = normalizeAddressKey(walletAddress);
+
+  return (rows ?? [])
+    .map((item): WalletTrc20HistorySourceRow | null => {
+      const txHash = String(item.transaction_id || '').trim();
+      const tokenId = normalizeTokenId(item.token_info?.address || '');
+      const fromAddress = normalizeTrongridAddress(item.from ?? item.from_address);
+      const toAddress = normalizeTrongridAddress(item.to ?? item.to_address);
+      const eventName = String(item.type || 'Transfer').trim() || 'Transfer';
+      const normalizedEventName = eventName.toLowerCase();
+
+      if (!txHash || !tokenId) {
+        return null;
+      }
+
+      const fromKey = normalizeAddressKey(fromAddress);
+      const toKey = normalizeAddressKey(toAddress);
+      if (fromKey !== walletKey && toKey !== walletKey) {
+        return null;
+      }
+
+      if (normalizedEventName === 'approval' && fromKey !== walletKey) {
+        return null;
+      }
+
+      return {
+        txHash,
+        timestamp: Number(item.block_timestamp || 0),
+        tokenId,
+        fromAddress,
+        toAddress,
+        amountRaw: String(item.value ?? '0'),
+        eventName,
+        methodName: normalizedEventName === 'approval' ? 'approve' : 'transfer',
+        contractType: 'TriggerSmartContract',
+        transactionStatus: 'success',
+      };
+    })
+    .filter((item): item is WalletTrc20HistorySourceRow => Boolean(item));
+}
+
 function buildWalletInternalTrxHistoryItems(
   walletAddress: string,
   txHash: string,
@@ -2851,6 +2936,8 @@ function buildWalletTrc20HistoryItems(
           return null;
         }
 
+        const methodName = normalizeHistoryMethodName(item.methodName ?? item.eventName);
+        const isApproval = String(methodName || '').toLowerCase().includes('approve');
         const overview = overviewMap[tokenId] ?? {};
         const known = getKnownTokenMeta(tokenId);
 
@@ -2870,7 +2957,10 @@ function buildWalletTrc20HistoryItems(
           type: baseType,
           displayType,
           amountRaw,
-          amountFormatted: formatHistoryAmount(amountRaw, tokenDecimals, displayType),
+          amountFormatted:
+            isApproval && isUnlimitedApprovalAmount(amountRaw)
+              ? 'UNLIMITED'
+              : formatHistoryAmount(amountRaw, tokenDecimals, displayType),
           timestamp: Number(item.timestamp || 0),
           from: fromAddress,
           to: toAddress,
@@ -2881,7 +2971,7 @@ function buildWalletTrc20HistoryItems(
           transactionStatus: item.transactionStatus ?? 'success',
           contractType: normalizeHistoryContractType(item.contractType),
           eventType: normalizeHistoryEventType(item.eventName),
-          methodName: normalizeHistoryMethodName(item.methodName ?? item.eventName),
+          methodName,
           tokenId,
           tokenName,
           tokenSymbol,
@@ -3007,12 +3097,17 @@ function parseWalletHistoryCursor(fingerprint?: string): WalletHistoryCursor {
       typeof parsed.txFingerprint === 'string' && parsed.txFingerprint.trim()
         ? parsed.txFingerprint.trim()
         : undefined;
+    const trc20Fingerprint =
+      typeof parsed.trc20Fingerprint === 'string' && parsed.trc20Fingerprint.trim()
+        ? parsed.trc20Fingerprint.trim()
+        : undefined;
     const bufferedItems = Array.isArray(parsed.bufferedItems)
       ? parsed.bufferedItems.filter(isWalletHistoryItemShape)
       : [];
 
     return {
       txFingerprint,
+      trc20Fingerprint,
       bufferedItems,
     };
   } catch {
@@ -3023,6 +3118,7 @@ function parseWalletHistoryCursor(fingerprint?: string): WalletHistoryCursor {
 function stringifyWalletHistoryCursor(cursor: WalletHistoryCursor) {
   return JSON.stringify({
     txFingerprint: String(cursor.txFingerprint || '').trim() || undefined,
+    trc20Fingerprint: String(cursor.trc20Fingerprint || '').trim() || undefined,
     bufferedItems: Array.isArray(cursor.bufferedItems) ? cursor.bufferedItems : [],
   });
 }
@@ -3169,28 +3265,61 @@ export async function getWalletHistoryPage(
       (left, right) => right.timestamp - left.timestamp
     );
     let txFingerprint = cursor.txFingerprint;
+    let trc20Fingerprint = cursor.trc20Fingerprint;
     let txHasMore = false;
+    let trc20HasMore = false;
+    let txExhausted = false;
+    let trc20Exhausted = false;
     let attempts = 0;
 
     while (buffer.length < limit && attempts < 8) {
       attempts += 1;
 
-      const response = await trongridFetch<TrongridTransactionsResponse>(
-        `/v1/accounts/${walletAddress}/transactions`,
-        {
-          limit: batchSize,
-          order_by: 'block_timestamp,desc',
-          ...(txFingerprint ? { fingerprint: txFingerprint } : {}),
-        }
-      ).catch((): TrongridTransactionsResponse => ({}));
+      const txPagePromise: Promise<TrongridTransactionsResponse> = txExhausted
+        ? Promise.resolve({})
+        : trongridFetch<TrongridTransactionsResponse>(
+            `/v1/accounts/${walletAddress}/transactions`,
+            {
+              limit: batchSize,
+              order_by: 'block_timestamp,desc',
+              only_confirmed: true,
+              ...(txFingerprint ? { fingerprint: txFingerprint } : {}),
+            }
+          ).catch((): TrongridTransactionsResponse => ({}));
+      const trc20PagePromise: Promise<TrongridTrc20TransactionsResponse> = trc20Exhausted
+        ? Promise.resolve({})
+        : trongridFetch<TrongridTrc20TransactionsResponse>(
+            `/v1/accounts/${walletAddress}/transactions/trc20`,
+            {
+              limit: batchSize,
+              order_by: 'block_timestamp,desc',
+              only_confirmed: true,
+              ...(trc20Fingerprint ? { fingerprint: trc20Fingerprint } : {}),
+            }
+          ).catch((): TrongridTrc20TransactionsResponse => ({}));
+
+      const [response, trc20Response] = await Promise.all([
+        txPagePromise,
+        trc20PagePromise,
+      ]);
 
       const txRows = response.data ?? [];
       const nextTxFingerprint =
         String(response.meta?.fingerprint || '').trim() || undefined;
       txHasMore = Boolean(nextTxFingerprint);
       txFingerprint = nextTxFingerprint;
+      txExhausted = txExhausted || !nextTxFingerprint;
+      const trc20RowsFromEndpoint = buildWalletTrc20RowsFromTrongrid(
+        walletAddress,
+        trc20Response.data ?? []
+      );
+      const nextTrc20Fingerprint =
+        String(trc20Response.meta?.fingerprint || '').trim() || undefined;
+      trc20HasMore = Boolean(nextTrc20Fingerprint);
+      trc20Fingerprint = nextTrc20Fingerprint;
+      trc20Exhausted = trc20Exhausted || !nextTrc20Fingerprint;
 
-      if (txRows.length === 0) {
+      if (txRows.length === 0 && trc20RowsFromEndpoint.length === 0) {
         break;
       }
 
@@ -3251,7 +3380,9 @@ export async function getWalletHistoryPage(
         })
       );
 
-      const trc20Rows = transactionEntries.flatMap((entry) => entry.trc20Rows);
+      const trc20Rows = transactionEntries
+        .flatMap((entry) => entry.trc20Rows)
+        .concat(trc20RowsFromEndpoint);
       const tokenIdsToLoad = Array.from(
         new Set(
           trc20Rows
@@ -3281,14 +3412,14 @@ export async function getWalletHistoryPage(
         .sort((left, right) => right.timestamp - left.timestamp)
         .map(({ sourceRowIndex, ...item }) => item);
 
-      if (pageItems.length === 0 && !txHasMore) {
+      if (pageItems.length === 0 && !txHasMore && !trc20HasMore) {
         break;
       }
 
       buffer.push(...pageItems);
       buffer.sort((left, right) => right.timestamp - left.timestamp);
 
-      if (!txHasMore) {
+      if (!txHasMore && !trc20HasMore) {
         break;
       }
     }
@@ -3296,15 +3427,16 @@ export async function getWalletHistoryPage(
     const items = dedupeWalletHistoryItems(buffer).sort((left, right) => right.timestamp - left.timestamp);
     const visibleItems = items.slice(0, limit);
     const bufferedItems = items.slice(limit);
-    const hasMore = bufferedItems.length > 0 || txHasMore;
+    const hasMore = bufferedItems.length > 0 || txHasMore || trc20HasMore;
 
     const page: WalletHistoryPage = {
       items: visibleItems,
       nextFingerprint: hasMore
         ? stringifyWalletHistoryCursor({
-            txFingerprint,
-            bufferedItems,
-          })
+          txFingerprint,
+          trc20Fingerprint,
+          bufferedItems,
+        })
         : undefined,
       hasMore,
     };

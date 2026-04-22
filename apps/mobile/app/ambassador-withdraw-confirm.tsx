@@ -39,27 +39,17 @@ import {
   rentEnergyForPurpose,
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
-
-function formatResourceValue(value: number) {
-  const safe = Math.max(0, Math.floor(Number(value) || 0));
-  if (safe >= 1_000_000) return `${(safe / 1_000_000).toFixed(1).replace(/\.0$/, '')}m`;
-  if (safe >= 1_000) return `${(safe / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
-  return String(safe);
-}
-
-function formatTrxAmountFromSun(value: number) {
-  const trx = Math.max(0, Number(value || 0)) / 1_000_000;
-  return trx.toFixed(trx >= 1 ? 3 : 6).replace(/\.?0+$/, '') || '0';
-}
+import {
+  clampResourcePercent,
+  formatResourceAmount,
+  formatTrxFromSunAmount,
+  getAvailableResource,
+} from '../src/services/wallet/resources';
 
 function shortAddress(address: string) {
   const safe = String(address || '').trim();
   if (safe.length <= 14) return safe || '—';
   return `${safe.slice(0, 6)}...${safe.slice(-6)}`;
-}
-
-function clampPercent(value: number) {
-  return Math.max(0, Math.min(100, value));
 }
 
 export default function AmbassadorWithdrawConfirmScreen() {
@@ -89,11 +79,9 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
   useChromeLoading(loading || refreshing);
 
-  const energyAvailable = review
-    ? Math.max(0, review.resources.available.energyLimit - review.resources.available.energyUsed)
-    : 0;
+  const energyAvailable = review ? getAvailableResource(review.resources.available, 'energy') : 0;
   const bandwidthAvailable = review
-    ? Math.max(0, review.resources.available.bandwidthLimit - review.resources.available.bandwidthUsed)
+    ? getAvailableResource(review.resources.available, 'bandwidth')
     : 0;
   const hasNoEnergyAvailable = energyAvailable <= 0;
   const hasResourceShortfall = Boolean(
@@ -107,12 +95,12 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const energyBarPercent = useMemo(() => {
     if (!review) return 0;
     const base = Math.max(review.resources.estimatedEnergy, energyAvailable, 1);
-    return clampPercent((review.resources.estimatedEnergy / base) * 100);
+    return clampResourcePercent((review.resources.estimatedEnergy / base) * 100);
   }, [energyAvailable, review]);
   const bandwidthBarPercent = useMemo(() => {
     if (!review) return 0;
     const base = Math.max(review.resources.estimatedBandwidth, bandwidthAvailable, 1);
-    return clampPercent((review.resources.estimatedBandwidth / base) * 100);
+    return clampResourcePercent((review.resources.estimatedBandwidth / base) * 100);
   }, [bandwidthAvailable, review]);
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
   const isApproveDisabled = submitting || !review || !hasTrxForBurn;
@@ -180,7 +168,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
       if (burnWarningShownRef.current) return;
       burnWarningShownRef.current = true;
       notice.showErrorNotice(
-        `Not enough TRX for network burn. Top up at least ${formatTrxAmountFromSun(
+        `Not enough TRX for network burn. Top up at least ${formatTrxFromSunAmount(
           review.trxCoverage.missingTrxSun
         )} TRX first.`,
         3200
@@ -236,7 +224,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
   }, [canRentResources, review]);
 
   const performRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || energyRenting) return;
+    if (!review || !energyQuote || energyRenting) return false;
 
     try {
       setEnergyRenting(true);
@@ -245,23 +233,26 @@ export default function AmbassadorWithdrawConfirmScreen() {
         purpose: 'ambassador_withdraw',
         wallet: review.wallet.address,
         quote: energyQuote,
+        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Energy is live. Refreshing confirmation...', 3000);
+      notice.showSuccessNotice('Energy is live. Sending withdrawal...', 3000);
       await load();
+      return true;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : 'Energy rental failed.',
         4200
       );
+      return false;
     } finally {
       setEnergyRenting(false);
+      setPasscodeOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
     }
-    setPasscodeOpen(false);
-    setPasscodeDigits('');
-    setPasscodeError('');
   }, [energyQuote, energyRenting, load, notice, review]);
 
   const performWithdraw = useCallback(async () => {
@@ -301,7 +292,10 @@ export default function AmbassadorWithdrawConfirmScreen() {
       }
 
       if (pendingApprovalMode === 'rent') {
-        await performRentEnergy();
+        const rented = await performRentEnergy();
+        if (rented) {
+          await performWithdraw();
+        }
         return;
       }
 
@@ -336,13 +330,6 @@ export default function AmbassadorWithdrawConfirmScreen() {
           return;
         }
 
-        if (
-          result.error === 'user_cancel' ||
-          result.error === 'system_cancel' ||
-          result.error === 'app_cancel'
-        ) {
-          return;
-        }
       } catch (error) {
         console.error(error);
       }
@@ -367,17 +354,13 @@ export default function AmbassadorWithdrawConfirmScreen() {
         });
 
         if (result.success) {
-          await performRentEnergy();
+          const rented = await performRentEnergy();
+          if (rented) {
+            await performWithdraw();
+          }
           return;
         }
 
-        if (
-          result.error === 'user_cancel' ||
-          result.error === 'system_cancel' ||
-          result.error === 'app_cancel'
-        ) {
-          return;
-        }
       } catch (error) {
         console.error(error);
       }
@@ -392,6 +375,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
     energyQuote,
     energyRenting,
     performRentEnergy,
+    performWithdraw,
     review,
     submitting,
   ]);
@@ -473,7 +457,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
                 <View style={styles.heroMetaRow}>
                   <Text style={styles.heroMetaLabel}>Estimated burn</Text>
                   <Text style={[styles.heroMetaValue, hasResourceShortfall ? styles.heroMetaValueRisk : null]}>
-                    {formatTrxAmountFromSun(review.resources.estimatedBurnSun)} TRX
+                    {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
                   </Text>
                 </View>
               </View>
@@ -507,28 +491,28 @@ export default function AmbassadorWithdrawConfirmScreen() {
                 <DetailRow label="Wallet" value={review.wallet.name} first />
                 <DetailRow label="Controller" value={shortAddress(review.controllerAddress)} />
                 <DetailRow label="Claimable" value={`${formatTrxFromSun(review.claimableRewardsSun)} TRX`} accent />
-                <DetailRow label="Estimated Burn" value={`${formatTrxAmountFromSun(review.resources.estimatedBurnSun)} TRX`} accent={hasResourceShortfall} />
-                <DetailRow label="Fee Cap" value={`${formatTrxAmountFromSun(review.resources.recommendedFeeLimitSun)} TRX`} />
+                <DetailRow label="Estimated Burn" value={`${formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX`} accent={hasResourceShortfall} />
+                <DetailRow label="Fee Cap" value={`${formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX`} />
                 <DetailRow label="TRX Available" value={review.trxCoverage.trxBalanceDisplay} />
               </View>
 
               <View style={styles.detailCard}>
-                <DetailRow label="Energy" value={formatResourceValue(review.resources.estimatedEnergy)} first />
-                <DetailRow label="Bandwidth" value={formatResourceValue(review.resources.estimatedBandwidth)} />
+                <DetailRow label="Energy" value={formatResourceAmount(review.resources.estimatedEnergy)} first />
+                <DetailRow label="Bandwidth" value={formatResourceAmount(review.resources.estimatedBandwidth)} />
                 <DetailRow
                   label="Shortfall"
-                  value={`${formatResourceValue(review.resources.energyShortfall)} energy · ${formatResourceValue(review.resources.bandwidthShortfall)} bandwidth`}
+                  value={`${formatResourceAmount(review.resources.energyShortfall)} energy · ${formatResourceAmount(review.resources.bandwidthShortfall)} bandwidth`}
                   accent={hasResourceShortfall}
                 />
 
                 <View style={styles.resourcesInlineRow}>
                   <ResourceBar
-                    label={`Energy ${formatResourceValue(review.resources.estimatedEnergy)}/${formatResourceValue(energyAvailable)}`}
+                    label={`Energy ${formatResourceAmount(review.resources.estimatedEnergy)}/${formatResourceAmount(energyAvailable)}`}
                     risk={hasNoEnergyAvailable}
                     percent={energyBarPercent}
                   />
                   <ResourceBar
-                    label={`Bandwidth ${formatResourceValue(review.resources.estimatedBandwidth)}/${formatResourceValue(bandwidthAvailable)}`}
+                    label={`Bandwidth ${formatResourceAmount(review.resources.estimatedBandwidth)}/${formatResourceAmount(bandwidthAvailable)}`}
                     percent={bandwidthBarPercent}
                   />
                 </View>

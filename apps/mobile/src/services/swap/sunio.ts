@@ -20,7 +20,11 @@ import {
 } from '../wallet/storage';
 import {
   estimateContractCallResources,
+  getAvailableResource,
+  getResourceBurnSun,
+  getResourceShortfall,
   getResourceUnitPricing,
+  normalizeResourceAmount,
   type ContractCallResourceEstimate,
 } from '../wallet/resources';
 
@@ -830,17 +834,23 @@ async function buildFallbackSwapResourceEstimate(input: {
     getResourceUnitPricing(tronWeb),
   ]);
 
-  const availableEnergy = Math.max(0, available.energyLimit - available.energyUsed);
-  const availableBandwidth = Math.max(0, available.bandwidthLimit - available.bandwidthUsed);
-  const energyShortfall = Math.max(0, input.estimatedEnergy - availableEnergy);
-  const bandwidthShortfall = Math.max(0, input.estimatedBandwidth - availableBandwidth);
-  const estimatedBurnSun =
-    energyShortfall * pricing.energySun + bandwidthShortfall * pricing.bandwidthSun;
+  const estimatedEnergy = normalizeResourceAmount(input.estimatedEnergy);
+  const estimatedBandwidth = normalizeResourceAmount(input.estimatedBandwidth);
+  const availableEnergy = getAvailableResource(available, 'energy');
+  const availableBandwidth = getAvailableResource(available, 'bandwidth');
+  const energyShortfall = getResourceShortfall(estimatedEnergy, availableEnergy);
+  const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
+  const estimatedBurnSun = getResourceBurnSun({
+    energyShortfall,
+    bandwidthShortfall,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+  });
 
   return {
     available,
-    estimatedEnergy: input.estimatedEnergy,
-    estimatedBandwidth: input.estimatedBandwidth,
+    estimatedEnergy,
+    estimatedBandwidth,
     energyShortfall,
     bandwidthShortfall,
     estimatedBurnSun,

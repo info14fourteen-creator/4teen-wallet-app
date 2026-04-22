@@ -154,10 +154,15 @@ router.get('/cabinet/:wallet', async (req, res) => {
         slug_hash: onChainSummary.slug_hash,
         meta_hash: onChainSummary.meta_hash,
         total_buyers: onChainSummary.total_buyers,
+        buyers_count: onChainSummary.buyers_count || onChainSummary.total_buyers,
         total_volume_sun: onChainSummary.total_volume_sun,
         total_rewards_accrued_sun: onChainSummary.total_rewards_accrued_sun,
         total_rewards_claimed_sun: onChainSummary.total_rewards_claimed_sun,
-        claimable_rewards_sun: onChainSummary.claimable_rewards_sun
+        claimable_rewards_sun: onChainSummary.claimable_rewards_sun,
+        level_progress_current_level: onChainSummary.level_progress_current_level,
+        level_progress_buyers_count: onChainSummary.level_progress_buyers_count,
+        level_next_threshold: onChainSummary.level_next_threshold,
+        level_remaining_to_next: onChainSummary.level_remaining_to_next
       });
     }
 

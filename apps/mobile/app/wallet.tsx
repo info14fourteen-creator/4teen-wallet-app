@@ -46,6 +46,11 @@ import {
   type WalletPortfolioSnapshot,
 } from '../src/services/wallet/portfolio';
 import {
+  clampResourcePercent,
+  formatResourceAmount,
+  normalizeResourceAmount,
+} from '../src/services/wallet/resources';
+import {
   clearWalletHistoryCache,
   FOURTEEN_CONTRACT,
   getAccountResources,
@@ -96,19 +101,21 @@ const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
 ] as const;
 
 type ContentMode = 'assets' | 'history' | 'more';
-type WalletHistoryRenderRow =
-  | {
-      kind: 'single';
-      id: string;
-      item: WalletHistoryItem;
-    }
-  | {
-      kind: 'swap';
-      id: string;
-      sendItem: WalletHistoryItem;
-      receiveItem: WalletHistoryItem;
-    };
 type WalletHistoryRowStatus = 'success' | 'failed' | 'pending';
+type WalletHistoryRowTone = 'green' | 'red' | 'orange' | 'neutral';
+type WalletHistoryRenderRow = {
+  id: string;
+  title: string;
+  description: string;
+  amount: string;
+  tokenLabel: string;
+  timestamp: number;
+  txHash: string;
+  status: WalletHistoryRowStatus;
+  tone: WalletHistoryRowTone;
+  openItem: WalletHistoryItem;
+  isKnownContact?: boolean;
+};
 
 function formatHistoryTime(timestamp: number) {
   if (!timestamp) return 'Unknown time';
@@ -179,85 +186,57 @@ function isHistoryContractAction(item: WalletHistoryItem) {
   return Boolean(getHistoryContractActionLabel(item));
 }
 
-function historyTone(item: WalletHistoryItem) {
-  if (item.transactionStatus === 'failed') return styles.historyTypeFailed;
-  if (item.transactionStatus === 'pending') return styles.historyTypePending;
-  if (isHistoryContractAction(item)) return styles.historyTypeNeutral;
-  if (item.displayType === 'RECEIVE') return styles.historyTypeGreen;
-  return styles.historyTypeRed;
+function isHistoryApprove(item: WalletHistoryItem) {
+  return String(item.methodName || '').trim().toLowerCase().includes('approve');
 }
 
-function historyRowTone(item: WalletHistoryItem) {
-  if (item.transactionStatus === 'failed') return styles.historyRowFailed;
-  if (item.transactionStatus === 'pending') return styles.historyRowPending;
-  if (isHistoryContractAction(item)) return styles.historyRowAction;
-  if (item.displayType === 'RECEIVE') return styles.historyRowReceive;
-  return styles.historyRowSend;
-}
-
-function getWalletHistoryRowStatus(row: WalletHistoryRenderRow): WalletHistoryRowStatus {
-  if (row.kind === 'swap') {
-    if (
-      row.sendItem.transactionStatus === 'failed' ||
-      row.receiveItem.transactionStatus === 'failed'
-    ) {
-      return 'failed';
-    }
-
-    if (
-      row.sendItem.transactionStatus === 'pending' ||
-      row.receiveItem.transactionStatus === 'pending'
-    ) {
-      return 'pending';
-    }
-
-    return 'success';
-  }
-
-  return row.item.transactionStatus ?? 'success';
+function getHistoryGroupStatus(items: WalletHistoryItem[]): WalletHistoryRowStatus {
+  if (items.some((item) => item.transactionStatus === 'failed')) return 'failed';
+  if (items.some((item) => item.transactionStatus === 'pending')) return 'pending';
+  return 'success';
 }
 
 function historyRenderRowTone(row: WalletHistoryRenderRow) {
-  const status = getWalletHistoryRowStatus(row);
-  if (status === 'failed') return styles.historyRowFailed;
-  if (status === 'pending') return styles.historyRowPending;
-  if (row.kind === 'swap') return styles.historyRowSwap;
-  return historyRowTone(row.item);
+  if (row.status === 'failed') return styles.historyRowFailed;
+  if (row.status === 'pending') return styles.historyRowPending;
+  if (row.tone === 'orange') return styles.historyRowSwap;
+  if (row.tone === 'green') return styles.historyRowReceive;
+  if (row.tone === 'red') return styles.historyRowSend;
+  return styles.historyRowAction;
 }
 
 function historyTypeLabel(item: WalletHistoryItem) {
-  const methodName = String(item.methodName || '').trim().toLowerCase();
-  if (methodName.includes('approve')) return 'APPROVE';
+  if (isHistoryApprove(item)) return 'APPROVE';
   const contractActionLabel = getHistoryContractActionLabel(item);
   if (contractActionLabel) return contractActionLabel;
   if (item.displayType === 'RECEIVE') return 'RECEIVE';
   return 'SEND';
 }
 
+function historyCounterpartyLabel(item: WalletHistoryItem) {
+  const label = item.counterpartyLabel || 'Unknown';
+  if (isHistoryApprove(item)) return label === 'Unknown' ? 'Spender contract' : `Spender: ${label}`;
+  if (isHistoryContractAction(item)) return label === 'Unknown' ? 'Contract interaction' : label;
+  return label;
+}
+
 function historyRenderTypeLabel(row: WalletHistoryRenderRow) {
-  const status = getWalletHistoryRowStatus(row);
-  if (row.kind === 'swap' && status === 'failed') return 'SWAP FAILED';
-  if (row.kind === 'swap' && status === 'pending') return 'SWAP PENDING';
-  if (status === 'failed') {
-    return row.kind === 'swap' ? 'SWAP FAILED' : `${historyTypeLabel(row.item)} FAILED`;
-  }
-  if (status === 'pending') {
-    return row.kind === 'swap' ? 'SWAP PENDING' : `${historyTypeLabel(row.item)} PENDING`;
-  }
-  if (row.kind === 'swap') return 'SWAP';
-  return historyTypeLabel(row.item);
+  if (row.status === 'failed') return `${row.title} FAILED`;
+  if (row.status === 'pending') return `${row.title} PENDING`;
+  return row.title;
 }
 
 function historyRenderToneStyle(row: WalletHistoryRenderRow) {
-  const status = getWalletHistoryRowStatus(row);
-  if (status === 'failed') return styles.historyTypeFailed;
-  if (status === 'pending') return styles.historyTypePending;
-  if (row.kind === 'swap') return styles.historyTypeSwap;
-  return historyTone(row.item);
+  if (row.status === 'failed') return styles.historyTypeFailed;
+  if (row.status === 'pending') return styles.historyTypePending;
+  if (row.tone === 'orange') return styles.historyTypeSwap;
+  if (row.tone === 'green') return styles.historyTypeGreen;
+  if (row.tone === 'red') return styles.historyTypeRed;
+  return styles.historyTypeNeutral;
 }
 
 function formatHistoryAmount(item: WalletHistoryItem) {
-  if (isHistoryContractAction(item)) {
+  if (isHistoryApprove(item) || isHistoryContractAction(item)) {
     const clean = item.amountFormatted.replace(/^[+-]\s*/, '');
     if (!clean || clean === '0') {
       return '';
@@ -283,12 +262,64 @@ function formatSwapHistoryAmount(sendItem: WalletHistoryItem, receiveItem: Walle
   return `${sent} ${sentToken} / ${received} ${receivedToken}`;
 }
 
+function formatHistoryTokenList(items: WalletHistoryItem[]) {
+  const labels = Array.from(new Set(items.map(getHistoryTokenLabel).filter(Boolean)));
+  if (labels.length <= 2) return labels.join(' + ');
+  return `${labels.slice(0, 2).join(' + ')} +${labels.length - 2}`;
+}
+
+function isHistoryLiquidityToken(item: WalletHistoryItem) {
+  const symbol = String(item.tokenSymbol || '').trim().toUpperCase();
+  const name = String(item.tokenName || '').trim().toUpperCase();
+  return (
+    symbol.includes('LP') ||
+    symbol.includes('JMS') ||
+    symbol.includes('SUN-V3') ||
+    name.includes('LP') ||
+    name.includes('LIQUIDITY') ||
+    name.includes('POSITION')
+  );
+}
+
 function canCombineWalletHistoryAsSwap(sendItem: WalletHistoryItem, receiveItem: WalletHistoryItem) {
   if (!sendItem.txHash || sendItem.txHash !== receiveItem.txHash) {
     return false;
   }
 
+  if (
+    isHistoryApprove(sendItem) ||
+    isHistoryApprove(receiveItem) ||
+    isHistoryContractAction(sendItem) ||
+    isHistoryContractAction(receiveItem)
+  ) {
+    return false;
+  }
+
   return normalizeHistoryTokenKey(sendItem) !== normalizeHistoryTokenKey(receiveItem);
+}
+
+function buildSingleHistoryRow(item: WalletHistoryItem, index = 0): WalletHistoryRenderRow {
+  const tone: WalletHistoryRowTone = isHistoryApprove(item)
+    ? 'orange'
+    : isHistoryContractAction(item)
+      ? 'neutral'
+      : item.displayType === 'RECEIVE'
+        ? 'green'
+        : 'red';
+
+  return {
+    id: `${item.tokenId}:${item.txHash}:${item.displayType}:${item.amountRaw}:${index}`,
+    title: historyTypeLabel(item),
+    description: historyCounterpartyLabel(item),
+    amount: formatHistoryAmount(item),
+    tokenLabel: getHistoryTokenLabel(item),
+    timestamp: item.timestamp,
+    txHash: item.txHash,
+    status: item.transactionStatus ?? 'success',
+    tone,
+    openItem: item,
+    isKnownContact: item.isKnownContact,
+  };
 }
 
 function buildWalletHistoryRows(items: WalletHistoryItem[]): WalletHistoryRenderRow[] {
@@ -311,47 +342,56 @@ function buildWalletHistoryRows(items: WalletHistoryItem[]): WalletHistoryRender
       return a.displayType === 'SEND' ? -1 : 1;
     });
 
-    const sendIndex = sortedGroup.findIndex((item) => item.displayType === 'SEND');
-    const receiveIndex = sortedGroup.findIndex((item) => item.displayType === 'RECEIVE');
+    const transferItems = sortedGroup.filter(
+      (item) =>
+        !isHistoryApprove(item) && !isHistoryContractAction(item)
+    );
+    const approvalItems = sortedGroup.filter(isHistoryApprove);
+    const sendItems = transferItems.filter((item) => item.displayType === 'SEND');
+    const receiveItems = transferItems.filter((item) => item.displayType === 'RECEIVE');
+    const sendItem = sendItems[0];
+    const receiveItem = transferItems.find((item) => item.displayType === 'RECEIVE');
+    const liquidityReceive = transferItems.find(
+      (item) => item.displayType === 'RECEIVE' && isHistoryLiquidityToken(item)
+    );
 
-    if (sendIndex !== -1 && receiveIndex !== -1) {
-      const sendItem = sortedGroup[sendIndex];
-      const receiveItem = sortedGroup[receiveIndex];
+    if (sendItem && receiveItem && canCombineWalletHistoryAsSwap(sendItem, receiveItem)) {
+      const isLiquidity = Boolean(liquidityReceive);
+      rows.push({
+        id: `${isLiquidity ? 'liquidity' : 'swap'}:${sendItem.txHash}`,
+        title: isLiquidity ? 'LIQUIDITY' : 'SWAP',
+        description:
+          approvalItems.length > 0
+            ? `${isLiquidity ? 'Add liquidity' : 'Token swap'} · includes approval`
+            : isLiquidity
+              ? 'Add liquidity'
+              : 'Token swap',
+        amount: formatSwapHistoryAmount(sendItem, liquidityReceive || receiveItem),
+        tokenLabel: `${formatHistoryTokenList(sendItems)} → ${formatHistoryTokenList(
+          liquidityReceive ? [liquidityReceive] : receiveItems
+        )}`,
+        timestamp: Math.max(...sortedGroup.map((item) => item.timestamp || 0)),
+        txHash: sendItem.txHash,
+        status: getHistoryGroupStatus(sortedGroup),
+        tone: 'orange',
+        openItem: sendItem,
+      });
 
-      if (canCombineWalletHistoryAsSwap(sendItem, receiveItem)) {
-        rows.push({
-          kind: 'swap',
-          id: `swap:${sendItem.txHash}`,
-          sendItem,
-          receiveItem,
-        });
+      continue;
+    }
 
-        sortedGroup.forEach((item, index) => {
-          if (index === sendIndex || index === receiveIndex) return;
-          rows.push({
-            kind: 'single',
-            id: `${item.tokenId}:${item.txHash}:${item.displayType}:${item.amountRaw}:${index}`,
-            item,
-          });
-        });
-
-        continue;
-      }
+    if (approvalItems.length > 0 && transferItems.length === 0) {
+      rows.push(buildSingleHistoryRow(approvalItems[0]));
+      continue;
     }
 
     sortedGroup.forEach((item, index) => {
-      rows.push({
-        kind: 'single',
-        id: `${item.tokenId}:${item.txHash}:${item.displayType}:${item.amountRaw}:${index}`,
-        item,
-      });
+      rows.push(buildSingleHistoryRow(item, index));
     });
   }
 
   return rows.sort((left, right) => {
-    const leftTimestamp = left.kind === 'swap' ? left.sendItem.timestamp : left.item.timestamp;
-    const rightTimestamp = right.kind === 'swap' ? right.sendItem.timestamp : right.item.timestamp;
-    return rightTimestamp - leftTimestamp;
+    return right.timestamp - left.timestamp;
   });
 }
 
@@ -394,21 +434,6 @@ function splitLeadingCurrencySymbol(value: string) {
     symbol: '',
     amount: safe,
   };
-}
-
-function formatResourceValue(value: number) {
-  const safe = Math.max(0, Math.round(Number(value) || 0));
-  if (safe >= 1000) {
-    const shortened = safe / 1000;
-    const digits = shortened >= 100 ? 0 : shortened >= 10 ? 1 : 2;
-    return `${shortened.toFixed(digits).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')}k`;
-  }
-  return String(safe);
-}
-
-function clampPercent(value: number) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(100, value));
 }
 
 function areStringArraysEqual(left: string[], right: string[]) {
@@ -460,19 +485,19 @@ function areVisibleTokenMetaMapsEqual(
 }
 
 function getAvailableResource(limit?: number, used?: number) {
-  const safeLimit = Math.max(0, Number(limit) || 0);
-  const safeUsed = Math.max(0, Number(used) || 0);
+  const safeLimit = normalizeResourceAmount(limit);
+  const safeUsed = normalizeResourceAmount(used);
   return Math.max(0, safeLimit - safeUsed);
 }
 
 function getAvailableResourcePercent(limit?: number, used?: number) {
-  const safeLimit = Math.max(0, Number(limit) || 0);
+  const safeLimit = normalizeResourceAmount(limit);
 
   if (safeLimit <= 0) {
     return 0;
   }
 
-  return clampPercent((getAvailableResource(safeLimit, used) / safeLimit) * 100);
+  return clampResourcePercent((getAvailableResource(safeLimit, used) / safeLimit) * 100);
 }
 
 export default function HomeScreen() {
@@ -485,9 +510,12 @@ export default function HomeScreen() {
 
   const pagerRef = useRef<ScrollView>(null);
   const currentCardIndexRef = useRef(0);
+  const activeWalletIdRef = useRef<string | null>(null);
   const consumedWalletRouteSelectionRef = useRef<string | null>(null);
   const programmaticWalletSelectionRef = useRef<string | null>(null);
   const ignoreWalletCardSnapUntilRef = useRef(0);
+  const walletCardDragActiveRef = useRef(false);
+  const suppressNextWalletRefreshForIdRef = useRef<string | null>(null);
 
   const [qrVisible, setQrVisible] = useState(false);
   const [qrWallet, setQrWallet] = useState<WalletMeta | null>(null);
@@ -592,9 +620,30 @@ export default function HomeScreen() {
     [cardWidth, walletCards.length]
   );
 
+  const markProgrammaticWalletScroll = useCallback((walletId?: string | null) => {
+    const normalizedWalletId = String(walletId || '').trim();
+
+    if (!normalizedWalletId) {
+      return;
+    }
+
+    walletCardDragActiveRef.current = false;
+    programmaticWalletSelectionRef.current = normalizedWalletId;
+    ignoreWalletCardSnapUntilRef.current = Date.now() + 900;
+  }, []);
+
+  const clearProgrammaticWalletScroll = useCallback(() => {
+    programmaticWalletSelectionRef.current = null;
+    ignoreWalletCardSnapUntilRef.current = 0;
+  }, []);
+
   useEffect(() => {
     currentCardIndexRef.current = currentCardIndex;
   }, [currentCardIndex]);
+
+  useEffect(() => {
+    activeWalletIdRef.current = activeWallet?.id ?? null;
+  }, [activeWallet?.id]);
 
   const clearRemovalTimer = useCallback(() => {
     if (removalTimerRef.current) {
@@ -1122,6 +1171,7 @@ export default function HomeScreen() {
           setPortfolioLoadingWalletId(null);
           setHistoryLoadingWalletId(null);
           setHistoryLoadingMoreWalletId(null);
+          currentCardIndexRef.current = 0;
           setCurrentCardIndex(0);
           setEditingWalletId(null);
           setDraftName('');
@@ -1140,14 +1190,12 @@ export default function HomeScreen() {
         const nextActiveItem = items[nextIndex] ?? items[0];
         const nextActiveWallet = nextActiveItem.wallet;
 
-        if (preferredWalletId && preferredWalletId === nextActiveWallet.id) {
-          programmaticWalletSelectionRef.current = nextActiveWallet.id;
-          ignoreWalletCardSnapUntilRef.current = Date.now() + 500;
-        }
-
         setActiveWallet(nextActiveWallet);
+        currentCardIndexRef.current = nextIndex;
         setCurrentCardIndex(nextIndex);
+        markProgrammaticWalletScroll(nextActiveWallet.id);
         requestAnimationFrame(() => {
+          markProgrammaticWalletScroll(nextActiveWallet.id);
           scrollPagerToCardIndex(nextIndex, false);
         });
 
@@ -1195,6 +1243,7 @@ export default function HomeScreen() {
       contentMode,
       editingWalletId,
       ensureWalletHistoryLoaded,
+      markProgrammaticWalletScroll,
       notice,
       removalWalletId,
       resetRemovalState,
@@ -1248,13 +1297,11 @@ export default function HomeScreen() {
           : undefined);
 
       void load(preferredWalletId);
-      void loadHomePreferences(preferredWalletId);
 
       return undefined;
     }, [
       consumePendingWalletSelectionId,
       load,
-      loadHomePreferences,
       requestedWalletId,
       requestedWalletSelectionKey,
     ])
@@ -1276,43 +1323,69 @@ export default function HomeScreen() {
   }, [load]);
 
   useEffect(() => {
-    const activeWalletId = activeWallet?.id;
-    if (!activeWalletId || walletDataRefreshKey === 0) return;
+    if (walletDataRefreshKey === 0) return;
 
-    setHistoryCache((prev) => {
-      if (!(activeWalletId in prev)) return prev;
-      const next = { ...prev };
-      delete next[activeWalletId];
-      return next;
-    });
+    let cancelled = false;
 
-    setHistoryNextCursorCache((prev) => {
-      if (!(activeWalletId in prev)) return prev;
-      const next = { ...prev };
-      delete next[activeWalletId];
-      return next;
-    });
+    const refreshActiveWallet = async () => {
+      const storedActiveWalletId = await getActiveWalletId().catch(() => null);
+      const walletId = storedActiveWalletId || activeWalletIdRef.current;
 
-    setHistoryHasMoreCache((prev) => {
-      if (!(activeWalletId in prev)) return prev;
-      const next = { ...prev };
-      delete next[activeWalletId];
-      return next;
-    });
+      if (cancelled || !walletId) return;
 
-    void loadRef.current(activeWalletId, { force: true });
-  }, [activeWallet?.id, walletDataRefreshKey]);
+      if (suppressNextWalletRefreshForIdRef.current === walletId) {
+        suppressNextWalletRefreshForIdRef.current = null;
+        return;
+      }
+
+      setHistoryCache((prev) => {
+        if (!(walletId in prev)) return prev;
+        const next = { ...prev };
+        delete next[walletId];
+        return next;
+      });
+
+      setHistoryNextCursorCache((prev) => {
+        if (!(walletId in prev)) return prev;
+        const next = { ...prev };
+        delete next[walletId];
+        return next;
+      });
+
+      setHistoryHasMoreCache((prev) => {
+        if (!(walletId in prev)) return prev;
+        const next = { ...prev };
+        delete next[walletId];
+        return next;
+      });
+
+      await loadRef.current(walletId, { force: true });
+    };
+
+    void refreshActiveWallet();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [walletDataRefreshKey]);
 
   useEffect(() => {
     if (walletCards.length === 0) return;
 
     requestAnimationFrame(() => {
+      const walletId = walletCards[currentCardIndexRef.current]?.wallet.id;
+      markProgrammaticWalletScroll(walletId);
       scrollPagerToCardIndex(currentCardIndexRef.current, false);
     });
-  }, [scrollPagerToCardIndex, walletCards.length]);
+  }, [markProgrammaticWalletScroll, scrollPagerToCardIndex, walletCards, walletCards.length]);
 
   const handleWalletCardSnap = useCallback(
     async (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (cardWidth <= 0 || walletCards.length === 0) {
+        walletCardDragActiveRef.current = false;
+        return;
+      }
+
       const rawIndex = Math.round(event.nativeEvent.contentOffset.x / cardWidth);
 
       let nextIndex = rawIndex;
@@ -1328,30 +1401,41 @@ export default function HomeScreen() {
 
       const nextItem = walletCards[nextIndex];
 
-      if (!nextItem) return;
-
-      const programmaticWalletId = programmaticWalletSelectionRef.current;
-      const ignoreProgrammaticSnap =
-        programmaticWalletId &&
-        Date.now() < ignoreWalletCardSnapUntilRef.current &&
-        nextItem.wallet.id !== programmaticWalletId;
-
-      if (ignoreProgrammaticSnap) {
-        const targetIndex = walletCards.findIndex((item) => item.wallet.id === programmaticWalletId);
-        if (targetIndex >= 0) {
-          setCurrentCardIndex(targetIndex);
-          requestAnimationFrame(() => {
-            scrollPagerToCardIndex(targetIndex, false);
-          });
-        }
+      if (!nextItem) {
+        walletCardDragActiveRef.current = false;
         return;
       }
 
-      if (programmaticWalletId && nextItem.wallet.id === programmaticWalletId) {
-        programmaticWalletSelectionRef.current = null;
-        ignoreWalletCardSnapUntilRef.current = 0;
+      const programmaticWalletId = programmaticWalletSelectionRef.current;
+      const isProgrammaticSnapWindow = Date.now() < ignoreWalletCardSnapUntilRef.current;
+      const isUserDrag = walletCardDragActiveRef.current;
+
+      if (!isUserDrag) {
+        const targetIndex = programmaticWalletId
+          ? walletCards.findIndex((item) => item.wallet.id === programmaticWalletId)
+          : nextIndex;
+        const safeIndex = targetIndex >= 0 ? targetIndex : nextIndex;
+
+        currentCardIndexRef.current = safeIndex;
+        setCurrentCardIndex(safeIndex);
+
+        if (isProgrammaticSnapWindow || rawIndex !== safeIndex + (walletCards.length > 1 ? 1 : 0)) {
+          requestAnimationFrame(() => {
+            scrollPagerToCardIndex(safeIndex, false);
+          });
+        }
+
+        if (!isProgrammaticSnapWindow || nextItem.wallet.id === programmaticWalletId) {
+          clearProgrammaticWalletScroll();
+        }
+
+        return;
       }
 
+      walletCardDragActiveRef.current = false;
+      clearProgrammaticWalletScroll();
+
+      currentCardIndexRef.current = nextIndex;
       setCurrentCardIndex(nextIndex);
 
       if (walletCards.length > 1 && rawIndex !== nextIndex + 1) {
@@ -1371,6 +1455,7 @@ export default function HomeScreen() {
         setDraftName('');
         setResourceExpandedWalletId(null);
 
+        suppressNextWalletRefreshForIdRef.current = nextItem.wallet.id;
         await setActiveWalletId(nextItem.wallet.id);
         setActiveWallet(nextItem.wallet);
 
@@ -1402,6 +1487,7 @@ export default function HomeScreen() {
           await ensureWalletHistoryLoaded(nextItem.wallet);
         }
       } catch (error) {
+        suppressNextWalletRefreshForIdRef.current = null;
         console.error(error);
         setPortfolioLoadingWalletId(null);
         setHistoryLoadingWalletId(null);
@@ -1412,6 +1498,7 @@ export default function HomeScreen() {
     [
       activeWallet?.id,
       cardWidth,
+      clearProgrammaticWalletScroll,
       contentMode,
       ensureWalletHistoryLoaded,
       notice,
@@ -1461,6 +1548,19 @@ export default function HomeScreen() {
     (pathname: '/export-mnemonic' | '/backup-private-key' | '/multisig-transactions' | '/connections') => {
       if (!activeWallet) {
         notice.showErrorNotice('No active wallet selected.', 2200);
+        return;
+      }
+
+      if (pathname === '/export-mnemonic') {
+        if (activeWallet.kind !== 'mnemonic') {
+          notice.showErrorNotice('This wallet has no seed phrase to export.', 2400);
+          return;
+        }
+
+        router.push({
+          pathname,
+          params: { walletId: activeWallet.id },
+        });
         return;
       }
 
@@ -1566,6 +1666,7 @@ export default function HomeScreen() {
       if (nextItems.length === 0) {
         setActiveWallet(null);
         setPortfolio(null);
+        currentCardIndexRef.current = 0;
         setCurrentCardIndex(0);
         notice.showSuccessNotice('Wallet removed from this device.', 2400);
         return;
@@ -1578,10 +1679,14 @@ export default function HomeScreen() {
       const safeIndex = Math.min(nextIndex, nextItems.length - 1);
       const nextActiveItem = nextItems[safeIndex] ?? nextItems[0];
 
+      suppressNextWalletRefreshForIdRef.current = nextActiveItem.wallet.id;
       await setActiveWalletId(nextActiveItem.wallet.id);
       setActiveWallet(nextActiveItem.wallet);
+      currentCardIndexRef.current = safeIndex;
       setCurrentCardIndex(safeIndex);
+      markProgrammaticWalletScroll(nextActiveItem.wallet.id);
       requestAnimationFrame(() => {
+        markProgrammaticWalletScroll(nextActiveItem.wallet.id);
         scrollPagerToCardIndex(safeIndex, false);
       });
 
@@ -1608,6 +1713,7 @@ export default function HomeScreen() {
 
       notice.showSuccessNotice('Wallet removed from this device.', 2400);
     } catch (error) {
+      suppressNextWalletRefreshForIdRef.current = null;
       console.error(error);
       resetRemovalState();
       notice.showErrorNotice('Wallet removal failed.', 2600);
@@ -1616,6 +1722,7 @@ export default function HomeScreen() {
     activeWallet,
     contentMode,
     ensureWalletHistoryLoaded,
+    markProgrammaticWalletScroll,
     notice,
     resetRemovalState,
     scrollPagerToCardIndex,
@@ -1862,6 +1969,10 @@ export default function HomeScreen() {
                 showsHorizontalScrollIndicator={false}
                 bounces={false}
                 overScrollMode="never"
+                onScrollBeginDrag={() => {
+                  walletCardDragActiveRef.current = true;
+                  clearProgrammaticWalletScroll();
+                }}
                 onMomentumScrollEnd={handleWalletCardSnap}
                 contentContainerStyle={styles.walletPagerContent}
               >
@@ -1926,12 +2037,12 @@ export default function HomeScreen() {
                               <>
                                 <View style={styles.resourcesSummaryRow}>
                                   <Text style={[styles.resourcesSummaryText, styles.resourcesEnergyText]}>
-                                    Energy ({formatResourceValue(energyAvailable)}/
-                                    {formatResourceValue(resourceData.energyLimit)})
+                                    Energy ({formatResourceAmount(energyAvailable)}/
+                                    {formatResourceAmount(resourceData.energyLimit)})
                                   </Text>
                                   <Text style={styles.resourcesSummaryText}>
-                                    Bandwidth ({formatResourceValue(bandwidthAvailable)}/
-                                    {formatResourceValue(resourceData.bandwidthLimit)})
+                                    Bandwidth ({formatResourceAmount(bandwidthAvailable)}/
+                                    {formatResourceAmount(resourceData.bandwidthLimit)})
                                   </Text>
                                 </View>
 
@@ -2196,7 +2307,7 @@ export default function HomeScreen() {
             <>
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.sectionHeaderSide}>
-                  <Text style={[ui.sectionEyebrow, styles.historyEyebrowBar]}>Transfers</Text>
+                  <Text style={[ui.sectionEyebrow, styles.historyEyebrowBar]}>Transactions</Text>
                 </View>
 
                 <TouchableOpacity
@@ -2243,99 +2354,60 @@ export default function HomeScreen() {
                           key={row.id}
                           activeOpacity={0.9}
                           style={[styles.historyRow, historyRenderRowTone(row)]}
-                          onPress={() =>
-                            void handleOpenHistoryItem(row.kind === 'swap' ? row.sendItem : row.item)
-                          }
+                          onPress={() => void handleOpenHistoryItem(row.openItem)}
                         >
                           <View style={styles.historyTopLine}>
-                            {row.kind === 'swap' ? (
-                              <>
-                                <Text style={[styles.historyType, historyRenderToneStyle(row)]}>
-                                  {historyRenderTypeLabel(row)}
-                                </Text>
+                            <View style={styles.historyTitleStack}>
+                              <Text style={[styles.historyType, historyRenderToneStyle(row)]}>
+                                {historyRenderTypeLabel(row)}
+                              </Text>
 
-                                <Text
-                                  style={[styles.historyAmount, historyRenderToneStyle(row)]}
-                                  numberOfLines={1}
-                                  ellipsizeMode="tail"
-                                >
-                                  {formatSwapHistoryAmount(row.sendItem, row.receiveItem)}
-                                </Text>
-                              </>
-                            ) : (
-                              <>
-                                <Text style={[styles.historyType, historyTone(row.item)]}>
-                                  {historyRenderTypeLabel(row)}
-                                </Text>
+                              <Text
+                                style={[
+                                  styles.historyCounterparty,
+                                  row.isKnownContact ? styles.historyCounterpartyKnown : null,
+                                ]}
+                                numberOfLines={1}
+                                ellipsizeMode="middle"
+                              >
+                                {row.description}
+                              </Text>
+                            </View>
 
-                                <Text
-                                  style={[styles.historyAmount, historyTone(row.item)]}
-                                  numberOfLines={1}
-                                  ellipsizeMode="tail"
-                                >
-                                  {formatHistoryAmount(row.item)}
-                                </Text>
-                              </>
-                            )}
+                            <Text
+                              style={[styles.historyAmount, historyRenderToneStyle(row)]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                            >
+                              {row.amount}
+                            </Text>
                           </View>
 
-                          <View style={styles.historyAddressRow}>
-                            {row.kind === 'swap' ? (
-                              <>
-                                <Text style={styles.historyCounterparty}>Token swap</Text>
+                          <View style={styles.historyMetaRow}>
+                            <View style={styles.historyTokenInline}>
+                              {row.openItem.tokenLogo ? (
+                                <Image
+                                  source={{ uri: row.openItem.tokenLogo }}
+                                  style={styles.historyTokenLogo}
+                                  contentFit="contain"
+                                />
+                              ) : null}
 
-                                <View style={styles.historyTokenRow}>
-                                  <Text
-                                    style={styles.historyTokenLabel}
-                                    numberOfLines={1}
-                                    ellipsizeMode="tail"
-                                  >
-                                    {getHistoryTokenLabel(row.sendItem)} →{' '}
-                                    {getHistoryTokenLabel(row.receiveItem)}
-                                  </Text>
-                                </View>
-                              </>
-                            ) : (
-                              <>
-                                <Text
-                                  style={[
-                                    styles.historyCounterparty,
-                                    row.item.isKnownContact ? styles.historyCounterpartyKnown : null,
-                                  ]}
-                                >
-                                  {row.item.counterpartyLabel || 'Unknown'}
-                                </Text>
+                              <Text
+                                style={styles.historyTokenLabel}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                              >
+                                {row.tokenLabel}
+                              </Text>
+                            </View>
 
-                                <View style={styles.historyTokenRow}>
-                                  {row.item.tokenLogo ? (
-                                    <Image
-                                      source={{ uri: row.item.tokenLogo }}
-                                      style={styles.historyTokenLogo}
-                                      contentFit="contain"
-                                    />
-                                  ) : null}
-
-                                  <Text
-                                    style={styles.historyTokenLabel}
-                                    numberOfLines={1}
-                                    ellipsizeMode="tail"
-                                  >
-                                    {getHistoryTokenLabel(row.item)}
-                                  </Text>
-                                </View>
-                              </>
-                            )}
+                            <Text style={styles.historyTime}>{formatHistoryTime(row.timestamp)}</Text>
                           </View>
-
-                          <Text style={styles.historyTime}>
-                            {formatHistoryTime(
-                              row.kind === 'swap' ? row.sendItem.timestamp : row.item.timestamp
-                            )}
-                          </Text>
 
                           <View style={styles.historyBottomRow}>
                             <Text style={styles.historyHash}>
-                              {formatShortHash(row.kind === 'swap' ? row.sendItem.txHash : row.item.txHash)}
+                              {formatShortHash(row.txHash)}
                             </Text>
 
                             <View style={styles.historyBottomAction}>
@@ -2363,7 +2435,7 @@ export default function HomeScreen() {
                   </>
                 ) : (
                   <View style={styles.historyEmpty}>
-                    <Text style={styles.historyEmptyText}>No transfers yet.</Text>
+                    <Text style={styles.historyEmptyText}>No transactions yet.</Text>
                   </View>
                 )}
               </View>
@@ -2421,14 +2493,16 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 )}
 
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.optionRow}
-                  onPress={() => handleOpenWalletOptionRoute('/export-mnemonic')}
-                >
-                  <Text style={ui.actionLabel}>Export Mnemonic</Text>
-                  <OpenRightIcon width={18} height={18} />
-                </TouchableOpacity>
+                {activeWallet?.kind === 'mnemonic' ? (
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.optionRow}
+                    onPress={() => handleOpenWalletOptionRoute('/export-mnemonic')}
+                  >
+                    <Text style={ui.actionLabel}>Export Mnemonic</Text>
+                    <OpenRightIcon width={18} height={18} />
+                  </TouchableOpacity>
+                ) : null}
 
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -3281,7 +3355,7 @@ const styles = StyleSheet.create({
   },
 
   historyList: {
-    gap: 10,
+    gap: 8,
   },
 
   historyRow: {
@@ -3290,8 +3364,8 @@ const styles = StyleSheet.create({
     borderColor: colors.lineSoft,
     backgroundColor: colors.bg,
     paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 8,
+    paddingVertical: 13,
+    gap: 9,
   },
 
   historyRowSend: {
@@ -3307,7 +3381,7 @@ const styles = StyleSheet.create({
   },
 
   historyRowAction: {
-    backgroundColor: 'rgba(244,179,80,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
 
   historyRowFailed: {
@@ -3320,14 +3394,27 @@ const styles = StyleSheet.create({
 
   historyTopLine: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  historyTitleStack: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+
+  historyMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
 
   historyAddressRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
@@ -3347,9 +3434,10 @@ const styles = StyleSheet.create({
   },
 
   historyType: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
     fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
   },
 
   historyTypeGreen: {
@@ -3365,7 +3453,7 @@ const styles = StyleSheet.create({
   },
 
   historyTypeNeutral: {
-    color: '#D7B36A',
+    color: colors.textDim,
   },
 
   historyTypeFailed: {
@@ -3377,12 +3465,10 @@ const styles = StyleSheet.create({
   },
 
   historyCounterparty: {
-    flex: 1,
     color: colors.textDim,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
     fontFamily: 'Sora_600SemiBold',
-    paddingRight: 12,
   },
 
   historyCounterpartyKnown: {
@@ -3391,11 +3477,11 @@ const styles = StyleSheet.create({
 
   historyAmount: {
     color: colors.white,
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 20,
     fontFamily: 'Sora_700Bold',
     textAlign: 'right',
-    maxWidth: '48%',
+    maxWidth: '46%',
     flexShrink: 1,
   },
 
@@ -3404,6 +3490,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     fontFamily: 'Sora_600SemiBold',
+    textAlign: 'right',
+    flexShrink: 0,
   },
 
   historyHash: {
@@ -3440,6 +3528,14 @@ const styles = StyleSheet.create({
     maxWidth: 120,
   },
 
+  historyTokenInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    maxWidth: '58%',
+  },
+
   historyTokenLogo: {
     width: 14,
     height: 14,
@@ -3451,8 +3547,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     fontFamily: 'Sora_700Bold',
-    maxWidth: 108,
-    textAlign: 'right',
+    maxWidth: 148,
   },
 
   historyEmpty: {

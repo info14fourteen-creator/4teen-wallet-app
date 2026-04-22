@@ -11,7 +11,11 @@ import {
 import { getAccountResources, getTokenDetails, TRX_TOKEN_ID, trongridFetch } from './tron/api';
 import {
   estimateContractCallResources,
+  getAvailableResource,
+  getResourceBurnSun,
+  getResourceShortfall,
   getResourceUnitPricing,
+  normalizeResourceAmount,
   type ContractCallResourceEstimate,
 } from './wallet/resources';
 
@@ -197,17 +201,23 @@ async function buildFallbackLiquidityResourceEstimate(input: {
     getResourceUnitPricing(tronWeb),
   ]);
 
-  const availableEnergy = Math.max(0, available.energyLimit - available.energyUsed);
-  const availableBandwidth = Math.max(0, available.bandwidthLimit - available.bandwidthUsed);
-  const energyShortfall = Math.max(0, DEFAULT_EXECUTE_ESTIMATED_ENERGY - availableEnergy);
-  const bandwidthShortfall = Math.max(0, DEFAULT_EXECUTE_ESTIMATED_BANDWIDTH - availableBandwidth);
-  const estimatedBurnSun =
-    energyShortfall * pricing.energySun + bandwidthShortfall * pricing.bandwidthSun;
+  const estimatedEnergy = normalizeResourceAmount(DEFAULT_EXECUTE_ESTIMATED_ENERGY);
+  const estimatedBandwidth = normalizeResourceAmount(DEFAULT_EXECUTE_ESTIMATED_BANDWIDTH);
+  const availableEnergy = getAvailableResource(available, 'energy');
+  const availableBandwidth = getAvailableResource(available, 'bandwidth');
+  const energyShortfall = getResourceShortfall(estimatedEnergy, availableEnergy);
+  const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
+  const estimatedBurnSun = getResourceBurnSun({
+    energyShortfall,
+    bandwidthShortfall,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+  });
 
   return {
     available,
-    estimatedEnergy: DEFAULT_EXECUTE_ESTIMATED_ENERGY,
-    estimatedBandwidth: DEFAULT_EXECUTE_ESTIMATED_BANDWIDTH,
+    estimatedEnergy,
+    estimatedBandwidth,
     energyShortfall,
     bandwidthShortfall,
     estimatedBurnSun,

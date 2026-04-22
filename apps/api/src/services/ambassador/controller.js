@@ -42,6 +42,18 @@ const controllerAbi = [
     ],
     stateMutability: 'view',
     type: 'function'
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'ambassadorAddress', type: 'address' }],
+    name: 'getAmbassadorLevelProgress',
+    outputs: [
+      { internalType: 'uint8', name: '', type: 'uint8' },
+      { internalType: 'uint256', name: '', type: 'uint256' },
+      { internalType: 'uint256', name: '', type: 'uint256' },
+      { internalType: 'uint256', name: '', type: 'uint256' }
+    ],
+    stateMutability: 'view',
+    type: 'function'
   }
 ];
 
@@ -105,13 +117,15 @@ async function getControllerContract(ownerAddress) {
 
 async function readAmbassadorDashboardOnChain(wallet) {
   const contract = await getControllerContract(wallet);
-  const [core, stats, profile] = await Promise.all([
+  const [core, stats, profile, progress] = await Promise.all([
     contract.getDashboardCore(wallet).call(),
     contract.getDashboardStats(wallet).call(),
-    contract.getDashboardProfile(wallet).call()
+    contract.getDashboardProfile(wallet).call(),
+    contract.getAmbassadorLevelProgress(wallet).call()
   ]);
 
   const exists = readTupleBoolean(core, 0, 'exists');
+  const totalBuyers = readTupleValue(stats, 0, 'totalBuyers') || '0';
 
   return {
     exists,
@@ -129,12 +143,16 @@ async function readAmbassadorDashboardOnChain(wallet) {
       override_level: readTupleValue(profile, 4, 'overrideLevel') || '0',
       slug_hash: readTupleValue(profile, 5, 'slugHash') || null,
       meta_hash: readTupleValue(profile, 6, 'metaHash') || null,
-      total_buyers: readTupleValue(stats, 0, 'totalBuyers') || '0',
-      buyers_count: readTupleValue(stats, 0, 'totalBuyers') || '0',
+      total_buyers: totalBuyers,
+      buyers_count: totalBuyers,
       total_volume_sun: readTupleValue(stats, 1, 'totalVolumeSun') || '0',
       total_rewards_accrued_sun: readTupleValue(stats, 2, 'totalRewardsAccruedSun') || '0',
       total_rewards_claimed_sun: readTupleValue(stats, 3, 'totalRewardsClaimedSun') || '0',
-      claimable_rewards_sun: readTupleValue(stats, 4, 'claimableRewardsSun') || '0'
+      claimable_rewards_sun: readTupleValue(stats, 4, 'claimableRewardsSun') || '0',
+      level_progress_current_level: readTupleValue(progress, 0) || '0',
+      level_progress_buyers_count: readTupleValue(progress, 1) || totalBuyers,
+      level_next_threshold: readTupleValue(progress, 2) || '10',
+      level_remaining_to_next: readTupleValue(progress, 3) || '10'
     }
   };
 }
