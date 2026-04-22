@@ -1,147 +1,136 @@
 {
-  "generatedAt": "2026-04-21T19:51:42.890Z",
+  "generatedAt": "2026-04-22T18:30:28.522Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "701448b1110ab537d77614840f0d099091033ad1",
-    "shortHash": "701448b",
-    "subject": "Build info and liquidity architecture surfaces",
+    "hash": "918f723df1bc619d9a8da9324ff076f7d1da9eb1",
+    "shortHash": "918f723",
+    "subject": "Merge remote-tracking branch 'origin/main'",
     "author": "info14fourteen-creator",
-    "date": "2026-04-22T00:51:01+05:00"
+    "date": "2026-04-22T23:30:04+05:00"
   },
-  "changedFiles": [
-    "M\tapps/mobile/app/earn.tsx",
-    "M\tapps/mobile/app/home.tsx",
-    "M\tapps/mobile/app/liquidity-controller.tsx",
-    "M\tapps/mobile/app/unlock-timeline.tsx",
-    "M\tapps/mobile/package.json",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "A\tapps/mobile/src/services/asset-wallets.ts",
-    "A\tapps/mobile/src/services/liquidity-controller.ts",
-    "M\tapps/mobile/src/ui/footer-nav.tsx",
-    "M\tapps/mobile/src/ui/product-shell.tsx"
-  ],
+  "changedFiles": [],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 6
+      "count": 9
     },
     {
-      "file": "apps/mobile/app/address-book.tsx",
+      "file": "apps/api/src/config/env.js",
       "count": 5
     },
     {
-      "file": "apps/mobile/app/home.tsx",
+      "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
       "count": 5
     },
     {
-      "file": "apps/mobile/app/wallets.tsx",
+      "file": "apps/mobile/app/send-confirm.tsx",
       "count": 5
     },
     {
-      "file": "apps/mobile/src/ui/app-header.tsx",
-      "count": 5
-    },
-    {
-      "file": "apps/mobile/app/import-watch-only.tsx",
+      "file": "apps/api/src/routes/ambassador.js",
       "count": 4
     },
     {
-      "file": "apps/mobile/app/scan.tsx",
+      "file": "apps/api/src/services/gasstation/energyResale.js",
       "count": 4
     },
     {
-      "file": "apps/mobile/app/select-wallet.tsx",
+      "file": "apps/mobile/app/buy-confirm.tsx",
       "count": 4
     },
     {
-      "file": "apps/mobile/app/send.tsx",
+      "file": "apps/mobile/app/liquidity-confirm.tsx",
       "count": 4
     },
     {
-      "file": "apps/mobile/app/token-details.tsx",
+      "file": "apps/mobile/app/swap-confirm.tsx",
       "count": 4
     },
     {
-      "file": "apps/mobile/package.json",
+      "file": "apps/mobile/src/services/ambassador.ts",
       "count": 4
     },
     {
-      "file": "apps/mobile/src/search/search-routes.ts",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/src/search/search-sheet.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/_layout.tsx",
+      "file": "apps/api/src/routes/energyResale.js",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/add-custom-token.tsx",
+      "file": "apps/api/src/services/gasstation/gasStation.js",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/backup-private-key.tsx",
+      "file": "apps/mobile/app/ambassador-confirm.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/confirm-passcode.tsx",
+      "file": "apps/mobile/src/ui/energy-resale-card.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/connections.tsx",
-      "count": 3
+      "file": "apps/api/src/app.js",
+      "count": 2
     },
     {
-      "file": "apps/mobile/app/create-passcode.tsx",
-      "count": 3
+      "file": "apps/api/src/services/ambassador/controller.js",
+      "count": 2
     },
     {
-      "file": "apps/mobile/app/earn.tsx",
-      "count": 3
+      "file": "apps/mobile/src/services/energy-resale.ts",
+      "count": 2
     },
     {
-      "file": "apps/mobile/app/enable-biometrics.tsx",
-      "count": 3
+      "file": "apps/mobile/src/services/swap/sunio.ts",
+      "count": 2
     },
     {
-      "file": "apps/mobile/app/export-mnemonic.tsx",
-      "count": 3
+      "file": "apps/api/src/db/queries/ambassadorCabinet.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/app/import-private-key.tsx",
-      "count": 3
+      "file": "apps/api/src/routes/gasstation.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/app/import-seed.tsx",
-      "count": 3
+      "file": "apps/api/src/services/gasstation/notifications.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/app/liquidity-controller.tsx",
-      "count": 3
+      "file": "apps/api/src/services/tron/client.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/app/manage-crypto.tsx",
-      "count": 3
+      "file": "apps/api/src/services/tron/payments.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/app/multisig-transactions.tsx",
-      "count": 3
+      "file": "apps/mobile/app/ambassador-program.tsx",
+      "count": 1
     },
     {
-      "file": "apps/mobile/app/settings.tsx",
-      "count": 3
+      "file": "apps/mobile/src/config/tron.ts",
+      "count": 1
     },
     {
-      "file": "apps/mobile/app/unlock-timeline.tsx",
-      "count": 3
+      "file": "apps/mobile/src/services/direct-buy.ts",
+      "count": 1
     },
     {
-      "file": "apps/mobile/src/search/search-types.ts",
-      "count": 3
+      "file": "apps/mobile/src/services/liquidity-controller.ts",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/src/services/tron/api.ts",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/src/services/tron/api.ts.bak_2026-04-16_193206",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/src/services/wallet/send.ts",
+      "count": 1
     }
   ],
   "todoCount": 11,
@@ -165,6 +154,26 @@
     ".github/workflows/build-wallet-ai-bundle.yml",
     ".github/workflows/ci.yml",
     "scripts/build-wallet-ai-bundles.mjs",
+    "apps/api/package.json",
+    "apps/api/server.js",
+    "apps/api/src/app.js",
+    "apps/api/src/config/env.js",
+    "apps/api/src/db/pool.js",
+    "apps/api/src/db/queries/ambassadorCabinet.js",
+    "apps/api/src/routes/ambassador.js",
+    "apps/api/src/routes/energyResale.js",
+    "apps/api/src/routes/gasstation.js",
+    "apps/api/src/routes/health.js",
+    "apps/api/src/routes/proxy.js",
+    "apps/api/src/routes/wallet.js",
+    "apps/api/src/services/ambassador/controller.js",
+    "apps/api/src/services/gasstation/energyResale.js",
+    "apps/api/src/services/gasstation/gasStation.js",
+    "apps/api/src/services/gasstation/notifications.js",
+    "apps/api/src/services/proxy/apiProxy.js",
+    "apps/api/src/services/proxy/walletSnapshot.js",
+    "apps/api/src/services/tron/client.js",
+    "apps/api/src/services/tron/payments.js",
     "apps/mobile/app.json",
     "apps/mobile/app/_layout.tsx",
     "apps/mobile/app/(tabs)/_layout.tsx",
@@ -174,7 +183,9 @@
     "apps/mobile/app/add-custom-token.tsx",
     "apps/mobile/app/address-book.tsx",
     "apps/mobile/app/airdrop.tsx",
+    "apps/mobile/app/ambassador-confirm.tsx",
     "apps/mobile/app/ambassador-program.tsx",
+    "apps/mobile/app/ambassador-withdraw-confirm.tsx",
     "apps/mobile/app/appearance.tsx",
     "apps/mobile/app/authentication-method.tsx",
     "apps/mobile/app/backup-private-key.tsx",
@@ -198,6 +209,7 @@
     "apps/mobile/app/import-watch-only.tsx",
     "apps/mobile/app/index.tsx",
     "apps/mobile/app/language.tsx",
+    "apps/mobile/app/liquidity-confirm.tsx",
     "apps/mobile/app/liquidity-controller.tsx",
     "apps/mobile/app/manage-crypto.tsx",
     "apps/mobile/app/modal.tsx",
@@ -332,6 +344,7 @@
     "apps/mobile/src/services/asset-wallets.ts",
     "apps/mobile/src/services/direct-buy-draft.ts",
     "apps/mobile/src/services/direct-buy.ts",
+    "apps/mobile/src/services/energy-resale.ts",
     "apps/mobile/src/services/liquidity-controller.ts",
     "apps/mobile/src/services/recent-recipients.ts",
     "apps/mobile/src/services/referral.ts",
@@ -353,32 +366,8 @@
     "apps/mobile/src/ui/address-qr-modal.tsx",
     "apps/mobile/src/ui/app-header.constants.ts",
     "apps/mobile/src/ui/app-header.tsx",
-    "apps/mobile/src/ui/expand-chevron.tsx",
-    "apps/mobile/src/ui/footer-nav.tsx",
-    "apps/mobile/src/ui/foundation.tsx",
-    "apps/mobile/src/ui/fourteen-wallet-loader.tsx",
-    "apps/mobile/src/ui/inline-refresh-loader.tsx",
-    "apps/mobile/src/ui/KeyboardView.tsx",
-    "apps/mobile/src/ui/menu-sheet.tsx",
-    "apps/mobile/src/ui/navigation-routes.ts",
-    "apps/mobile/src/ui/navigation.constants.ts",
-    "apps/mobile/src/ui/navigation.tsx",
-    "apps/mobile/src/ui/numeric-keypad.tsx",
-    "apps/mobile/src/ui/product-shell.tsx",
-    "apps/mobile/src/ui/screen-brow.tsx",
-    "apps/mobile/src/ui/screen-loading-state.tsx",
-    "apps/mobile/src/ui/stub-screen.tsx",
-    "apps/mobile/src/ui/thin-orange-loader.tsx",
-    "apps/mobile/src/ui/top-chrome.tsx",
-    "apps/mobile/src/ui/ui-icons.tsx",
-    "apps/mobile/src/ui/use-bottom-inset.ts",
-    "apps/mobile/src/ui/use-chrome-loading.ts",
-    "apps/mobile/src/ui/use-swipe-down-dismiss.ts",
-    "apps/mobile/src/utils/open-in-app-browser.ts",
-    "apps/mobile/src/wallet/wallet-session.tsx",
-    "apps/mobile/svg.d.ts",
-    "apps/mobile/tsconfig.json",
-    "backups/search-header-20260415-210130/about.tsx"
+    "apps/mobile/src/ui/energy-resale-card.tsx",
+    "apps/mobile/src/ui/expand-chevron.tsx"
   ],
   "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
   "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"

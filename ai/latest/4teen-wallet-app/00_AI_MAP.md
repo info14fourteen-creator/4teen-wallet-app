@@ -1,13 +1,13 @@
 # 4teen-wallet-app — AI MAP
 
-Generated: 2026-04-21T19:51:42.887Z
+Generated: 2026-04-22T18:30:28.518Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 701448b1110ab537d77614840f0d099091033ad1
-Short commit: 701448b
-Commit subject: Build info and liquidity architecture surfaces
+Last commit: 918f723df1bc619d9a8da9324ff076f7d1da9eb1
+Short commit: 918f723
+Commit subject: Merge remote-tracking branch 'origin/main'
 Commit author: info14fourteen-creator
-Commit date: 2026-04-22T00:51:01+05:00
+Commit date: 2026-04-22T23:30:04+05:00
 
 ## Snapshot files
 
@@ -31,6 +31,37 @@ Commit date: 2026-04-22T00:51:01+05:00
     - build-wallet-ai-bundle.yml
     - ci.yml
 - apps/
+  - api/
+    - src/
+      - config/
+        - env.js
+      - db/
+        - queries/
+          - ambassadorCabinet.js
+        - pool.js
+      - routes/
+        - ambassador.js
+        - energyResale.js
+        - gasstation.js
+        - health.js
+        - proxy.js
+        - wallet.js
+      - services/
+        - ambassador/
+          - controller.js
+        - gasstation/
+          - energyResale.js
+          - gasStation.js
+          - notifications.js
+        - proxy/
+          - apiProxy.js
+          - walletSnapshot.js
+        - tron/
+          - client.js
+          - payments.js
+      - app.js
+    - package.json
+    - server.js
   - mobile/
     - app/
       - (tabs)/
@@ -42,7 +73,9 @@ Commit date: 2026-04-22T00:51:01+05:00
       - add-custom-token.tsx
       - address-book.tsx
       - airdrop.tsx
+      - ambassador-confirm.tsx
       - ambassador-program.tsx
+      - ambassador-withdraw-confirm.tsx
       - appearance.tsx
       - authentication-method.tsx
       - backup-private-key.tsx
@@ -66,6 +99,7 @@ Commit date: 2026-04-22T00:51:01+05:00
       - import-watch-only.tsx
       - index.tsx
       - language.tsx
+      - liquidity-confirm.tsx
       - liquidity-controller.tsx
       - manage-crypto.tsx
       - modal.tsx
@@ -229,6 +263,7 @@ Commit date: 2026-04-22T00:51:01+05:00
         - asset-wallets.ts
         - direct-buy-draft.ts
         - direct-buy.ts
+        - energy-resale.ts
         - liquidity-controller.ts
         - recent-recipients.ts
         - referral.ts
@@ -241,41 +276,13 @@ Commit date: 2026-04-22T00:51:01+05:00
         - address-qr-modal.tsx
         - app-header.constants.ts
         - app-header.tsx
+        - energy-resale-card.tsx
         - expand-chevron.tsx
-        - footer-nav.tsx
-        - foundation.tsx
-        - fourteen-wallet-loader.tsx
-        - inline-refresh-loader.tsx
-        - KeyboardView.tsx
-        - menu-sheet.tsx
-        - navigation-routes.ts
-        - navigation.constants.ts
-        - navigation.tsx
-        - numeric-keypad.tsx
-        - product-shell.tsx
-        - screen-brow.tsx
-        - screen-loading-state.tsx
-        - stub-screen.tsx
-        - thin-orange-loader.tsx
-        - top-chrome.tsx
-        - ui-icons.tsx
-        - use-bottom-inset.ts
-        - use-chrome-loading.ts
-        - use-swipe-down-dismiss.ts
-      - utils/
-        - open-in-app-browser.ts
-      - wallet/
-        - wallet-session.tsx
     - app.json
     - eslint.config.js
     - metro.config.js
     - package.json
     - README.md
-    - svg.d.ts
-    - tsconfig.json
-- backups/
-  - search-header-20260415-210130/
-    - about.tsx
 - docs/
   - ai-snapshots/
     - 2026-04-09-wallet-home-wired.md
