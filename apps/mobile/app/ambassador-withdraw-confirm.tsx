@@ -100,6 +100,10 @@ export default function AmbassadorWithdrawConfirmScreen() {
     review &&
       (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
+  const canRentResources = Boolean(
+    review &&
+      (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
+  );
   const energyBarPercent = useMemo(() => {
     if (!review) return 0;
     const base = Math.max(review.resources.estimatedEnergy, energyAvailable, 1);
@@ -207,7 +211,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
   useEffect(() => {
     let cancelled = false;
 
-    if (!review || !hasResourceShortfall || review.wallet.kind === 'watch-only') {
+    if (!review || !canRentResources || review.wallet.kind === 'watch-only') {
       setEnergyQuote(null);
       setEnergyQuoteLoading(false);
       return;
@@ -217,8 +221,9 @@ export default function AmbassadorWithdrawConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'ambassador_withdraw',
       wallet: review.wallet.address,
-      requiredEnergy: review.resources.energyShortfall,
-      requiredBandwidth: review.resources.bandwidthShortfall,
+      requiredEnergy: review.resources.energyShortfall || review.resources.estimatedEnergy,
+      requiredBandwidth:
+        review.resources.bandwidthShortfall || review.resources.estimatedBandwidth,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {
@@ -228,7 +233,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
     return () => {
       cancelled = true;
     };
-  }, [hasResourceShortfall, review]);
+  }, [canRentResources, review]);
 
   const performRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || energyRenting) return;

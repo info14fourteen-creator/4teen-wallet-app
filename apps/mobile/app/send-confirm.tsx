@@ -239,7 +239,7 @@ export default function SendConfirmScreen() {
   const canRentEnergyForSend = Boolean(
     estimate &&
       !estimate.token.isNative &&
-      estimate.resources.energyShortfall > 0
+      (estimate.resources.estimatedEnergy > 0 || estimate.resources.estimatedBandwidth > 0)
   );
   const hasNoEnergyAvailable = energyAvailable <= 0;
   const hasTrxForBurn = Boolean(estimate?.trxCoverage.canCoverBurn);
@@ -258,8 +258,9 @@ export default function SendConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'send_transfer',
       wallet: estimate.wallet.address,
-      requiredEnergy: estimate.resources.energyShortfall,
-      requiredBandwidth: estimate.resources.bandwidthShortfall,
+      requiredEnergy: estimate.resources.energyShortfall || estimate.resources.estimatedEnergy,
+      requiredBandwidth:
+        estimate.resources.bandwidthShortfall || estimate.resources.estimatedBandwidth,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {

@@ -81,11 +81,11 @@ export default function EnergyResaleCard({
       {requiredEnergy > 0 || requiredBandwidth > 0 ? (
         <View style={styles.requirementsRow}>
           {requiredEnergy > 0 ? (
-            <Text style={styles.requirementText}>Needs {formatEnergy(requiredEnergy)} Energy</Text>
+            <Text style={styles.requirementText}>Covers {formatEnergy(requiredEnergy)} Energy</Text>
           ) : null}
           {requiredBandwidth > 0 ? (
             <Text style={styles.requirementText}>
-              Needs {formatEnergy(requiredBandwidth)} Bandwidth
+              Covers {formatEnergy(requiredBandwidth)} Bandwidth
             </Text>
           ) : null}
         </View>

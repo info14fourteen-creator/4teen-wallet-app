@@ -196,6 +196,7 @@ export default function SwapConfirmScreen() {
     Number(review?.resources.approval?.bandwidthShortfall || 0) +
     Number(review?.resources.swap?.bandwidthShortfall || 0);
   const hasResourceShortfall = resourceEnergyShortfall > 0 || resourceBandwidthShortfall > 0;
+  const canRentResources = estimatedEnergy > 0 || estimatedBandwidth > 0;
   const energyBarPercent = clampPercent(
     (estimatedEnergy / Math.max(estimatedEnergy, totalAvailableEnergy, 1)) * 100
   );
@@ -294,7 +295,7 @@ export default function SwapConfirmScreen() {
   useEffect(() => {
     let cancelled = false;
 
-    if (!review || !hasResourceShortfall || review.wallet.kind === 'watch-only') {
+    if (!review || !canRentResources || review.wallet.kind === 'watch-only') {
       setEnergyQuote(null);
       setEnergyQuoteLoading(false);
       return;
@@ -304,8 +305,8 @@ export default function SwapConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'swap',
       wallet: review.wallet.address,
-      requiredEnergy: resourceEnergyShortfall,
-      requiredBandwidth: resourceBandwidthShortfall,
+      requiredEnergy: resourceEnergyShortfall || estimatedEnergy,
+      requiredBandwidth: resourceBandwidthShortfall || estimatedBandwidth,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {
@@ -315,7 +316,14 @@ export default function SwapConfirmScreen() {
     return () => {
       cancelled = true;
     };
-  }, [hasResourceShortfall, resourceBandwidthShortfall, resourceEnergyShortfall, review]);
+  }, [
+    canRentResources,
+    estimatedBandwidth,
+    estimatedEnergy,
+    resourceBandwidthShortfall,
+    resourceEnergyShortfall,
+    review,
+  ]);
 
   const performRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || energyRenting) return;

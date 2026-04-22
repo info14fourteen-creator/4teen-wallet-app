@@ -206,9 +206,9 @@ export default function BuyConfirmScreen() {
   const hasNoEnergyAvailable = energyAvailable <= 0;
   const lockReleaseParts = review ? formatLockReleaseParts(review.lockReleaseAt) : null;
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
-  const hasResourceShortfall = Boolean(
+  const canRentResources = Boolean(
     review &&
-      (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
+      (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
   );
 
   const load = useCallback(async () => {
@@ -331,7 +331,7 @@ export default function BuyConfirmScreen() {
   useEffect(() => {
     let cancelled = false;
 
-    if (!review || !hasResourceShortfall || review.wallet.kind === 'watch-only') {
+    if (!review || !canRentResources || review.wallet.kind === 'watch-only') {
       setEnergyQuote(null);
       setEnergyQuoteLoading(false);
       return;
@@ -341,8 +341,9 @@ export default function BuyConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'direct_buy',
       wallet: review.wallet.address,
-      requiredEnergy: review.resources.energyShortfall,
-      requiredBandwidth: review.resources.bandwidthShortfall,
+      requiredEnergy: review.resources.energyShortfall || review.resources.estimatedEnergy,
+      requiredBandwidth:
+        review.resources.bandwidthShortfall || review.resources.estimatedBandwidth,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {
@@ -352,7 +353,7 @@ export default function BuyConfirmScreen() {
     return () => {
       cancelled = true;
     };
-  }, [hasResourceShortfall, review]);
+  }, [canRentResources, review]);
 
   const performRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || energyRenting) return;
