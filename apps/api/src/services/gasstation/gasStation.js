@@ -5,6 +5,7 @@ const { tronWeb } = require('../tron/client');
 
 const SUN = 1_000_000;
 const MIN_OPERATOR_RESERVE_SUN = 2 * SUN;
+const DEFAULT_BACKGROUND_REPLENISH_RESERVE_SUN = SUN;
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_BASE_URL = 'https://openapi.gasstation.ai';
 const DEFAULT_SERVICE_CHARGE_TYPE = '10010';
@@ -89,6 +90,16 @@ function fromSun(value) {
   }
 
   return num / SUN;
+}
+
+function normalizeSunAmount(value, fallback = 0) {
+  const parsed = Number(value || 0);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return Math.floor(parsed);
 }
 
 function pkcs7Pad(buffer) {
@@ -488,6 +499,15 @@ async function getOperatorState() {
   };
 }
 
+function getOperatorPrivateKey() {
+  return assertNonEmpty(
+    env.OPERATOR_WALLET_PRIVATE_KEY ||
+      env.MANAGER_WALLET_PRIVATE_KEY ||
+      env.TRON_PRIVATE_KEY,
+    'OPERATOR_WALLET_PRIVATE_KEY'
+  );
+}
+
 async function sendTrx(toAddress, amountSun) {
   const unsignedTx = await tronWeb.transactionBuilder.sendTrx(
     toAddress,
@@ -495,7 +515,7 @@ async function sendTrx(toAddress, amountSun) {
     env.OPERATOR_WALLET
   );
 
-  const signedTx = await tronWeb.trx.sign(unsignedTx, env.TRON_PRIVATE_KEY);
+  const signedTx = await tronWeb.trx.sign(unsignedTx, getOperatorPrivateKey());
   const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
 
   if (!broadcast?.result) {
@@ -503,6 +523,17 @@ async function sendTrx(toAddress, amountSun) {
   }
 
   return String(broadcast.txid || signedTx.txID || '');
+}
+
+async function resolveGasStationDepositAddress(client, gasBalance = null) {
+  const configured = String(env.GASSTATION_DEPOSIT_ADDRESS || '').trim();
+
+  if (configured) {
+    return configured;
+  }
+
+  const balance = gasBalance || await client.getBalance();
+  return String(balance?.deposit_address || '').trim();
 }
 
 async function topUpGasStationIfNeeded(client, requiredAmountSun) {
@@ -525,7 +556,7 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun) {
     throw new Error('Operator wallet does not have enough TRX to top up Gas Station balance');
   }
 
-  const depositAddress = String(gasBalance?.deposit_address || '');
+  const depositAddress = await resolveGasStationDepositAddress(client, gasBalance);
 
   if (!depositAddress) {
     throw new Error('Gas Station did not return deposit_address');
@@ -550,6 +581,93 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun) {
   }
 
   throw new Error('Gas Station balance did not update after top up');
+}
+
+async function replenishGasStationFromPayment(client, paymentAmountSunInput) {
+  const paymentAmountSun = normalizeSunAmount(paymentAmountSunInput);
+  const reserveSun = normalizeSunAmount(
+    env.GASSTATION_BACKGROUND_REPLENISH_RESERVE_SUN,
+    DEFAULT_BACKGROUND_REPLENISH_RESERVE_SUN
+  );
+  const topUpAmountSun = Math.max(0, paymentAmountSun - reserveSun);
+
+  if (topUpAmountSun <= 0) {
+    return {
+      toppedUp: false,
+      reason: 'payment amount is not above reserve',
+      paymentAmountSun,
+      reserveSun,
+      topUpAmountSun: 0
+    };
+  }
+
+  const operator = await getOperatorState();
+  const availableForTopUpSun = Math.max(0, operator.balanceSun - reserveSun);
+  const finalTopUpSun = Math.min(topUpAmountSun, availableForTopUpSun);
+
+  if (finalTopUpSun <= 0) {
+    return {
+      toppedUp: false,
+      reason: 'operator wallet does not have spendable balance',
+      paymentAmountSun,
+      reserveSun,
+      topUpAmountSun
+    };
+  }
+
+  const depositAddress = await resolveGasStationDepositAddress(client);
+  const topUpTxHash = await sendTrx(depositAddress, finalTopUpSun);
+
+  return {
+    toppedUp: true,
+    paymentAmountSun,
+    reserveSun,
+    topUpAmountSun: finalTopUpSun,
+    depositAddress,
+    topUpTxHash
+  };
+}
+
+function scheduleGasStationReplenishment(client, paymentAmountSun, context = {}) {
+  const amountSun = normalizeSunAmount(paymentAmountSun);
+
+  if (amountSun <= 0) {
+    return null;
+  }
+
+  const task = async () => {
+    try {
+      const result = await replenishGasStationFromPayment(client, amountSun);
+      console.info('[GasStation] background replenish complete', {
+        purpose: context.purpose || null,
+        paymentTxid: context.paymentTxid || null,
+        toppedUp: result.toppedUp,
+        topUpAmountSun: result.topUpAmountSun,
+        topUpTxHash: result.topUpTxHash || null
+      });
+      return result;
+    } catch (error) {
+      console.error('[GasStation] background replenish failed', {
+        purpose: context.purpose || null,
+        paymentTxid: context.paymentTxid || null,
+        error: error.message
+      });
+      return null;
+    }
+  };
+
+  setTimeout(() => {
+    task().catch(() => null);
+  }, 0);
+
+  return {
+    scheduled: true,
+    paymentAmountSun: amountSun,
+    reserveSun: normalizeSunAmount(
+      env.GASSTATION_BACKGROUND_REPLENISH_RESERVE_SUN,
+      DEFAULT_BACKGROUND_REPLENISH_RESERVE_SUN
+    )
+  };
 }
 
 function computeRequiredOrders(state) {
@@ -770,7 +888,13 @@ async function quoteResourceRental({ energyNum = 0, bandwidthNum = 0 }) {
   });
 }
 
-async function rentEnergyForWallet({ receiveAddress, energyNum, requestPrefix = 'energy' }) {
+async function rentEnergyForWallet({
+  receiveAddress,
+  energyNum,
+  requestPrefix = 'energy',
+  paymentAmountSun = 0,
+  context = {}
+}) {
   if (!String(env.GASSTATION_ENABLED).toLowerCase().includes('true')) {
     throw new Error('Gas Station is disabled');
   }
@@ -783,6 +907,12 @@ async function rentEnergyForWallet({ receiveAddress, energyNum, requestPrefix = 
       bandwidthQuantity: 0
     });
     const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun);
+    const backgroundReplenishment = topUp?.toppedUp
+      ? null
+      : scheduleGasStationReplenishment(client, paymentAmountSun, {
+          ...context,
+          purpose: context.purpose || requestPrefix
+        });
     const requestId = buildRequestId(requestPrefix);
     const created = await client.createEnergyOrder({
       requestId,
@@ -800,6 +930,7 @@ async function rentEnergyForWallet({ receiveAddress, energyNum, requestPrefix = 
       row: finalRow || null,
       estimate,
       topUp,
+      backgroundReplenishment,
       gasStationAccount: client.label
     };
   });
@@ -809,7 +940,9 @@ async function rentResourcesForWallet({
   receiveAddress,
   energyNum = 0,
   bandwidthNum = 0,
-  requestPrefix = 'resource'
+  requestPrefix = 'resource',
+  paymentAmountSun = 0,
+  context = {}
 }) {
   if (!String(env.GASSTATION_ENABLED).toLowerCase().includes('true')) {
     throw new Error('Gas Station is disabled');
@@ -832,6 +965,12 @@ async function rentResourcesForWallet({
       bandwidthQuantity
     });
     const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun);
+    const backgroundReplenishment = topUp?.toppedUp
+      ? null
+      : scheduleGasStationReplenishment(client, paymentAmountSun, {
+          ...context,
+          purpose: context.purpose || requestPrefix
+        });
     const createdOrders = [];
 
     if (energyQuantity > 0) {
@@ -877,6 +1016,7 @@ async function rentResourcesForWallet({
       orders: createdOrders,
       estimate,
       topUp,
+      backgroundReplenishment,
       gasStationAccount: client.label
     };
   });

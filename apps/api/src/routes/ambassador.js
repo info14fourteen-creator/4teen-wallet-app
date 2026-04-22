@@ -607,7 +607,12 @@ router.post('/registration-energy/confirm', async (req, res) => {
       const rented = await rentEnergyForWallet({
         receiveAddress: wallet,
         energyNum: quote.energyQuantity,
-        requestPrefix: 'amb-reg-energy'
+        requestPrefix: 'amb-reg-energy',
+        paymentAmountSun: payment.amountSun,
+        context: {
+          purpose: 'ambassador_registration',
+          paymentTxid
+        }
       });
 
       const updated = await pool.query(

@@ -396,7 +396,7 @@ async function confirmEnergyResalePayment({
           status,
           row_json
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'waiting_resale',$9)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
       `,
       [
         resolvedPurpose,
@@ -407,7 +407,8 @@ async function confirmEnergyResalePayment({
         packageConfig.amountSun,
         packageConfig.energyQuantity,
         packageConfig.readyEnergy,
-        JSON.stringify({ mode: 'resale', package: packageConfig, payment })
+        packageConfig.mode === 'api' ? 'waiting_api' : 'waiting_resale',
+        JSON.stringify({ mode: packageConfig.mode, package: packageConfig, payment })
       ]
     );
   }
@@ -417,7 +418,12 @@ async function confirmEnergyResalePayment({
       receiveAddress: resolvedWallet,
       energyNum: packageConfig.energyQuantity,
       bandwidthNum: packageConfig.bandwidthQuantity,
-      requestPrefix: `energy-resale-${resolvedPurpose}`
+      requestPrefix: `energy-resale-${resolvedPurpose}`,
+      paymentAmountSun: payment.amountSun,
+      context: {
+        purpose: resolvedPurpose,
+        paymentTxid: txid
+      }
     });
 
     const updated = await pool.query(
