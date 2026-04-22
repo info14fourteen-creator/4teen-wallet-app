@@ -1,4 +1,5 @@
 const env = require('../../config/env');
+const { proxyRequest } = require('./apiProxy');
 
 const TRONSCAN_BASE_URL = 'https://apilist.tronscanapi.com/api';
 
@@ -50,23 +51,27 @@ function formatTokenBalance(rawBalance, decimals) {
   });
 }
 
-async function fetchTrongrid(path, params) {
-  const url = buildUrl(env.TRON_FULL_HOST, path, params);
-  const response = await fetch(url, {
-    headers: buildHeaders(env.TRONGRID_API_KEY)
+async function fetchViaProxy(provider, path, params) {
+  const response = await proxyRequest({
+    provider,
+    path,
+    query: params || {},
+    method: 'GET'
   });
 
-  return safeJson(response);
+  try {
+    return response.body ? JSON.parse(response.body) : null;
+  } catch (_) {
+    throw new Error(`${provider} returned invalid JSON`);
+  }
+}
+
+async function fetchTrongrid(path, params) {
+  return fetchViaProxy('trongrid', path, params);
 }
 
 async function fetchTronscan(path, params) {
-  const apiKey = env.TRONSCAN_API_KEY || env.TRONGRID_API_KEY;
-  const url = buildUrl(TRONSCAN_BASE_URL, path, params);
-  const response = await fetch(url, {
-    headers: buildHeaders(apiKey)
-  });
-
-  return safeJson(response);
+  return fetchViaProxy('tronscan', path, params);
 }
 
 async function getAccountInfo(address) {

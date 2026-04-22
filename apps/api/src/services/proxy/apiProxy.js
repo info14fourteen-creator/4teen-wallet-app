@@ -249,5 +249,6 @@ async function handleProxyRequest(req, res, provider, path) {
 }
 
 module.exports = {
-  handleProxyRequest
+  handleProxyRequest,
+  proxyRequest
 };
