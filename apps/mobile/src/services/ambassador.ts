@@ -71,26 +71,6 @@ type FourteenControllerContract = {
   };
 };
 
-type BackendAmbassadorProfilePayload = {
-  ok?: boolean;
-  registered?: boolean;
-  exists?: boolean;
-  isRegistered?: boolean;
-  result?: {
-    wallet?: string;
-    ambassadorWallet?: string;
-    slug?: string;
-    referralSlug?: string;
-    handle?: string;
-    status?: string;
-    referralLink?: string;
-    link?: string;
-    registered?: boolean;
-    exists?: boolean;
-    isRegistered?: boolean;
-  };
-};
-
 type CabinetRowsPayload = {
   ok?: boolean;
   total?: number;
@@ -100,6 +80,11 @@ type CabinetRowsPayload = {
 type CabinetSummaryPayload = {
   ok?: boolean;
   summary?: AmbassadorCabinetSummary;
+};
+
+type WalletApiCabinetPayload = {
+  ok?: boolean;
+  result?: AmbassadorCabinetDashboard;
 };
 
 export type AmbassadorProfile = {
@@ -151,6 +136,12 @@ export type AmbassadorCabinetDashboard = {
   buyersTotal: number;
   purchasesTotal: number;
   pendingTotal: number;
+  source?: {
+    onChain?: boolean;
+    db?: boolean;
+    dbError?: string | null;
+    onChainError?: string | null;
+  };
 };
 
 export type AmbassadorScreenSnapshot = {
@@ -417,36 +408,6 @@ async function fetchJsonOrThrow<T>(
   return payload as T;
 }
 
-function normalizeRegisteredProfile(payload: BackendAmbassadorProfilePayload | null) {
-  if (!payload || typeof payload !== 'object') return null;
-
-  const result =
-    payload.result && typeof payload.result === 'object'
-      ? payload.result
-      : (payload as NonNullable<BackendAmbassadorProfilePayload['result']>);
-  const registered =
-    payload.registered === true ||
-    payload.exists === true ||
-    payload.isRegistered === true ||
-    result?.registered === true ||
-    result?.exists === true ||
-    result?.isRegistered === true ||
-    Boolean(result?.slug || result?.referralSlug || result?.handle);
-
-  if (!registered || !result) return null;
-
-  const slug = normalizeAmbassadorSlug(result.slug || result.referralSlug || result.handle || '');
-  const wallet = normalizeAddress(result.wallet || result.ambassadorWallet || '');
-  const referralLink = String(result.referralLink || result.link || '').trim();
-
-  return {
-    wallet,
-    slug,
-    status: String(result.status || '').trim().toLowerCase() || 'active',
-    referralLink: referralLink || buildAmbassadorReferralLink(slug),
-  } satisfies AmbassadorProfile;
-}
-
 function readTupleValue(raw: unknown, index: number, name?: string) {
   const record = raw as Record<string, unknown> | null | undefined;
   const value =
@@ -571,36 +532,6 @@ async function lookupAmbassadorOnChain(
   return profile;
 }
 
-function mergeAmbassadorProfiles(
-  onChainProfile: AmbassadorProfile,
-  backendProfile: AmbassadorProfile | null
-) {
-  const slug = backendProfile?.slug || onChainProfile.slug;
-
-  return {
-    wallet: onChainProfile.wallet,
-    slug,
-    status: onChainProfile.status,
-    referralLink:
-      backendProfile?.referralLink ||
-      onChainProfile.referralLink ||
-      buildAmbassadorReferralLink(slug),
-  } satisfies AmbassadorProfile;
-}
-
-async function lookupAmbassadorByWallet(walletAddress: string) {
-  const payload = await fetchJsonOrThrow<BackendAmbassadorProfilePayload>(
-    buildBackendUrl('/ambassador/by-wallet', { wallet: walletAddress }),
-    {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      notFoundAsNull: true,
-    }
-  );
-
-  return normalizeRegisteredProfile(payload);
-}
-
 async function fetchCabinetRows(path: string) {
   const payload = await fetchJsonOrThrow<CabinetRowsPayload>(buildBackendUrl(path), {
     method: 'GET',
@@ -643,6 +574,52 @@ export async function loadAmbassadorCabinet(
 ): Promise<AmbassadorCabinetDashboard | null> {
   const wallet = normalizeAddress(profile.wallet);
   if (!wallet) return null;
+
+  const proxyPayload = await fetchJsonOrThrow<WalletApiCabinetPayload>(
+    buildWalletApiUrl(`/ambassador/cabinet/${encodeURIComponent(wallet)}`, {
+      limit: 100,
+      offset: 0,
+    }),
+    {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      notFoundAsNull: true,
+    }
+  ).catch((error) => {
+    console.error('[4TEEN] ambassador proxy cabinet failed', error);
+    return null;
+  });
+
+  if (proxyPayload?.result?.summary) {
+    const proxyProfile = proxyPayload.result.profile || profile;
+    const summarySlug = normalizeAmbassadorSlug(String(proxyPayload.result.summary.slug || ''));
+    const slug = normalizeAmbassadorSlug(proxyProfile.slug || profile.slug || summarySlug);
+    const resolvedProfile = {
+      ...profile,
+      ...proxyProfile,
+      wallet,
+      slug,
+      referralLink:
+        proxyProfile.referralLink ||
+        profile.referralLink ||
+        buildAmbassadorReferralLink(slug),
+      status:
+        proxyPayload.result.summary.active === false
+          ? 'inactive'
+          : proxyProfile.status || profile.status || 'active',
+    };
+
+    return {
+      ...proxyPayload.result,
+      profile: resolvedProfile,
+      buyersRows: Array.isArray(proxyPayload.result.buyersRows) ? proxyPayload.result.buyersRows : [],
+      purchasesRows: Array.isArray(proxyPayload.result.purchasesRows) ? proxyPayload.result.purchasesRows : [],
+      pendingRows: Array.isArray(proxyPayload.result.pendingRows) ? proxyPayload.result.pendingRows : [],
+      buyersTotal: Number(proxyPayload.result.buyersTotal || 0) || 0,
+      purchasesTotal: Number(proxyPayload.result.purchasesTotal || 0) || 0,
+      pendingTotal: Number(proxyPayload.result.pendingTotal || 0) || 0,
+    };
+  }
 
   const summaryPayload = await fetchJsonOrThrow<CabinetSummaryPayload>(
     buildBackendUrl(`/cabinet/ambassador/${encodeURIComponent(wallet)}/summary`),
@@ -1200,11 +1177,13 @@ async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<Am
     };
   }
 
-  const backendProfile = await lookupAmbassadorByWallet(wallet.address).catch(() => null);
-  const profile = mergeAmbassadorProfiles(onChainProfile, backendProfile);
-  if (backendProfile?.slug) {
-    await saveLocalAmbassadorSlug(wallet.address, backendProfile.slug);
+  const cabinet = await loadAmbassadorCabinet(onChainProfile).catch(() => null);
+  const profile = cabinet?.profile || onChainProfile;
+
+  if (profile.slug) {
+    await saveLocalAmbassadorSlug(wallet.address, profile.slug);
   }
+
   await writeAmbassadorIdentityCache({
     wallet: wallet.address,
     registered: true,
@@ -1212,7 +1191,6 @@ async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<Am
     slug: profile.slug,
     referralLink: profile.referralLink,
   });
-  const cabinet = await loadAmbassadorCabinet(profile).catch(() => null);
 
   return {
     wallet,
