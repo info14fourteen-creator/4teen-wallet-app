@@ -2,7 +2,10 @@ const express = require('express');
 const env = require('../config/env');
 const { pool } = require('../db/pool');
 const { loadAmbassadorCabinetDb } = require('../db/queries/ambassadorCabinet');
-const { readAmbassadorDashboardOnChain } = require('../services/ambassador/controller');
+const {
+  getWithdrawalEventByTxHash,
+  readAmbassadorDashboardOnChain
+} = require('../services/ambassador/controller');
 const { tronWeb } = require('../services/tron/client');
 const {
   quoteEnergyRental,
@@ -494,6 +497,72 @@ router.post('/registration-energy/confirm', async (req, res) => {
 
       throw rentError;
     }
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/withdrawal/confirm', async (req, res) => {
+  try {
+    const wallet = normalizeWallet(req.body?.wallet);
+    const txid = normalizeTxid(req.body?.txid);
+
+    if (!wallet) {
+      return res.status(400).json({ ok: false, error: 'wallet is required' });
+    }
+
+    if (!isValidTronAddress(wallet)) {
+      return res.status(400).json({ ok: false, error: 'invalid TRON address' });
+    }
+
+    if (!txid) {
+      return res.status(400).json({ ok: false, error: 'txid is required' });
+    }
+
+    const event = await getWithdrawalEventByTxHash(txid);
+
+    if (event.ambassadorWallet !== wallet) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Withdrawal transaction does not belong to the provided wallet'
+      });
+    }
+
+    const insertResult = await pool.query(
+      `
+        INSERT INTO ambassador_reward_withdrawals (
+          ambassador_wallet,
+          amount_sun,
+          tx_hash,
+          block_time
+        )
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (tx_hash)
+        DO NOTHING
+        RETURNING
+          id,
+          ambassador_wallet,
+          amount_sun,
+          tx_hash,
+          block_time,
+          created_at
+      `,
+      [event.ambassadorWallet, event.amountSun, event.txHash, event.blockTime]
+    );
+
+    return res.json({
+      ok: true,
+      result: {
+        wallet,
+        txid: event.txHash,
+        amountSun: event.amountSun,
+        blockTime: event.blockTime,
+        inserted: insertResult.rowCount > 0
+      }
+    });
   } catch (error) {
     return res.status(error.status || 500).json({
       ok: false,

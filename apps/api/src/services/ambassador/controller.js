@@ -67,6 +67,34 @@ function readTupleBoolean(raw, index, name) {
   return value === 'true' || value === '1';
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function toBase58Address(value) {
+  if (!value) return null;
+
+  try {
+    if (typeof value === 'string' && value.startsWith('T')) {
+      return value;
+    }
+
+    let hex = String(value).trim().toLowerCase();
+
+    if (hex.startsWith('0x')) {
+      hex = hex.slice(2);
+    }
+
+    if (!hex.startsWith('41')) {
+      hex = `41${hex}`;
+    }
+
+    return tronWeb.address.fromHex(hex);
+  } catch (_) {
+    return null;
+  }
+}
+
 async function getControllerContract(ownerAddress) {
   if (ownerAddress) {
     tronWeb.setAddress(ownerAddress);
@@ -111,6 +139,45 @@ async function readAmbassadorDashboardOnChain(wallet) {
   };
 }
 
+async function waitForControllerEventByTxHash(txHash, eventName, { attempts = 12, delayMs = 2500 } = {}) {
+  const normalizedTxHash = String(txHash || '').trim().toLowerCase();
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const response = await tronWeb.getEventByTransactionID(normalizedTxHash);
+    const list = Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : [];
+    const match = list.find((item) => {
+      const itemEventName = String(item?.event_name || '');
+      const contractAddress = toBase58Address(item?.contract_address);
+
+      return itemEventName === eventName && contractAddress === env.FOURTEEN_CONTROLLER_CONTRACT;
+    });
+
+    if (match) {
+      return match;
+    }
+
+    if (attempt < attempts && delayMs > 0) {
+      await sleep(delayMs);
+    }
+  }
+
+  throw new Error(`${eventName} event not found for transaction`);
+}
+
+async function getWithdrawalEventByTxHash(txHash) {
+  const event = await waitForControllerEventByTxHash(txHash, 'RewardsWithdrawn');
+  const result = event?.result || {};
+  const blockTimestamp = Number(event?.block_timestamp || 0);
+
+  return {
+    txHash: String(event?.transaction_id || txHash || '').trim().toLowerCase(),
+    ambassadorWallet: toBase58Address(result.ambassador || result['0']),
+    amountSun: String(result.amountSun || result['1'] || 0),
+    blockTime: blockTimestamp ? new Date(blockTimestamp).toISOString() : new Date().toISOString()
+  };
+}
+
 module.exports = {
+  getWithdrawalEventByTxHash,
   readAmbassadorDashboardOnChain
 };

@@ -20,7 +20,6 @@ import {
   loadAmbassadorScreenSnapshot,
   normalizeAmbassadorSlug,
   replayAmbassadorPendingRewards,
-  withdrawAmbassadorRewards,
   type AmbassadorCabinetDashboard,
   type AmbassadorScreenSnapshot,
 } from '../src/services/ambassador';
@@ -333,22 +332,8 @@ export default function AmbassadorProgramScreen() {
   }, [canRegister, notice, router, slug]);
 
   const handleWithdraw = useCallback(async () => {
-    try {
-      setBusyAction('withdraw');
-      const receipt = await withdrawAmbassadorRewards();
-      notice.showSuccessNotice('Withdrawal transaction sent.', 2600);
-      await openInAppBrowser(router, receipt.explorerUrl);
-      await load({ silent: true, force: true });
-    } catch (error) {
-      console.error(error);
-      notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Withdrawal failed.',
-        3200
-      );
-    } finally {
-      setBusyAction(null);
-    }
-  }, [load, notice, router]);
+    router.push('/ambassador-withdraw-confirm');
+  }, [router]);
 
   const handleReplayPending = useCallback(async () => {
     if (!profile?.wallet) return;

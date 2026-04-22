@@ -2,6 +2,11 @@ import { TronWeb } from 'tronweb';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { buildTrongridHeaders, FOURTEEN_API_BASE_URL, TRONGRID_BASE_URL } from '../config/tron';
+import { getTokenDetails, TRX_TOKEN_ID } from './tron/api';
+import {
+  estimateContractCallResources,
+  type ContractCallResourceEstimate,
+} from './wallet/resources';
 import { normalizePrivateKey, isValidPrivateKey } from './wallet/import';
 import {
   getActiveWallet,
@@ -190,6 +195,19 @@ export type AmbassadorWithdrawalReceipt = {
   wallet: WalletMeta;
   txId: string;
   explorerUrl: string;
+};
+
+export type AmbassadorWithdrawalReview = {
+  wallet: WalletMeta;
+  controllerAddress: string;
+  claimableRewardsSun: string;
+  resources: ContractCallResourceEstimate;
+  trxCoverage: {
+    trxBalanceSun: number;
+    trxBalanceDisplay: string;
+    missingTrxSun: number;
+    canCoverBurn: boolean;
+  };
 };
 
 type AmbassadorCacheEntry = {
@@ -558,6 +576,21 @@ export function formatTrxFromSun(value: unknown) {
   }
 
   return trx >= 1 ? trx.toFixed(2) : trx.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function formatTrxBalanceDisplay(valueSun: number) {
+  const value = Math.max(0, Number(valueSun || 0)) / 1_000_000;
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return '0.00 TRX';
+  }
+
+  return `${value.toFixed(value >= 1 ? 2 : 6).replace(/\.?0+$/, '')} TRX`;
+}
+
+function normalizeSunInteger(value: unknown) {
+  const raw = String(value ?? '0').trim();
+  return /^\d+$/.test(raw) ? raw : '0';
 }
 
 export function levelToLabel(level: unknown) {
@@ -1075,14 +1108,14 @@ export async function withdrawAmbassadorRewards(): Promise<AmbassadorWithdrawalR
     throw new Error('Withdrawal transaction sent but txid was not returned.');
   }
 
-  await fetchJsonOrThrow(buildBackendUrl('/cabinet/confirm-withdrawal'), {
+  await fetchJsonOrThrow(buildWalletApiUrl('/ambassador/withdrawal/confirm'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       wallet: wallet.address,
       txid: txId,
     }),
-  }).catch(() => null);
+  });
 
   ambassadorMemoryCache.delete(wallet.address);
 
@@ -1090,6 +1123,49 @@ export async function withdrawAmbassadorRewards(): Promise<AmbassadorWithdrawalR
     wallet,
     txId,
     explorerUrl: `https://tronscan.org/#/transaction/${txId}`,
+  };
+}
+
+export async function estimateAmbassadorWithdrawal(): Promise<AmbassadorWithdrawalReview> {
+  const { wallet, privateKey } = await getSigningWalletContext();
+  const profile = await lookupAmbassadorOnChain(wallet.address, { force: true });
+
+  if (!profile) {
+    throw new Error('This wallet is not registered as ambassador.');
+  }
+
+  const cabinet = await loadAmbassadorCabinet(profile).catch(() => null);
+  const claimableRewardsSun = normalizeSunInteger(cabinet?.summary?.claimable_rewards_sun);
+
+  if (BigInt(claimableRewardsSun) <= 0n) {
+    throw new Error('No on-chain rewards are available for withdrawal yet.');
+  }
+
+  const tronWeb = createTronWeb(privateKey, wallet.address);
+  const resources = await estimateContractCallResources({
+    tronWeb,
+    privateKey,
+    ownerAddress: wallet.address,
+    contractAddress: FOURTEEN_CONTROLLER_ADDRESS,
+    functionSelector: 'withdrawRewards()',
+    feeLimitSun: DEFAULT_WITHDRAW_FEE_LIMIT_SUN,
+    maxFeeLimitSun: DEFAULT_WITHDRAW_FEE_LIMIT_SUN,
+  });
+  const trxBalance = await getTokenDetails(wallet.address, TRX_TOKEN_ID, false, wallet.id);
+  const trxBalanceSun = Math.max(0, Number(trxBalance.balanceRaw || '0'));
+  const missingTrxSun = Math.max(0, resources.estimatedBurnSun - trxBalanceSun);
+
+  return {
+    wallet,
+    controllerAddress: FOURTEEN_CONTROLLER_ADDRESS,
+    claimableRewardsSun,
+    resources,
+    trxCoverage: {
+      trxBalanceSun,
+      trxBalanceDisplay: formatTrxBalanceDisplay(trxBalanceSun),
+      missingTrxSun,
+      canCoverBurn: trxBalanceSun >= resources.estimatedBurnSun,
+    },
   };
 }
 
