@@ -3,7 +3,9 @@ const env = require('../../config/env');
 const TRONSCAN_BASE_URL = 'https://apilist.tronscanapi.com/api';
 
 function buildUrl(base, path, params) {
-  const url = new URL(path, base);
+  const normalizedBase = String(base || '').replace(/\/+$/, '');
+  const normalizedPath = String(path || '').startsWith('/') ? path : `/${path || ''}`;
+  const url = new URL(`${normalizedBase}${normalizedPath}`);
 
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
