@@ -258,6 +258,8 @@ export default function SendConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'send_transfer',
       wallet: estimate.wallet.address,
+      requiredEnergy: estimate.resources.energyShortfall,
+      requiredBandwidth: estimate.resources.bandwidthShortfall,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {

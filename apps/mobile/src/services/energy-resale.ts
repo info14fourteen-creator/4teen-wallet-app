@@ -20,7 +20,12 @@ export type EnergyResaleQuote = {
   amountSun: string;
   amountTrx: string;
   energyQuantity: number;
+  bandwidthQuantity?: number;
   readyEnergy?: number;
+  readyBandwidth?: number;
+  requiredEnergy?: number;
+  requiredBandwidth?: number;
+  packageCount?: number;
   rentalPeriodSeconds?: number;
   label?: string;
 };
@@ -36,6 +41,7 @@ export type EnergyResaleStatus = {
   wallet: string;
   ready: boolean;
   requiredEnergy: number;
+  requiredBandwidth?: number;
   energyState?: {
     energyLimit?: number;
     energyUsed?: number;
@@ -104,6 +110,8 @@ async function fetchJsonOrThrow<T>(url: string, options: RequestInit): Promise<T
 export async function getEnergyResaleQuote(input: {
   purpose: EnergyResalePurpose;
   wallet: string;
+  requiredEnergy?: number;
+  requiredBandwidth?: number;
 }): Promise<EnergyResaleQuote | null> {
   try {
     const payload = await fetchJsonOrThrow<{ ok?: boolean; result?: EnergyResaleQuote }>(
@@ -126,6 +134,8 @@ export async function confirmEnergyResalePayment(input: {
   purpose: EnergyResalePurpose;
   wallet: string;
   paymentTxId: string;
+  requiredEnergy?: number;
+  requiredBandwidth?: number;
 }): Promise<EnergyResaleConfirmation> {
   try {
     const payload = await fetchJsonOrThrow<{
@@ -146,6 +156,8 @@ export async function confirmEnergyResalePayment(input: {
     const status = await waitForEnergyResaleReady({
       purpose: input.purpose,
       wallet: input.wallet,
+      requiredEnergy: input.requiredEnergy,
+      requiredBandwidth: input.requiredBandwidth,
     });
 
     return {
@@ -161,11 +173,15 @@ export async function confirmEnergyResalePayment(input: {
 export async function getEnergyResaleStatus(input: {
   purpose: EnergyResalePurpose;
   wallet: string;
+  requiredEnergy?: number;
+  requiredBandwidth?: number;
 }): Promise<EnergyResaleStatus> {
   const payload = await fetchJsonOrThrow<{ ok?: boolean; result?: EnergyResaleStatus }>(
     buildApiUrl('/energy-resale/status', {
       purpose: input.purpose,
       wallet: input.wallet,
+      requiredEnergy: input.requiredEnergy ? String(input.requiredEnergy) : '',
+      requiredBandwidth: input.requiredBandwidth ? String(input.requiredBandwidth) : '',
     }),
     { method: 'GET' }
   );
@@ -180,6 +196,8 @@ export async function getEnergyResaleStatus(input: {
 async function waitForEnergyResaleReady(input: {
   purpose: EnergyResalePurpose;
   wallet: string;
+  requiredEnergy?: number;
+  requiredBandwidth?: number;
 }) {
   let lastStatus: EnergyResaleStatus | null = null;
 
@@ -214,6 +232,8 @@ export async function rentEnergyForPurpose(input: {
     purpose: input.purpose,
     wallet: input.wallet,
     paymentTxId: payment.txId,
+    requiredEnergy: input.quote.requiredEnergy,
+    requiredBandwidth: input.quote.requiredBandwidth,
   });
 
   return {

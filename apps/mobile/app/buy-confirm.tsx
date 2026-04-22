@@ -341,6 +341,8 @@ export default function BuyConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'direct_buy',
       wallet: review.wallet.address,
+      requiredEnergy: review.resources.energyShortfall,
+      requiredBandwidth: review.resources.bandwidthShortfall,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {

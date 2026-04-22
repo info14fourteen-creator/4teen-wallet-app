@@ -23,9 +23,11 @@ import {
   registerAmbassador,
   type AmbassadorRegistrationEnergyQuote,
 } from '../src/services/ambassador';
-import { TRX_TOKEN_ID } from '../src/services/tron/api';
+import { clearWalletRuntimeCaches, TRX_TOKEN_ID } from '../src/services/tron/api';
 import { sendAssetTransfer } from '../src/services/wallet/send';
+import EnergyResaleCard from '../src/ui/energy-resale-card';
 import { getActiveWallet, type WalletMeta } from '../src/services/wallet/storage';
+import type { EnergyResaleQuote } from '../src/services/energy-resale';
 import { getBiometricsEnabled, verifyPasscode } from '../src/security/local-auth';
 import { useNotice } from '../src/notice/notice-provider';
 import { colors, layout, radius } from '../src/theme/tokens';
@@ -112,6 +114,23 @@ export default function AmbassadorConfirmScreen() {
     !slugAvailable ||
     !isValidAmbassadorSlug(requestedSlug);
   const isRentApproveDisabled = isApproveDisabled || !energyQuote;
+  const energyResaleQuote = useMemo<EnergyResaleQuote | null>(() => {
+    if (!energyQuote) return null;
+
+    return {
+      purpose: 'ambassador_registration',
+      mode: energyQuote.mode,
+      wallet: energyQuote.wallet || wallet?.address || null,
+      paymentAddress: energyQuote.paymentAddress,
+      amountSun: energyQuote.amountSun,
+      amountTrx: energyQuote.amountTrx,
+      energyQuantity: energyQuote.energyQuantity,
+      readyEnergy: energyQuote.readyEnergy,
+      requiredEnergy: energyQuote.energyQuantity,
+      packageCount: 1,
+      label: 'Ambassador registration',
+    };
+  }, [energyQuote, wallet?.address]);
 
   const load = useCallback(async () => {
     try {
@@ -263,6 +282,7 @@ export default function AmbassadorConfirmScreen() {
           slug: requestedSlug,
           paymentTxId: payment.txId,
         });
+        clearWalletRuntimeCaches(wallet.address);
         setEnergyRentalText('Energy is available. Sending ambassador registration...');
       }
 
@@ -442,25 +462,12 @@ export default function AmbassadorConfirmScreen() {
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={[
-                  styles.energyRentButton,
-                  isRentApproveDisabled && styles.primaryButtonDisabled,
-                ]}
-                onPress={() => void handleApprove('rent')}
+              <EnergyResaleCard
+                quote={energyResaleQuote}
+                processing={submitting && pendingApprovalMode === 'rent'}
                 disabled={isRentApproveDisabled}
-              >
-                {submitting && pendingApprovalMode === 'rent' ? (
-                  <ActivityIndicator color={colors.white} />
-                ) : (
-                  <Text style={styles.energyRentButtonText}>
-                    {energyQuote
-                      ? `RENT ENERGY · ${energyQuote.amountTrx} TRX`
-                      : 'RENT ENERGY'}
-                  </Text>
-                )}
-              </TouchableOpacity>
+                onRent={() => void handleApprove('rent')}
+              />
 
               <View style={styles.detailCard}>
                 <DetailRow label="Access" value={formatWalletAccessLabel(wallet.kind)} />

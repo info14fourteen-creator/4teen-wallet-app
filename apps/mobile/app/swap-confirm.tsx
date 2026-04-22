@@ -304,6 +304,8 @@ export default function SwapConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'swap',
       wallet: review.wallet.address,
+      requiredEnergy: resourceEnergyShortfall,
+      requiredBandwidth: resourceBandwidthShortfall,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {
@@ -313,7 +315,7 @@ export default function SwapConfirmScreen() {
     return () => {
       cancelled = true;
     };
-  }, [hasResourceShortfall, review]);
+  }, [hasResourceShortfall, resourceBandwidthShortfall, resourceEnergyShortfall, review]);
 
   const performRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || energyRenting) return;

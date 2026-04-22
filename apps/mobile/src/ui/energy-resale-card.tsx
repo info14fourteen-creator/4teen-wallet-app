@@ -38,21 +38,58 @@ export default function EnergyResaleCard({
     return null;
   }
 
+  const packageCount = Math.max(1, Math.floor(Number(quote.packageCount || 1)));
+  const requiredEnergy = Math.max(0, Math.floor(Number(quote.requiredEnergy || 0)));
+  const requiredBandwidth = Math.max(0, Math.floor(Number(quote.requiredBandwidth || 0)));
+  const readyEnergy = Math.max(0, Math.floor(Number(quote.readyEnergy || quote.energyQuantity || 0)));
+  const readyBandwidth = Math.max(
+    0,
+    Math.floor(Number(quote.readyBandwidth || quote.bandwidthQuantity || 0))
+  );
+  const title = readyEnergy > 0 && readyBandwidth > 0
+    ? 'Rent Resources'
+    : readyBandwidth > 0
+      ? 'Rent Bandwidth'
+      : 'Rent Energy';
+  const buttonLabel = readyEnergy > 0 && readyBandwidth > 0
+    ? 'RENT RESOURCES'
+    : readyBandwidth > 0
+      ? 'RENT BANDWIDTH'
+      : 'RENT ENERGY';
+  const resourceLabel = [
+    readyEnergy > 0 ? `${formatEnergy(readyEnergy)} Energy` : '',
+    readyBandwidth > 0 ? `${formatEnergy(readyBandwidth)} Bandwidth` : '',
+  ].filter(Boolean).join(' + ');
+
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.eyebrow}>GASSTATION</Text>
-          <Text style={styles.title}>Rent Energy</Text>
+          <Text style={styles.title}>{title}</Text>
         </View>
 
         <Text style={styles.amount}>{quote.amountTrx} TRX</Text>
       </View>
 
       <Text style={styles.text}>
-        {formatEnergy(quote.energyQuantity)} Energy package. The app waits for delivery and
+        {resourceLabel || 'Resource'} rental
+        {packageCount > 1 ? ` · ${packageCount} quick packs` : ''}. The app waits for delivery and
         refreshes this confirmation automatically.
       </Text>
+
+      {requiredEnergy > 0 || requiredBandwidth > 0 ? (
+        <View style={styles.requirementsRow}>
+          {requiredEnergy > 0 ? (
+            <Text style={styles.requirementText}>Needs {formatEnergy(requiredEnergy)} Energy</Text>
+          ) : null}
+          {requiredBandwidth > 0 ? (
+            <Text style={styles.requirementText}>
+              Needs {formatEnergy(requiredBandwidth)} Bandwidth
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <TouchableOpacity
         activeOpacity={0.9}
@@ -63,7 +100,7 @@ export default function EnergyResaleCard({
         {processing ? (
           <ActivityIndicator color={colors.white} />
         ) : (
-          <Text style={styles.buttonText}>RENT ENERGY</Text>
+          <Text style={styles.buttonText}>{buttonLabel}</Text>
         )}
       </TouchableOpacity>
     </View>
@@ -109,6 +146,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
+  },
+  requirementsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  requirementText: {
+    color: colors.text,
+    fontSize: 10,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.2,
   },
   button: {
     minHeight: 46,

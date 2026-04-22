@@ -2,6 +2,10 @@ const env = require('../../config/env');
 const { pool } = require('../../db/pool');
 const { tronWeb } = require('../tron/client');
 const { readTrxPayment } = require('../tron/payments');
+const {
+  quoteResourceRental,
+  rentResourcesForWallet
+} = require('./gasStation');
 
 const SUN = 1_000_000n;
 
@@ -17,8 +21,27 @@ function normalizeWallet(value) {
   return String(value || '').trim();
 }
 
+function normalizeResourceRequirement(value) {
+  const numeric = Number(value || 0);
+
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(numeric);
+}
+
 function normalizeTxid(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function getEnergyRentalMode() {
+  const mode = String(env.GASSTATION_ENERGY_RENTAL_MODE || 'resale').trim().toLowerCase();
+  return mode === 'api' ? 'api' : 'resale';
+}
+
+function isGasStationApiEnabled() {
+  return String(env.GASSTATION_ENABLED || '').toLowerCase().includes('true');
 }
 
 function isValidTronAddress(value) {
@@ -91,6 +114,47 @@ function normalizePackageConfig(purpose, input) {
   };
 }
 
+function applyPackageRequirements(packageConfig, requirements = {}) {
+  const requiredEnergy = normalizeResourceRequirement(
+    requirements.requiredEnergy || requirements.energyShortfall
+  );
+  const requiredBandwidth = normalizeResourceRequirement(
+    requirements.requiredBandwidth || requirements.bandwidthShortfall
+  );
+  const packageEnergy = Math.max(
+    1,
+    normalizeResourceRequirement(packageConfig.readyEnergy || packageConfig.energyQuantity)
+  );
+  const packageCount = requiredEnergy > packageEnergy
+    ? Math.ceil(requiredEnergy / packageEnergy)
+    : 1;
+
+  if (packageCount <= 1) {
+    return {
+      ...packageConfig,
+      packageCount: 1,
+      requiredEnergy,
+      requiredBandwidth
+    };
+  }
+
+  const amountSun = (BigInt(packageConfig.amountSun) * BigInt(packageCount)).toString();
+  const energyQuantity = normalizeResourceRequirement(packageConfig.energyQuantity) * packageCount;
+  const readyEnergy = normalizeResourceRequirement(packageConfig.readyEnergy) * packageCount;
+
+  return {
+    ...packageConfig,
+    amountSun,
+    amountTrx: formatSunAsTrx(amountSun),
+    energyQuantity,
+    readyEnergy,
+    packageCount,
+    requiredEnergy,
+    requiredBandwidth,
+    label: `${packageConfig.label || packageConfig.purpose} x${packageCount}`
+  };
+}
+
 function getFallbackRegistrationPackage(purpose) {
   if (purpose !== 'ambassador_registration') {
     return null;
@@ -106,7 +170,7 @@ function getFallbackRegistrationPackage(purpose) {
   });
 }
 
-function getEnergyResalePackage(purposeInput) {
+function getResalePackage(purposeInput, requirements = {}) {
   const purpose = normalizePurpose(purposeInput);
 
   if (!purpose) {
@@ -132,7 +196,47 @@ function getEnergyResalePackage(purposeInput) {
     throw error;
   }
 
-  return resolved;
+  return applyPackageRequirements(resolved, requirements);
+}
+
+async function getEnergyResalePackage(purposeInput, requirements = {}) {
+  const purpose = normalizePurpose(purposeInput);
+  const requiredEnergy = normalizeResourceRequirement(
+    requirements.requiredEnergy || requirements.energyShortfall
+  );
+  const requiredBandwidth = normalizeResourceRequirement(
+    requirements.requiredBandwidth || requirements.bandwidthShortfall
+  );
+
+  if (getEnergyRentalMode() === 'api' && isGasStationApiEnabled()) {
+    const quote = await quoteResourceRental({
+      energyNum: requiredEnergy,
+      bandwidthNum: requiredBandwidth
+    });
+    const amountSun = String(Math.ceil(Number(quote.amountSun || 0)));
+
+    return {
+      purpose,
+      mode: 'api',
+      paymentAddress: env.OPERATOR_WALLET,
+      amountSun,
+      amountTrx: formatSunAsTrx(amountSun),
+      energyQuantity: Number(quote.energyQuantity || 0),
+      readyEnergy: Number(quote.energyQuantity || 0),
+      bandwidthQuantity: Number(quote.bandwidthQuantity || 0),
+      readyBandwidth: Number(quote.bandwidthQuantity || 0),
+      packageCount: 1,
+      requiredEnergy,
+      requiredBandwidth,
+      rentalPeriodSeconds: 0,
+      label: String(purpose || 'resource-rental')
+    };
+  }
+
+  return getResalePackage(purpose, {
+    requiredEnergy,
+    requiredBandwidth
+  });
 }
 
 async function readWalletEnergyState(wallet) {
@@ -208,7 +312,13 @@ async function ensureEnergyResaleOrdersTable() {
   `);
 }
 
-async function confirmEnergyResalePayment({ purpose, wallet, paymentTxid }) {
+async function confirmEnergyResalePayment({
+  purpose,
+  wallet,
+  paymentTxid,
+  requiredEnergy,
+  requiredBandwidth
+}) {
   const resolvedPurpose = normalizePurpose(purpose);
   const resolvedWallet = normalizeWallet(wallet);
   const txid = normalizeTxid(paymentTxid);
@@ -231,7 +341,10 @@ async function confirmEnergyResalePayment({ purpose, wallet, paymentTxid }) {
     throw error;
   }
 
-  const packageConfig = getEnergyResalePackage(resolvedPurpose);
+  const packageConfig = await getEnergyResalePackage(resolvedPurpose, {
+    requiredEnergy,
+    requiredBandwidth
+  });
   const payment = await readTrxPayment(txid);
 
   if (payment.owner !== resolvedWallet) {
@@ -299,6 +412,38 @@ async function confirmEnergyResalePayment({ purpose, wallet, paymentTxid }) {
     );
   }
 
+  if (packageConfig.mode === 'api') {
+    const rented = await rentResourcesForWallet({
+      receiveAddress: resolvedWallet,
+      energyNum: packageConfig.energyQuantity,
+      bandwidthNum: packageConfig.bandwidthQuantity,
+      requestPrefix: `energy-resale-${resolvedPurpose}`
+    });
+
+    const updated = await pool.query(
+      `
+        UPDATE energy_resale_orders
+        SET
+          status = 'completed',
+          row_json = $2,
+          updated_at = NOW()
+        WHERE payment_tx_hash = $1
+        RETURNING *
+      `,
+      [
+        txid,
+        JSON.stringify({
+          mode: 'api',
+          package: packageConfig,
+          payment,
+          rented
+        })
+      ]
+    );
+
+    return updated.rows[0];
+  }
+
   const energyState = await waitForEnergyFulfillment(
     resolvedWallet,
     Number(packageConfig.readyEnergy || packageConfig.energyQuantity || 0)
@@ -328,7 +473,7 @@ async function confirmEnergyResalePayment({ purpose, wallet, paymentTxid }) {
   return updated.rows[0];
 }
 
-async function getEnergyResaleStatus({ purpose, wallet }) {
+async function getEnergyResaleStatus({ purpose, wallet, requiredEnergy, requiredBandwidth }) {
   const resolvedPurpose = normalizePurpose(purpose);
   const resolvedWallet = normalizeWallet(wallet);
 
@@ -344,7 +489,10 @@ async function getEnergyResaleStatus({ purpose, wallet }) {
     throw error;
   }
 
-  const packageConfig = getEnergyResalePackage(resolvedPurpose);
+  const packageConfig = await getEnergyResalePackage(resolvedPurpose, {
+    requiredEnergy,
+    requiredBandwidth
+  });
   const energyState = await readWalletEnergyState(resolvedWallet);
   const lastOrder = await pool.query(
     `
@@ -358,13 +506,19 @@ async function getEnergyResaleStatus({ purpose, wallet }) {
     [resolvedPurpose, resolvedWallet]
   ).catch(() => ({ rows: [] }));
 
-  const requiredEnergy = Number(packageConfig.readyEnergy || packageConfig.energyQuantity || 0);
+  const requiredReadyEnergy = Number(packageConfig.readyEnergy || packageConfig.energyQuantity || 0);
+  const requiredReadyBandwidth = Number(
+    packageConfig.readyBandwidth || packageConfig.bandwidthQuantity || 0
+  );
 
   return {
     purpose: resolvedPurpose,
     wallet: resolvedWallet,
-    ready: energyState.availableEnergy >= requiredEnergy,
-    requiredEnergy,
+    ready:
+      energyState.availableEnergy >= requiredReadyEnergy &&
+      energyState.availableBandwidth >= requiredReadyBandwidth,
+    requiredEnergy: requiredReadyEnergy,
+    requiredBandwidth: requiredReadyBandwidth,
     energyState,
     package: packageConfig,
     lastOrder: lastOrder.rows[0] || null

@@ -741,6 +741,35 @@ async function quoteEnergyRental({ energyNum }) {
   });
 }
 
+async function quoteResourceRental({ energyNum = 0, bandwidthNum = 0 }) {
+  const energyQuantity = Number(energyNum || 0) > 0
+    ? Math.max(MIN_ENERGY_ORDER, normalizePositiveInteger(energyNum, 'energyNum'))
+    : 0;
+  const bandwidthQuantity = Number(bandwidthNum || 0) > 0
+    ? Math.max(MIN_BANDWIDTH_ORDER, normalizePositiveInteger(bandwidthNum, 'bandwidthNum'))
+    : 0;
+
+  if (energyQuantity <= 0 && bandwidthQuantity <= 0) {
+    throw new Error('energyNum or bandwidthNum is required');
+  }
+
+  return withGasStationClientPool(async (client) => {
+    const estimate = await estimateRentalCostSun(client, {
+      energyQuantity,
+      bandwidthQuantity
+    });
+
+    return {
+      energyQuantity,
+      bandwidthQuantity,
+      amountSun: estimate.totalAmountSun,
+      amountTrx: fromSun(estimate.totalAmountSun),
+      estimate,
+      gasStationAccount: client.label
+    };
+  });
+}
+
 async function rentEnergyForWallet({ receiveAddress, energyNum, requestPrefix = 'energy' }) {
   if (!String(env.GASSTATION_ENABLED).toLowerCase().includes('true')) {
     throw new Error('Gas Station is disabled');
@@ -776,9 +805,88 @@ async function rentEnergyForWallet({ receiveAddress, energyNum, requestPrefix = 
   });
 }
 
+async function rentResourcesForWallet({
+  receiveAddress,
+  energyNum = 0,
+  bandwidthNum = 0,
+  requestPrefix = 'resource'
+}) {
+  if (!String(env.GASSTATION_ENABLED).toLowerCase().includes('true')) {
+    throw new Error('Gas Station is disabled');
+  }
+
+  const energyQuantity = Number(energyNum || 0) > 0
+    ? Math.max(MIN_ENERGY_ORDER, normalizePositiveInteger(energyNum, 'energyNum'))
+    : 0;
+  const bandwidthQuantity = Number(bandwidthNum || 0) > 0
+    ? Math.max(MIN_BANDWIDTH_ORDER, normalizePositiveInteger(bandwidthNum, 'bandwidthNum'))
+    : 0;
+
+  if (energyQuantity <= 0 && bandwidthQuantity <= 0) {
+    throw new Error('energyNum or bandwidthNum is required');
+  }
+
+  return withGasStationClientPool(async (client) => {
+    const estimate = await estimateRentalCostSun(client, {
+      energyQuantity,
+      bandwidthQuantity
+    });
+    const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun);
+    const createdOrders = [];
+
+    if (energyQuantity > 0) {
+      const requestId = buildRequestId(`${requestPrefix}-energy`);
+      const created = await client.createEnergyOrder({
+        requestId,
+        receiveAddress: assertNonEmpty(receiveAddress, 'receiveAddress'),
+        energyNum: energyQuantity
+      });
+      const finalRow = await waitForOrderSuccess(client, requestId);
+
+      createdOrders.push({
+        resourceType: 'energy',
+        requestId,
+        tradeNo: String(created?.trade_no || ''),
+        quantity: energyQuantity,
+        row: finalRow || null
+      });
+    }
+
+    if (bandwidthQuantity > 0) {
+      const requestId = buildRequestId(`${requestPrefix}-net`);
+      const created = await client.createBandwidthOrder({
+        requestId,
+        receiveAddress: assertNonEmpty(receiveAddress, 'receiveAddress'),
+        netNum: bandwidthQuantity
+      });
+      const finalRow = await waitForOrderSuccess(client, requestId);
+
+      createdOrders.push({
+        resourceType: 'net',
+        requestId,
+        tradeNo: String(created?.trade_no || ''),
+        quantity: bandwidthQuantity,
+        row: finalRow || null
+      });
+    }
+
+    return {
+      rented: true,
+      energyQuantity,
+      bandwidthQuantity,
+      orders: createdOrders,
+      estimate,
+      topUp,
+      gasStationAccount: client.label
+    };
+  });
+}
+
 module.exports = {
   getGasStationCredentials,
   ensureOperatorResources,
   quoteEnergyRental,
-  rentEnergyForWallet
+  quoteResourceRental,
+  rentEnergyForWallet,
+  rentResourcesForWallet
 };

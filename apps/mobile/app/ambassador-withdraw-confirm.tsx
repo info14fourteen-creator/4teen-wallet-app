@@ -217,6 +217,8 @@ export default function AmbassadorWithdrawConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'ambassador_withdraw',
       wallet: review.wallet.address,
+      requiredEnergy: review.resources.energyShortfall,
+      requiredBandwidth: review.resources.bandwidthShortfall,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {
