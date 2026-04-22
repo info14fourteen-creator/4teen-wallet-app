@@ -245,6 +245,8 @@ async function getEnergyResalePackage(purposeInput, requirements = {}) {
       markupAmountSun: String(quote.markupAmountSun || ''),
       markupAmountTrx: quote.markupAmountTrx,
       markupBps: quote.markupBps,
+      minMarkupSun: String(quote.minMarkupSun || ''),
+      minMarkupTrx: quote.minMarkupTrx,
       energyQuantity: Number(quote.energyQuantity || 0),
       readyEnergy: Number(quote.energyQuantity || 0),
       bandwidthQuantity: Number(quote.bandwidthQuantity || 0),
