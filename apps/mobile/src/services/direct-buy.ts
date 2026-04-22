@@ -41,7 +41,11 @@ type FourteenContract = {
   airdropAddress: () => { call: () => Promise<unknown> };
   lockedBalanceOf: (address: string) => { call: () => Promise<unknown> };
   buyTokens: () => {
-    send: (options: { callValue: number; shouldPollResponse: boolean }) => Promise<unknown>;
+    send: (options: {
+      callValue: number;
+      feeLimit?: number;
+      shouldPollResponse: boolean;
+    }) => Promise<unknown>;
   };
 };
 

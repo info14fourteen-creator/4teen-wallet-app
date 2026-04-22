@@ -757,8 +757,8 @@ export async function getSendAssetDraft(tokenId?: string) {
 
   const token = await getTokenDetails(wallet.address, resolvedTokenId, false, wallet.id);
   const valueInUsd =
-    typeof token.valueInUsd === 'number' && Number.isFinite(token.valueInUsd)
-      ? token.valueInUsd
+    typeof token.balanceValueUsd === 'number' && Number.isFinite(token.balanceValueUsd)
+      ? token.balanceValueUsd
       : 0;
 
   return {

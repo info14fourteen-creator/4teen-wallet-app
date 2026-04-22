@@ -173,7 +173,7 @@ async function readContractUint256(input: {
     const contract = (await tronWeb.contract(
       buildContractAbi(),
       contractAddress
-    )) as FourteenTimelineContract;
+    )) as unknown as FourteenTimelineContract;
     const raw = await contract[input.methodName](walletAddress).call();
     const normalized = normalizeTokenUnits(raw, decimals);
 

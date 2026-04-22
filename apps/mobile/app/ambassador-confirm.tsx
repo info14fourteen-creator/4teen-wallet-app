@@ -119,7 +119,7 @@ export default function AmbassadorConfirmScreen() {
 
     return {
       purpose: 'ambassador_registration',
-      mode: energyQuote.mode,
+      mode: energyQuote.mode || 'api',
       wallet: energyQuote.wallet || wallet?.address || null,
       paymentAddress: energyQuote.paymentAddress,
       amountSun: energyQuote.amountSun,
