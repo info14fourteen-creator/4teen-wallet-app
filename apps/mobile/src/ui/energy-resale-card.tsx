@@ -3,6 +3,24 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { colors, radius } from '../theme/tokens';
 import type { EnergyResaleQuote } from '../services/energy-resale';
 
+function formatTrx(value: number | string | undefined) {
+  const trx = Number(value || 0);
+
+  if (!Number.isFinite(trx)) {
+    return '0.00';
+  }
+
+  return Math.max(0, trx).toFixed(2);
+}
+
+function formatTrxFromSun(value: number | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '';
+  }
+
+  return formatTrx(value / 1_000_000);
+}
+
 function formatEnergy(value: number) {
   const safe = Math.max(0, Math.floor(Number(value) || 0));
 
@@ -17,19 +35,23 @@ export default function EnergyResaleCard({
   loading,
   processing,
   disabled,
+  actionLabel = 'APPROVE',
+  estimatedBurnSun,
   onRent,
 }: {
   quote: EnergyResaleQuote | null;
   loading?: boolean;
   processing?: boolean;
   disabled?: boolean;
+  actionLabel?: string;
+  estimatedBurnSun?: number;
   onRent: () => void;
 }) {
   if (loading) {
     return (
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>GASSTATION</Text>
-        <Text style={styles.text}>Checking Energy package...</Text>
+        <Text style={styles.eyebrow}>SAVE RESOURCES</Text>
+        <Text style={styles.text}>Checking resource rental...</Text>
       </View>
     );
   }
@@ -46,48 +68,45 @@ export default function EnergyResaleCard({
     0,
     Math.floor(Number(quote.readyBandwidth || quote.bandwidthQuantity || 0))
   );
-  const title = readyEnergy > 0 && readyBandwidth > 0
-    ? 'Rent Resources'
-    : readyBandwidth > 0
-      ? 'Rent Bandwidth'
-      : 'Rent Energy';
-  const buttonLabel = readyEnergy > 0 && readyBandwidth > 0
-    ? 'RENT RESOURCES'
-    : readyBandwidth > 0
-      ? 'RENT BANDWIDTH'
-      : 'RENT ENERGY';
+  const burnTrx = formatTrxFromSun(estimatedBurnSun);
+  const safeActionLabel = String(actionLabel || 'APPROVE').trim().toUpperCase();
+  const buttonLabel = `RENT -> APPROVE -> ${safeActionLabel}`;
   const resourceLabel = [
     readyEnergy > 0 ? `${formatEnergy(readyEnergy)} Energy` : '',
     readyBandwidth > 0 ? `${formatEnergy(readyBandwidth)} Bandwidth` : '',
+  ].filter(Boolean).join(' + ');
+  const requiredResourceLabel = [
+    requiredEnergy > 0 ? `${formatEnergy(requiredEnergy)} Energy` : '',
+    requiredBandwidth > 0 ? `${formatEnergy(requiredBandwidth)} Bandwidth` : '',
   ].filter(Boolean).join(' + ');
 
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.eyebrow}>GASSTATION</Text>
-          <Text style={styles.title}>{title}</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.eyebrow}>SAVE RESOURCES</Text>
+          <Text style={styles.rentLabel}>VIA RENT</Text>
+          <Text style={styles.rentAmount}>{formatTrx(quote.amountTrx)}</Text>
         </View>
 
-        <Text style={styles.amount}>{quote.amountTrx} TRX</Text>
+        {burnTrx ? (
+          <View style={styles.headerRight}>
+            <Text style={styles.burnLabel}>ESTIMATED BURN</Text>
+            <Text style={styles.burnAmount}>{burnTrx}</Text>
+          </View>
+        ) : null}
       </View>
 
       <Text style={styles.text}>
-        {resourceLabel || 'Resource'} rental
+        Rent {resourceLabel || 'resources'}
         {packageCount > 1 ? ` · ${packageCount} quick packs` : ''}. The app waits for delivery and
         refreshes this confirmation automatically.
       </Text>
 
-      {requiredEnergy > 0 || requiredBandwidth > 0 ? (
-        <View style={styles.requirementsRow}>
-          {requiredEnergy > 0 ? (
-            <Text style={styles.requirementText}>Covers {formatEnergy(requiredEnergy)} Energy</Text>
-          ) : null}
-          {requiredBandwidth > 0 ? (
-            <Text style={styles.requirementText}>
-              Covers {formatEnergy(requiredBandwidth)} Bandwidth
-            </Text>
-          ) : null}
+      {requiredResourceLabel ? (
+        <View style={styles.coversRow}>
+          <Text style={styles.coversLabel}>COVERS</Text>
+          <Text style={styles.coversValue} numberOfLines={1}>{requiredResourceLabel}</Text>
         </View>
       ) : null}
 
@@ -120,7 +139,15 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: 12,
+  },
+  headerLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  headerRight: {
+    alignItems: 'flex-end',
   },
   eyebrow: {
     color: colors.green,
@@ -129,17 +156,35 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.8,
   },
-  title: {
-    color: colors.white,
-    fontSize: 15,
-    lineHeight: 20,
+  rentLabel: {
+    marginTop: 6,
+    color: colors.textDim,
+    fontSize: 10,
+    lineHeight: 13,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.7,
+  },
+  rentAmount: {
+    color: colors.green,
+    fontSize: 28,
+    lineHeight: 34,
     fontFamily: 'Sora_700Bold',
   },
-  amount: {
-    color: colors.white,
-    fontSize: 14,
-    lineHeight: 20,
+  burnLabel: {
+    marginTop: 19,
+    color: colors.textDim,
+    fontSize: 9,
+    lineHeight: 12,
     fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.5,
+  },
+  burnAmount: {
+    color: colors.red,
+    fontSize: 18,
+    lineHeight: 23,
+    fontFamily: 'Sora_700Bold',
+    textDecorationLine: 'line-through',
+    textDecorationColor: colors.red,
   },
   text: {
     color: colors.textDim,
@@ -147,17 +192,27 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
   },
-  requirementsRow: {
+  coversRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
   },
-  requirementText: {
+  coversLabel: {
     color: colors.text,
     fontSize: 10,
     lineHeight: 14,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.2,
+  },
+  coversValue: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 10,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.2,
+    textAlign: 'right',
   },
   button: {
     minHeight: 46,

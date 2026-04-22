@@ -700,6 +700,8 @@ export default function SwapConfirmScreen() {
                 loading={energyQuoteLoading}
                 processing={energyRenting}
                 disabled={submitting}
+                actionLabel="SWAP"
+                estimatedBurnSun={review.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
 

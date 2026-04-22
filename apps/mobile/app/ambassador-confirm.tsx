@@ -466,6 +466,7 @@ export default function AmbassadorConfirmScreen() {
                 quote={energyResaleQuote}
                 processing={submitting && pendingApprovalMode === 'rent'}
                 disabled={isRentApproveDisabled}
+                actionLabel="REGISTER"
                 onRent={() => void handleApprove('rent')}
               />
 

@@ -630,6 +630,8 @@ export default function SendConfirmScreen() {
                 loading={energyQuoteLoading}
                 processing={energyRenting}
                 disabled={sending}
+                actionLabel="SEND"
+                estimatedBurnSun={estimate.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
 

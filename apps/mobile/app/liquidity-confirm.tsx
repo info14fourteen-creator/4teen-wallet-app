@@ -547,6 +547,8 @@ export default function LiquidityConfirmScreen() {
                 loading={energyQuoteLoading}
                 processing={energyRenting}
                 disabled={submitting}
+                actionLabel="EXECUTE"
+                estimatedBurnSun={review.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
 

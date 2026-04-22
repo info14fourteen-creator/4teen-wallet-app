@@ -498,6 +498,8 @@ export default function AmbassadorWithdrawConfirmScreen() {
                 loading={energyQuoteLoading}
                 processing={energyRenting}
                 disabled={submitting}
+                actionLabel="WITHDRAW"
+                estimatedBurnSun={review.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
 

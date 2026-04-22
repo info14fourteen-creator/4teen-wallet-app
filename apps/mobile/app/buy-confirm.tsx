@@ -762,6 +762,8 @@ export default function BuyConfirmScreen() {
                   loading={energyQuoteLoading}
                   processing={energyRenting}
                   disabled={submitting}
+                  actionLabel="BUY"
+                  estimatedBurnSun={review.resources.estimatedBurnSun}
                   onRent={() => void handleRentEnergy()}
                 />
               </View>
