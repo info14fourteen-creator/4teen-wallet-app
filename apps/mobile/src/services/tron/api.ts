@@ -5,17 +5,13 @@ import {
   CMC_DATA_API_BASE_URL,
   CMC_DAPI_BASE_URL,
   CMC_PRO_BASE_URL,
-  TRONGRID_API_KEYS,
   TRONGRID_BASE_URL,
-  TRONSCAN_API_KEYS,
   TRONSCAN_BASE_URL,
-  USE_4TEEN_API_PROXY,
 } from '../../config/tron';
 import { getAddressBookMap } from '../address-book';
 import { FOURTEEN_LOGO, getFourteenPriceSnapshot } from './fourteen-price';
 
 const CMC_BASE_URL = CMC_PRO_BASE_URL;
-const CMC_API_KEYS: string[] = [];
 
 const TRX_CMC_ID = 1958;
 
@@ -39,13 +35,10 @@ const WALLET_HISTORY_CACHE_PREFIX = 'fourteen_wallet_history_cache_v3';
 const WALLET_HISTORY_CACHE_PREFIX_ROOT = 'fourteen_wallet_history_cache_';
 const DEFAULT_WALLET_HISTORY_LIMIT = 20;
 
-const KEY_COOLDOWN_MS = 30_000;
-const REQUEST_TIMEOUT_MS = 20_000;
 const MARKET_CACHE_TTL_MS = 60 * 60 * 1000;
 const MARKET_CACHE_STALE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const MARKET_CACHE_STORAGE_KEY = 'fourteen_market_index_cache_v1';
 const MARKET_CACHE_STORAGE_KEY_ROOT = 'fourteen_market_index_cache_';
-const CMC_KEY_COOLDOWN_MS = 60_000;
 const TRONSCAN_TOKEN_OVERVIEW_CACHE_TTL_MS = 30 * 60 * 1000;
 const ACCOUNT_INFO_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACCOUNT_TRC20_ASSETS_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -124,11 +117,6 @@ type AccountResourcesCacheEntry = {
   data: WalletAccountResources;
 };
 
-type ProviderKeyState = {
-  nextIndex: number;
-  cooldownUntil: number[];
-};
-
 class ProviderRequestError extends Error {
   status: number;
   body: string;
@@ -172,8 +160,6 @@ export type CustomTokenCatalogItem = {
 
 let marketCache: CachedMarketIndex | null = null;
 let marketIndexInflight: Promise<CachedMarketIndex> | null = null;
-let cmcNextKeyIndex = 0;
-let cmcCooldownUntil: number[] = [];
 const tokenHistoryMemoryCache = new Map<string, TokenHistoryCachePayload>();
 const walletHistoryMemoryCache = new Map<string, WalletHistoryCachePayload>();
 const accountInfoMemoryCache = new Map<string, AccountInfoCacheEntry>();
@@ -196,17 +182,6 @@ const tronscanTokenOverviewMemoryCache = new Map<
 const tronscanTokenOverviewInflight = new Map<string, Promise<TokenMetaFallback>>();
 const customTokenCatalogMemoryCache = new Map<string, CustomTokenCatalogItem[]>();
 const customTokenCatalogInflight = new Map<string, Promise<CustomTokenCatalogItem[]>>();
-
-const providerKeyState: Record<ProviderName, ProviderKeyState> = {
-  tronscan: {
-    nextIndex: 0,
-    cooldownUntil: [],
-  },
-  trongrid: {
-    nextIndex: 0,
-    cooldownUntil: [],
-  },
-};
 
 export type TronAccountInfo = {
   address: string;
@@ -659,10 +634,6 @@ function getProviderBaseUrl(provider: ProviderName) {
   return provider === 'tronscan' ? TRONSCAN_BASE_URL : TRONGRID_BASE_URL;
 }
 
-function getProviderApiKeys(provider: ProviderName) {
-  return provider === 'tronscan' ? TRONSCAN_API_KEYS : TRONGRID_API_KEYS;
-}
-
 function buildUrl(
   base: string,
   path: string,
@@ -693,20 +664,6 @@ function parsePositiveCount(value: unknown): number | undefined {
   return parsed;
 }
 
-function parseRetryDelayMsFromText(text: string) {
-  const secondsMatch = text.match(/(\d+)\s*s/i);
-  if (!secondsMatch) {
-    return KEY_COOLDOWN_MS;
-  }
-
-  const seconds = Number(secondsMatch[1]);
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return KEY_COOLDOWN_MS;
-  }
-
-  return seconds * 1000;
-}
-
 function isProviderRateLimitStatus(status: number, body: string) {
   const lower = String(body || '').toLowerCase();
 
@@ -724,35 +681,9 @@ function isProviderRateLimitError(error: ProviderRequestError) {
   return isProviderRateLimitStatus(error.status, error.body);
 }
 
-function createProviderCooldownError(provider: ProviderName, cooldownUntil: number[]) {
-  const now = Date.now();
-  const nextAvailableAt = cooldownUntil
-    .filter((value) => value > now)
-    .sort((a, b) => a - b)[0];
-  const retryMs = nextAvailableAt ? Math.max(0, nextAvailableAt - now) : KEY_COOLDOWN_MS;
-
-  return new ProviderRequestError(
-    429,
-    `All ${provider} API keys are cooling down. Retry after ${Math.ceil(retryMs / 1000)}s.`
-  );
-}
-
 function isCmcRateLimitError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || '');
   return message.includes('HTTP 429');
-}
-
-function isCmcMonthlyLimitText(text: string) {
-  const lower = String(text || '').toLowerCase();
-
-  return (
-    lower.includes('monthly') ||
-    lower.includes('credit') ||
-    lower.includes('credits') ||
-    lower.includes('plan limit') ||
-    lower.includes('limit exceeded') ||
-    lower.includes('usage limit')
-  );
 }
 
 function isCmcInvalidKeyError(error: unknown) {
@@ -763,22 +694,6 @@ function isCmcInvalidKeyError(error: unknown) {
     message.includes('HTTP 401') &&
     (message.includes('1001') || lower.includes('api key is invalid'))
   );
-}
-
-function normalizeCmcCooldowns() {
-  if (cmcCooldownUntil.length !== CMC_API_KEYS.length) {
-    cmcCooldownUntil = new Array(CMC_API_KEYS.length).fill(0);
-  }
-}
-
-function createCmcCooldownError() {
-  const now = Date.now();
-  const nextAvailableAt = cmcCooldownUntil
-    .filter((value) => value > now)
-    .sort((a, b) => a - b)[0];
-  const retryMs = nextAvailableAt ? Math.max(0, nextAvailableAt - now) : CMC_KEY_COOLDOWN_MS;
-
-  return new Error(`HTTP 429: all CMC API keys are cooling down. Retry after ${Math.ceil(retryMs / 1000)}s.`);
 }
 
 function buildFallbackPerformance(
@@ -1583,99 +1498,20 @@ async function fetchWithProviderKeyPool<T>(
 ): Promise<T> {
   assertTronConfig();
 
-  const keys = getProviderApiKeys(provider);
   const baseUrl = getProviderBaseUrl(provider);
-  const state = providerKeyState[provider];
-
-  if (!keys.length) {
-    const url = buildUrl(baseUrl, path, params);
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new ProviderRequestError(response.status, text);
-    }
-
-    return (await response.json()) as T;
-  }
-
-  if (state.cooldownUntil.length !== keys.length) {
-    state.cooldownUntil = new Array(keys.length).fill(0);
-  }
-
-  const now = Date.now();
-  const orderedIndexes = Array.from({ length: keys.length }, (_, offset) => {
-    return (state.nextIndex + offset) % keys.length;
+  const url = buildUrl(baseUrl, path, params);
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
   });
 
-  const availableIndexes = orderedIndexes.filter((index) => state.cooldownUntil[index] <= now);
-
-  if (!availableIndexes.length) {
-    throw createProviderCooldownError(provider, state.cooldownUntil);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ProviderRequestError(response.status, text);
   }
 
-  let lastError: Error | null = null;
-
-  for (const index of availableIndexes) {
-    const apiKey = keys[index];
-    const url = buildUrl(baseUrl, path, params);
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'TRON-PRO-API-KEY': apiKey,
-          Accept: 'application/json',
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        const text = await response.text();
-
-        if (isProviderRateLimitStatus(response.status, text)) {
-          state.cooldownUntil[index] = Date.now() + parseRetryDelayMsFromText(text);
-        }
-
-        throw new ProviderRequestError(response.status, text);
-      }
-
-      state.nextIndex = (index + 1) % keys.length;
-      state.cooldownUntil[index] = 0;
-
-      return (await response.json()) as T;
-    } catch (error) {
-      clearTimeout(timeout);
-
-      lastError =
-        error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'Unknown request error');
-
-      if (String(lastError.message).toLowerCase().includes('aborted')) {
-        state.cooldownUntil[index] = Date.now() + 5_000;
-      }
-
-      if (
-        lastError instanceof ProviderRequestError &&
-        lastError.status >= 400 &&
-        lastError.status < 500 &&
-        !isProviderRateLimitError(lastError)
-      ) {
-        throw lastError;
-      }
-
-      console.warn(`[${provider}] request failed with key #${index + 1}:`, lastError.message);
-    }
-  }
-
-  throw lastError || new Error(`All ${provider} keys failed`);
+  return (await response.json()) as T;
 }
 
 async function postWithProviderKeyPool<T>(
@@ -1686,95 +1522,22 @@ async function postWithProviderKeyPool<T>(
   assertTronConfig();
 
   const baseUrl = getProviderBaseUrl(provider);
-  const keys = getProviderApiKeys(provider);
-  const state = providerKeyState[provider];
-
-  if (!keys.length) {
-    const url = `${baseUrl}${path}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body ?? {}),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new ProviderRequestError(response.status, text);
-    }
-
-    return (await response.json()) as T;
-  }
-
-  if (state.cooldownUntil.length !== keys.length) {
-    state.cooldownUntil = new Array(keys.length).fill(0);
-  }
-
-  const now = Date.now();
-  const orderedIndexes = Array.from({ length: keys.length }, (_, offset) => {
-    return (state.nextIndex + offset) % keys.length;
+  const url = `${baseUrl}${path}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body ?? {}),
   });
 
-  const availableIndexes = orderedIndexes.filter((index) => state.cooldownUntil[index] <= now);
-
-  if (!availableIndexes.length) {
-    throw createProviderCooldownError(provider, state.cooldownUntil);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ProviderRequestError(response.status, text);
   }
 
-  let lastError: Error | null = null;
-
-  for (const index of availableIndexes) {
-    const apiKey = keys[index];
-    const url = `${baseUrl}${path}`;
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'TRON-PRO-API-KEY': apiKey,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body ?? {}),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        const text = await response.text();
-
-        if (isProviderRateLimitStatus(response.status, text)) {
-          state.cooldownUntil[index] = Date.now() + parseRetryDelayMsFromText(text);
-        }
-
-        throw new Error(`HTTP ${response.status}: ${text}`);
-      }
-
-      state.nextIndex = (index + 1) % keys.length;
-      state.cooldownUntil[index] = 0;
-
-      return (await response.json()) as T;
-    } catch (error) {
-      clearTimeout(timeout);
-
-      lastError =
-        error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'Unknown request error');
-
-      if (String(lastError.message).toLowerCase().includes('aborted')) {
-        state.cooldownUntil[index] = Date.now() + 5_000;
-      }
-
-      console.warn(`[${provider}] request failed with key #${index + 1}:`, lastError.message);
-    }
-  }
-
-  throw lastError || new Error(`All ${provider} keys failed`);
+  return (await response.json()) as T;
 }
 
 export async function tronscanFetch<T>(
@@ -1802,97 +1565,19 @@ async function cmcFetch<T>(
   path: string,
   params?: Record<string, string | number | undefined>
 ): Promise<T> {
-  if (USE_4TEEN_API_PROXY) {
-    const url = buildUrl(CMC_BASE_URL, path, params);
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status}: ${text}`);
-    }
-
-    return response.json() as Promise<T>;
-  }
-
-  if (!CMC_API_KEYS.length) {
-    throw new Error('Missing CMC proxy/key configuration');
-  }
-
-  normalizeCmcCooldowns();
-
-  const now = Date.now();
-  const orderedIndexes = Array.from({ length: CMC_API_KEYS.length }, (_, offset) => {
-    return (cmcNextKeyIndex + offset) % CMC_API_KEYS.length;
+  const url = buildUrl(CMC_BASE_URL, path, params);
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
   });
-  const availableIndexes = orderedIndexes.filter((index) => cmcCooldownUntil[index] <= now);
 
-  if (!availableIndexes.length) {
-    throw createCmcCooldownError();
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`HTTP ${response.status}: ${text}`);
   }
 
-  let lastError: Error | null = null;
-
-  for (const index of availableIndexes) {
-    const apiKey = CMC_API_KEYS[index];
-    const url = buildUrl(CMC_BASE_URL, path, params);
-
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'X-CMC_PRO_API_KEY': apiKey,
-          Accept: 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-
-        if (response.status === 429) {
-          cmcCooldownUntil[index] = Date.now() + (
-            isCmcMonthlyLimitText(text) ? MARKET_CACHE_STALE_TTL_MS : CMC_KEY_COOLDOWN_MS
-          );
-        }
-
-        const error = new Error(`HTTP ${response.status}: ${text}`);
-
-        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-          throw error;
-        }
-
-        lastError = error;
-        console.warn(`[cmc] request failed with key #${index + 1}:`, error.message);
-        continue;
-      }
-
-      cmcNextKeyIndex = (index + 1) % CMC_API_KEYS.length;
-      cmcCooldownUntil[index] = 0;
-
-      return response.json() as Promise<T>;
-    } catch (error) {
-      lastError =
-        error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'Unknown CMC request error');
-
-      if (String(lastError.message).toLowerCase().includes('aborted')) {
-        cmcCooldownUntil[index] = Date.now() + CMC_KEY_COOLDOWN_MS;
-      }
-
-      if (
-        lastError.message.includes('HTTP 401') ||
-        lastError.message.includes('HTTP 403') ||
-        lastError.message.includes('HTTP 400')
-      ) {
-        throw lastError;
-      }
-
-      console.warn(`[cmc] request failed with key #${index + 1}:`, lastError.message);
-    }
-  }
-
-  throw lastError || createCmcCooldownError();
+  return response.json() as Promise<T>;
 }
 
 async function cmcDataApiFetch<T>(
@@ -4075,14 +3760,11 @@ export async function getTronscanTokenList(
   }
 
   try {
-    const response = await fetch(
-      'https://apilist.tronscanapi.com/api/getAssetWithPriceList',
-      {
-        headers: {
-          Accept: 'application/json',
-        },
-      }
-    );
+    const response = await fetch(buildUrl(TRONSCAN_BASE_URL, '/getAssetWithPriceList'), {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
 
     if (!response.ok) {
       const text = await response.text();
@@ -4147,8 +3829,6 @@ export async function getTronscanTokenList(
 export async function clearAllTronCaches(): Promise<void> {
   marketCache = null;
   marketIndexInflight = null;
-  cmcNextKeyIndex = 0;
-  cmcCooldownUntil = [];
 
   tokenHistoryMemoryCache.clear();
   walletHistoryMemoryCache.clear();
@@ -4168,11 +3848,6 @@ export async function clearAllTronCaches(): Promise<void> {
 
   customTokenCatalogMemoryCache.clear();
   customTokenCatalogInflight.clear();
-  Object.values(providerKeyState).forEach((state) => {
-    state.nextIndex = 0;
-    state.cooldownUntil = [];
-  });
-
   const keysToRemove: string[] = [];
 
   try {
