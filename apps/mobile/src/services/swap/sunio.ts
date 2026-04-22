@@ -756,7 +756,7 @@ async function estimateSwapResources(input: {
   const amountOutMinRaw = ((expectedOutRaw * (10_000n - slippageBps)) / 10_000n).toString();
   const deadline = String(Math.floor(Date.now() / 1000) + DEFAULT_DEADLINE_SECONDS);
 
-  const approval = input.approvalRequired
+  const approvalEstimate = input.approvalRequired
     ? await estimateContractCallResources({
         tronWeb,
         privateKey: input.privateKey,
@@ -772,8 +772,17 @@ async function estimateSwapResources(input: {
         maxFeeLimitSun: DEFAULT_FEE_LIMIT_SUN,
       }).catch(() => null)
     : null;
+  const approval =
+    input.approvalRequired && (!approvalEstimate || approvalEstimate.estimatedEnergy <= 0)
+      ? await buildFallbackSwapResourceEstimate({
+          wallet: input.wallet,
+          privateKey: input.privateKey,
+          estimatedEnergy: DEFAULT_APPROVAL_ESTIMATED_ENERGY,
+          estimatedBandwidth: DEFAULT_APPROVAL_ESTIMATED_BANDWIDTH,
+        })
+      : approvalEstimate;
 
-  const swap = await estimateContractCallResources({
+  const swapEstimate = await estimateContractCallResources({
     tronWeb,
     privateKey: input.privateKey,
     ownerAddress: input.owner,
@@ -791,6 +800,15 @@ async function estimateSwapResources(input: {
     feeLimitSun: DEFAULT_FEE_LIMIT_SUN,
     maxFeeLimitSun: DEFAULT_FEE_LIMIT_SUN,
   }).catch(() => null);
+  const swap =
+    !swapEstimate || swapEstimate.estimatedEnergy <= 0
+      ? await buildFallbackSwapResourceEstimate({
+          wallet: input.wallet,
+          privateKey: input.privateKey,
+          estimatedEnergy: DEFAULT_SWAP_ESTIMATED_ENERGY,
+          estimatedBandwidth: DEFAULT_SWAP_ESTIMATED_BANDWIDTH,
+        })
+      : swapEstimate;
 
   return {
     approval,
