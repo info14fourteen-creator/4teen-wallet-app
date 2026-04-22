@@ -657,7 +657,7 @@ export async function buildDirectBuyReview(input: {
     throw new Error('Private key not found for this wallet.');
   }
 
-  const resources = await estimateDirectBuyResources({
+  let resources = await estimateDirectBuyResources({
     wallet: context.wallet,
     privateKey,
     contractAddress: context.contractAddress,
@@ -669,6 +669,15 @@ export async function buildDirectBuyReview(input: {
       privateKey,
     });
   });
+
+  if (resources.estimatedEnergy <= 0) {
+    console.warn('Direct buy resource estimate returned zero energy; using fallback.');
+    resources = await buildFallbackDirectBuyResourceEstimate({
+      wallet: context.wallet,
+      privateKey,
+    });
+  }
+
   const trxBalanceSun = toSun(context.trxBalance);
   const requiredTrxSun = toSun(amountTrxValue) + resources.estimatedBurnSun;
   const estimatedTokens = computeEstimatedDirectBuyTokens(

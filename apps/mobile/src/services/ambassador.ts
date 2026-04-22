@@ -2,9 +2,10 @@ import { TronWeb } from 'tronweb';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { buildTrongridHeaders, FOURTEEN_API_BASE_URL, TRONGRID_BASE_URL } from '../config/tron';
-import { getTokenDetails, TRX_TOKEN_ID } from './tron/api';
+import { getAccountResources, getTokenDetails, TRX_TOKEN_ID } from './tron/api';
 import {
   estimateContractCallResources,
+  getResourceUnitPricing,
   type ContractCallResourceEstimate,
 } from './wallet/resources';
 import { normalizePrivateKey, isValidPrivateKey } from './wallet/import';
@@ -27,6 +28,8 @@ const AMBASSADOR_CACHE_TTL_MS = 45_000;
 const AMBASSADOR_POSITIVE_IDENTITY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_REGISTER_FEE_LIMIT_SUN = 120_000_000;
 const DEFAULT_WITHDRAW_FEE_LIMIT_SUN = 80_000_000;
+const DEFAULT_WITHDRAW_ESTIMATED_ENERGY = 80_000;
+const DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH = 420;
 const LOCAL_AMBASSADOR_SLUG_KEY_PREFIX = 'fourteen_ambassador_local_slug_v1';
 const LOCAL_AMBASSADOR_IDENTITY_KEY_PREFIX = 'fourteen_ambassador_identity_v1';
 const AMBASSADOR_IDENTITY_CACHE_VERSION = 2;
@@ -1130,6 +1133,45 @@ export async function withdrawAmbassadorRewards(): Promise<AmbassadorWithdrawalR
   };
 }
 
+async function buildFallbackAmbassadorWithdrawalResourceEstimate(input: {
+  wallet: WalletMeta;
+  privateKey: string;
+}): Promise<ContractCallResourceEstimate> {
+  const tronWeb = createTronWeb(input.privateKey, input.wallet.address);
+  const [available, pricing] = await Promise.all([
+    getAccountResources(input.wallet.address),
+    getResourceUnitPricing(tronWeb),
+  ]);
+
+  const availableEnergy = Math.max(0, available.energyLimit - available.energyUsed);
+  const availableBandwidth = Math.max(0, available.bandwidthLimit - available.bandwidthUsed);
+  const energyShortfall = Math.max(0, DEFAULT_WITHDRAW_ESTIMATED_ENERGY - availableEnergy);
+  const bandwidthShortfall = Math.max(
+    0,
+    DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH - availableBandwidth
+  );
+  const estimatedBurnSun =
+    energyShortfall * pricing.energySun + bandwidthShortfall * pricing.bandwidthSun;
+
+  return {
+    available,
+    estimatedEnergy: DEFAULT_WITHDRAW_ESTIMATED_ENERGY,
+    estimatedBandwidth: DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH,
+    energyShortfall,
+    bandwidthShortfall,
+    estimatedBurnSun,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+    recommendedFeeLimitSun: Math.max(
+      1_000_000,
+      Math.min(
+        DEFAULT_WITHDRAW_FEE_LIMIT_SUN,
+        Math.ceil(Math.max(estimatedBurnSun, 1_000_000) * 1.15)
+      )
+    ),
+  };
+}
+
 export async function estimateAmbassadorWithdrawal(): Promise<AmbassadorWithdrawalReview> {
   const { wallet, privateKey } = await getSigningWalletContext();
   const profile = await lookupAmbassadorOnChain(wallet.address, { force: true });
@@ -1146,7 +1188,7 @@ export async function estimateAmbassadorWithdrawal(): Promise<AmbassadorWithdraw
   }
 
   const tronWeb = createTronWeb(privateKey, wallet.address);
-  const resources = await estimateContractCallResources({
+  let resources = await estimateContractCallResources({
     tronWeb,
     privateKey,
     ownerAddress: wallet.address,
@@ -1154,7 +1196,16 @@ export async function estimateAmbassadorWithdrawal(): Promise<AmbassadorWithdraw
     functionSelector: 'withdrawRewards()',
     feeLimitSun: DEFAULT_WITHDRAW_FEE_LIMIT_SUN,
     maxFeeLimitSun: DEFAULT_WITHDRAW_FEE_LIMIT_SUN,
+  }).catch(async (error) => {
+    console.warn('Ambassador withdrawal resource estimate fallback:', error);
+    return buildFallbackAmbassadorWithdrawalResourceEstimate({ wallet, privateKey });
   });
+
+  if (resources.estimatedEnergy <= 0) {
+    console.warn('Ambassador withdrawal resource estimate returned zero energy; using fallback.');
+    resources = await buildFallbackAmbassadorWithdrawalResourceEstimate({ wallet, privateKey });
+  }
+
   const trxBalance = await getTokenDetails(wallet.address, TRX_TOKEN_ID, false, wallet.id);
   const trxBalanceSun = Math.max(0, Number(trxBalance.balanceRaw || '0'));
   const missingTrxSun = Math.max(0, resources.estimatedBurnSun - trxBalanceSun);

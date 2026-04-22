@@ -8,13 +8,20 @@ import {
   getWalletSecret,
   type WalletMeta,
 } from './wallet/storage';
-import { trongridFetch } from './tron/api';
+import { getAccountResources, getTokenDetails, TRX_TOKEN_ID, trongridFetch } from './tron/api';
+import {
+  estimateContractCallResources,
+  getResourceUnitPricing,
+  type ContractCallResourceEstimate,
+} from './wallet/resources';
 
 const TRON_DERIVATION_PATH = "m/44'/195'/0'/0/0";
 const SUN = 1_000_000;
 const LIQUIDITY_EVENTS_LIMIT = 10;
 const LIQUIDITY_CACHE_TTL_MS = 60 * 1000;
 const DEFAULT_EXECUTE_FEE_LIMIT_SUN = 150_000_000;
+const DEFAULT_EXECUTE_ESTIMATED_ENERGY = 220_000;
+const DEFAULT_EXECUTE_ESTIMATED_BANDWIDTH = 650;
 
 export const LIQUIDITY_CONTROLLER_ADDRESS = 'TVKBLwg222skKnZ3F3boTiH35KC7nvYEuZ';
 export const LIQUIDITY_BOOTSTRAPPER_ADDRESS = 'TWfUee6qFV91t7KbFdYLEfpi8nprUaJ7dc';
@@ -84,6 +91,19 @@ export type LiquidityExecutionReceipt = {
   wallet: WalletMeta;
   txId: string;
   explorerUrl: string;
+};
+
+export type LiquidityExecutionReview = {
+  wallet: WalletMeta;
+  controllerAddress: string;
+  bootstrapperAddress: string;
+  resources: ContractCallResourceEstimate;
+  trxCoverage: {
+    trxBalanceSun: number;
+    trxBalanceDisplay: string;
+    missingTrxSun: number;
+    canCoverBurn: boolean;
+  };
 };
 
 type LiquidityCacheEntry = {
@@ -159,6 +179,48 @@ function extractTxId(result: unknown) {
   if (typeof candidate.id === 'string') return candidate.id;
 
   return '';
+}
+
+function formatTrxBalanceDisplay(valueSun: number) {
+  const trx = Math.max(0, Number(valueSun || 0)) / SUN;
+
+  return `${trx.toFixed(trx >= 1 ? 3 : 6).replace(/\.?0+$/, '') || '0'} TRX`;
+}
+
+async function buildFallbackLiquidityResourceEstimate(input: {
+  wallet: WalletMeta;
+  privateKey: string;
+}): Promise<ContractCallResourceEstimate> {
+  const tronWeb = createTronWeb(input.privateKey, input.wallet.address);
+  const [available, pricing] = await Promise.all([
+    getAccountResources(input.wallet.address),
+    getResourceUnitPricing(tronWeb),
+  ]);
+
+  const availableEnergy = Math.max(0, available.energyLimit - available.energyUsed);
+  const availableBandwidth = Math.max(0, available.bandwidthLimit - available.bandwidthUsed);
+  const energyShortfall = Math.max(0, DEFAULT_EXECUTE_ESTIMATED_ENERGY - availableEnergy);
+  const bandwidthShortfall = Math.max(0, DEFAULT_EXECUTE_ESTIMATED_BANDWIDTH - availableBandwidth);
+  const estimatedBurnSun =
+    energyShortfall * pricing.energySun + bandwidthShortfall * pricing.bandwidthSun;
+
+  return {
+    available,
+    estimatedEnergy: DEFAULT_EXECUTE_ESTIMATED_ENERGY,
+    estimatedBandwidth: DEFAULT_EXECUTE_ESTIMATED_BANDWIDTH,
+    energyShortfall,
+    bandwidthShortfall,
+    estimatedBurnSun,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+    recommendedFeeLimitSun: Math.max(
+      1_000_000,
+      Math.min(
+        DEFAULT_EXECUTE_FEE_LIMIT_SUN,
+        Math.ceil(Math.max(estimatedBurnSun, 1_000_000) * 1.15)
+      )
+    ),
+  };
 }
 
 async function fetchControllerEvents(eventName: 'LiquidityExecuted' | 'TRXReceived') {
@@ -339,6 +401,46 @@ export async function executeLiquidityController(options?: {
     wallet,
     txId,
     explorerUrl: buildExplorerUrl(txId),
+  };
+}
+
+export async function estimateLiquidityControllerExecution(): Promise<LiquidityExecutionReview> {
+  const { wallet, privateKey } = await getSigningWalletContext();
+  const tronWeb = createTronWeb(privateKey, wallet.address);
+
+  let resources = await estimateContractCallResources({
+    tronWeb,
+    privateKey,
+    ownerAddress: wallet.address,
+    contractAddress: LIQUIDITY_BOOTSTRAPPER_ADDRESS,
+    functionSelector: 'bootstrapAndExecute()',
+    parameters: [],
+    feeLimitSun: DEFAULT_EXECUTE_FEE_LIMIT_SUN,
+    maxFeeLimitSun: DEFAULT_EXECUTE_FEE_LIMIT_SUN,
+  }).catch(async (error) => {
+    console.warn('Liquidity resource estimate fallback:', error);
+    return buildFallbackLiquidityResourceEstimate({ wallet, privateKey });
+  });
+
+  if (resources.estimatedEnergy <= 0) {
+    console.warn('Liquidity resource estimate returned zero energy; using fallback.');
+    resources = await buildFallbackLiquidityResourceEstimate({ wallet, privateKey });
+  }
+
+  const trxBalance = await getTokenDetails(wallet.address, TRX_TOKEN_ID, false, wallet.id);
+  const trxBalanceSun = Math.max(0, Number(trxBalance.balanceRaw || '0'));
+
+  return {
+    wallet,
+    controllerAddress: LIQUIDITY_CONTROLLER_ADDRESS,
+    bootstrapperAddress: LIQUIDITY_BOOTSTRAPPER_ADDRESS,
+    resources,
+    trxCoverage: {
+      trxBalanceSun,
+      trxBalanceDisplay: formatTrxBalanceDisplay(trxBalanceSun),
+      missingTrxSun: Math.max(0, resources.estimatedBurnSun - trxBalanceSun),
+      canCoverBurn: trxBalanceSun >= resources.estimatedBurnSun,
+    },
   };
 }
 
