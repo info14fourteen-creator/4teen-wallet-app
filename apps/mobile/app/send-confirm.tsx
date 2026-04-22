@@ -236,6 +236,11 @@ export default function SendConfirmScreen() {
     estimate &&
       (estimate.resources.energyShortfall > 0 || estimate.resources.bandwidthShortfall > 0)
   );
+  const canRentEnergyForSend = Boolean(
+    estimate &&
+      !estimate.token.isNative &&
+      estimate.resources.energyShortfall > 0
+  );
   const hasNoEnergyAvailable = energyAvailable <= 0;
   const hasTrxForBurn = Boolean(estimate?.trxCoverage.canCoverBurn);
   const isApproveDisabled = sending || !estimate || !hasTrxForBurn;
@@ -243,7 +248,7 @@ export default function SendConfirmScreen() {
   useEffect(() => {
     let cancelled = false;
 
-    if (!estimate || !hasResourceShortfall || estimate.wallet.kind === 'watch-only') {
+    if (!estimate || !canRentEnergyForSend || estimate.wallet.kind === 'watch-only') {
       setEnergyQuote(null);
       setEnergyQuoteLoading(false);
       return;
@@ -262,7 +267,7 @@ export default function SendConfirmScreen() {
     return () => {
       cancelled = true;
     };
-  }, [estimate, hasResourceShortfall]);
+  }, [canRentEnergyForSend, estimate]);
 
   const handleReject = useCallback(() => {
     if (sending) return;
