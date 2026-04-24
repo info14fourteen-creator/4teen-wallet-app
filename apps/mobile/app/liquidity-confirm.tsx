@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -17,6 +17,7 @@ import { Image } from 'expo-image';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import EnergyResaleCard from '../src/ui/energy-resale-card';
+import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -37,8 +38,6 @@ import {
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
-  clampResourcePercent,
-  formatResourceAmount,
   formatTrxFromSunAmount,
   getAvailableResource,
 } from '../src/services/wallet/resources';
@@ -86,7 +85,6 @@ export default function LiquidityConfirmScreen() {
   const bandwidthAvailable = review
     ? getAvailableResource(review.resources.available, 'bandwidth')
     : 0;
-  const hasNoEnergyAvailable = energyAvailable <= 0;
   const hasResourceShortfall = Boolean(
     review &&
       (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
@@ -95,16 +93,6 @@ export default function LiquidityConfirmScreen() {
     review &&
       (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
   );
-  const energyBarPercent = useMemo(() => {
-    if (!review) return 0;
-    const base = Math.max(review.resources.estimatedEnergy, energyAvailable, 1);
-    return clampResourcePercent((review.resources.estimatedEnergy / base) * 100);
-  }, [energyAvailable, review]);
-  const bandwidthBarPercent = useMemo(() => {
-    if (!review) return 0;
-    const base = Math.max(review.resources.estimatedBandwidth, bandwidthAvailable, 1);
-    return clampResourcePercent((review.resources.estimatedBandwidth / base) * 100);
-  }, [bandwidthAvailable, review]);
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
   const isApproveDisabled = submitting || !review || !hasTrxForBurn;
 
@@ -521,128 +509,67 @@ export default function LiquidityConfirmScreen() {
                 loading={energyQuoteLoading}
                 processing={energyRenting}
                 disabled={submitting}
+                showUnavailable={canRentResources}
                 actionLabel="EXECUTE"
                 estimatedBurnSun={review.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
 
-              <View style={styles.detailCard}>
-                <View style={styles.detailRowFirst}>
-                  <Text style={styles.detailLabel}>Wallet</Text>
-                  <Text style={styles.detailValue}>{review.wallet.name}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Controller</Text>
-                  <Text style={styles.detailValue}>{shortAddress(review.controllerAddress)}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Bootstrapper</Text>
-                  <Text style={styles.detailValue}>{shortAddress(review.bootstrapperAddress)}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Estimated Burn</Text>
-                  <Text style={styles.detailValueAccent}>
-                    {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
-                  </Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Fee Cap</Text>
-                  <Text style={styles.detailValue}>
-                    {formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX
-                  </Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>TRX Available</Text>
-                  <Text style={styles.detailValue}>{review.trxCoverage.trxBalanceDisplay}</Text>
-                </View>
-              </View>
-
-              <View style={styles.detailCard}>
-                <View style={styles.detailRowFirst}>
-                  <Text style={styles.detailLabel}>Energy</Text>
-                  <Text style={styles.detailValue}>
-                    {formatResourceAmount(review.resources.estimatedEnergy)}
-                  </Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Bandwidth</Text>
-                  <Text style={styles.detailValue}>
-                    {formatResourceAmount(review.resources.estimatedBandwidth)}
-                  </Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Shortfall</Text>
-                  <Text style={styles.detailValue}>
-                    {formatResourceAmount(review.resources.energyShortfall)} energy ·{' '}
-                    {formatResourceAmount(review.resources.bandwidthShortfall)} bandwidth
-                  </Text>
-                </View>
-
-                <View style={styles.resourcesInlineRow}>
-                  <View style={styles.resourceInlineCol}>
-                    <Text
-                      style={[
-                        styles.resourceInlineLabel,
-                        hasNoEnergyAvailable ? styles.resourceInlineLabelRisk : null,
-                      ]}
-                    >
-                      Energy {formatResourceAmount(review.resources.estimatedEnergy)}/
-                      {formatResourceAmount(energyAvailable)}
-                    </Text>
-                    <View
-                      style={[
-                        styles.resourceBarTrack,
-                        hasNoEnergyAvailable ? styles.resourceBarTrackRisk : null,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.resourceBarAvailable,
-                          hasNoEnergyAvailable ? styles.resourceBarAvailableRisk : null,
-                        ]}
-                      />
-                      <View style={[styles.resourceBarUsed, { width: `${energyBarPercent}%` }]} />
-                    </View>
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionEyebrow}>EXECUTION REVIEW</Text>
+                <View style={styles.detailCard}>
+                  <View style={styles.detailRowFirst}>
+                    <Text style={styles.detailLabel}>Wallet</Text>
+                    <Text style={styles.detailValue}>{review.wallet.name}</Text>
                   </View>
 
-                  <View style={styles.resourceInlineCol}>
-                    <Text style={styles.resourceInlineLabel}>
-                      Bandwidth {formatResourceAmount(review.resources.estimatedBandwidth)}/
-                      {formatResourceAmount(bandwidthAvailable)}
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Controller</Text>
+                    <Text style={styles.detailValue}>{shortAddress(review.controllerAddress)}</Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Bootstrapper</Text>
+                    <Text style={styles.detailValue}>{shortAddress(review.bootstrapperAddress)}</Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Estimated Burn</Text>
+                    <Text style={styles.detailValueAccent}>
+                      {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
                     </Text>
-                    <View style={styles.resourceBarTrack}>
-                      <View style={styles.resourceBarAvailable} />
-                      <View
-                        style={[styles.resourceBarUsed, { width: `${bandwidthBarPercent}%` }]}
-                      />
-                    </View>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Fee Cap</Text>
+                    <Text style={styles.detailValue}>
+                      {formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX
+                    </Text>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>TRX Available</Text>
+                    <Text style={styles.detailValue}>{review.trxCoverage.trxBalanceDisplay}</Text>
                   </View>
                 </View>
               </View>
 
-              <View style={styles.infoRow}>
-                <Text
-                  style={[
-                    styles.infoRowText,
-                    (!review.trxCoverage.canCoverBurn || hasResourceShortfall)
-                      ? styles.infoRowTextRisk
-                      : null,
-                  ]}
-                >
-                  {!review.trxCoverage.canCoverBurn
-                    ? 'TRX is too low to cover the estimated network burn.'
+              <ConfirmNetworkLoadCard
+                estimatedEnergy={review.resources.estimatedEnergy}
+                estimatedBandwidth={review.resources.estimatedBandwidth}
+                availableEnergy={energyAvailable}
+                availableBandwidth={bandwidthAvailable}
+                energyShortfall={review.resources.energyShortfall}
+                bandwidthShortfall={review.resources.bandwidthShortfall}
+                message={
+                  !review.trxCoverage.canCoverBurn
+                    ? 'Not enough TRX to cover the estimated burn.'
                     : hasResourceShortfall
-                      ? 'Resources are short. Network burn is included in the estimate above.'
-                      : 'Resources are sufficient. This execution should avoid extra burn.'}
-                </Text>
-              </View>
+                      ? 'You are short on resources. The burn estimate above already includes this gap.'
+                      : 'You have enough resources for this action. Extra burn is unlikely.'
+                }
+                messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
+              />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>
@@ -668,7 +595,11 @@ export default function LiquidityConfirmScreen() {
           animationType="fade"
           presentationStyle="fullScreen"
           transparent={false}
-          onRequestClose={() => setPasscodeOpen(false)}
+          onRequestClose={() => {
+            setPasscodeOpen(false);
+            setPasscodeDigits('');
+            setPasscodeError('');
+          }}
           statusBarTranslucent
         >
           <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
@@ -722,7 +653,11 @@ export default function LiquidityConfirmScreen() {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.authCancelButton}
-                    onPress={() => setPasscodeOpen(false)}
+                    onPress={() => {
+                      setPasscodeOpen(false);
+                      setPasscodeDigits('');
+                      setPasscodeError('');
+                    }}
                     disabled={submitting}
                   >
                     <Text style={styles.authCancelButtonText}>CANCEL</Text>
@@ -835,6 +770,17 @@ const styles = StyleSheet.create({
   heroMetricLabelReceive: {
     color: colors.green,
   },
+  sectionBlock: {
+    marginTop: 16,
+    gap: 8,
+  },
+  sectionEyebrow: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.5,
+  },
 
   heroMetricValue: {
     fontSize: 20,
@@ -887,35 +833,41 @@ const styles = StyleSheet.create({
   },
 
   detailCard: {
-    marginTop: 14,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     backgroundColor: colors.surfaceSoft,
-    padding: 16,
+    overflow: 'hidden',
   },
 
   detailRowFirst: {
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
   },
 
   detailRow: {
-    marginTop: 12,
-    paddingTop: 12,
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     borderTopWidth: 1,
     borderTopColor: colors.lineSoft,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
   },
 
   detailLabel: {
     color: colors.textDim,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
+    flexShrink: 0,
   },
 
   detailValue: {
@@ -938,12 +890,18 @@ const styles = StyleSheet.create({
 
   infoRow: {
     marginTop: 12,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: 'rgba(255,105,0,0.06)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
 
   infoRowText: {
     color: colors.textSoft,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 20,
     fontFamily: 'Sora_600SemiBold',
   },
 
@@ -968,7 +926,7 @@ const styles = StyleSheet.create({
   },
 
   secondaryButton: {
-    marginTop: 18,
+    marginTop: 14,
     minHeight: layout.buttonHeight,
     borderRadius: radius.sm,
     borderWidth: 1,
@@ -979,14 +937,14 @@ const styles = StyleSheet.create({
   },
 
   secondaryButtonText: {
-    color: colors.white,
-    fontSize: 15,
+    color: colors.textSoft,
+    fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
   },
 
   primaryButton: {
-    marginTop: 18,
+    marginTop: 14,
     minHeight: layout.buttonHeight,
     borderRadius: radius.sm,
     backgroundColor: colors.accent,
@@ -1000,9 +958,10 @@ const styles = StyleSheet.create({
 
   primaryButtonText: {
     color: colors.white,
-    fontSize: 15,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 17,
     fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.7,
   },
 
   errorWrap: {
@@ -1121,20 +1080,21 @@ const styles = StyleSheet.create({
   },
 
   resourcesInlineRow: {
-    marginTop: 14,
-    flexDirection: 'row',
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
   },
 
   resourceInlineCol: {
-    flex: 1,
-    gap: 8,
+    gap: 6,
   },
 
   resourceInlineLabel: {
     color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
   },
 
@@ -1143,10 +1103,11 @@ const styles = StyleSheet.create({
   },
 
   resourceBarTrack: {
-    height: 6,
+    height: 8,
     borderRadius: 999,
     overflow: 'hidden',
-    backgroundColor: 'rgba(24,224,58,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    position: 'relative',
   },
 
   resourceBarTrackRisk: {
@@ -1155,12 +1116,11 @@ const styles = StyleSheet.create({
 
   resourceBarAvailable: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.green,
-    opacity: 0.9,
+    backgroundColor: 'rgba(24,224,58,0.18)',
   },
 
   resourceBarAvailableRisk: {
-    backgroundColor: colors.red,
+    backgroundColor: 'rgba(255,48,73,0.12)',
   },
 
   resourceBarUsed: {
@@ -1168,6 +1128,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.red,
+    backgroundColor: colors.accent,
+    borderRadius: 999,
   },
 });

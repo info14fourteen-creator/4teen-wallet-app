@@ -1,0 +1,559 @@
+import { useCallback, useMemo, useState } from 'react';
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+
+import { NavigationChrome, useNavigationInsets } from '../src/ui/navigation';
+import { useNotice } from '../src/notice/notice-provider';
+
+import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+import { patterns } from '../src/theme/patterns';
+
+import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
+import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
+import WalletIcon from '../assets/icons/ui/wallet_btn.svg';
+import AddWalletIcon from '../assets/icons/ui/add_wallet_btn.svg';
+
+const BROW_SYSTEM_RULES = `Brow System
+
+1. plain
+Use for root-level internal screen heading without return action.
+
+2. back
+Use for nested screen heading with back action on the right.
+
+3. back-link
+Use for nested screen heading with back action and a linked destination cue.
+
+4. back-link-icon
+Use for screen heading with linked icon cue only, without back action.
+
+Placement
+- Always first content block inside screen content.
+- Same top position on every screen.
+- Same label size, spacing, and back touch target.
+- Do not wrap brows inside demo cards on real screens.
+- Do not hand-build random variations in page files.`;
+
+const ACTION_ROW_SYSTEM_RULES = `Action Row System
+
+1. rowLink
+Standard row with label and trailing chevron.
+
+2. rowExpand
+Standard row with label and expandable state chevron.
+
+3. rowIcon
+Row with leading icon and trailing chevron.
+
+4. rowAction
+Accent action row for primary inline actions.
+
+5. rowWallet
+Wallet row with title, meta, hint, and trailing icon.
+
+Placement
+- Reuse shared row heights, paddings, and text roles.
+- Keep leading/trailing icon alignment identical.
+- Use rowLabel, rowMeta, rowHint, rowValue, rowStatus for text.
+- Do not create custom row spacing per screen unless truly necessary.`;
+
+const BROW_COPY_BLOCKS = {
+  plain: `<View style={patterns.browPlain}>
+  <Text style={patterns.browLabel}>HOME</Text>
+</View>`,
+
+  back: `<View style={patterns.browBack}>
+  <Text style={patterns.browLabel}>SCAN</Text>
+
+  <TouchableOpacity activeOpacity={0.85} style={patterns.browBackTouch} onPress={() => router.back()}>
+    <Ionicons name="arrow-back" size={15} color={colors.accent} />
+    <Text style={patterns.browLinkText}>back</Text>
+  </TouchableOpacity>
+</View>`,
+
+  backLink: `<View style={patterns.browBackLink}>
+  <Text style={patterns.browLabel}>TOKEN DETAILS</Text>
+
+  <TouchableOpacity activeOpacity={0.85} style={patterns.browLinkTouch} onPress={() => router.back()}>
+    <Ionicons name="arrow-back" size={15} color={colors.accent} />
+    <View style={patterns.browLinkInlineGroup}>
+      <Text style={patterns.browLinkText}>back</Text>
+      <OpenRightIcon width={18} height={18} />
+    </View>
+  </TouchableOpacity>
+</View>`,
+
+  backLinkIcon: `<View style={patterns.browBackLinkIcon}>
+  <Text style={patterns.browLabel}>SELECT WALLET</Text>
+
+  <TouchableOpacity activeOpacity={0.85} style={patterns.browLinkIconTouch}>
+    <WalletIcon width={14} height={14} />
+    <OpenRightIcon width={18} height={18} />
+  </TouchableOpacity>
+</View>`,
+};
+
+const ACTION_ROW_COPY_BLOCKS = {
+  rowLink: `<TouchableOpacity activeOpacity={0.9} style={patterns.rowLink}>
+  <Text style={patterns.rowLabel}>Language</Text>
+  <OpenRightIcon width={18} height={18} />
+</TouchableOpacity>`,
+
+  rowExpand: `<TouchableOpacity activeOpacity={0.9} style={patterns.rowExpand}>
+  <Text style={patterns.rowLabel}>Token Details</Text>
+  <OpenDownIcon width={18} height={18} />
+</TouchableOpacity>`,
+
+  rowIcon: `<TouchableOpacity activeOpacity={0.9} style={patterns.rowIcon}>
+  <View style={patterns.rowLeft}>
+    <View style={patterns.iconBoxMd}>
+      <WalletIcon width={20} height={20} />
+    </View>
+    <Text style={patterns.rowLabel}>Wallet Management</Text>
+  </View>
+  <OpenRightIcon width={18} height={18} />
+</TouchableOpacity>`,
+
+  rowAction: `<TouchableOpacity activeOpacity={0.9} style={patterns.rowAction}>
+  <Text style={patterns.rowLabel}>Add Wallet</Text>
+  <AddWalletIcon width={20} height={20} />
+</TouchableOpacity>`,
+
+  rowWallet: `<TouchableOpacity activeOpacity={0.9} style={patterns.rowWallet}>
+  <View style={patterns.rowTextBlock}>
+    <View style={patterns.rowTitleInline}>
+      <Text style={patterns.rowLabel}>Main Wallet</Text>
+      <Text style={[patterns.rowStatus, patterns.rowStatusPositive]}>ACTIVE</Text>
+    </View>
+    <Text style={patterns.rowMeta}>Balance: $12,004.11</Text>
+    <Text style={patterns.rowMeta}>Type: Seed Phrase</Text>
+    <Text style={patterns.rowHint}>TXYZ...9QkL</Text>
+  </View>
+  <OpenRightIcon width={18} height={18} />
+</TouchableOpacity>`,
+};
+
+const ARCHIVE_WORKFLOW_RULES = `Project workflow rules
+
+Language and comments
+- We communicate in Russian.
+- Do not add Russian comments inside code.
+- Code comments must stay in English.
+
+How I usually work with you
+- First I ask for a command to find the needed files in the project.
+- Then I ask for the full code with line numbers.
+- Before any edit or rewrite, make a backup first.
+- Prefer targeted patches.
+- If a patch is not realistic, rewrite the file fully.
+
+How you should answer
+- Give terminal-ready copy-paste commands.
+- Do not send vague diffs if I asked for commands.
+- If you change files, be precise and minimal when possible.
+- If you rewrite a file, give the full file content.
+- Keep project structure clean and reusable.
+
+Examples I can send you
+- "Дай команду найти все файлы связанные с wallet management"
+- "Запроси полный код с номерами строк"
+- "Сначала сделай бэк ап перед правкой"
+- "Нужен патч, не переписывай файл целиком если можно"
+- "Если патч невозможен, дай полный файл под копипаст"
+- "Проверь что решение не ломает остальные страницы"
+- "Дай только команды в терминал"
+- "Убери русские комментарии из кода, но со мной общайся по-русски"`;
+
+function CopyBlock({
+  title,
+  value,
+  onCopy,
+}: {
+  title: string;
+  value: string;
+  onCopy: (value: string, label: string) => Promise<void>;
+}) {
+  const lines = value.split('\n');
+
+  return (
+    <View style={styles.copyBlock}>
+      <Text style={styles.copyBlockTitle}>{title}</Text>
+
+      <View style={styles.codeBox}>
+        {lines.map((line, index) => (
+          <Text
+            key={`${title}-${index}-${line.slice(0, 16)}`}
+            style={[styles.codeLine, !line.trim() && styles.codeSpacer]}
+          >
+            {line || ' '}
+          </Text>
+        ))}
+      </View>
+
+      <TouchableOpacity
+        activeOpacity={0.9}
+        style={patterns.buttonPrimary}
+        onPress={() => void onCopy(value, title)}
+      >
+        <Text style={styles.primaryButtonLabel}>Copy {title}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+export default function UiShellLab() {
+  const [refreshing, setRefreshing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const navInsets = useNavigationInsets({
+    topExtra: 14,
+    bottomExtra: 20,
+  });
+
+  const notice = useNotice();
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    setRefreshing(false);
+  }, []);
+
+  const handleCopy = useCallback(
+    async (value: string, label: string) => {
+      await Clipboard.setStringAsync(value);
+      notice.showSuccessNotice(`${label} copied to clipboard.`, 1800);
+    },
+    [notice]
+  );
+
+  const browSystemLines = useMemo(() => BROW_SYSTEM_RULES.split('\n'), []);
+  const actionRowSystemLines = useMemo(() => ACTION_ROW_SYSTEM_RULES.split('\n'), []);
+  const archiveWorkflowLines = useMemo(() => ARCHIVE_WORKFLOW_RULES.split('\n'), []);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <View style={styles.screen}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: navInsets.top,
+              paddingBottom: navInsets.bottom,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+              progressBackgroundColor={colors.bg}
+            />
+          }
+        >
+          <View style={styles.hero}>
+            <Text style={ui.sectionEyebrow}>UI SYSTEM</Text>
+            <Text style={ui.titleLg}>Brow System + Action Row System</Text>
+            <Text style={ui.body}>
+              This page is the visual reference for reusable page-top brows and action rows. You
+              look here, pick the element, copy the block, and move on with your life. A rare win.
+            </Text>
+          </View>
+
+          <View style={styles.systemBlock}>
+            <Text style={ui.sectionEyebrow}>BROW SYSTEM</Text>
+            <Text style={ui.titleSm}>Visual reference</Text>
+          </View>
+
+          <View style={patterns.browPlain}>
+            <Text style={patterns.browLabel}>HOME</Text>
+          </View>
+          <CopyBlock title="browPlain" value={BROW_COPY_BLOCKS.plain} onCopy={handleCopy} />
+
+          <View style={patterns.browBack}>
+            <Text style={patterns.browLabel}>SCAN</Text>
+
+            <TouchableOpacity activeOpacity={0.85} style={patterns.browBackTouch}>
+              <Ionicons name="arrow-back" size={15} color={colors.accent} />
+              <Text style={patterns.browLinkText}>back</Text>
+            </TouchableOpacity>
+          </View>
+          <CopyBlock title="browBack" value={BROW_COPY_BLOCKS.back} onCopy={handleCopy} />
+
+          <View style={patterns.browBackLink}>
+            <Text style={patterns.browLabel}>TOKEN DETAILS</Text>
+
+            <TouchableOpacity activeOpacity={0.85} style={patterns.browLinkTouch}>
+              <Ionicons name="arrow-back" size={15} color={colors.accent} />
+              <View style={patterns.browLinkInlineGroup}>
+                <Text style={patterns.browLinkText}>back</Text>
+                <OpenRightIcon width={18} height={18} />
+              </View>
+            </TouchableOpacity>
+          </View>
+          <CopyBlock title="browBackLink" value={BROW_COPY_BLOCKS.backLink} onCopy={handleCopy} />
+
+          <View style={patterns.browBackLinkIcon}>
+            <Text style={patterns.browLabel}>SELECT WALLET</Text>
+
+            <TouchableOpacity activeOpacity={0.85} style={patterns.browLinkIconTouch}>
+              <WalletIcon width={14} height={14} />
+              <OpenRightIcon width={18} height={18} />
+            </TouchableOpacity>
+          </View>
+          <CopyBlock
+            title="browBackLinkIcon"
+            value={BROW_COPY_BLOCKS.backLinkIcon}
+            onCopy={handleCopy}
+          />
+
+          <View style={styles.systemRulesBlock}>
+            <Text style={styles.rulesTitle}>Brow rules</Text>
+            <View style={styles.codeBox}>
+              {browSystemLines.map((line, index) => (
+                <Text
+                  key={`brow-rules-${index}-${line.slice(0, 16)}`}
+                  style={[styles.codeLine, !line.trim() && styles.codeSpacer]}
+                >
+                  {line || ' '}
+                </Text>
+              ))}
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={patterns.buttonPrimary}
+              onPress={() => void handleCopy(BROW_SYSTEM_RULES, 'brow system rules')}
+            >
+              <Text style={styles.primaryButtonLabel}>Copy brow system rules</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.systemBlock}>
+            <Text style={ui.sectionEyebrow}>ACTION ROW SYSTEM</Text>
+            <Text style={ui.titleSm}>Visual reference</Text>
+          </View>
+
+          <TouchableOpacity activeOpacity={0.9} style={patterns.rowLink}>
+            <Text style={patterns.rowLabel}>Language</Text>
+            <OpenRightIcon width={18} height={18} />
+          </TouchableOpacity>
+          <CopyBlock title="rowLink" value={ACTION_ROW_COPY_BLOCKS.rowLink} onCopy={handleCopy} />
+
+          <TouchableOpacity activeOpacity={0.9} style={patterns.rowExpand}>
+            <Text style={patterns.rowLabel}>Token Details</Text>
+            <OpenDownIcon width={18} height={18} />
+          </TouchableOpacity>
+          <CopyBlock title="rowExpand" value={ACTION_ROW_COPY_BLOCKS.rowExpand} onCopy={handleCopy} />
+
+          <TouchableOpacity activeOpacity={0.9} style={patterns.rowIcon}>
+            <View style={patterns.rowLeft}>
+              <View style={patterns.iconBoxMd}>
+                <WalletIcon width={20} height={20} />
+              </View>
+              <Text style={patterns.rowLabel}>Wallet Management</Text>
+            </View>
+            <OpenRightIcon width={18} height={18} />
+          </TouchableOpacity>
+          <CopyBlock title="rowIcon" value={ACTION_ROW_COPY_BLOCKS.rowIcon} onCopy={handleCopy} />
+
+          <TouchableOpacity activeOpacity={0.9} style={patterns.rowAction}>
+            <Text style={patterns.rowLabel}>Add Wallet</Text>
+            <AddWalletIcon width={20} height={20} />
+          </TouchableOpacity>
+          <CopyBlock title="rowAction" value={ACTION_ROW_COPY_BLOCKS.rowAction} onCopy={handleCopy} />
+
+          <TouchableOpacity activeOpacity={0.9} style={patterns.rowWallet}>
+            <View style={patterns.rowTextBlock}>
+              <View style={patterns.rowTitleInline}>
+                <Text style={patterns.rowLabel}>Main Wallet</Text>
+                <Text style={[patterns.rowStatus, patterns.rowStatusPositive]}>ACTIVE</Text>
+              </View>
+              <Text style={patterns.rowMeta}>Balance: $12,004.11</Text>
+              <Text style={patterns.rowMeta}>Type: Seed Phrase</Text>
+              <Text style={patterns.rowHint}>TXYZ...9QkL</Text>
+            </View>
+            <OpenRightIcon width={18} height={18} />
+          </TouchableOpacity>
+
+          <TouchableOpacity activeOpacity={0.9} style={[patterns.rowWallet, patterns.rowWalletActive]}>
+            <View style={patterns.rowTextBlock}>
+              <View style={patterns.rowTitleInline}>
+                <Text style={patterns.rowLabel}>Active Wallet</Text>
+                <Text style={[patterns.rowStatus, patterns.rowStatusPositive]}>ACTIVE</Text>
+              </View>
+              <Text style={patterns.rowMeta}>Balance: $8,440.03</Text>
+              <Text style={patterns.rowMeta}>Type: Private Key</Text>
+              <Text style={patterns.rowHint}>TX2m...r8Zu</Text>
+            </View>
+            <OpenRightIcon width={18} height={18} />
+          </TouchableOpacity>
+          <CopyBlock title="rowWallet" value={ACTION_ROW_COPY_BLOCKS.rowWallet} onCopy={handleCopy} />
+
+          <View style={styles.systemRulesBlock}>
+            <Text style={styles.rulesTitle}>Action row rules</Text>
+            <View style={styles.codeBox}>
+              {actionRowSystemLines.map((line, index) => (
+                <Text
+                  key={`row-rules-${index}-${line.slice(0, 16)}`}
+                  style={[styles.codeLine, !line.trim() && styles.codeSpacer]}
+                >
+                  {line || ' '}
+                </Text>
+              ))}
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={patterns.buttonPrimary}
+              onPress={() => void handleCopy(ACTION_ROW_SYSTEM_RULES, 'action row system rules')}
+            >
+              <Text style={styles.primaryButtonLabel}>Copy action row system rules</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.systemBlock}>
+            <Text style={ui.sectionEyebrow}>ARCHIVE</Text>
+            <Text style={ui.titleSm}>Stored project text</Text>
+          </View>
+
+          <View style={styles.archiveBlock}>
+            <View style={styles.codeBox}>
+              {archiveWorkflowLines.map((line, index) => (
+                <Text
+                  key={`archive-${index}-${line.slice(0, 16)}`}
+                  style={[styles.codeLine, !line.trim() && styles.codeSpacer]}
+                >
+                  {line || ' '}
+                </Text>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={patterns.buttonPrimary}
+              onPress={() => void handleCopy(ARCHIVE_WORKFLOW_RULES, 'workflow archive')}
+            >
+              <Text style={styles.primaryButtonLabel}>Copy workflow archive</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        <NavigationChrome
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
+          onCloseMenu={() => setMenuOpen(false)}
+          forceFooterVisible
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  content: {
+    paddingHorizontal: layout.screenPaddingX,
+    gap: 16,
+  },
+
+  hero: {
+    gap: 10,
+    marginBottom: 2,
+  },
+
+  systemBlock: {
+    gap: 6,
+    marginTop: 6,
+  },
+
+  systemRulesBlock: {
+    gap: 10,
+    marginTop: 2,
+  },
+
+  rulesTitle: {
+    color: colors.white,
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  copyBlock: {
+    gap: 10,
+    marginBottom: 4,
+  },
+
+  copyBlockTitle: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.35,
+  },
+
+  codeBox: {
+    ...patterns.surfaceBoxDarkCompact,
+    gap: 6,
+  },
+
+  codeLine: {
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  codeSpacer: {
+    minHeight: 8,
+  },
+
+  primaryButtonLabel: {
+    color: colors.bg,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: colors.lineSoft,
+    opacity: 0.7,
+    marginVertical: 4,
+  },
+
+  archiveBlock: {
+    gap: 10,
+    marginBottom: 8,
+  },
+});

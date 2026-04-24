@@ -32,6 +32,8 @@ export default function EnergyResaleCard({
   loading,
   processing,
   disabled,
+  showUnavailable = false,
+  unavailableText = 'Resource rental is unavailable right now. You can continue with network burn or pull to refresh.',
   actionLabel = 'APPROVE',
   estimatedBurnSun,
   onRent,
@@ -40,6 +42,8 @@ export default function EnergyResaleCard({
   loading?: boolean;
   processing?: boolean;
   disabled?: boolean;
+  showUnavailable?: boolean;
+  unavailableText?: string;
   actionLabel?: string;
   estimatedBurnSun?: number;
   onRent: () => void;
@@ -54,7 +58,16 @@ export default function EnergyResaleCard({
   }
 
   if (!quote) {
-    return null;
+    if (!showUnavailable) {
+      return null;
+    }
+
+    return (
+      <View style={styles.card}>
+        <Text style={styles.eyebrow}>SAVE RESOURCES</Text>
+        <Text style={styles.text}>{unavailableText}</Text>
+      </View>
+    );
   }
 
   const packageCount = Math.max(1, Math.floor(Number(quote.packageCount || 1)));

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -17,6 +17,7 @@ import { Image } from 'expo-image';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import EnergyResaleCard from '../src/ui/energy-resale-card';
+import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -41,8 +42,6 @@ import {
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
-  clampResourcePercent,
-  formatResourceAmount,
   formatTrxFromSunAmount,
   getAvailableResource,
 } from '../src/services/wallet/resources';
@@ -203,18 +202,6 @@ export default function SendConfirmScreen() {
     ? getAvailableResource(estimate.resources.available, 'bandwidth')
     : 0;
 
-  const energyBarPercent = useMemo(() => {
-    if (!estimate) return 0;
-    const base = Math.max(estimate.resources.estimatedEnergy, energyAvailable, 1);
-    return clampResourcePercent((estimate.resources.estimatedEnergy / base) * 100);
-  }, [energyAvailable, estimate]);
-
-  const bandwidthBarPercent = useMemo(() => {
-    if (!estimate) return 0;
-    const base = Math.max(estimate.resources.estimatedBandwidth, bandwidthAvailable, 1);
-    return clampResourcePercent((estimate.resources.estimatedBandwidth / base) * 100);
-  }, [bandwidthAvailable, estimate]);
-
   const hasResourceShortfall = Boolean(
     estimate &&
       (estimate.resources.energyShortfall > 0 || estimate.resources.bandwidthShortfall > 0)
@@ -224,7 +211,6 @@ export default function SendConfirmScreen() {
       !estimate.token.isNative &&
       (estimate.resources.estimatedEnergy > 0 || estimate.resources.estimatedBandwidth > 0)
   );
-  const hasNoEnergyAvailable = energyAvailable <= 0;
   const hasTrxForBurn = Boolean(estimate?.trxCoverage.canCoverBurn);
   const isApproveDisabled = sending || !estimate || !hasTrxForBurn;
 
@@ -609,92 +595,62 @@ export default function SendConfirmScreen() {
                 loading={energyQuoteLoading}
                 processing={energyRenting}
                 disabled={sending}
+                showUnavailable={canRentEnergyForSend}
                 actionLabel="SEND"
                 estimatedBurnSun={estimate.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
 
-              <View style={styles.detailCard}>
-                <View style={styles.detailRowFirst}>
-                  <Text style={styles.detailLabel}>Asset</Text>
-                  <Text style={styles.detailValue}>{estimate.token.name}</Text>
-                </View>
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionEyebrow}>TRANSFER REVIEW</Text>
+                <View style={styles.detailCard}>
+                  <View style={styles.detailRowFirst}>
+                    <Text style={styles.detailLabel}>Asset</Text>
+                    <Text style={styles.detailValue}>{estimate.token.name}</Text>
+                  </View>
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Amount</Text>
-                  <Text style={styles.detailValue}>{estimate.token.amountDisplay}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Estimated Burn</Text>
-                  <Text style={styles.detailValueAccent}>
-                    {formatTrxFromSunAmount(estimate.resources.estimatedBurnSun)} TRX
-                  </Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>TRX Available</Text>
-                  <Text style={styles.detailValue}>{estimate.trxCoverage.trxBalanceDisplay}</Text>
-                </View>
-
-                {!estimate.token.isNative ? (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Fee Limit</Text>
-                    <Text style={styles.detailValue}>
-                      {formatTrxFromSunAmount(estimate.token.recommendedFeeLimitSun)} TRX
-                    </Text>
-                  </View>
-                ) : null}
-                <View style={styles.resourcesInlineRow}>
-                  <View style={styles.resourceInlineCol}>
-                    <Text
-                      style={[
-                        styles.resourceInlineLabel,
-                        styles.resourcesEnergyText,
-                        hasNoEnergyAvailable ? styles.resourcesEnergyTextRisk : null,
-                      ]}
-                    >
-                      Energy {formatResourceAmount(estimate.resources.estimatedEnergy)}/
-                      {formatResourceAmount(energyAvailable)}
-                    </Text>
-                    <View
-                      style={[
-                        styles.resourceBarTrack,
-                        hasNoEnergyAvailable ? styles.resourceBarTrackRisk : null,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.resourceBarAvailable,
-                          hasNoEnergyAvailable ? styles.resourceBarAvailableRisk : null,
-                        ]}
-                      />
-                      <View style={[styles.resourceBarUsed, { width: `${energyBarPercent}%` }]} />
-                    </View>
+                    <Text style={styles.detailLabel}>Amount</Text>
+                    <Text style={styles.detailValue}>{estimate.token.amountDisplay}</Text>
                   </View>
 
-                  <View style={styles.resourceInlineCol}>
-                    <Text style={styles.resourceInlineLabel}>
-                      Bandwidth {formatResourceAmount(estimate.resources.estimatedBandwidth)}/
-                      {formatResourceAmount(bandwidthAvailable)}
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Estimated Burn</Text>
+                    <Text style={styles.detailValueAccent}>
+                      {formatTrxFromSunAmount(estimate.resources.estimatedBurnSun)} TRX
                     </Text>
-                    <View style={styles.resourceBarTrack}>
-                      <View style={styles.resourceBarAvailable} />
-                      <View style={[styles.resourceBarUsed, { width: `${bandwidthBarPercent}%` }]} />
-                    </View>
                   </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>TRX Available</Text>
+                    <Text style={styles.detailValue}>{estimate.trxCoverage.trxBalanceDisplay}</Text>
+                  </View>
+
+                  {!estimate.token.isNative ? (
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailLabel}>Fee Limit</Text>
+                      <Text style={styles.detailValue}>
+                        {formatTrxFromSunAmount(estimate.token.recommendedFeeLimitSun)} TRX
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
 
-              <View style={styles.infoRow}>
-                <Text
-                  style={[styles.infoRowText, hasResourceShortfall ? styles.infoRowTextRisk : null]}
-                >
-                  {hasResourceShortfall
-                    ? 'Resources are short. Network burn is included in the estimate above.'
-                    : 'Resources are sufficient. This transfer should execute without extra burn.'}
-                </Text>
-              </View>
+              <ConfirmNetworkLoadCard
+                estimatedEnergy={estimate.resources.estimatedEnergy}
+                estimatedBandwidth={estimate.resources.estimatedBandwidth}
+                availableEnergy={energyAvailable}
+                availableBandwidth={bandwidthAvailable}
+                energyShortfall={estimate.resources.energyShortfall}
+                bandwidthShortfall={estimate.resources.bandwidthShortfall}
+                message={
+                  hasResourceShortfall
+                    ? 'You are short on resources. The burn estimate above already includes this gap.'
+                    : 'You have enough resources for this action. Extra burn is unlikely.'
+                }
+                messageRisk={hasResourceShortfall}
+              />
 
               <TouchableOpacity
                 activeOpacity={0.9}
@@ -713,7 +669,11 @@ export default function SendConfirmScreen() {
           animationType="fade"
           presentationStyle="fullScreen"
           transparent={false}
-          onRequestClose={() => setPasscodeOpen(false)}
+          onRequestClose={() => {
+            setPasscodeOpen(false);
+            setPasscodeDigits('');
+            setPasscodeError('');
+          }}
           statusBarTranslucent
         >
           <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
@@ -767,7 +727,11 @@ export default function SendConfirmScreen() {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.authCancelButton}
-                    onPress={() => setPasscodeOpen(false)}
+                    onPress={() => {
+                      setPasscodeOpen(false);
+                      setPasscodeDigits('');
+                      setPasscodeError('');
+                    }}
                     disabled={sending}
                   >
                     <Text style={styles.authCancelButtonText}>CANCEL</Text>
@@ -939,39 +903,54 @@ const styles = StyleSheet.create({
     color: colors.red,
   },
 
+  sectionBlock: {
+    marginTop: 16,
+    gap: 8,
+  },
+  sectionEyebrow: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.5,
+  },
+
   detailCard: {
-    marginTop: 14,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     backgroundColor: colors.surfaceSoft,
-    padding: 16,
+    paddingHorizontal: 14,
   },
 
   detailRow: {
-    marginTop: 13,
+    minHeight: 50,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
   },
 
   detailRowFirst: {
+    minHeight: 50,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
   },
 
   detailLabel: {
     color: colors.textDim,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
+    flexShrink: 0,
   },
 
   detailValue: {
-    flexShrink: 1,
+    flex: 1,
     color: colors.white,
     fontSize: 13,
     lineHeight: 18,
@@ -980,7 +959,7 @@ const styles = StyleSheet.create({
   },
 
   detailValueAccent: {
-    flexShrink: 1,
+    flex: 1,
     color: colors.accent,
     fontSize: 13,
     lineHeight: 18,
@@ -989,35 +968,30 @@ const styles = StyleSheet.create({
   },
 
   resourcesInlineRow: {
-    marginTop: 14,
-    flexDirection: 'row',
-    gap: 12,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
+    gap: 10,
   },
 
   resourceInlineCol: {
-    flex: 1,
-    gap: 8,
+    gap: 6,
   },
 
   resourceInlineLabel: {
     color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
   },
-
-  resourcesEnergyText: {
-    color: colors.accent,
-  },
-  resourcesEnergyTextRisk: {
-    color: colors.red,
-  },
+  resourceInlineLabelRisk: { color: colors.red },
 
   resourceBarTrack: {
-    height: 6,
+    height: 8,
     borderRadius: 999,
     overflow: 'hidden',
-    backgroundColor: 'rgba(24,224,58,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    position: 'relative',
   },
   resourceBarTrackRisk: {
     backgroundColor: 'rgba(255,48,73,0.14)',
@@ -1025,11 +999,10 @@ const styles = StyleSheet.create({
 
   resourceBarAvailable: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.green,
-    opacity: 0.9,
+    backgroundColor: 'rgba(24,224,58,0.18)',
   },
   resourceBarAvailableRisk: {
-    backgroundColor: colors.red,
+    backgroundColor: 'rgba(255,48,73,0.12)',
   },
 
   resourceBarUsed: {
@@ -1037,18 +1010,24 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.red,
+    backgroundColor: colors.accent,
+    borderRadius: 999,
   },
 
   infoRow: {
     marginTop: 12,
-    paddingHorizontal: 2,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: 'rgba(255,105,0,0.06)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
 
   infoRowText: {
-    color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 15,
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 20,
     fontFamily: 'Sora_600SemiBold',
   },
 
@@ -1064,7 +1043,7 @@ const styles = StyleSheet.create({
   },
 
   secondaryButton: {
-    marginTop: 18,
+    marginTop: 14,
     minHeight: 54,
     borderRadius: radius.sm,
     borderWidth: 1,
@@ -1076,15 +1055,15 @@ const styles = StyleSheet.create({
   },
 
   secondaryButtonText: {
-    color: colors.white,
-    fontSize: 14,
+    color: colors.textSoft,
+    fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
   },
 
   primaryButton: {
     marginTop: 14,
-    minHeight: 54,
+    minHeight: 58,
     borderRadius: radius.sm,
     backgroundColor: colors.accent,
     alignItems: 'center',
@@ -1098,9 +1077,10 @@ const styles = StyleSheet.create({
 
   primaryButtonText: {
     color: colors.white,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 17,
     fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.7,
   },
 
   errorWrap: {

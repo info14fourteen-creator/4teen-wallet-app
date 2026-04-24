@@ -1,4 +1,4 @@
-import { FOURTEEN_API_BASE_URL } from '../config/tron';
+import { FOURTEEN_API_BASE_URL, getFourteenApiBaseUrls } from '../config/tron';
 import { TRX_TOKEN_ID } from './tron/api';
 import { sendAssetTransfer } from './wallet/send';
 
@@ -112,20 +112,49 @@ async function fetchJsonOrThrow<T>(url: string, options: RequestInit): Promise<T
   return payload as T;
 }
 
+async function fetchJsonAcrossApiOrigins<T>(
+  path: string,
+  optionsFactory: (baseUrl: string) => { url: string; options: RequestInit }
+): Promise<T> {
+  const origins = getFourteenApiBaseUrls();
+  let lastError: unknown = null;
+
+  for (const baseUrl of origins) {
+    try {
+      const { url, options } = optionsFactory(baseUrl);
+      return await fetchJsonOrThrow<T>(url, options);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('4TEEN API is unavailable');
+}
+
 export async function getEnergyResaleQuote(input: {
   purpose: EnergyResalePurpose;
   wallet: string;
   requiredEnergy?: number;
   requiredBandwidth?: number;
+  metadata?: Record<string, unknown>;
 }): Promise<EnergyResaleQuote | null> {
   try {
-    const payload = await fetchJsonOrThrow<{ ok?: boolean; result?: EnergyResaleQuote }>(
-      buildApiUrl('/resources/rental/quote'),
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      }
+    const payload = await fetchJsonAcrossApiOrigins<{ ok?: boolean; result?: EnergyResaleQuote }>(
+      '/resources/rental/quote',
+      (baseUrl) => ({
+        url: buildApiUrl('/resources/rental/quote').replace(API_BASE_URL, baseUrl.replace(/\/+$/, '')),
+        options: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            purpose: input.purpose,
+            wallet: input.wallet,
+            requiredEnergy: input.requiredEnergy,
+            requiredBandwidth: input.requiredBandwidth,
+            ...(input.metadata || {}),
+          }),
+        },
+      })
     );
 
     return payload.result || null;
@@ -141,17 +170,31 @@ export async function confirmEnergyResalePayment(input: {
   paymentTxId: string;
   requiredEnergy?: number;
   requiredBandwidth?: number;
+  metadata?: Record<string, unknown>;
   onProgress?: (progress: EnergyResaleProgress) => void;
 }): Promise<EnergyResaleConfirmation> {
   try {
-    const payload = await fetchJsonOrThrow<{
+    const payload = await fetchJsonAcrossApiOrigins<{
       ok?: boolean;
       result?: EnergyResaleConfirmation;
-    }>(buildApiUrl('/resources/rental/confirm'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
+    }>(
+      '/resources/rental/confirm',
+      (baseUrl) => ({
+        url: buildApiUrl('/resources/rental/confirm').replace(API_BASE_URL, baseUrl.replace(/\/+$/, '')),
+        options: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            purpose: input.purpose,
+            wallet: input.wallet,
+            paymentTxId: input.paymentTxId,
+            requiredEnergy: input.requiredEnergy,
+            requiredBandwidth: input.requiredBandwidth,
+            ...(input.metadata || {}),
+          }),
+        },
+      })
+    );
 
     input.onProgress?.({
       step: 'energy-ready',
@@ -193,14 +236,17 @@ export async function getEnergyResaleStatus(input: {
   requiredEnergy?: number;
   requiredBandwidth?: number;
 }): Promise<EnergyResaleStatus> {
-  const payload = await fetchJsonOrThrow<{ ok?: boolean; result?: EnergyResaleStatus }>(
-    buildApiUrl('/resources/rental/status', {
-      purpose: input.purpose,
-      wallet: input.wallet,
-      requiredEnergy: input.requiredEnergy ? String(input.requiredEnergy) : '',
-      requiredBandwidth: input.requiredBandwidth ? String(input.requiredBandwidth) : '',
-    }),
-    { method: 'GET' }
+  const payload = await fetchJsonAcrossApiOrigins<{ ok?: boolean; result?: EnergyResaleStatus }>(
+    '/resources/rental/status',
+    (baseUrl) => ({
+      url: buildApiUrl('/resources/rental/status', {
+        purpose: input.purpose,
+        wallet: input.wallet,
+        requiredEnergy: input.requiredEnergy ? String(input.requiredEnergy) : '',
+        requiredBandwidth: input.requiredBandwidth ? String(input.requiredBandwidth) : '',
+      }).replace(API_BASE_URL, baseUrl.replace(/\/+$/, '')),
+      options: { method: 'GET' },
+    })
   );
 
   if (!payload.result) {
@@ -251,6 +297,7 @@ export async function rentEnergyForPurpose(input: {
   purpose: EnergyResalePurpose;
   wallet: string;
   quote: EnergyResaleQuote;
+  metadata?: Record<string, unknown>;
   onProgress?: (progress: EnergyResaleProgress) => void;
 }) {
   const payment = await sendAssetTransfer({
@@ -270,6 +317,7 @@ export async function rentEnergyForPurpose(input: {
     paymentTxId: payment.txId,
     requiredEnergy: input.quote.requiredEnergy,
     requiredBandwidth: input.quote.requiredBandwidth,
+    metadata: input.metadata,
     onProgress: input.onProgress,
   });
 

@@ -1,0 +1,292 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  PanResponder,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import AppHeader from '../src/ui/app-header';
+import {
+  APP_HEADER_HEIGHT,
+  APP_HEADER_TOP_PADDING,
+} from '../src/ui/app-header.constants';
+import MenuSheet from '../src/ui/menu-sheet';
+import FooterNav, {
+  FOOTER_NAV_HEIGHT,
+  FOOTER_NAV_RESERVED_SPACE,
+} from '../src/ui/footer-nav';
+
+import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+
+const LOREM = [
+  'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante venenatis dapibus posuere velit aliquet.',
+  'Praesent commodo cursus magna, vel scelerisque nisl consectetur et. Donec sed odio dui.',
+  'Nullam quis risus eget urna mollis ornare vel eu leo. Cras mattis consectetur purus sit amet fermentum.',
+  'Aenean lacinia bibendum nulla sed consectetur. Vestibulum id ligula porta felis euismod semper.',
+  'Maecenas faucibus mollis interdum. Sed posuere consectetur est at lobortis.',
+  'Curabitur blandit tempus porttitor. Morbi leo risus, porta ac consectetur ac, vestibulum at eros.',
+  'Vivamus sagittis lacus vel augue laoreet rutrum faucibus dolor auctor.',
+  'Etiam porta sem malesuada magna mollis euismod. Donec ullamcorper nulla non metus auctor fringilla.',
+];
+
+export default function UiShellLab() {
+  const router = useRouter();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const topAnim = useRef(new Animated.Value(-80)).current;
+  const bottomAnim = useRef(new Animated.Value(140)).current;
+
+  const runShellIntro = useCallback(() => {
+    topAnim.setValue(-80);
+    bottomAnim.setValue(140);
+
+    Animated.parallel([
+      Animated.timing(topAnim, {
+        toValue: 0,
+        duration: 320,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bottomAnim, {
+        toValue: 0,
+        duration: 320,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [bottomAnim, topAnim]);
+
+  useEffect(() => {
+    runShellIntro();
+  }, [runShellIntro]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    runShellIntro();
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    setRefreshing(false);
+  }, [runShellIntro]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        gesture.dx > 18 && Math.abs(gesture.dy) < 12,
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dx > 84 && !menuOpen) {
+          router.back();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.screen} {...panResponder.panHandlers}>
+        <Animated.View
+          pointerEvents="box-none"
+          style={[
+            styles.headerWrap,
+            {
+              transform: [{ translateY: topAnim }],
+            },
+          ]}
+        >
+          <View style={styles.headerSlot}>
+            <AppHeader
+              onMenuPress={() => setMenuOpen(true)}
+              showClose={menuOpen}
+              onClosePress={() => setMenuOpen(false)}
+            />
+          </View>
+        </Animated.View>
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          bounces
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+              progressBackgroundColor={colors.bg}
+            />
+          }
+        >
+          <View style={styles.hero}>
+            <Text style={ui.sectionEyebrow}>UI SHELL LAB</Text>
+            <Text style={styles.title}>Unified shell test polygon</Text>
+            <Text style={styles.lead}>
+              Here we burn the old shell and assemble the new one properly. Top chrome, footer nav,
+              eyebrow rhythm, pull-to-refresh, and back gesture. Civilization, briefly.
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={ui.sectionEyebrow}>SYSTEM EYEBROW</Text>
+            <Text style={styles.cardTitle}>Single source screen rhythm</Text>
+            <Text style={styles.cardText}>
+              Top menu should enter from above. Bottom menu should enter from below. Content should
+              respect both without random jumps, phantom scrollbars, or layout seizures.
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={ui.sectionEyebrow}>RELOAD</Text>
+            <Text style={styles.cardTitle}>Manual shell replay</Text>
+            <Text style={styles.cardText}>
+              Button below replays top and bottom entry animation. Pull-down refresh does the same.
+            </Text>
+
+            <TouchableOpacity activeOpacity={0.9} style={styles.reloadButton} onPress={handleRefresh}>
+              <Text style={styles.reloadButtonText}>Reload shell</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={ui.sectionEyebrow}>LOREM IPSUM</Text>
+            <Text style={styles.cardTitle}>Content pressure test</Text>
+            <View style={styles.loremList}>
+              {LOREM.concat(LOREM).map((item, index) => (
+                <Text key={`${index}-${item.slice(0, 16)}`} style={styles.loremText}>
+                  {item}
+                </Text>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+
+        {menuOpen ? <View pointerEvents="none" style={styles.footerUnderlay} /> : null}
+
+        <Animated.View
+          pointerEvents="box-none"
+          style={[
+            styles.footerWrap,
+            {
+              transform: [{ translateY: bottomAnim }],
+            },
+          ]}
+        >
+          <FooterNav forceVisible />
+        </Animated.View>
+
+        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: APP_HEADER_TOP_PADDING,
+  },
+
+  headerWrap: {
+    zIndex: 100,
+  },
+
+  headerSlot: {
+    height: APP_HEADER_HEIGHT,
+    justifyContent: 'center',
+  },
+
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  content: {
+    paddingTop: 14,
+    paddingBottom: FOOTER_NAV_HEIGHT + 20,
+    gap: 18,
+  },
+
+  hero: {
+    gap: 10,
+  },
+
+  title: {
+    ...ui.titleLg,
+  },
+
+  lead: {
+    ...ui.body,
+  },
+
+  card: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 10,
+  },
+
+  cardTitle: {
+    ...ui.titleSm,
+  },
+
+  cardText: {
+    ...ui.body,
+  },
+
+  loremList: {
+    gap: 12,
+  },
+
+  loremText: {
+    ...ui.body,
+    color: colors.textSoft,
+  },
+
+  reloadButton: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    marginTop: 6,
+  },
+
+  reloadButtonText: {
+    color: colors.bg,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  footerUnderlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: FOOTER_NAV_RESERVED_SPACE + 32,
+    backgroundColor: colors.bg,
+    zIndex: 95,
+  },
+
+  footerWrap: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+  },
+});

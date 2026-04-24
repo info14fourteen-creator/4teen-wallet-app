@@ -1,0 +1,6 @@
+
+> mobile@0.0.8-alpha.4 lint /Users/stanataev/4teen-wallet-app/apps/mobile
+> expo lint
+
+env: load .env.local
+env: export EXPO_PUBLIC_4TEEN_API_BASE_URL

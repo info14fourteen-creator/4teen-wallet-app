@@ -31,6 +31,8 @@ import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import {
   buildWalletHomeVisibleTokensStorageKey,
+  canWalletExposeMnemonic,
+  canWalletExposePrivateKey,
   ensureSigningWalletActive,
   getActiveWalletId,
   removeWallet,
@@ -1552,8 +1554,21 @@ export default function HomeScreen() {
       }
 
       if (pathname === '/export-mnemonic') {
-        if (activeWallet.kind !== 'mnemonic') {
+        if (!canWalletExposeMnemonic(activeWallet)) {
           notice.showErrorNotice('This wallet has no seed phrase to export.', 2400);
+          return;
+        }
+
+        router.push({
+          pathname,
+          params: { walletId: activeWallet.id },
+        });
+        return;
+      }
+
+      if (pathname === '/backup-private-key') {
+        if (!canWalletExposePrivateKey(activeWallet)) {
+          notice.showErrorNotice('This wallet has no private key to export.', 2400);
           return;
         }
 
@@ -2493,7 +2508,7 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 )}
 
-                {activeWallet?.kind === 'mnemonic' ? (
+                {canWalletExposeMnemonic(activeWallet) ? (
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.optionRow}
@@ -2504,14 +2519,16 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 ) : null}
 
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.optionRow}
-                  onPress={() => handleOpenWalletOptionRoute('/backup-private-key')}
-                >
-                  <Text style={ui.actionLabel}>Back Up Private Key</Text>
-                  <OpenRightIcon width={18} height={18} />
-                </TouchableOpacity>
+                {canWalletExposePrivateKey(activeWallet) ? (
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.optionRow}
+                    onPress={() => handleOpenWalletOptionRoute('/backup-private-key')}
+                  >
+                    <Text style={ui.actionLabel}>Export Private Key</Text>
+                    <OpenRightIcon width={18} height={18} />
+                  </TouchableOpacity>
+                ) : null}
 
                 <TouchableOpacity
                   activeOpacity={0.9}

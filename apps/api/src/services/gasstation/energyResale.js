@@ -8,6 +8,9 @@ const {
 } = require('./gasStation');
 
 const SUN = 1_000_000n;
+const API_QUOTE_CACHE_TTL_MS = 30_000;
+const apiQuoteCache = new Map();
+const apiQuoteInflight = new Map();
 
 function normalizePurpose(value) {
   return String(value || '')
@@ -35,9 +38,44 @@ function normalizeTxid(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function buildApiQuoteCacheKey({ purpose, requiredEnergy, requiredBandwidth }) {
+  return [purpose, Number(requiredEnergy || 0), Number(requiredBandwidth || 0)].join(':');
+}
+
+function readCachedApiQuote(key) {
+  const cached = apiQuoteCache.get(key);
+
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    apiQuoteCache.delete(key);
+    return null;
+  }
+
+  return cached.value;
+}
+
+function writeCachedApiQuote(key, value) {
+  apiQuoteCache.set(key, {
+    value,
+    expiresAt: Date.now() + API_QUOTE_CACHE_TTL_MS
+  });
+}
+
 function getEnergyRentalMode() {
-  const mode = String(env.GASSTATION_ENERGY_RENTAL_MODE || 'resale').trim().toLowerCase();
-  return mode === 'api' ? 'api' : 'resale';
+  const mode = String(env.GASSTATION_ENERGY_RENTAL_MODE || '').trim().toLowerCase();
+
+  if (mode === 'api') {
+    return 'api';
+  }
+
+  if (mode === 'resale') {
+    return 'resale';
+  }
+
+  return isGasStationApiEnabled() ? 'api' : 'resale';
 }
 
 function isGasStationApiEnabled() {
@@ -227,14 +265,32 @@ async function getEnergyResalePackage(purposeInput, requirements = {}) {
     requirements.requiredBandwidth || requirements.bandwidthShortfall
   ) || defaults.requiredBandwidth;
 
-  if (getEnergyRentalMode() === 'api' && isGasStationApiEnabled()) {
+  const readApiQuote = async () => {
+    const cacheKey = buildApiQuoteCacheKey({
+      purpose,
+      requiredEnergy,
+      requiredBandwidth
+    });
+    const cached = readCachedApiQuote(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
+    const inflight = apiQuoteInflight.get(cacheKey);
+
+    if (inflight) {
+      return inflight;
+    }
+
+    const quotePromise = (async () => {
     const quote = await quoteResourceRental({
       energyNum: requiredEnergy,
       bandwidthNum: requiredBandwidth
     });
     const amountSun = String(Math.ceil(Number(quote.amountSun || 0)));
 
-    return {
+      const result = {
       purpose,
       mode: 'api',
       paymentAddress: env.OPERATOR_WALLET,
@@ -256,13 +312,37 @@ async function getEnergyResalePackage(purposeInput, requirements = {}) {
       requiredBandwidth,
       rentalPeriodSeconds: 0,
       label: String(purpose || 'resource-rental')
-    };
+      };
+
+      writeCachedApiQuote(cacheKey, result);
+      return result;
+    })();
+
+    apiQuoteInflight.set(cacheKey, quotePromise);
+
+    try {
+      return await quotePromise;
+    } finally {
+      apiQuoteInflight.delete(cacheKey);
+    }
+  };
+
+  if (getEnergyRentalMode() === 'api' && isGasStationApiEnabled()) {
+    return readApiQuote();
   }
 
-  return getResalePackage(purpose, {
-    requiredEnergy,
-    requiredBandwidth
-  });
+  try {
+    return getResalePackage(purpose, {
+      requiredEnergy,
+      requiredBandwidth
+    });
+  } catch (error) {
+    if (!isGasStationApiEnabled()) {
+      throw error;
+    }
+
+    return readApiQuote();
+  }
 }
 
 async function readWalletEnergyState(wallet) {

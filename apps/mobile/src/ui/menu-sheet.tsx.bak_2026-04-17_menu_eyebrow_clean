@@ -1,0 +1,226 @@
+import type { ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { colors, radius, spacing } from '../theme/tokens';
+import { ui } from '../theme/ui';
+import AppHeader from './app-header';
+import {
+  APP_HEADER_HEIGHT,
+  APP_HEADER_TOP_PADDING,
+  APP_HEADER_SIDE_PADDING,
+  APP_MENU_TOP_GAP,
+} from './app-header.constants';
+import ExpandChevron from './expand-chevron';
+import { FOOTER_NAV_HEIGHT } from './footer-nav';
+
+import WalletIcon from '../../assets/icons/ui/wallet_btn.svg';
+import SettingsIcon from '../../assets/icons/ui/setings_btn.svg';
+import AddressIcon from '../../assets/icons/ui/address_btn.svg';
+import InfoIcon from '../../assets/icons/ui/info_btn.svg';
+
+type MenuSheetProps = {
+  open: boolean;
+  onClose: () => void;
+};
+
+export default function MenuSheet({ open, onClose }: MenuSheetProps) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  if (!open) return null;
+
+  const footerOffset = FOOTER_NAV_HEIGHT + Math.max(insets.bottom, 2) - 2;
+  const sheetTop = APP_HEADER_TOP_PADDING + APP_HEADER_HEIGHT + APP_MENU_TOP_GAP;
+
+  const go = (path: string) => {
+    onClose();
+    setTimeout(() => router.push(path as any), 120);
+  };
+
+  return (
+    <View pointerEvents="box-none" style={styles.root}>
+      <Pressable
+        style={[
+          styles.overlay,
+          {
+            bottom: footerOffset,
+          },
+        ]}
+        onPress={onClose}
+      />
+
+      <View
+        pointerEvents="none"
+        style={[
+          styles.headerBackdrop,
+          {
+            height: sheetTop,
+            bottom: footerOffset,
+          },
+        ]}
+      />
+
+      <View
+        style={[
+          styles.headerWrap,
+          {
+            top: APP_HEADER_TOP_PADDING,
+            left: APP_HEADER_SIDE_PADDING,
+            right: APP_HEADER_SIDE_PADDING,
+          },
+        ]}
+      >
+        <AppHeader showClose onClosePress={onClose} />
+      </View>
+
+      <View
+        pointerEvents="none"
+        style={[
+          styles.headerEyebrow,
+          {
+            top: sheetTop - 1,
+            bottom: footerOffset,
+          },
+        ]}
+      />
+
+      <View
+        style={[
+          styles.sheet,
+          {
+            top: sheetTop,
+            bottom: footerOffset,
+          },
+        ]}
+      >
+        <View style={styles.menuBlock}>
+          <MenuItem
+            label="Wallet Management"
+            onPress={() => go('/wallets')}
+            icon={<WalletIcon width={20} height={20} />}
+          />
+
+          <MenuItem
+            label="Address Book"
+            onPress={() => go('/address-book')}
+            icon={<AddressIcon width={20} height={20} />}
+          />
+
+          <MenuItem
+            label="Settings"
+            onPress={() => go('/settings')}
+            icon={<SettingsIcon width={20} height={20} />}
+          />
+
+          <MenuItem
+            label="About Us"
+            onPress={() => go('/about')}
+            icon={<InfoIcon width={20} height={20} />}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function MenuItem({
+  label,
+  onPress,
+  icon,
+}: {
+  label: string;
+  onPress: () => void;
+  icon: ReactNode;
+}) {
+  return (
+    <TouchableOpacity activeOpacity={0.85} style={styles.item} onPress={onPress}>
+      <View style={styles.itemLeft}>
+        <View style={styles.iconWrap}>{icon}</View>
+        <Text style={ui.actionLabel}>{label}</Text>
+      </View>
+
+      <ExpandChevron open={false} />
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+  },
+
+  overlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: 'rgba(0,0,0,0.86)',
+  },
+
+  headerBackdrop: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: colors.bg,
+    zIndex: 2,
+  },
+
+  headerWrap: {
+    position: 'absolute',
+    zIndex: 4,
+    backgroundColor: colors.bg,
+  },
+
+  headerEyebrow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: colors.lineSoft,
+    zIndex: 3,
+  },
+
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    backgroundColor: colors.bg,
+    zIndex: 2,
+  },
+
+  menuBlock: {
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[6],
+    gap: 14,
+  },
+
+  item: {
+    minHeight: 56,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  itemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+  },
+
+  iconWrap: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

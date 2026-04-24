@@ -44,6 +44,16 @@ const ACCOUNT_INFO_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACCOUNT_TRC20_ASSETS_CACHE_TTL_MS = 2 * 60 * 1000;
 const WALLET_SNAPSHOT_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACCOUNT_RESOURCES_CACHE_TTL_MS = 2 * 60 * 1000;
+const ACCOUNT_INFO_CACHE_STORAGE_KEY_PREFIX = 'fourteen_account_info_cache_v1';
+const ACCOUNT_INFO_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_account_info_cache_';
+const ACCOUNT_TRC20_ASSETS_CACHE_STORAGE_KEY_PREFIX = 'fourteen_account_trc20_assets_cache_v1';
+const ACCOUNT_TRC20_ASSETS_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_account_trc20_assets_cache_';
+const WALLET_SNAPSHOT_CACHE_STORAGE_KEY_PREFIX = 'fourteen_wallet_snapshot_cache_v1';
+const WALLET_SNAPSHOT_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_wallet_snapshot_cache_';
+const TRONGRID_ACCOUNT_CACHE_STORAGE_KEY_PREFIX = 'fourteen_trongrid_account_cache_v1';
+const TRONGRID_ACCOUNT_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_trongrid_account_cache_';
+const ACCOUNT_RESOURCES_CACHE_STORAGE_KEY_PREFIX = 'fourteen_account_resources_cache_v1';
+const ACCOUNT_RESOURCES_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_account_resources_cache_';
 const CUSTOM_TOKEN_CATALOG_STORAGE_KEY_PREFIX = 'wallet.customTokenCatalog.v2';
 
 function normalizeCustomTokenCatalogWalletId(walletId: string) {
@@ -182,6 +192,18 @@ const tronscanTokenOverviewMemoryCache = new Map<
 const tronscanTokenOverviewInflight = new Map<string, Promise<TokenMetaFallback>>();
 const customTokenCatalogMemoryCache = new Map<string, CustomTokenCatalogItem[]>();
 const customTokenCatalogInflight = new Map<string, Promise<CustomTokenCatalogItem[]>>();
+
+function shouldLogCacheDebug() {
+  return __DEV__ && (globalThis as any).__FOURTEEN_DEBUG_CACHE__ === true;
+}
+
+function logCacheDebug(message: string, ...args: unknown[]) {
+  if (!shouldLogCacheDebug()) {
+    return;
+  }
+
+  console.info(message, ...args);
+}
 
 export type TronAccountInfo = {
   address: string;
@@ -804,6 +826,30 @@ function buildAccountResourcesRuntimeCacheKey(address: string) {
   return normalizeAddressKey(address);
 }
 
+function buildStoredRuntimeCacheKey(prefix: string, address: string) {
+  return `${prefix}:${normalizeAddressKey(address)}`;
+}
+
+function buildAccountInfoStorageKey(address: string) {
+  return buildStoredRuntimeCacheKey(ACCOUNT_INFO_CACHE_STORAGE_KEY_PREFIX, address);
+}
+
+function buildAccountTrc20AssetsStorageKey(address: string) {
+  return buildStoredRuntimeCacheKey(ACCOUNT_TRC20_ASSETS_CACHE_STORAGE_KEY_PREFIX, address);
+}
+
+function buildWalletSnapshotStorageKey(address: string) {
+  return buildStoredRuntimeCacheKey(WALLET_SNAPSHOT_CACHE_STORAGE_KEY_PREFIX, address);
+}
+
+function buildTrongridAccountStorageKey(address: string) {
+  return buildStoredRuntimeCacheKey(TRONGRID_ACCOUNT_CACHE_STORAGE_KEY_PREFIX, address);
+}
+
+function buildAccountResourcesStorageKey(address: string) {
+  return buildStoredRuntimeCacheKey(ACCOUNT_RESOURCES_CACHE_STORAGE_KEY_PREFIX, address);
+}
+
 function readFreshRuntimeCache<T extends { savedAt: number; data: unknown }>(
   cache: Map<string, T>,
   key: string,
@@ -834,6 +880,58 @@ function writeRuntimeCache<T>(
   });
 }
 
+async function readStoredRuntimeCache<T>(storageKey: string, ttlMs: number): Promise<T | null> {
+  try {
+    const raw = await AsyncStorage.getItem(storageKey);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as { savedAt?: number; data?: T };
+
+    if (!parsed || typeof parsed.savedAt !== 'number' || !('data' in parsed)) {
+      return null;
+    }
+
+    if (Date.now() - parsed.savedAt >= ttlMs) {
+      await AsyncStorage.removeItem(storageKey).catch(() => null);
+      return null;
+    }
+
+    return parsed.data as T;
+  } catch {
+    return null;
+  }
+}
+
+async function writeStoredRuntimeCache<T>(storageKey: string, data: T): Promise<void> {
+  try {
+    await AsyncStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        savedAt: Date.now(),
+        data,
+      })
+    );
+  } catch {}
+}
+
+function clearStoredWalletRuntimeCaches(address: string) {
+  const normalized = normalizeAddressKey(address);
+
+  if (!normalized) {
+    return;
+  }
+
+  void AsyncStorage.multiRemove([
+    buildAccountInfoStorageKey(normalized),
+    buildAccountTrc20AssetsStorageKey(normalized),
+    buildWalletSnapshotStorageKey(normalized),
+    buildTrongridAccountStorageKey(normalized),
+    buildAccountResourcesStorageKey(normalized),
+  ]).catch(() => null);
+}
+
 export function clearWalletRuntimeCaches(address: string) {
   const normalized = normalizeAddressKey(address);
 
@@ -842,6 +940,7 @@ export function clearWalletRuntimeCaches(address: string) {
   walletSnapshotMemoryCache.delete(normalized);
   trongridAccountMemoryCache.delete(normalized);
   accountResourcesMemoryCache.delete(normalized);
+  clearStoredWalletRuntimeCaches(normalized);
 }
 
 function isSameAddress(left?: string, right?: string) {
@@ -2081,6 +2180,7 @@ async function getCachedTrongridAccount(
   options?: { force?: boolean }
 ): Promise<TrongridAccountItem | null> {
   const cacheKey = buildAccountInfoRuntimeCacheKey(address);
+  const storageKey = buildTrongridAccountStorageKey(address);
 
   if (!options?.force) {
     const cached = readFreshRuntimeCache(
@@ -2091,6 +2191,16 @@ async function getCachedTrongridAccount(
 
     if (cached !== null) {
       return cached;
+    }
+
+    const stored = await readStoredRuntimeCache<TrongridAccountItem | null>(
+      storageKey,
+      ACCOUNT_INFO_CACHE_TTL_MS
+    );
+
+    if (stored !== null) {
+      writeRuntimeCache(trongridAccountMemoryCache, cacheKey, stored);
+      return stored;
     }
   } else {
     trongridAccountMemoryCache.delete(cacheKey);
@@ -2104,6 +2214,7 @@ async function getCachedTrongridAccount(
   const request = (async () => {
     const item = await getTrongridAccount(address);
     writeRuntimeCache(trongridAccountMemoryCache, cacheKey, item);
+    void writeStoredRuntimeCache(storageKey, item);
     return item;
   })();
 
@@ -3476,12 +3587,24 @@ export async function getAccountInfo(
   options?: { force?: boolean }
 ): Promise<TronAccountInfo> {
   const cacheKey = buildAccountInfoRuntimeCacheKey(address);
+  const storageKey = buildAccountInfoStorageKey(address);
 
   if (!options?.force) {
     const cached = readFreshRuntimeCache(accountInfoMemoryCache, cacheKey, ACCOUNT_INFO_CACHE_TTL_MS);
     if (cached) {
-      console.info(`[cache] account info hit: ${address}`);
+      logCacheDebug(`[cache] account info hit: ${address}`);
       return cached;
+    }
+
+    const stored = await readStoredRuntimeCache<TronAccountInfo>(
+      storageKey,
+      ACCOUNT_INFO_CACHE_TTL_MS
+    );
+
+    if (stored) {
+      writeRuntimeCache(accountInfoMemoryCache, cacheKey, stored);
+      logCacheDebug(`[cache] account info storage hit: ${address}`);
+      return stored;
     }
   } else {
     accountInfoMemoryCache.delete(cacheKey);
@@ -3489,12 +3612,12 @@ export async function getAccountInfo(
 
   const inflight = accountInfoInflight.get(cacheKey);
   if (inflight) {
-    console.info(`[cache] account info join inflight: ${address}`);
+    logCacheDebug(`[cache] account info join inflight: ${address}`);
     return inflight;
   }
 
   const request = (async (): Promise<TronAccountInfo> => {
-    console.info(`[cache] account info miss: ${address}`);
+    logCacheDebug(`[cache] account info miss: ${address}`);
     const item = await getCachedTrongridAccount(address, options);
     const balanceSun = typeof item?.balance === 'number' ? item.balance : 0;
 
@@ -3505,7 +3628,8 @@ export async function getAccountInfo(
     };
 
     writeRuntimeCache(accountInfoMemoryCache, cacheKey, result);
-    console.info(`[cache] account info store: ${address}`);
+    void writeStoredRuntimeCache(storageKey, result);
+    logCacheDebug(`[cache] account info store: ${address}`);
 
     return result;
   })();
@@ -3524,6 +3648,7 @@ export async function getAccountResources(
   options?: { force?: boolean }
 ): Promise<WalletAccountResources> {
   const cacheKey = buildAccountResourcesRuntimeCacheKey(address);
+  const storageKey = buildAccountResourcesStorageKey(address);
 
   if (!options?.force) {
     const cached = readFreshRuntimeCache(
@@ -3533,6 +3658,16 @@ export async function getAccountResources(
     );
     if (cached) {
       return cached;
+    }
+
+    const stored = await readStoredRuntimeCache<WalletAccountResources>(
+      storageKey,
+      ACCOUNT_RESOURCES_CACHE_TTL_MS
+    );
+
+    if (stored) {
+      writeRuntimeCache(accountResourcesMemoryCache, cacheKey, stored);
+      return stored;
     }
   } else {
     accountResourcesMemoryCache.delete(cacheKey);
@@ -3563,6 +3698,7 @@ export async function getAccountResources(
     };
 
     writeRuntimeCache(accountResourcesMemoryCache, cacheKey, result);
+    void writeStoredRuntimeCache(storageKey, result);
     return result;
   })();
 
@@ -3580,6 +3716,7 @@ export async function getAccountTrc20Assets(
   options?: { force?: boolean }
 ): Promise<Trc20Asset[]> {
   const cacheKey = buildAccountTrc20AssetsRuntimeCacheKey(address);
+  const storageKey = buildAccountTrc20AssetsStorageKey(address);
 
   if (!options?.force) {
     const cached = readFreshRuntimeCache(
@@ -3588,8 +3725,19 @@ export async function getAccountTrc20Assets(
       ACCOUNT_TRC20_ASSETS_CACHE_TTL_MS
     );
     if (cached) {
-      console.info(`[cache] trc20 assets hit: ${address}`);
+      logCacheDebug(`[cache] trc20 assets hit: ${address}`);
       return cached;
+    }
+
+    const stored = await readStoredRuntimeCache<Trc20Asset[]>(
+      storageKey,
+      ACCOUNT_TRC20_ASSETS_CACHE_TTL_MS
+    );
+
+    if (stored) {
+      writeRuntimeCache(accountTrc20AssetsMemoryCache, cacheKey, stored);
+      logCacheDebug(`[cache] trc20 assets storage hit: ${address}`);
+      return stored;
     }
   } else {
     accountTrc20AssetsMemoryCache.delete(cacheKey);
@@ -3597,12 +3745,12 @@ export async function getAccountTrc20Assets(
 
   const inflight = accountTrc20AssetsInflight.get(cacheKey);
   if (inflight) {
-    console.info(`[cache] trc20 assets join inflight: ${address}`);
+    logCacheDebug(`[cache] trc20 assets join inflight: ${address}`);
     return inflight;
   }
 
   const request = (async (): Promise<Trc20Asset[]> => {
-    console.info(`[cache] trc20 assets miss: ${address}`);
+    logCacheDebug(`[cache] trc20 assets miss: ${address}`);
 
     let accountLookupFailed = false;
     let tronscanLookupFailed = false;
@@ -3721,7 +3869,8 @@ export async function getAccountTrc20Assets(
     });
 
     writeRuntimeCache(accountTrc20AssetsMemoryCache, cacheKey, result);
-    console.info(`[cache] trc20 assets store: ${address}`);
+    void writeStoredRuntimeCache(storageKey, result);
+    logCacheDebug(`[cache] trc20 assets store: ${address}`);
 
     return result;
   })();
@@ -3750,6 +3899,7 @@ export async function getWalletSnapshot(
   options?: { force?: boolean }
 ): Promise<WalletSnapshot> {
   const cacheKey = buildWalletSnapshotRuntimeCacheKey(address);
+  const storageKey = buildWalletSnapshotStorageKey(address);
 
   if (!options?.force) {
     const cached = readFreshRuntimeCache(
@@ -3758,8 +3908,19 @@ export async function getWalletSnapshot(
       WALLET_SNAPSHOT_CACHE_TTL_MS
     );
     if (cached) {
-      console.info(`[cache] wallet snapshot hit: ${address}`);
+      logCacheDebug(`[cache] wallet snapshot hit: ${address}`);
       return cached;
+    }
+
+    const stored = await readStoredRuntimeCache<WalletSnapshot>(
+      storageKey,
+      WALLET_SNAPSHOT_CACHE_TTL_MS
+    );
+
+    if (stored) {
+      writeRuntimeCache(walletSnapshotMemoryCache, cacheKey, stored);
+      logCacheDebug(`[cache] wallet snapshot storage hit: ${address}`);
+      return stored;
     }
   } else {
     clearWalletRuntimeCaches(address);
@@ -3767,12 +3928,12 @@ export async function getWalletSnapshot(
 
   const inflight = walletSnapshotInflight.get(cacheKey);
   if (inflight) {
-    console.info(`[cache] wallet snapshot join inflight: ${address}`);
+    logCacheDebug(`[cache] wallet snapshot join inflight: ${address}`);
     return inflight;
   }
 
   const request = (async (): Promise<WalletSnapshot> => {
-    console.info(`[cache] wallet snapshot miss: ${address}`);
+    logCacheDebug(`[cache] wallet snapshot miss: ${address}`);
 
     const [accountResult, trc20AssetsResult, trxPriceResult] = await Promise.allSettled([
       getAccountInfo(address, options),
@@ -3824,7 +3985,8 @@ export async function getWalletSnapshot(
     };
 
     writeRuntimeCache(walletSnapshotMemoryCache, cacheKey, result);
-    console.info(`[cache] wallet snapshot store: ${address}`);
+    void writeStoredRuntimeCache(storageKey, result);
+    logCacheDebug(`[cache] wallet snapshot store: ${address}`);
 
     return result;
   })();
@@ -3988,6 +4150,11 @@ export async function clearAllTronCaches(): Promise<void> {
       if (
         key.startsWith(TOKEN_HISTORY_CACHE_PREFIX_ROOT) ||
         key.startsWith(WALLET_HISTORY_CACHE_PREFIX_ROOT) ||
+        key.startsWith(ACCOUNT_INFO_CACHE_STORAGE_KEY_PREFIX_ROOT) ||
+        key.startsWith(ACCOUNT_TRC20_ASSETS_CACHE_STORAGE_KEY_PREFIX_ROOT) ||
+        key.startsWith(WALLET_SNAPSHOT_CACHE_STORAGE_KEY_PREFIX_ROOT) ||
+        key.startsWith(TRONGRID_ACCOUNT_CACHE_STORAGE_KEY_PREFIX_ROOT) ||
+        key.startsWith(ACCOUNT_RESOURCES_CACHE_STORAGE_KEY_PREFIX_ROOT) ||
         key.startsWith(CUSTOM_TOKEN_LIST_CACHE_KEY) ||
         key === CUSTOM_TOKEN_LIST_CACHE_KEY ||
         key.startsWith(MARKET_CACHE_STORAGE_KEY_ROOT)

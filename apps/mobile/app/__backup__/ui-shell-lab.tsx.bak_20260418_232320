@@ -1,0 +1,602 @@
+import { useCallback, useMemo, useState } from 'react';
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { NavigationChrome, useNavigationInsets } from '../src/ui/navigation';
+import SubmenuHeader from '../src/ui/submenu-header';
+import { useNotice } from '../src/notice/notice-provider';
+
+import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+import { patterns } from '../src/theme/patterns';
+
+const WORKFLOW_RULES = `Project workflow rules
+
+Language and comments
+- We communicate in Russian.
+- Do not add Russian comments inside code.
+- Code comments must stay in English.
+
+How I usually work with you
+- First I ask for a command to find the needed files in the project.
+- Then I ask for the full code with line numbers.
+- Before any edit or rewrite, make a backup first.
+- Prefer targeted patches.
+- If a patch is not realistic, rewrite the file fully.
+
+How you should answer
+- Give terminal-ready copy-paste commands.
+- Do not send vague diffs if I asked for commands.
+- If you change files, be precise and minimal when possible.
+- If you rewrite a file, give the full file content.
+- Keep project structure clean and reusable.
+
+Examples I can send you
+- "Дай команду найти все файлы связанные с wallet management"
+- "Запроси полный код с номерами строк"
+- "Сначала сделай бэк ап перед правкой"
+- "Нужен патч, не переписывай файл целиком если можно"
+- "Если патч невозможен, дай полный файл под копипаст"
+- "Проверь что решение не ломает остальные страницы"
+- "Дай только команды в терминал"
+- "Убери русские комментарии из кода, но со мной общайся по-русски"`;
+
+const BROW_RULES = `Brow component source
+- Source file: apps/mobile/src/ui/submenu-header.tsx
+- Import: import SubmenuHeader from '../src/ui/submenu-header';
+
+Variant 01: plain brow without back
+- Use for top-level surfaces where the page is a root destination.
+- Call: <SubmenuHeader title="HOME" />
+
+Variant 02: brow with back
+- Use for nested screens opened from another page.
+- Call: <SubmenuHeader title="SCAN" variant="back" onBack={() => router.back()} />
+
+Placement rule
+- Top menu and bottom menu come from NavigationChrome.
+- Internal page brow comes from SubmenuHeader.
+- Do not build custom fake brows inside individual screens.
+- Do not place SubmenuHeader above the screen content container.
+- Do not manually rebuild the back row in page files.`;
+
+const STYLE_SOURCE_LINES = [
+  'Starter migration targets:',
+  '- select-wallet.tsx',
+  '- settings.tsx',
+  '- menu-sheet.tsx',
+  '- stub-screen.tsx',
+  '- wallets.tsx',
+  '',
+  'Next wave:',
+  '- wallet.tsx',
+  '- send.tsx',
+  '- token-details.tsx',
+  '- address-book.tsx',
+  '- scan.tsx',
+];
+
+function Section({
+  eyebrow,
+  title,
+  body,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  body?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <View style={styles.sectionCard}>
+      <Text style={ui.sectionEyebrow}>{eyebrow}</Text>
+      <Text style={ui.titleSm}>{title}</Text>
+      {body ? <Text style={ui.body}>{body}</Text> : null}
+      {children}
+    </View>
+  );
+}
+
+function SourcePill({ text }: { text: string }) {
+  return (
+    <View style={styles.sourcePill}>
+      <Text style={styles.sourcePillText}>{text}</Text>
+    </View>
+  );
+}
+
+function CodeBox({
+  lines,
+  copyText,
+  onCopy,
+  buttonLabel,
+}: {
+  lines: string[];
+  copyText: string;
+  onCopy: (value: string, label: string) => Promise<void>;
+  buttonLabel: string;
+}) {
+  return (
+    <View style={styles.codeBox}>
+      {lines.map((line, index) => (
+        <Text
+          key={`${index}-${line.slice(0, 24)}`}
+          style={[styles.codeLine, !line.trim() && styles.codeSpacer]}
+        >
+          {line || ' '}
+        </Text>
+      ))}
+
+      <TouchableOpacity
+        activeOpacity={0.9}
+        style={patterns.buttonPrimary}
+        onPress={() => void onCopy(copyText, buttonLabel)}
+      >
+        <Text style={styles.primaryButtonLabel}>{buttonLabel}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+export default function UiShellLab() {
+  const [refreshing, setRefreshing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const navInsets = useNavigationInsets({
+    topExtra: 14,
+    bottomExtra: 20,
+  });
+
+  const notice = useNotice();
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    setRefreshing(false);
+  }, []);
+
+  const handleCopy = useCallback(
+    async (value: string, label: string) => {
+      await Clipboard.setStringAsync(value);
+      notice.showSuccessNotice(`${label} copied to clipboard.`, 1800);
+    },
+    [notice]
+  );
+
+  const workflowRuleLines = useMemo(() => WORKFLOW_RULES.split('\n'), []);
+  const browRuleLines = useMemo(() => BROW_RULES.split('\n'), []);
+  const styleSourceLines = useMemo(() => STYLE_SOURCE_LINES, []);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <View style={styles.screen}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: navInsets.top,
+              paddingBottom: navInsets.bottom,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+              progressBackgroundColor={colors.bg}
+            />
+          }
+        >
+          <View style={styles.hero}>
+            <Text style={ui.sectionEyebrow}>UI SHELL LAB</Text>
+            <Text style={ui.titleLg}>Live style catalog</Text>
+            <Text style={ui.body}>
+              This page shows the real style sources now in play: text styles from ui.ts and
+              reusable surface and state patterns from patterns.ts. So you can judge them with
+              your eyes instead of interrogating the repo like it owes you money.
+            </Text>
+          </View>
+
+          <Section
+            eyebrow="BROW SYSTEM"
+            title="Single internal page brow"
+            body="All internal brows must come from SubmenuHeader. No fake local back rows."
+          >
+            <View style={styles.stackSm}>
+              <View style={styles.demoFrame}>
+                <SubmenuHeader title="HOME" />
+                <Text style={patterns.textHelperSm}>
+                  Plain brow for root-level screens.
+                </Text>
+              </View>
+
+              <View style={styles.demoFrame}>
+                <SubmenuHeader title="SCAN" variant="back" onBack={() => {}} />
+                <Text style={patterns.textHelperSm}>
+                  Back brow for nested screens.
+                </Text>
+              </View>
+            </View>
+
+            <CodeBox
+              lines={browRuleLines}
+              copyText={BROW_RULES}
+              onCopy={handleCopy}
+              buttonLabel="Copy brow rules"
+            />
+          </Section>
+
+          <Section
+            eyebrow="TEXT FROM UI.TS"
+            title="Base typography"
+            body="These are the shared text tokens already used across screens."
+          >
+            <View style={styles.stackMd}>
+              <View style={styles.sampleBlock}>
+                <Text style={ui.eyebrow}>ui.eyebrow</Text>
+                <SourcePill text="ui.ts" />
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <Text style={ui.sectionEyebrow}>ui.sectionEyebrow</Text>
+                <SourcePill text="ui.ts" />
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <Text style={ui.titleLg}>ui.titleLg</Text>
+                <Text style={ui.titleMd}>ui.titleMd</Text>
+                <Text style={ui.titleSm}>ui.titleSm</Text>
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <Text style={ui.body}>
+                  ui.body is your normal readable paragraph copy for page content.
+                </Text>
+                <Text style={ui.bodyStrong}>ui.bodyStrong</Text>
+                <Text style={ui.actionLabel}>ui.actionLabel</Text>
+                <Text style={ui.buttonLabel}>ui.buttonLabel</Text>
+                <Text style={ui.muted}>ui.muted</Text>
+              </View>
+            </View>
+          </Section>
+
+          <Section
+            eyebrow="TEXT FROM PATTERNS.TS"
+            title="Actual reusable text families"
+            body="This is the part patterns.ts was missing: named variants that match the real project frequency."
+          >
+            <View style={styles.stackMd}>
+              <View style={styles.sampleBlock}>
+                <Text style={patterns.textHelperXs}>patterns.textHelperXs</Text>
+                <Text style={patterns.textHelperSm}>patterns.textHelperSm</Text>
+                <Text style={patterns.textSubtleXs}>patterns.textSubtleXs</Text>
+                <SourcePill text="settings.tsx / select-wallet.tsx / wallets.tsx" />
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <Text style={patterns.textStrongSm}>patterns.textStrongSm</Text>
+                <Text style={patterns.textStrongMd}>patterns.textStrongMd</Text>
+                <SourcePill text="settings.tsx / token-details.tsx / wallet.tsx" />
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <Text style={[patterns.textStatusXs, patterns.textStatusPositive]}>
+                  patterns.textStatusXs + positive
+                </Text>
+                <Text style={[patterns.textStatusSm, patterns.textStatusPositive]}>
+                  patterns.textStatusSm + positive
+                </Text>
+                <Text style={[patterns.textStatusSm, patterns.textStatusNegative]}>
+                  patterns.textStatusSm + negative
+                </Text>
+                <Text style={[patterns.textStatusSm, patterns.textStatusNeutral]}>
+                  patterns.textStatusSm + neutral
+                </Text>
+              </View>
+            </View>
+          </Section>
+
+          <Section
+            eyebrow="SURFACES"
+            title="Rows, cards, and accent boxes"
+            body="These are the real shells repeated through settings, menu, wallet selection, send, scan, and token screens."
+          >
+            <View style={styles.stackMd}>
+              <View style={styles.sampleBlock}>
+                <View style={patterns.surfaceRowCompact}>
+                  <Text style={ui.actionLabel}>surfaceRowCompact</Text>
+                  <Text style={patterns.textHelperXs}>14px pad / sm radius</Text>
+                </View>
+                <SourcePill text="settings.tsx" />
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <View style={patterns.surfaceRowStandard}>
+                  <Text style={ui.actionLabel}>surfaceRowStandard</Text>
+                  <Text style={patterns.textHelperXs}>16px pad / md radius</Text>
+                </View>
+                <SourcePill text="menu-sheet.tsx" />
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <View style={patterns.surfaceSummaryAccent}>
+                  <Text style={ui.eyebrow}>TOTAL ASSETS</Text>
+                  <Text style={ui.titleLg}>$24,410.77</Text>
+                  <Text style={[patterns.textStrongSm, patterns.textStatusPositive]}>
+                    +$215.40 (3.18%)
+                  </Text>
+                  <Text style={patterns.textHelperXs}>
+                    patterns.surfaceSummaryAccent
+                  </Text>
+                </View>
+                <SourcePill text="select-wallet.tsx / wallets.tsx" />
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <View style={patterns.surfaceStubAccent}>
+                  <Text style={ui.titleSm}>surfaceStubAccent</Text>
+                  <Text style={patterns.textHelperSm}>
+                    Used for stub-like accent information boxes.
+                  </Text>
+                </View>
+                <SourcePill text="stub-screen.tsx" />
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <View style={patterns.surfaceBoxDarkCompact}>
+                  <Text style={styles.boxTitle}>surfaceBoxDarkCompact</Text>
+                  <Text style={patterns.textHelperSm}>
+                    Compact dark box used for empty or neutral state containers.
+                  </Text>
+                </View>
+                <SourcePill text="select-wallet.tsx / wallets.tsx candidate" />
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <View style={patterns.surfaceAccentCtaRow}>
+                  <Text style={ui.actionLabel}>surfaceAccentCtaRow</Text>
+                  <Text style={patterns.textStrongSm}>OPEN</Text>
+                </View>
+                <SourcePill text="select-wallet.tsx / wallets.tsx / send.tsx candidate" />
+              </View>
+
+              <View style={styles.sampleBlock}>
+                <View
+                  style={[
+                    patterns.surfaceWalletSelectRow,
+                    patterns.surfaceWalletRowInactive,
+                  ]}
+                >
+                  <View style={styles.walletText}>
+                    <Text style={ui.actionLabel}>Main Wallet</Text>
+                    <Text style={patterns.textHelperXs}>Balance: $12,004.11</Text>
+                    <Text style={patterns.textHelperXs}>Type: Seed Phrase</Text>
+                    <Text style={patterns.textSubtleXs}>TXYZ...9QkL</Text>
+                  </View>
+                  <Text style={patterns.textStrongSm}>›</Text>
+                </View>
+
+                <View
+                  style={[
+                    patterns.surfaceWalletSelectRow,
+                    patterns.surfaceWalletRowActive,
+                  ]}
+                >
+                  <View style={styles.walletText}>
+                    <View style={styles.walletTitleInline}>
+                      <Text style={ui.actionLabel}>Active Wallet</Text>
+                      <Text
+                        style={[patterns.textStatusXs, patterns.textStatusPositive]}
+                      >
+                        ACTIVE
+                      </Text>
+                    </View>
+                    <Text style={patterns.textHelperXs}>Balance: $8,440.03</Text>
+                    <Text style={patterns.textHelperXs}>Type: Private Key</Text>
+                    <Text style={patterns.textSubtleXs}>TX2m...r8Zu</Text>
+                  </View>
+                  <Text style={patterns.textStrongSm}>›</Text>
+                </View>
+
+                <SourcePill text="select-wallet.tsx / wallets.tsx / send.tsx candidate" />
+              </View>
+            </View>
+          </Section>
+
+          <Section
+            eyebrow="BUTTONS AND INPUTS"
+            title="Core controls"
+            body="These should stay boring, reusable, and predictable. Revolutionary stuff."
+          >
+            <View style={styles.stackMd}>
+              <TouchableOpacity activeOpacity={0.9} style={patterns.buttonPrimary}>
+                <Text style={styles.primaryButtonLabel}>patterns.buttonPrimary</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity activeOpacity={0.9} style={patterns.buttonSecondary}>
+                <Text style={ui.buttonLabel}>patterns.buttonSecondary</Text>
+              </TouchableOpacity>
+
+              <View style={styles.iconRow}>
+                <View style={patterns.buttonIcon}>
+                  <Text style={ui.actionLabel}>+</Text>
+                </View>
+                <View style={patterns.buttonIcon}>
+                  <Text style={ui.actionLabel}>↗</Text>
+                </View>
+                <View style={patterns.buttonIcon}>
+                  <Text style={ui.actionLabel}>⋯</Text>
+                </View>
+              </View>
+
+              <View style={styles.stackSm}>
+                <View style={patterns.inputShell}>
+                  <Text style={patterns.textHelperXs}>patterns.inputShell</Text>
+                </View>
+                <View style={[patterns.inputShell, patterns.inputShellValid]}>
+                  <Text style={patterns.textHelperXs}>patterns.inputShellValid</Text>
+                </View>
+                <View style={[patterns.inputShell, patterns.inputShellInvalid]}>
+                  <Text style={patterns.textHelperXs}>patterns.inputShellInvalid</Text>
+                </View>
+              </View>
+            </View>
+          </Section>
+
+          <Section
+            eyebrow="MIGRATION PLAN"
+            title="Where to apply patterns first"
+            body="These are the files already confirmed as starter targets from your grep results."
+          >
+            <CodeBox
+              lines={styleSourceLines}
+              copyText={STYLE_SOURCE_LINES.join('\n')}
+              onCopy={handleCopy}
+              buttonLabel="Copy migration shortlist"
+            />
+          </Section>
+
+          <Section
+            eyebrow="WORKFLOW"
+            title="Reusable project conversation block"
+            body="This stays here so you can kick off technical work without repeating the same instructions every session."
+          >
+            <CodeBox
+              lines={workflowRuleLines}
+              copyText={WORKFLOW_RULES}
+              onCopy={handleCopy}
+              buttonLabel="Copy workflow rules"
+            />
+          </Section>
+        </ScrollView>
+
+        <NavigationChrome
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
+          onCloseMenu={() => setMenuOpen(false)}
+          forceFooterVisible
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  content: {
+    paddingHorizontal: layout.screenPaddingX,
+    gap: 18,
+  },
+
+  hero: {
+    gap: 10,
+  },
+
+  sectionCard: {
+    ...patterns.surfaceCardSoftMd,
+  },
+
+  stackSm: {
+    gap: 8,
+  },
+
+  stackMd: {
+    gap: 12,
+  },
+
+  sampleBlock: {
+    gap: 8,
+  },
+
+  demoFrame: {
+    ...patterns.surfaceBoxDarkCompact,
+  },
+
+  codeBox: {
+    ...patterns.surfaceBoxDarkCompact,
+    gap: 6,
+  },
+
+  codeLine: {
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  codeSpacer: {
+    minHeight: 8,
+  },
+
+  sourcePill: {
+    alignSelf: 'flex-start',
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,105,0,0.08)',
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+  },
+
+  sourcePillText: {
+    ...patterns.textHelperXs,
+    color: colors.white,
+  },
+
+  primaryButtonLabel: {
+    color: colors.bg,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  iconRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  walletText: {
+    flex: 1,
+    gap: 4,
+  },
+
+  walletTitleInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+
+  boxTitle: {
+    color: colors.white,
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: 'Sora_600SemiBold',
+  },
+});

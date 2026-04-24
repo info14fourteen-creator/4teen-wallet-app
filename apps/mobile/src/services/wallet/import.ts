@@ -86,6 +86,7 @@ export async function importWalletFromMnemonic(input: {
     name: input.name,
     address: account.address,
     kind: 'mnemonic',
+    mnemonicSource: 'imported-seed',
     secret: {
       mnemonic: normalizedMnemonic,
       privateKey: account.privateKey,

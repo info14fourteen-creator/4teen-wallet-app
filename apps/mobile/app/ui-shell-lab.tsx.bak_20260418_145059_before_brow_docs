@@ -1,0 +1,291 @@
+import { useCallback, useMemo, useState } from 'react';
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { NavigationChrome, useNavigationInsets } from '../src/ui/navigation';
+import { useNotice } from '../src/notice/notice-provider';
+
+import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+
+const LOREM = [
+  'This page will grow over time.',
+  'Store approved section names here.',
+  'Store spacing notes here.',
+  'Store header and footer behavior rules here.',
+  'Store card patterns and composition rules here.',
+  'Store naming for shared UI blocks here.',
+  'Store do and do not rules for new pages here.',
+  'This file is the baseline before scaling the rest of the app.',
+];
+
+const WORKFLOW_RULES = `Project workflow rules
+
+Language and comments
+- We communicate in Russian.
+- Do not add Russian comments inside code.
+- Code comments must stay in English.
+
+How I usually work with you
+- First I ask for a command to find the needed files in the project.
+- Then I ask for the full code with line numbers.
+- Before any edit or rewrite, make a backup first.
+- Prefer targeted patches.
+- If a patch is not realistic, rewrite the file fully.
+
+How you should answer
+- Give terminal-ready copy-paste commands.
+- Do not send vague diffs if I asked for commands.
+- If you change files, be precise and minimal when possible.
+- If you rewrite a file, give the full file content.
+- Keep project structure clean and reusable.
+
+Examples I can send you
+- "Дай команду найти все файлы связанные с wallet management"
+- "Запроси полный код с номерами строк"
+- "Сначала сделай бэк ап перед правкой"
+- "Нужен патч, не переписывай файл целиком если можно"
+- "Если патч невозможен, дай полный файл под копипаст"
+- "Проверь что решение не ломает остальные страницы"
+- "Дай только команды в терминал"
+- "Убери русские комментарии из кода, но со мной общайся по-русски"`;
+
+export default function UiShellLab() {
+  const [refreshing, setRefreshing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const navInsets = useNavigationInsets({
+    topExtra: 14,
+    bottomExtra: 20,
+  });
+
+  const notice = useNotice();
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    setRefreshing(false);
+  }, []);
+
+  const handleCopyRules = useCallback(async () => {
+    await Clipboard.setStringAsync(WORKFLOW_RULES);
+    notice.show({
+      type: 'success',
+      title: 'Rules copied',
+      message: 'Workflow rules copied to clipboard.',
+    });
+  }, [notice]);
+
+  const workflowRuleLines = useMemo(() => {
+    return WORKFLOW_RULES.split('\n');
+  }, []);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <View style={styles.screen}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: navInsets.top,
+              paddingBottom: navInsets.bottom,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+              progressBackgroundColor={colors.bg}
+            />
+          }
+        >
+          <View style={styles.hero}>
+            <Text style={ui.sectionEyebrow}>UI SHELL LAB</Text>
+            <Text style={styles.title}>Navigation and layout reference</Text>
+            <Text style={styles.lead}>
+              This screen is the reference template for future pages. We keep navigation rules,
+              spacing rules, and UI naming patterns here so new screens can be assembled without
+              breaking layout rhythm.
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={ui.sectionEyebrow}>BLOCK 01</Text>
+            <Text style={styles.cardTitle}>Top and bottom navigation mounting</Text>
+            <Text style={styles.cardText}>
+              Use NavigationChrome as the only top and bottom shell layer. Screen content must not
+              create its own fake safe-area offsets for header or footer. Content spacing should
+              come from useNavigationInsets so the page stays clean and reusable.
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={ui.sectionEyebrow}>BLOCK 02</Text>
+            <Text style={styles.cardTitle}>Layout spacing rules</Text>
+            <Text style={styles.cardText}>
+              Top page content starts below navigationInsets.top. Bottom page content ends above
+              navigationInsets.bottom. Internal cards use the shared screen padding and should not
+              guess header or footer height manually.
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={ui.sectionEyebrow}>BLOCK 03</Text>
+            <Text style={styles.cardTitle}>Style and naming registry</Text>
+            <View style={styles.loremList}>
+              {LOREM.map((item, index) => (
+                <Text key={`${index}-${item.slice(0, 16)}`} style={styles.loremText}>
+                  {item}
+                </Text>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={ui.sectionEyebrow}>BLOCK 04</Text>
+            <Text style={styles.cardTitle}>How I work with ChatGPT in this project</Text>
+            <Text style={styles.cardText}>
+              This is the reusable prompt block for starting new technical conversations quickly
+              without repeating the same workflow every time.
+            </Text>
+
+            <View style={styles.rulesBox}>
+              {workflowRuleLines.map((line, index) => (
+                <Text
+                  key={`${index}-${line.slice(0, 24)}`}
+                  style={[styles.rulesLine, !line.trim() && styles.rulesSpacer]}
+                >
+                  {line || ' '}
+                </Text>
+              ))}
+            </View>
+
+            <TouchableOpacity activeOpacity={0.9} style={styles.copyButton} onPress={handleCopyRules}>
+              <Text style={styles.copyButtonText}>Copy rules</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        <NavigationChrome
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
+          onCloseMenu={() => setMenuOpen(false)}
+          forceFooterVisible
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  content: {
+    paddingHorizontal: layout.screenPaddingX,
+    gap: 18,
+  },
+
+  hero: {
+    gap: 10,
+  },
+
+  title: {
+    ...ui.titleLg,
+  },
+
+  lead: {
+    ...ui.body,
+  },
+
+  card: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 10,
+  },
+
+  cardTitle: {
+    ...ui.titleSm,
+  },
+
+  cardText: {
+    ...ui.body,
+  },
+
+  loremList: {
+    gap: 12,
+  },
+
+  loremText: {
+    ...ui.body,
+    color: colors.textSoft,
+  },
+
+  rulesBox: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 6,
+    marginTop: 4,
+  },
+
+  rulesLine: {
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  rulesSpacer: {
+    minHeight: 8,
+  },
+
+  copyButton: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    marginTop: 6,
+  },
+
+  copyButtonText: {
+    color: colors.bg,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+});

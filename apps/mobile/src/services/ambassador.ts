@@ -20,7 +20,8 @@ import {
 } from './wallet/storage';
 
 export const FOURTEEN_CONTROLLER_ADDRESS = 'TF8yhohRfMxsdVRr7fFrYLh5fxK8sAFkeZ';
-export const AMBASSADOR_REFERRAL_BASE_URL = 'https://4teen.me/?ref=';
+export const AMBASSADOR_REFERRAL_BASE_URL = 'https://4teen.me/?r=';
+export const AMBASSADOR_APP_REFERRAL_BASE_URL = 'https://4teen.me/?r=';
 
 const DEFAULT_AMBASSADOR_BACKEND_BASE_URL =
   'https://fourteen-allocation-worker-6e0e920395d8.herokuapp.com';
@@ -31,6 +32,8 @@ const SLUG_MAX_LENGTH = 24;
 const AMBASSADOR_CACHE_TTL_MS = 45_000;
 const AMBASSADOR_POSITIVE_IDENTITY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_REGISTER_FEE_LIMIT_SUN = 120_000_000;
+const DEFAULT_REGISTER_ESTIMATED_ENERGY = 98_297;
+const DEFAULT_REGISTER_ESTIMATED_BANDWIDTH = 345;
 const DEFAULT_WITHDRAW_FEE_LIMIT_SUN = 80_000_000;
 const DEFAULT_WITHDRAW_ESTIMATED_ENERGY = 80_000;
 const DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH = 420;
@@ -205,6 +208,21 @@ export type AmbassadorRegistrationEnergyConfirmation = {
   request_id?: string;
   trade_no?: string;
   status?: string;
+};
+
+export type AmbassadorRegistrationReview = {
+  wallet: WalletMeta;
+  controllerAddress: string;
+  slug: string;
+  slugHash: string;
+  metaHash: string;
+  resources: ContractCallResourceEstimate;
+  trxCoverage: {
+    trxBalanceSun: number;
+    trxBalanceDisplay: string;
+    missingTrxSun: number;
+    canCoverBurn: boolean;
+  };
 };
 
 export type AmbassadorWithdrawalReceipt = {
@@ -393,6 +411,11 @@ export function buildAmbassadorReferralLink(slug: string) {
   return normalized ? `${AMBASSADOR_REFERRAL_BASE_URL}${normalized}` : '';
 }
 
+export function buildAmbassadorAppReferralLink(slug: string) {
+  const normalized = normalizeAmbassadorSlug(slug);
+  return normalized ? `${AMBASSADOR_APP_REFERRAL_BASE_URL}${normalized}` : '';
+}
+
 function buildBackendUrl(path: string, params?: Record<string, string | number | boolean>) {
   const normalizedPath = String(path || '').startsWith('/') ? path : `/${path}`;
   const url = new URL(`${AMBASSADOR_BACKEND_BASE_URL}${normalizedPath}`);
@@ -435,8 +458,14 @@ async function fetchJsonOrThrow<T>(
     return null;
   }
 
-  if (!response.ok) {
-    throw new Error(payload?.error || payload?.message || `HTTP ${response.status}`);
+  if (!response.ok || payload?.ok === false) {
+    const error = new Error(payload?.error || payload?.message || `HTTP ${response.status}`) as Error & {
+      status?: number;
+      payload?: unknown;
+    };
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
   }
 
   return payload as T;
@@ -538,7 +567,6 @@ async function lookupAmbassadorOnChain(
   }
 
   const exists = await readControllerAddressBoolean('ambassadorExists', wallet);
-  console.info('[4TEEN] ambassador exists lookup', { wallet, exists });
 
   if (!exists) {
     return null;
@@ -1082,6 +1110,13 @@ export async function checkAmbassadorSlugAvailability(slug: string) {
 }
 
 export async function registerAmbassador(slug: string): Promise<AmbassadorRegistrationReceipt> {
+  return registerAmbassadorWithOptions(slug, {});
+}
+
+export async function registerAmbassadorWithOptions(
+  slug: string,
+  options?: { feeLimitSun?: number }
+): Promise<AmbassadorRegistrationReceipt> {
   const normalizedSlug = normalizeAmbassadorSlug(slug);
 
   if (!isValidAmbassadorSlug(normalizedSlug)) {
@@ -1100,8 +1135,12 @@ export async function registerAmbassador(slug: string): Promise<AmbassadorRegist
   const slugHash = buildAmbassadorSlugHash(normalizedSlug);
   const tronWeb = createTronWeb(privateKey, wallet.address);
   const contract = await getControllerContract(tronWeb);
+  const feeLimitSun = Math.max(
+    1_000_000,
+    Math.min(DEFAULT_REGISTER_FEE_LIMIT_SUN, Number(options?.feeLimitSun || DEFAULT_REGISTER_FEE_LIMIT_SUN))
+  );
   const result = await contract.registerAsAmbassador(slugHash, ZERO_BYTES32).send({
-    feeLimit: DEFAULT_REGISTER_FEE_LIMIT_SUN,
+    feeLimit: feeLimitSun,
     shouldPollResponse: false,
   });
   const txId = extractTxid(result);
@@ -1155,9 +1194,115 @@ export async function registerAmbassador(slug: string): Promise<AmbassadorRegist
   };
 }
 
+async function buildFallbackAmbassadorRegistrationResourceEstimate(input: {
+  wallet: WalletMeta;
+  privateKey: string;
+}): Promise<ContractCallResourceEstimate> {
+  const tronWeb = createTronWeb(input.privateKey, input.wallet.address);
+  const [available, pricing] = await Promise.all([
+    getAccountResources(input.wallet.address),
+    getResourceUnitPricing(tronWeb),
+  ]);
+
+  const estimatedEnergy = normalizeResourceAmount(DEFAULT_REGISTER_ESTIMATED_ENERGY);
+  const estimatedBandwidth = normalizeResourceAmount(DEFAULT_REGISTER_ESTIMATED_BANDWIDTH);
+  const availableEnergy = getAvailableResource(available, 'energy');
+  const availableBandwidth = getAvailableResource(available, 'bandwidth');
+  const energyShortfall = getResourceShortfall(estimatedEnergy, availableEnergy);
+  const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
+  const estimatedBurnSun = getResourceBurnSun({
+    energyShortfall,
+    bandwidthShortfall,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+  });
+
+  return {
+    available,
+    estimatedEnergy,
+    estimatedBandwidth,
+    energyShortfall,
+    bandwidthShortfall,
+    estimatedBurnSun,
+    energyPriceSun: pricing.energySun,
+    bandwidthPriceSun: pricing.bandwidthSun,
+    recommendedFeeLimitSun: Math.max(
+      1_000_000,
+      Math.min(
+        DEFAULT_REGISTER_FEE_LIMIT_SUN,
+        Math.ceil(Math.max(estimatedBurnSun, 1_000_000) * 1.15)
+      )
+    ),
+  };
+}
+
+export async function estimateAmbassadorRegistration(
+  slug: string
+): Promise<AmbassadorRegistrationReview> {
+  const normalizedSlug = normalizeAmbassadorSlug(slug);
+
+  if (!isValidAmbassadorSlug(normalizedSlug)) {
+    throw new Error('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.');
+  }
+
+  const { wallet, privateKey } = await getSigningWalletContext();
+  const existing = await lookupAmbassadorOnChain(wallet.address, { force: true });
+
+  if (existing) {
+    throw new Error('This wallet is already registered as ambassador.');
+  }
+
+  await checkAmbassadorSlugAvailability(normalizedSlug);
+
+  const slugHash = buildAmbassadorSlugHash(normalizedSlug);
+  const tronWeb = createTronWeb(privateKey, wallet.address);
+  let resources = await estimateContractCallResources({
+    tronWeb,
+    privateKey,
+    ownerAddress: wallet.address,
+    contractAddress: FOURTEEN_CONTROLLER_ADDRESS,
+    functionSelector: 'registerAsAmbassador(bytes32,bytes32)',
+    parameters: [
+      { type: 'bytes32', value: slugHash },
+      { type: 'bytes32', value: ZERO_BYTES32 },
+    ],
+    feeLimitSun: DEFAULT_REGISTER_FEE_LIMIT_SUN,
+    maxFeeLimitSun: DEFAULT_REGISTER_FEE_LIMIT_SUN,
+  }).catch(async (error) => {
+    console.warn('Ambassador registration resource estimate fallback:', error);
+    return buildFallbackAmbassadorRegistrationResourceEstimate({ wallet, privateKey });
+  });
+
+  if (resources.estimatedEnergy <= 0) {
+    console.warn('Ambassador registration resource estimate returned zero energy; using fallback.');
+    resources = await buildFallbackAmbassadorRegistrationResourceEstimate({ wallet, privateKey });
+  }
+
+  const trxBalance = await getTokenDetails(wallet.address, TRX_TOKEN_ID, false, wallet.id);
+  const trxBalanceSun = Math.max(0, Number(trxBalance.balanceRaw || '0'));
+  const missingTrxSun = Math.max(0, resources.estimatedBurnSun - trxBalanceSun);
+
+  return {
+    wallet,
+    controllerAddress: FOURTEEN_CONTROLLER_ADDRESS,
+    slug: normalizedSlug,
+    slugHash,
+    metaHash: ZERO_BYTES32,
+    resources,
+    trxCoverage: {
+      trxBalanceSun,
+      trxBalanceDisplay: formatTrxBalanceDisplay(trxBalanceSun),
+      missingTrxSun,
+      canCoverBurn: trxBalanceSun >= resources.estimatedBurnSun,
+    },
+  };
+}
+
 export async function getAmbassadorRegistrationEnergyQuote(input: {
   wallet: string;
   slug: string;
+  requiredEnergy?: number;
+  requiredBandwidth?: number;
 }): Promise<AmbassadorRegistrationEnergyQuote> {
   const wallet = normalizeAddress(input.wallet);
   const slug = normalizeAmbassadorSlug(input.slug);
@@ -1180,6 +1325,8 @@ export async function getAmbassadorRegistrationEnergyQuote(input: {
       purpose: 'ambassador_registration',
       wallet,
       slug,
+      requiredEnergy: input.requiredEnergy,
+      requiredBandwidth: input.requiredBandwidth,
     }),
   });
 
@@ -1205,6 +1352,8 @@ export async function confirmAmbassadorRegistrationEnergy(input: {
   wallet: string;
   slug: string;
   paymentTxId: string;
+  requiredEnergy?: number;
+  requiredBandwidth?: number;
 }): Promise<AmbassadorRegistrationEnergyConfirmation> {
   const wallet = normalizeAddress(input.wallet);
   const slug = normalizeAmbassadorSlug(input.slug);
@@ -1233,6 +1382,8 @@ export async function confirmAmbassadorRegistrationEnergy(input: {
       wallet,
       slug,
       paymentTxId,
+      requiredEnergy: input.requiredEnergy,
+      requiredBandwidth: input.requiredBandwidth,
     }),
   });
 

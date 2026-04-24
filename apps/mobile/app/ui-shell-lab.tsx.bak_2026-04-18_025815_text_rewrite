@@ -1,0 +1,198 @@
+import { useCallback, useState } from 'react';
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { NavigationChrome, useNavigationInsets } from '../src/ui/navigation';
+
+import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+
+const LOREM = [
+  'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante venenatis dapibus posuere velit aliquet.',
+  'Praesent commodo cursus magna, vel scelerisque nisl consectetur et. Donec sed odio dui.',
+  'Nullam quis risus eget urna mollis ornare vel eu leo. Cras mattis consectetur purus sit amet fermentum.',
+  'Aenean lacinia bibendum nulla sed consectetur. Vestibulum id ligula porta felis euismod semper.',
+  'Maecenas faucibus mollis interdum. Sed posuere consectetur est at lobortis.',
+  'Curabitur blandit tempus porttitor. Morbi leo risus, porta ac consectetur ac, vestibulum at eros.',
+  'Vivamus sagittis lacus vel augue laoreet rutrum faucibus dolor auctor.',
+  'Etiam porta sem malesuada magna mollis euismod. Donec ullamcorper nulla non metus auctor fringilla.',
+];
+
+export default function UiShellLab() {
+  const [refreshing, setRefreshing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const navInsets = useNavigationInsets({
+    topExtra: 14,
+    bottomExtra: 20,
+  });
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    setRefreshing(false);
+  }, []);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <View style={styles.screen}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: navInsets.top,
+              paddingBottom: navInsets.bottom,
+            },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+              progressBackgroundColor={colors.bg}
+            />
+          }
+        >
+          <View style={styles.hero}>
+            <Text style={ui.sectionEyebrow}>UI SHELL LAB</Text>
+            <Text style={styles.title}>Unified shell test polygon</Text>
+            <Text style={styles.lead}>
+              Clean page mounted on the new navigation layer. Header and footer now come from the new
+              navigation entrypoint instead of the old scattered mess.
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={ui.sectionEyebrow}>SYSTEM EYEBROW</Text>
+            <Text style={styles.cardTitle}>Navigation baseline</Text>
+            <Text style={styles.cardText}>
+              This screen now uses the new navigation shell. Content spacing should respect the new
+              top and bottom inset calculations without the old layout drift.
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={ui.sectionEyebrow}>RELOAD</Text>
+            <Text style={styles.cardTitle}>Manual refresh test</Text>
+            <Text style={styles.cardText}>
+              Pull down to refresh or press the button below. We are testing page content and the new
+              chrome together now.
+            </Text>
+
+            <TouchableOpacity activeOpacity={0.9} style={styles.reloadButton} onPress={handleRefresh}>
+              <Text style={styles.reloadButtonText}>Reload content</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={ui.sectionEyebrow}>LOREM IPSUM</Text>
+            <Text style={styles.cardTitle}>Content pressure test</Text>
+            <View style={styles.loremList}>
+              {LOREM.concat(LOREM).map((item, index) => (
+                <Text key={`${index}-${item.slice(0, 16)}`} style={styles.loremText}>
+                  {item}
+                </Text>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+
+        <NavigationChrome
+          menuOpen={menuOpen}
+          onOpenMenu={() => setMenuOpen(true)}
+          onCloseMenu={() => setMenuOpen(false)}
+          forceFooterVisible
+        />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  content: {
+    paddingHorizontal: layout.screenPaddingX,
+    gap: 18,
+  },
+
+  hero: {
+    gap: 10,
+  },
+
+  title: {
+    ...ui.titleLg,
+  },
+
+  lead: {
+    ...ui.body,
+  },
+
+  card: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 10,
+  },
+
+  cardTitle: {
+    ...ui.titleSm,
+  },
+
+  cardText: {
+    ...ui.body,
+  },
+
+  loremList: {
+    gap: 12,
+  },
+
+  loremText: {
+    ...ui.body,
+    color: colors.textSoft,
+  },
+
+  reloadButton: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    marginTop: 6,
+  },
+
+  reloadButtonText: {
+    color: colors.bg,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+});

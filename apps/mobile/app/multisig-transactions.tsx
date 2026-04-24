@@ -5,7 +5,7 @@ export default function MultisigTransactionsScreen() {
     <StubScreen
       eyebrow="MULTISIG TRANSACTIONS"
       title="Multisig Transactions"
-      body="This screen is not wired yet."
+      body="Coming soon. Multisig setup, co-signing, and pending signature management will be available here through the in-app browser flow."
     />
   );
 }

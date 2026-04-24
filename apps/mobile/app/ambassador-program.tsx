@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +15,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 
 import { useNotice } from '../src/notice/notice-provider';
 import {
+  buildAmbassadorReferralLink,
   formatTrxFromSun,
   generateAmbassadorSlug,
   levelToLabel,
@@ -36,7 +38,6 @@ import {
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { OpenDownIcon, OpenRightIcon } from '../src/ui/ui-icons';
-import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 
 type WalletSwitcherItem = {
   id: string;
@@ -49,26 +50,20 @@ type WalletSwitcherItem = {
 type BusyAction = 'register' | 'withdraw' | 'replay' | 'wallet' | null;
 
 type CabinetSectionId =
-  | 'actions'
-  | 'operations'
   | 'identity'
   | 'overview'
-  | 'rewards'
   | 'buyers'
   | 'purchases'
   | 'pending'
-  | 'advanced';
+  | 'guide';
 
 const DEFAULT_CABINET_SECTIONS: Record<CabinetSectionId, boolean> = {
-  actions: true,
-  operations: true,
   identity: true,
   overview: true,
-  rewards: true,
   buyers: false,
   purchases: false,
   pending: false,
-  advanced: false,
+  guide: true,
 };
 
 function formatWalletAccessLabel(kind: WalletMeta['kind']) {
@@ -157,9 +152,9 @@ export default function AmbassadorProgramScreen() {
   const [walletOptionsOpen, setWalletOptionsOpen] = useState(false);
   const [switchingWalletId, setSwitchingWalletId] = useState<string | null>(null);
   const [slug, setSlug] = useState('');
-  const [slugStatus, setSlugStatus] = useState('');
   const [errorText, setErrorText] = useState('');
   const [cabinetSections, setCabinetSections] = useState(DEFAULT_CABINET_SECTIONS);
+  const registerNoticeWalletIdRef = useRef<string | null>(null);
 
   useChromeLoading((loading && !snapshot) || refreshing || Boolean(busyAction));
 
@@ -199,8 +194,6 @@ export default function AmbassadorProgramScreen() {
 
       if (nextSnapshot.status === 'register') {
         setSlug((current) => current.trim() || generateAmbassadorSlug());
-      } else {
-        setSlugStatus('');
       }
     } catch (error) {
       console.error(error);
@@ -246,6 +239,19 @@ export default function AmbassadorProgramScreen() {
   const canWithdraw = asCount(summary?.claimable_rewards_sun) > 0 && activeWallet?.kind !== 'watch-only';
   const hasPendingRows = (cabinet?.pendingTotal || cabinet?.pendingRows.length || 0) > 0;
 
+  useEffect(() => {
+    if (snapshot?.status !== 'register' || !snapshot.wallet?.id) {
+      return;
+    }
+
+    if (registerNoticeWalletIdRef.current === snapshot.wallet.id) {
+      return;
+    }
+
+    registerNoticeWalletIdRef.current = snapshot.wallet.id;
+    notice.showNeutralNotice('This wallet is not registered as ambassador yet.', 2200);
+  }, [notice, snapshot?.status, snapshot?.wallet?.id]);
+
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     void load({ silent: true, force: true });
@@ -263,6 +269,23 @@ export default function AmbassadorProgramScreen() {
       if (!value) return;
       await Clipboard.setStringAsync(value);
       notice.showSuccessNotice(`${label} copied.`, 1800);
+    },
+    [notice]
+  );
+
+  const handleShare = useCallback(
+    async (value: string, label: string) => {
+      if (!value) return;
+
+      try {
+        await Share.share({
+          message: value,
+          url: value,
+        });
+      } catch (error) {
+        console.error(error);
+        notice.showErrorNotice(`Failed to share ${label.toLowerCase()}.`, 2200);
+      }
     },
     [notice]
   );
@@ -298,7 +321,6 @@ export default function AmbassadorProgramScreen() {
         setSwitchingWalletId(wallet.id);
         setWalletOptionsOpen(false);
         await setActiveWalletId(wallet.id);
-        setSlugStatus('');
         await load({ silent: true, force: true });
         notice.showSuccessNotice(`Ambassador wallet: ${wallet.name}`, 2200);
       } catch (error) {
@@ -314,7 +336,6 @@ export default function AmbassadorProgramScreen() {
 
   const handleNormalizeSlug = useCallback((value: string) => {
     setSlug(normalizeAmbassadorSlug(value));
-    setSlugStatus('');
   }, []);
 
   const handleRegister = useCallback(async () => {
@@ -361,6 +382,8 @@ export default function AmbassadorProgramScreen() {
   return (
     <ProductScreen
       eyebrow="AMBASSADOR"
+      keyboardAware={snapshot?.status === 'register'}
+      keyboardExtraScrollHeight={96}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -396,7 +419,7 @@ export default function AmbassadorProgramScreen() {
       )}
 
       {errorText ? <StatusCard tone="danger" text={errorText} /> : null}
-      {snapshot?.message ? (
+      {snapshot?.message && snapshot.status !== 'register' ? (
         <StatusCard tone={isWatchOnlyWallet ? 'danger' : 'neutral'} text={snapshot.message} />
       ) : null}
 
@@ -418,13 +441,12 @@ export default function AmbassadorProgramScreen() {
       {snapshot?.status === 'cabinet' && cabinet && summary && !isWatchOnlyWallet ? (
         <CabinetView
           cabinet={cabinet}
-          activeWallet={activeWallet}
           canWithdraw={canWithdraw}
           hasPendingRows={hasPendingRows}
           busyAction={busyAction}
           sections={cabinetSections}
           onCopy={handleCopy}
-          onOpenLink={(url) => void openInAppBrowser(router, url)}
+          onShare={handleShare}
           onWithdraw={() => void handleWithdraw()}
           onReplay={() => void handleReplayPending()}
           onToggleSection={handleToggleCabinetSection}
@@ -434,7 +456,6 @@ export default function AmbassadorProgramScreen() {
       {snapshot?.status === 'register' && !isWatchOnlyWallet ? (
         <RegistrationView
           slug={slug}
-          slugStatus={slugStatus}
           signingWalletAvailable={snapshot.signingWalletAvailable}
           walletKind={snapshot.wallet?.kind}
           busyAction={busyAction}
@@ -524,43 +545,34 @@ function WalletSelector({
 
 function CabinetView({
   cabinet,
-  activeWallet,
   canWithdraw,
   hasPendingRows,
   busyAction,
   sections,
   onCopy,
-  onOpenLink,
+  onShare,
   onWithdraw,
   onReplay,
   onToggleSection,
 }: {
   cabinet: AmbassadorCabinetDashboard;
-  activeWallet: WalletMeta | null;
   canWithdraw: boolean;
   hasPendingRows: boolean;
   busyAction: BusyAction;
   sections: Record<CabinetSectionId, boolean>;
   onCopy: (value: string, label: string) => void;
-  onOpenLink: (url: string) => void;
+  onShare: (value: string, label: string) => void;
   onWithdraw: () => void;
   onReplay: () => void;
   onToggleSection: (section: CabinetSectionId) => void;
 }) {
   const { profile, summary } = cabinet;
-  const walletExplorerUrl = profile.wallet
-    ? `https://tronscan.org/#/address/${profile.wallet}`
-    : '';
+  const referralLink = profile.referralLink;
   const claimableSun = summary.claimable_rewards_sun || '0';
   const processedRewardSun = summary.buyers_processed_reward_sun || '0';
   const pendingRewardSun = summary.buyers_pending_reward_sun || '0';
-  const pendingVolumeSun = summary.buyers_pending_purchase_amount_sun || '0';
   const pendingCount = asCount(cabinet.pendingTotal || cabinet.pendingRows.length);
   const processedCount = asCount(summary.processed_count);
-  const levelBuyersCount = asCount(
-    summary.level_progress_buyers_count ?? summary.buyers_count ?? summary.total_buyers
-  );
-  const nextLevelThreshold = asCount(summary.level_next_threshold);
   const remainingToNextLevel = asCount(summary.level_remaining_to_next);
 
   return (
@@ -590,49 +602,63 @@ function CabinetView({
         ]}
       />
 
-      <CabinetAccordionSection
-        id="actions"
-        title="Actions"
-        open={sections.actions}
-        onToggle={onToggleSection}
-      >
-        <Text style={ui.body}>
-          Cabinet shows current backend and on-chain state. Claimable rewards are the
-          real withdrawable amount from contract state.
-        </Text>
+      <View style={styles.topCluster}>
+        <View style={styles.statusGrid}>
+          <RewardStatusCard
+            label="Claimable now"
+            value={`${formatTrxFromSun(claimableSun)} TRX`}
+            meta={`${claimableSun} SUN`}
+            tone={canWithdraw ? 'green' : 'default'}
+          />
+          <RewardStatusCard
+            label="Processed reward"
+            value={`${formatTrxFromSun(processedRewardSun)} TRX`}
+            meta={`${processedRewardSun} SUN · ${processedCount} rows`}
+            tone="orange"
+          />
+          <RewardStatusCard
+            label="Pending reward"
+            value={`${formatTrxFromSun(pendingRewardSun)} TRX`}
+            meta={`${pendingRewardSun} SUN · ${pendingCount} rows`}
+            tone={pendingCount > 0 ? 'amber' : 'default'}
+          />
+        </View>
+
         <View style={styles.actionGrid}>
           <ActionPill
-            label="COPY SLUG"
-            icon="identifier"
-            variant="secondary"
-            disabled={!profile.slug}
-            onPress={() => onCopy(profile.slug, 'Ambassador slug')}
+            label="WITHDRAW"
+            icon="cash-fast"
+            disabled={!canWithdraw || busyAction === 'withdraw'}
+            busy={busyAction === 'withdraw'}
+            onPress={onWithdraw}
           />
+          <ActionPill
+            label="REPLAY PENDING"
+            icon="reload"
+            variant="secondary"
+            disabled={!hasPendingRows || busyAction === 'replay'}
+            busy={busyAction === 'replay'}
+            onPress={onReplay}
+          />
+        </View>
+
+        <View style={styles.actionGrid}>
           <ActionPill
             label="COPY LINK"
             icon="content-copy"
             variant="secondary"
-            disabled={!profile.referralLink}
-            onPress={() => onCopy(profile.referralLink, 'Referral link')}
-          />
-        </View>
-        <View style={styles.actionGrid}>
-          <ActionPill
-            label="OPEN LINK"
-            icon="open-in-new"
-            variant="secondary"
-            disabled={!profile.referralLink}
-            onPress={() => onOpenLink(profile.referralLink)}
+            disabled={!referralLink}
+            onPress={() => onCopy(referralLink, 'Referral link')}
           />
           <ActionPill
-            label="TRONSCAN"
-            icon="wallet-outline"
+            label="SHARE LINK"
+            icon="share-variant"
             variant="secondary"
-            disabled={!walletExplorerUrl}
-            onPress={() => onOpenLink(walletExplorerUrl)}
+            disabled={!referralLink}
+            onPress={() => onShare(referralLink, 'Referral link')}
           />
         </View>
-      </CabinetAccordionSection>
+      </View>
 
       <CabinetAccordionSection
         id="identity"
@@ -642,7 +668,6 @@ function CabinetView({
       >
         <View style={styles.flatPanel}>
           <InfoRow label="Slug" value={profile.slug || 'Not assigned yet'} accent={Boolean(profile.slug)} />
-          <InfoRow label="Referral link" value={profile.referralLink || '—'} accent />
           <InfoRow label="Wallet" value={shortenAddress(profile.wallet)} />
           <InfoRow label="Status" value={summary.active === false ? 'Inactive' : 'Active'} accent={summary.active !== false} />
           <InfoRow label="Level" value={levelToLabel(summary.effective_level)} />
@@ -676,71 +701,6 @@ function CabinetView({
             accent={remainingToNextLevel <= 0}
           />
         </View>
-      </CabinetAccordionSection>
-
-      <CabinetAccordionSection
-        id="rewards"
-        title="Reward status"
-        open={sections.rewards}
-        onToggle={onToggleSection}
-      >
-        <View style={styles.statusGrid}>
-          <RewardStatusCard
-            label="Claimable now"
-            value={`${formatTrxFromSun(claimableSun)} TRX`}
-            meta={`${claimableSun} SUN`}
-            tone={canWithdraw ? 'green' : 'default'}
-          />
-          <RewardStatusCard
-            label="Processed reward in DB"
-            value={`${formatTrxFromSun(processedRewardSun)} TRX`}
-            meta={`${processedRewardSun} SUN · ${processedCount} rows`}
-          />
-          <RewardStatusCard
-            label="Pending backend sync"
-            value={`${formatTrxFromSun(pendingRewardSun)} TRX`}
-            meta={`${pendingRewardSun} SUN · ${pendingCount} rows`}
-            tone={pendingCount > 0 ? 'amber' : 'default'}
-          />
-        </View>
-      </CabinetAccordionSection>
-
-      <CabinetAccordionSection
-        id="operations"
-        title="Reward operations"
-        open={sections.operations}
-        onToggle={onToggleSection}
-      >
-        {activeWallet?.kind === 'watch-only' ? (
-          <StatusCard
-            tone="danger"
-            text="Watch-only wallet cannot use ambassador cabinet actions here."
-          />
-        ) : null}
-
-        <View style={styles.actionGrid}>
-          <ActionPill
-            label="WITHDRAW"
-            icon="cash-fast"
-            disabled={!canWithdraw || busyAction === 'withdraw'}
-            busy={busyAction === 'withdraw'}
-            onPress={onWithdraw}
-          />
-          <ActionPill
-            label="REPLAY PENDING"
-            icon="reload"
-            variant="secondary"
-            disabled={!hasPendingRows || busyAction === 'replay'}
-            busy={busyAction === 'replay'}
-            onPress={onReplay}
-          />
-        </View>
-        {pendingCount > 0 ? (
-          <StatusCard
-            tone="neutral"
-            text={`Pending backend sync: ${formatTrxFromSun(pendingRewardSun)} TRX reward from ${formatTrxFromSun(pendingVolumeSun)} TRX purchase volume.`}
-          />
-        ) : null}
       </CabinetAccordionSection>
 
       <RowsPreview
@@ -811,36 +771,34 @@ function CabinetView({
       />
 
       <CabinetAccordionSection
-        id="advanced"
-        title="Advanced details"
-        open={sections.advanced}
+        id="guide"
+        title="How this cabinet works"
+        open={sections.guide}
         onToggle={onToggleSection}
       >
-        <View style={styles.flatPanel}>
-          <InfoRow label="Slug hash" value={String(summary.slug_hash || '—')} />
-          <InfoRow label="Meta hash" value={String(summary.meta_hash || '—')} />
-          <InfoRow
-            label="Registration mode"
-            value={
-              summary.self_registered
-                ? 'Self-registered'
-                : summary.manual_assigned
-                  ? 'Manually assigned'
-                  : 'Registered'
-            }
-          />
-          <InfoRow label="Override" value={summary.override_enabled ? 'Enabled' : 'Disabled'} />
-          <InfoRow label="Current level" value={levelToLabel(summary.current_level ?? summary.effective_level)} />
-          <InfoRow label="Override level" value={levelToLabel(summary.override_level ?? 0)} />
-          <InfoRow label="Level progress buyers" value={`${levelBuyersCount}/${nextLevelThreshold || '—'}`} />
-          <InfoRow label="Remaining to next" value={remainingToNextLevel > 0 ? String(remainingToNextLevel) : '0'} />
-          <InfoRow label="Lifetime rewards" value={`${formatTrxFromSun(summary.total_rewards_accrued_sun)} TRX`} />
-          <InfoRow label="Withdrawn rewards" value={`${formatTrxFromSun(summary.total_rewards_claimed_sun)} TRX`} />
-          <InfoRow
-            label="Rows loaded"
-            value={`${cabinet.purchasesRows.length} purchases / ${cabinet.pendingRows.length} pending / ${cabinet.buyersRows.length} buyers`}
-          />
-        </View>
+        <Text style={ui.body}>
+          This cabinet combines direct on-chain reads from FourteenController with
+          backend purchase rows served through the 4TEEN proxy.
+        </Text>
+        <Text style={ui.body}>
+          Top cards show the current ambassador state first: slug, level, reward
+          percent and claimable TRX. Claimable now is the real withdrawable amount
+          from the contract.
+        </Text>
+        <Text style={ui.body}>
+          Processed reward means purchase rows that already passed controller
+          allocation. Pending reward means purchases are already attributed in the
+          backend but not fully settled into withdrawable on-chain rewards yet.
+        </Text>
+        <Text style={ui.body}>
+          Buyers shows linked wallets and totals. Purchases shows tracked attributed
+          rows. Pending isolates rows still waiting for final controller processing.
+        </Text>
+        <Text style={ui.body}>
+          Referral sharing uses one canonical link only. The cabinet copies and shares the
+          same ambassador link, so attribution stays consistent and the backend receives the
+          same slug every time.
+        </Text>
       </CabinetAccordionSection>
     </>
   );
@@ -848,7 +806,6 @@ function CabinetView({
 
 function RegistrationView({
   slug,
-  slugStatus,
   signingWalletAvailable,
   walletKind,
   busyAction,
@@ -857,7 +814,6 @@ function RegistrationView({
   onRegister,
 }: {
   slug: string;
-  slugStatus: string;
   signingWalletAvailable: boolean;
   walletKind?: WalletMeta['kind'];
   busyAction: BusyAction;
@@ -865,12 +821,23 @@ function RegistrationView({
   onChangeSlug: (value: string) => void;
   onRegister: () => void;
 }) {
+  const normalizedSlug = normalizeAmbassadorSlug(slug);
+  const referralPreview = normalizedSlug ? buildAmbassadorReferralLink(normalizedSlug) : '—';
+
   return (
-    <ProductSection eyebrow="AMBASSADOR PROFILE" title="No ambassador profile yet">
+    <View style={styles.registrationBlock}>
+      <Text style={ui.sectionEyebrow}>AMBASSADOR REGISTRATION</Text>
+      <Text style={styles.registrationTitle}>Create ambassador profile</Text>
       <Text style={ui.body}>
-        This full-access wallet is not registered as an ambassador. Pick a slug, then
-        continue to the confirmation screen.
+        Continue to confirm, review resources, optionally rent Energy, then approve with biometrics or passcode.
       </Text>
+
+      <View style={styles.registrationPreview}>
+        <Text style={styles.registrationPreviewLabel}>Referral link preview</Text>
+        <Text style={styles.registrationPreviewValue} numberOfLines={1}>
+          {referralPreview}
+        </Text>
+      </View>
 
       <View style={styles.inputBlock}>
         <Text style={styles.inputLabel}>Referral slug</Text>
@@ -879,6 +846,14 @@ function RegistrationView({
           onChangeText={onChangeSlug}
           autoCapitalize="none"
           autoCorrect={false}
+          autoComplete="off"
+          multiline={false}
+          numberOfLines={1}
+          maxLength={24}
+          keyboardAppearance="dark"
+          selectionColor={colors.accent}
+          returnKeyType="done"
+          blurOnSubmit
           placeholder="your-slug"
           placeholderTextColor={colors.textDim}
           style={styles.slugInput}
@@ -886,9 +861,11 @@ function RegistrationView({
         <Text style={styles.inputHint}>
           3-24 chars. Lowercase letters, numbers, dash or underscore.
         </Text>
+        <Text style={styles.registrationWarning}>
+          Slug is permanent. After registration it cannot be changed from the wallet.
+        </Text>
       </View>
 
-      {slugStatus ? <StatusCard tone={slugStatus.includes('available') ? 'success' : 'danger'} text={slugStatus} /> : null}
       {walletKind === 'watch-only' ? (
         <StatusCard
           tone="danger"
@@ -896,16 +873,11 @@ function RegistrationView({
         />
       ) : null}
 
-      <View style={styles.actionGrid}>
-        <ActionPill
-          label="REGISTER"
-          icon="account-check"
-          disabled={!canRegister || !signingWalletAvailable || busyAction === 'register'}
-          busy={busyAction === 'register'}
-          onPress={onRegister}
-        />
-      </View>
-    </ProductSection>
+      <ProductActionRow
+        primaryLabel="CONTINUE TO CONFIRM"
+        onPrimaryPress={onRegister}
+      />
+    </View>
   );
 }
 
@@ -1035,13 +1007,14 @@ function RewardStatusCard({
   label: string;
   value: string;
   meta: string;
-  tone?: 'default' | 'green' | 'amber';
+  tone?: 'default' | 'green' | 'amber' | 'orange';
 }) {
   return (
     <View
       style={[
         styles.rewardStatusCard,
         tone === 'green' ? styles.rewardStatusCardGreen : null,
+        tone === 'orange' ? styles.rewardStatusCardOrange : null,
         tone === 'amber' ? styles.rewardStatusCardAmber : null,
       ]}
     >
@@ -1094,7 +1067,7 @@ function ActionPill({
 
 const styles = StyleSheet.create({
   selectionBlock: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
   selectionEyebrow: {
     color: colors.textDim,
@@ -1191,6 +1164,10 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
   },
+  topCluster: {
+    gap: 12,
+    marginBottom: 16,
+  },
   flatPanel: {
     borderTopWidth: 1,
     borderTopColor: colors.lineSoft,
@@ -1200,7 +1177,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineSoft,
-    marginBottom: 16,
+    marginBottom: 14,
     overflow: 'hidden',
   },
   accordionHeader: {
@@ -1257,7 +1234,6 @@ const styles = StyleSheet.create({
   actionGrid: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 14,
   },
   actionPill: {
     minHeight: 52,
@@ -1285,6 +1261,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     textAlign: 'center',
+  },
+  registrationBlock: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  registrationTitle: {
+    ...ui.titleSm,
+  },
+  registrationPreview: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  registrationPreviewLabel: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  registrationPreviewValue: {
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
   },
   inputBlock: {
     gap: 8,
@@ -1314,6 +1320,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
+  registrationWarning: {
+    color: colors.red,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
   statusCard: {
     borderRadius: radius.sm,
     borderWidth: 1,
@@ -1321,7 +1333,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   statusDanger: {
     borderColor: 'rgba(255,48,73,0.28)',
@@ -1337,7 +1349,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   statusGrid: {
-    gap: 10,
+    gap: 12,
   },
   rewardStatusCard: {
     borderRadius: radius.sm,
@@ -1355,6 +1367,10 @@ const styles = StyleSheet.create({
   rewardStatusCardAmber: {
     borderColor: 'rgba(255,105,0,0.28)',
     backgroundColor: 'rgba(255,105,0,0.08)',
+  },
+  rewardStatusCardOrange: {
+    borderColor: 'rgba(255,105,0,0.34)',
+    backgroundColor: 'rgba(255,105,0,0.12)',
   },
   rewardStatusLabel: {
     color: colors.textDim,
@@ -1409,5 +1425,9 @@ const styles = StyleSheet.create({
     color: colors.textDim,
     fontSize: 12,
     lineHeight: 17,
+  },
+  inlineAccent: {
+    color: colors.accent,
+    fontFamily: 'Sora_700Bold',
   },
 });

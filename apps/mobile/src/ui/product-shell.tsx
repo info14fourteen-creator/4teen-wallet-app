@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, layout, radius } from '../theme/tokens';
 import { ui } from '../theme/ui';
+import KeyboardView from './KeyboardView';
 import ScreenBrow from './screen-brow';
 import { useBottomInset } from './use-bottom-inset';
 import { useNavigationInsets } from './navigation';
@@ -23,12 +24,16 @@ export function ProductScreen({
   children,
   refreshControl,
   bottomInsetExtra,
+  keyboardAware = false,
+  keyboardExtraScrollHeight = 42,
 }: {
   eyebrow: string;
   browVariant?: 'plain' | 'back';
   children: ReactNode;
   refreshControl?: ReactElement<RefreshControlProps>;
   bottomInsetExtra?: number;
+  keyboardAware?: boolean;
+  keyboardExtraScrollHeight?: number;
 }) {
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset(bottomInsetExtra);
@@ -36,20 +41,39 @@ export function ProductScreen({
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScrollView
-          style={styles.scroll}
-          refreshControl={refreshControl}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-          bounces={Boolean(refreshControl)}
-          alwaysBounceVertical={Boolean(refreshControl)}
-        >
-          <ScreenBrow label={eyebrow} variant={browVariant} />
-          {children}
-        </ScrollView>
+        {keyboardAware ? (
+          <KeyboardView
+            style={styles.scroll}
+            refreshControl={refreshControl}
+            extraScrollHeight={keyboardExtraScrollHeight}
+            contentContainerStyle={[
+              styles.content,
+              { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+            ]}
+            bounces={Boolean(refreshControl)}
+            alwaysBounceVertical={Boolean(refreshControl)}
+          >
+            <ScreenBrow label={eyebrow} variant={browVariant} />
+            {children}
+          </KeyboardView>
+        ) : (
+          <ScrollView
+            style={styles.scroll}
+            refreshControl={refreshControl}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            contentContainerStyle={[
+              styles.content,
+              { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+            ]}
+            showsVerticalScrollIndicator={false}
+            bounces={Boolean(refreshControl)}
+            alwaysBounceVertical={Boolean(refreshControl)}
+          >
+            <ScreenBrow label={eyebrow} variant={browVariant} />
+            {children}
+          </ScrollView>
+        )}
       </View>
     </SafeAreaView>
   );

@@ -1,0 +1,601 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import AppHeader, {
+  APP_HEADER_HEIGHT,
+  APP_HEADER_TOP_PADDING,
+} from '../src/ui/app-header';
+import MenuSheet from '../src/ui/menu-sheet';
+import SubmenuHeader from '../src/ui/submenu-header';
+import { colors, layout, radius } from '../src/theme/tokens';
+import { useNotice } from '../src/notice/notice-provider';
+import { TRX_TOKEN_ID } from '../src/services/tron/api';
+import { getSendAssetDraft, sendAssetTransfer } from '../src/services/wallet/send';
+
+function isValidTronAddress(value: string) {
+  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(value || '').trim());
+}
+
+export default function SendScreen() {
+  const router = useRouter();
+  const notice = useNotice();
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    tokenId?: string | string[];
+    address?: string | string[];
+    contactName?: string | string[];
+  }>();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [errorText, setErrorText] = useState('');
+  const [draft, setDraft] = useState<Awaited<ReturnType<typeof getSendAssetDraft>> | null>(null);
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const tokenId =
+    typeof params.tokenId === 'string'
+      ? params.tokenId
+      : Array.isArray(params.tokenId)
+        ? params.tokenId[0]
+        : '';
+
+  const prefillAddress =
+    typeof params.address === 'string'
+      ? params.address.trim()
+      : Array.isArray(params.address)
+        ? String(params.address[0] || '').trim()
+        : '';
+
+  const contactName =
+    typeof params.contactName === 'string'
+      ? params.contactName.trim()
+      : Array.isArray(params.contactName)
+        ? String(params.contactName[0] || '').trim()
+        : '';
+
+  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      setErrorText('');
+
+      if (!tokenId) {
+        throw new Error('Token is not selected.');
+      }
+
+      const nextDraft = await getSendAssetDraft(tokenId);
+      setDraft(nextDraft);
+    } catch (error) {
+      console.error(error);
+      setDraft(null);
+      setErrorText(error instanceof Error ? error.message : 'Failed to load send screen.');
+      notice.showErrorNotice('Failed to load send screen.', 2400);
+    } finally {
+      setLoading(false);
+    }
+  }, [notice, tokenId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
+  useEffect(() => {
+    if (prefillAddress) {
+      setRecipient(prefillAddress);
+    }
+  }, [prefillAddress]);
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
+  const tokenLabel = useMemo(() => {
+    return draft?.token?.symbol || draft?.token?.name || 'TOKEN';
+  }, [draft?.token?.name, draft?.token?.symbol]);
+
+  const handleSetMax = useCallback(() => {
+    if (!draft?.spendableAmount) return;
+    setAmount(draft.spendableAmount);
+  }, [draft?.spendableAmount]);
+
+  const handlePasteRecipient = useCallback(async () => {
+    const value = await Clipboard.getStringAsync();
+    if (value) {
+      setRecipient(String(value).trim());
+    }
+  }, []);
+
+  const handleOpenAddressBook = useCallback(() => {
+    router.push('/address-book');
+  }, [router]);
+
+  const handleOpenScan = useCallback(() => {
+    router.push('/scan?mode=send' as any);
+  }, [router]);
+
+  const handleChangeToken = useCallback(() => {
+    router.push({
+      pathname: '/send-select-token',
+      params: {
+        ...(recipient.trim() ? { address: recipient.trim() } : {}),
+        ...(contactName ? { contactName } : {}),
+      },
+    } as any);
+  }, [contactName, recipient, router]);
+
+  const handleSend = useCallback(async () => {
+    if (!draft) return;
+
+    const toAddress = recipient.trim();
+    const safeAmount = amount.trim();
+
+    if (!isValidTronAddress(toAddress)) {
+      notice.showErrorNotice('Enter a valid TRON address.', 2200);
+      return;
+    }
+
+    if (!safeAmount) {
+      notice.showErrorNotice('Enter amount.', 2200);
+      return;
+    }
+
+    if (draft.wallet.kind === 'watch-only') {
+      notice.showErrorNotice(
+        'Watch-only wallet cannot sign or send transactions.',
+        2600
+      );
+      return;
+    }
+
+    try {
+      setSending(true);
+
+      const result = await sendAssetTransfer({
+        tokenId: draft.token.tokenId,
+        toAddress,
+        amount: safeAmount,
+      });
+
+      notice.showSuccessNotice(`${tokenLabel} sent.`, 2600);
+
+      router.push({
+        pathname: '/browser',
+        params: {
+          url: result.explorerUrl,
+        },
+      } as any);
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice(
+        error instanceof Error ? error.message : 'Failed to send transaction.',
+        3200
+      );
+    } finally {
+      setSending(false);
+    }
+  }, [amount, draft, notice, recipient, router, tokenLabel]);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.screen}>
+        <View style={styles.headerSlot}>
+          <AppHeader
+            onMenuPress={() => setMenuOpen(true)}
+            onSearchPress={() => router.push('/search-lab')}
+          />
+        </View>
+
+        <KeyboardAvoidingView
+          style={styles.keyboard}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={colors.accent}
+                colors={[colors.accent]}
+                progressBackgroundColor={colors.bg}
+              />
+            }
+          >
+            <SubmenuHeader title="SEND" onBack={() => router.back()} />
+
+            {loading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator color={colors.accent} />
+              </View>
+            ) : draft ? (
+              <>
+                <View style={styles.card}>
+                  <Text style={styles.label}>From wallet</Text>
+                  <Text style={styles.value}>{draft.wallet.name}</Text>
+                  <Text style={styles.subvalue}>{draft.wallet.address}</Text>
+
+                  <View style={styles.divider} />
+
+                  <View style={styles.assetHeaderRow}>
+                    <View style={styles.assetHeaderText}>
+                      <Text style={styles.label}>Asset</Text>
+                      <Text style={styles.value}>{draft.token.name}</Text>
+                      <Text style={styles.subvalue}>
+                        {draft.token.symbol} · Balance: {draft.token.balanceFormatted}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={handleChangeToken}
+                      style={styles.changeTokenButton}
+                    >
+                      <Text style={styles.changeTokenButtonText}>Change</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.formCard}>
+                  <View style={styles.fieldHeaderRow}>
+                    <Text style={styles.inputLabel}>Recipient</Text>
+
+                    <View style={styles.recipientActions}>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={handlePasteRecipient}
+                        style={styles.inlineActionButton}
+                      >
+                        <Text style={styles.inlineActionButtonText}>Paste</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={handleOpenAddressBook}
+                        style={styles.inlineActionButton}
+                      >
+                        <Text style={styles.inlineActionButtonText}>Book</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={handleOpenScan}
+                        style={styles.inlineActionButton}
+                      >
+                        <Text style={styles.inlineActionButtonText}>Scan</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <TextInput
+                    value={recipient}
+                    onChangeText={setRecipient}
+                    placeholder="TRON address"
+                    placeholderTextColor={colors.textDim}
+                    style={styles.input}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+
+                  {contactName ? (
+                    <Text style={styles.contactHint}>Recipient label: {contactName}</Text>
+                  ) : null}
+
+                  <View style={styles.amountHeaderRow}>
+                    <Text style={styles.inputLabel}>Amount</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={handleSetMax}
+                      style={styles.maxButton}
+                    >
+                      <Text style={styles.maxButtonText}>Max</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <TextInput
+                    value={amount}
+                    onChangeText={setAmount}
+                    placeholder={`0 ${tokenLabel}`}
+                    placeholderTextColor={colors.textDim}
+                    style={styles.input}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="decimal-pad"
+                  />
+
+                  <Text style={styles.hint}>
+                    {draft.token.tokenId === TRX_TOKEN_ID
+                      ? 'Native TRX transfer.'
+                      : 'TRC20 transfer. Network may consume energy or burn TRX if energy is insufficient.'}
+                  </Text>
+
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={[styles.sendButton, sending && styles.sendButtonDisabled]}
+                    onPress={() => void handleSend()}
+                    disabled={sending}
+                  >
+                    {sending ? (
+                      <ActivityIndicator color={colors.bg} />
+                    ) : (
+                      <Text style={styles.sendButtonText}>Send {tokenLabel}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View style={styles.errorWrap}>
+                <Text style={styles.errorText}>{errorText || 'Unable to load send screen.'}</Text>
+              </View>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+
+        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: APP_HEADER_TOP_PADDING,
+  },
+
+  headerSlot: {
+    height: APP_HEADER_HEIGHT,
+    justifyContent: 'center',
+  },
+
+  keyboard: {
+    flex: 1,
+  },
+
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  content: {
+    paddingTop: 14,
+  },
+
+  loadingWrap: {
+    minHeight: 240,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  errorWrap: {
+    minHeight: 240,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  errorText: {
+    color: colors.red,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
+  },
+
+  card: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    padding: 16,
+    gap: 4,
+    marginBottom: 14,
+  },
+
+  formCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    padding: 16,
+    gap: 10,
+  },
+
+  label: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  value: {
+    color: colors.white,
+    fontSize: 16,
+    lineHeight: 22,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  subvalue: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: colors.lineSoft,
+    marginVertical: 8,
+  },
+
+  assetHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+
+  assetHeaderText: {
+    flex: 1,
+    gap: 4,
+  },
+
+  changeTokenButton: {
+    minHeight: 32,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  changeTokenButtonText: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  inputLabel: {
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  fieldHeaderRow: {
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  recipientActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  inlineActionButton: {
+    minHeight: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  inlineActionButtonText: {
+    color: colors.accent,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  input: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 14,
+    color: colors.white,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  contactHint: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    marginTop: -2,
+  },
+
+  amountHeaderRow: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  maxButton: {
+    minHeight: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  maxButtonText: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  hint: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: 'Sora_600SemiBold',
+    marginTop: 2,
+  },
+
+  sendButton: {
+    marginTop: 8,
+    minHeight: 52,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+
+  sendButtonDisabled: {
+    opacity: 0.7,
+  },
+
+  sendButtonText: {
+    color: colors.bg,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+});

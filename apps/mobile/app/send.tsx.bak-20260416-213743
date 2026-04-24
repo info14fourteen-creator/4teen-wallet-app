@@ -1,0 +1,1034 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
+
+import AppHeader, {
+  APP_HEADER_HEIGHT,
+  APP_HEADER_TOP_PADDING,
+} from '../src/ui/app-header';
+import MenuSheet from '../src/ui/menu-sheet';
+import SubmenuHeader from '../src/ui/submenu-header';
+import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+import { useNotice } from '../src/notice/notice-provider';
+import { TRX_TOKEN_ID } from '../src/services/tron/api';
+import { getSendAssetDraft, sendAssetTransfer } from '../src/services/wallet/send';
+import {
+  getAllWalletPortfolios,
+  getWalletPortfolio,
+  type PortfolioAsset,
+} from '../src/services/wallet/portfolio';
+import { setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
+
+import OpenDownIcon from '../assets/icons/ui/open_down_btn.svg';
+import OpenRightIcon from '../assets/icons/ui/open_right_btn.svg';
+
+type SendDraft = Awaited<ReturnType<typeof getSendAssetDraft>>;
+
+type WalletSwitcherItem = {
+  id: string;
+  name: string;
+  address: string;
+  kind: WalletMeta['kind'];
+  balanceDisplay: string;
+};
+
+function isValidTronAddress(value: string) {
+  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(value || '').trim());
+}
+
+function getNonZeroAssets(assets: PortfolioAsset[]) {
+  return assets.filter((asset) => {
+    if (!Number.isFinite(asset.amount)) return false;
+    return asset.amount > 0;
+  });
+}
+
+function sortSendableAssets(assets: PortfolioAsset[]) {
+  return [...assets].sort((a, b) => {
+    if (b.valueInUsd !== a.valueInUsd) {
+      return b.valueInUsd - a.valueInUsd;
+    }
+
+    if (b.amount !== a.amount) {
+      return b.amount - a.amount;
+    }
+
+    return a.name.localeCompare(b.name, undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    });
+  });
+}
+
+export default function SendScreen() {
+  const router = useRouter();
+  const notice = useNotice();
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    tokenId?: string | string[];
+    address?: string | string[];
+    contactName?: string | string[];
+  }>();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [switchingWalletId, setSwitchingWalletId] = useState<string | null>(null);
+  const [walletOptionsOpen, setWalletOptionsOpen] = useState(false);
+  const [tokenOptionsOpen, setTokenOptionsOpen] = useState(false);
+  const [errorText, setErrorText] = useState('');
+  const [draft, setDraft] = useState<SendDraft | null>(null);
+  const [walletChoices, setWalletChoices] = useState<WalletSwitcherItem[]>([]);
+  const [tokenChoices, setTokenChoices] = useState<PortfolioAsset[]>([]);
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+
+  const initialTokenId =
+    typeof params.tokenId === 'string'
+      ? params.tokenId
+      : Array.isArray(params.tokenId)
+        ? params.tokenId[0]
+        : '';
+
+  const [selectedTokenId, setSelectedTokenId] = useState(initialTokenId);
+
+  const prefillAddress =
+    typeof params.address === 'string'
+      ? params.address.trim()
+      : Array.isArray(params.address)
+        ? String(params.address[0] || '').trim()
+        : '';
+
+  const contactName =
+    typeof params.contactName === 'string'
+      ? params.contactName.trim()
+      : Array.isArray(params.contactName)
+        ? String(params.contactName[0] || '').trim()
+        : '';
+
+  const contentBottomInset = 44 + Math.max(insets.bottom, 6);
+
+  const load = useCallback(
+    async (options?: { preserveWalletMenu?: boolean; preserveTokenMenu?: boolean }) => {
+      try {
+        setLoading(true);
+        setErrorText('');
+
+        if (!selectedTokenId) {
+          throw new Error('Token is not selected.');
+        }
+
+        const [nextDraft, aggregate] = await Promise.all([
+          getSendAssetDraft(selectedTokenId),
+          getAllWalletPortfolios(),
+        ]);
+
+        const fullAccessWallets = aggregate.items
+          .filter((item) => item.wallet.kind !== 'watch-only')
+          .map((item) => ({
+            id: item.wallet.id,
+            name: item.wallet.name,
+            address: item.wallet.address,
+            kind: item.wallet.kind,
+            balanceDisplay: item.portfolio?.totalBalanceDisplay ?? '$0.00',
+          }));
+
+        const activePortfolio = await getWalletPortfolio(nextDraft.wallet.address, {
+          force: Boolean(refreshing),
+        });
+
+        const sendableAssets = sortSendableAssets(getNonZeroAssets(activePortfolio.assets));
+
+        setDraft(nextDraft);
+        setWalletChoices(fullAccessWallets);
+        setTokenChoices(sendableAssets);
+
+        if (!options?.preserveWalletMenu) {
+          setWalletOptionsOpen(false);
+        }
+
+        if (!options?.preserveTokenMenu) {
+          setTokenOptionsOpen(false);
+        }
+      } catch (error) {
+        console.error(error);
+        setDraft(null);
+        setWalletChoices([]);
+        setTokenChoices([]);
+        setErrorText(error instanceof Error ? error.message : 'Failed to load send screen.');
+        notice.showErrorNotice('Failed to load send screen.', 2400);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [notice, refreshing, selectedTokenId]
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
+  useEffect(() => {
+    if (prefillAddress) {
+      setRecipient(prefillAddress);
+    }
+  }, [prefillAddress]);
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await load({ preserveWalletMenu: true, preserveTokenMenu: true });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
+
+  const tokenLabel = useMemo(() => {
+    return draft?.token?.symbol || draft?.token?.name || 'TOKEN';
+  }, [draft?.token?.name, draft?.token?.symbol]);
+
+  const visibleWalletChoices = useMemo(
+    () => walletChoices.filter((wallet) => wallet.id !== draft?.wallet.id),
+    [draft?.wallet.id, walletChoices]
+  );
+
+  const visibleTokenChoices = useMemo(
+    () => tokenChoices.filter((asset) => asset.id !== draft?.token.tokenId),
+    [draft?.token.tokenId, tokenChoices]
+  );
+
+  const selectedTokenAsset = useMemo(
+    () => tokenChoices.find((asset) => asset.id === draft?.token.tokenId) ?? null,
+    [draft?.token.tokenId, tokenChoices]
+  );
+
+  const selectedWalletOption = useMemo(
+    () => walletChoices.find((wallet) => wallet.id === draft?.wallet.id) ?? null,
+    [draft?.wallet.id, walletChoices]
+  );
+
+  const handleSetMax = useCallback(() => {
+    if (!draft?.spendableAmount) return;
+    setAmount(draft.spendableAmount);
+  }, [draft?.spendableAmount]);
+
+  const handlePasteRecipient = useCallback(async () => {
+    const value = await Clipboard.getStringAsync();
+    if (value) {
+      setRecipient(String(value).trim());
+    }
+  }, []);
+
+  const handleOpenAddressBook = useCallback(() => {
+    router.push('/address-book');
+  }, [router]);
+
+  const handleOpenScan = useCallback(() => {
+    router.push('/scan?mode=send' as any);
+  }, [router]);
+
+  const handleToggleTokenOptions = useCallback(() => {
+    if (visibleTokenChoices.length <= 0) {
+      notice.showNeutralNotice('No other sendable tokens available.', 2200);
+      return;
+    }
+
+    setTokenOptionsOpen((prev) => !prev);
+  }, [notice, visibleTokenChoices.length]);
+
+  const handleChooseToken = useCallback(
+    (asset: PortfolioAsset) => {
+      if (asset.id === draft?.token.tokenId) {
+        setTokenOptionsOpen(false);
+        return;
+      }
+
+      setAmount('');
+      setSelectedTokenId(asset.id);
+    },
+    [draft?.token.tokenId]
+  );
+
+  const handleToggleWalletOptions = useCallback(() => {
+    if (visibleWalletChoices.length <= 0) {
+      notice.showNeutralNotice('No other full-access wallets available.', 2200);
+      return;
+    }
+
+    setWalletOptionsOpen((prev) => !prev);
+  }, [notice, visibleWalletChoices.length]);
+
+  const handleChooseWallet = useCallback(
+    async (wallet: WalletSwitcherItem) => {
+      try {
+        setSwitchingWalletId(wallet.id);
+        setAmount('');
+        await setActiveWalletId(wallet.id);
+        await load();
+        notice.showSuccessNotice(`From wallet: ${wallet.name}`, 2200);
+      } catch (error) {
+        console.error(error);
+        notice.showErrorNotice('Failed to switch from wallet.', 2400);
+      } finally {
+        setSwitchingWalletId(null);
+      }
+    },
+    [load, notice]
+  );
+
+  const handleSend = useCallback(async () => {
+    if (!draft) return;
+
+    const toAddress = recipient.trim();
+    const safeAmount = amount.trim();
+
+    if (!isValidTronAddress(toAddress)) {
+      notice.showErrorNotice('Enter a valid TRON address.', 2200);
+      return;
+    }
+
+    if (!safeAmount) {
+      notice.showErrorNotice('Enter amount.', 2200);
+      return;
+    }
+
+    if (draft.wallet.kind === 'watch-only') {
+      notice.showErrorNotice(
+        'Watch-only wallet cannot sign or send transactions.',
+        2600
+      );
+      return;
+    }
+
+    try {
+      setSending(true);
+
+      const result = await sendAssetTransfer({
+        tokenId: draft.token.tokenId,
+        toAddress,
+        amount: safeAmount,
+      });
+
+      notice.showSuccessNotice(`${tokenLabel} sent.`, 2600);
+
+      router.push({
+        pathname: '/browser',
+        params: {
+          url: result.explorerUrl,
+        },
+      } as any);
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice(
+        error instanceof Error ? error.message : 'Failed to send transaction.',
+        3200
+      );
+    } finally {
+      setSending(false);
+    }
+  }, [amount, draft, notice, recipient, router, tokenLabel]);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.screen}>
+        <View style={styles.headerSlot}>
+          <AppHeader
+            onMenuPress={() => setMenuOpen(true)}
+            onSearchPress={() => router.push('/search-lab')}
+          />
+        </View>
+
+        <KeyboardAvoidingView
+          style={styles.keyboard}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={[styles.content, { paddingBottom: contentBottomInset }]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={colors.accent}
+                colors={[colors.accent]}
+                progressBackgroundColor={colors.bg}
+              />
+            }
+          >
+            <SubmenuHeader title="SEND" onBack={() => router.back()} />
+
+            {loading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator color={colors.accent} />
+              </View>
+            ) : draft ? (
+              <>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={[
+                    styles.walletCard,
+                    walletOptionsOpen ? styles.walletCardOpen : styles.walletCardClosed,
+                  ]}
+                  onPress={handleToggleWalletOptions}
+                >
+                  <View style={styles.walletCardText}>
+                    <Text style={styles.selectionEyebrow}>ACTIVE WALLET · TAP TO SWITCH</Text>
+
+                    <View style={styles.walletTitleRow}>
+                      <Text style={styles.walletName}>{draft.wallet.name}</Text>
+                      <Text style={styles.activeBadge}>ACTIVE</Text>
+                    </View>
+
+                    <Text style={styles.walletBalance}>
+                      Balance: {selectedWalletOption?.balanceDisplay ?? '$0.00'}
+                    </Text>
+                    <Text style={styles.walletAddress}>{draft.wallet.address}</Text>
+                  </View>
+
+                  {walletOptionsOpen ? (
+                    <OpenDownIcon width={22} height={22} />
+                  ) : (
+                    <OpenRightIcon width={18} height={18} />
+                  )}
+                </TouchableOpacity>
+
+                {walletOptionsOpen ? (
+                  <View style={styles.walletOptionsList}>
+                    {visibleWalletChoices.map((wallet) => {
+                      const switching = wallet.id === switchingWalletId;
+
+                      return (
+                        <TouchableOpacity
+                          key={wallet.id}
+                          activeOpacity={0.9}
+                          style={[styles.walletOptionRow, styles.walletOptionRowInactive]}
+                          onPress={() => void handleChooseWallet(wallet)}
+                        >
+                          <View style={styles.walletOptionText}>
+                            <View style={styles.walletTitleRow}>
+                              <Text style={ui.actionLabel}>{wallet.name}</Text>
+                            </View>
+
+                            <Text style={styles.optionBalance}>Balance: {wallet.balanceDisplay}</Text>
+                            <Text style={styles.optionAddress}>{wallet.address}</Text>
+                          </View>
+
+                          {switching ? (
+                            <ActivityIndicator color={colors.accent} />
+                          ) : (
+                            <OpenRightIcon width={18} height={18} />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : null}
+
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={styles.selectionEyebrow}>ACTIVE ASSET · TAP TO SWITCH</Text>
+
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.assetRowSelected}
+                    onPress={handleToggleTokenOptions}
+                  >
+                    <View style={styles.assetLeft}>
+                      {selectedTokenAsset?.logo ? (
+                        <Image
+                          source={{ uri: selectedTokenAsset.logo }}
+                          style={styles.assetLogo}
+                          contentFit="contain"
+                        />
+                      ) : (
+                        <View style={styles.assetFallbackLogo}>
+                          <Text style={styles.assetFallbackText}>
+                            {(
+                              selectedTokenAsset?.symbol ||
+                              draft.token.symbol ||
+                              selectedTokenAsset?.name ||
+                              draft.token.name ||
+                              'T'
+                            ).slice(0, 1).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={styles.assetMeta}>
+                        <Text style={styles.assetName}>
+                          {selectedTokenAsset?.name || draft.token.name}
+                        </Text>
+                        <Text style={styles.assetAmount}>
+                          {selectedTokenAsset?.symbol || draft.token.symbol}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.assetRight}>
+                      <Text style={styles.assetValue}>
+                        {selectedTokenAsset?.valueDisplay || '$0.00'}
+                      </Text>
+                      <Text style={styles.assetAction}>
+                        {selectedTokenAsset?.amountDisplay || draft.token.balanceFormatted}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {tokenOptionsOpen ? (
+                  <View style={styles.tokenOptionsList}>
+                    {visibleTokenChoices.map((asset) => (
+                      <TouchableOpacity
+                        key={asset.id}
+                        activeOpacity={0.9}
+                        style={styles.assetRow}
+                        onPress={() => handleChooseToken(asset)}
+                      >
+                        <View style={styles.assetLeft}>
+                          {asset.logo ? (
+                            <Image
+                              source={{ uri: asset.logo }}
+                              style={styles.assetLogo}
+                              contentFit="contain"
+                            />
+                          ) : (
+                            <View style={styles.assetFallbackLogo}>
+                              <Text style={styles.assetFallbackText}>
+                                {asset.symbol.slice(0, 1).toUpperCase()}
+                              </Text>
+                            </View>
+                          )}
+
+                          <View style={styles.assetMeta}>
+                            <Text style={styles.assetName}>{asset.name}</Text>
+                            <Text style={styles.assetAmount}>{asset.symbol}</Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.assetRight}>
+                          <Text style={styles.assetValue}>{asset.valueDisplay}</Text>
+                          <Text style={styles.assetAction}>{asset.amountDisplay}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
+
+                <View style={styles.formCard}>
+                  <View style={styles.fieldHeaderRow}>
+                    <Text style={styles.inputLabel}>Recipient</Text>
+
+                    <View style={styles.recipientActions}>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={handlePasteRecipient}
+                        style={styles.inlineActionButton}
+                      >
+                        <Text style={styles.inlineActionButtonText}>Paste</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={handleOpenAddressBook}
+                        style={styles.inlineActionButton}
+                      >
+                        <Text style={styles.inlineActionButtonText}>Book</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={handleOpenScan}
+                        style={styles.inlineActionButton}
+                      >
+                        <Text style={styles.inlineActionButtonText}>Scan</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <TextInput
+                    value={recipient}
+                    onChangeText={setRecipient}
+                    placeholder="TRON address"
+                    placeholderTextColor={colors.textDim}
+                    style={styles.input}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+
+                  {contactName ? (
+                    <Text style={styles.contactHint}>Recipient label: {contactName}</Text>
+                  ) : null}
+
+                  <View style={styles.amountHeaderRow}>
+                    <Text style={styles.inputLabel}>Amount</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={handleSetMax}
+                      style={styles.maxButton}
+                    >
+                      <Text style={styles.maxButtonText}>Max</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <TextInput
+                    value={amount}
+                    onChangeText={setAmount}
+                    placeholder={`0 ${tokenLabel}`}
+                    placeholderTextColor={colors.textDim}
+                    style={styles.input}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="decimal-pad"
+                  />
+
+                  <Text style={styles.hint}>
+                    {draft.token.tokenId === TRX_TOKEN_ID
+                      ? 'Native TRX transfer.'
+                      : 'TRC20 transfer. Network may consume energy or burn TRX if energy is insufficient.'}
+                  </Text>
+
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={[styles.sendButton, sending && styles.sendButtonDisabled]}
+                    onPress={() => void handleSend()}
+                    disabled={sending}
+                  >
+                    {sending ? (
+                      <ActivityIndicator color={colors.bg} />
+                    ) : (
+                      <Text style={styles.sendButtonText}>Send {tokenLabel}</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <View style={styles.errorWrap}>
+                <Text style={styles.errorText}>{errorText || 'Unable to load send screen.'}</Text>
+              </View>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+
+        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: APP_HEADER_TOP_PADDING,
+  },
+
+  headerSlot: {
+    height: APP_HEADER_HEIGHT,
+    justifyContent: 'center',
+  },
+
+  keyboard: {
+    flex: 1,
+  },
+
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  content: {
+    paddingTop: 14,
+  },
+
+  loadingWrap: {
+    minHeight: 240,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  errorWrap: {
+    minHeight: 240,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  errorText: {
+    color: colors.red,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
+  },
+
+  walletCard: {
+    minHeight: 86,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
+  },
+
+  walletCardClosed: {
+    borderColor: 'rgba(24,224,58,0.22)',
+    backgroundColor: 'rgba(24,224,58,0.06)',
+  },
+
+  walletCardOpen: {
+    borderColor: 'rgba(24,224,58,0.22)',
+    backgroundColor: 'rgba(24,224,58,0.06)',
+  },
+
+  walletCardText: {
+    flex: 1,
+    gap: 4,
+  },
+
+  selectionEyebrow: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+    marginBottom: 2,
+  },
+
+  walletTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+
+  walletName: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  walletBalance: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  activeBadge: {
+    color: colors.green,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+  },
+
+  walletAddress: {
+    color: colors.textSoft,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  walletOptionsList: {
+    gap: 10,
+    marginTop: -6,
+    marginBottom: 18,
+  },
+
+  walletOptionRow: {
+    minHeight: 86,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  walletOptionRowInactive: {
+    borderColor: 'rgba(255,105,0,0.14)',
+    backgroundColor: 'rgba(255,105,0,0.04)',
+  },
+
+  walletOptionText: {
+    flex: 1,
+    gap: 4,
+  },
+
+  optionBalance: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  optionAddress: {
+    color: colors.textSoft,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  tokenOptionsList: {
+    gap: 10,
+    marginTop: -4,
+    marginBottom: 18,
+  },
+
+  assetRowSelected: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(24,224,58,0.22)',
+    backgroundColor: 'rgba(24,224,58,0.06)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 72,
+  },
+
+  assetSelectedInner: {
+    gap: 8,
+  },
+
+  assetSelectedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  assetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 72,
+  },
+
+  assetLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    paddingRight: 12,
+  },
+
+  assetLogo: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+
+  assetFallbackLogo: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,105,0,0.12)',
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+  },
+
+  assetFallbackText: {
+    color: colors.accent,
+    fontSize: 15,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  assetMeta: {
+    flex: 1,
+    gap: 4,
+  },
+
+  assetName: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  assetAmount: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  assetRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+    flexShrink: 0,
+  },
+
+  assetValue: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 20,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  assetAction: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  formCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    padding: 16,
+    gap: 10,
+  },
+
+  inputLabel: {
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  fieldHeaderRow: {
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+
+  recipientActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  inlineActionButton: {
+    minHeight: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  inlineActionButtonText: {
+    color: colors.accent,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  input: {
+    minHeight: 52,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 14,
+    color: colors.white,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  contactHint: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    marginTop: -2,
+  },
+
+  amountHeaderRow: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  maxButton: {
+    minHeight: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  maxButtonText: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  hint: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: 'Sora_600SemiBold',
+    marginTop: 2,
+  },
+
+  sendButton: {
+    marginTop: 8,
+    minHeight: 52,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+
+  sendButtonDisabled: {
+    opacity: 0.7,
+  },
+
+  sendButtonText: {
+    color: colors.bg,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+});

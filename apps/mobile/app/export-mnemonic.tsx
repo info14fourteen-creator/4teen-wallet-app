@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   Modal,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as ScreenCapture from 'expo-screen-capture';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -20,11 +22,13 @@ import { useNavigationInsets } from '../src/ui/navigation';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
+import { ui } from '../src/theme/ui';
 import {
   getBiometricsEnabled,
   verifyPasscode,
 } from '../src/security/local-auth';
 import {
+  canWalletExposeMnemonic,
   getActiveWallet,
   getWalletById,
   getWalletSecret,
@@ -38,6 +42,15 @@ type ExportState = {
   words: string[];
 };
 
+const REVEAL_TIMEOUT_MS = 60_000;
+const SCREEN_CAPTURE_GUARD_KEY = 'export-mnemonic-revealed';
+
+function canExportMnemonic(wallet: WalletMeta, mnemonic: string) {
+  if (!canWalletExposeMnemonic(wallet)) return false;
+  if (!mnemonic.trim()) return false;
+  return true;
+}
+
 function resolveBiometricPromptLabel(label: string) {
   if (label === 'Face ID') return 'face unlock';
   if (label === 'Fingerprint') return 'fingerprint';
@@ -50,6 +63,8 @@ export default function ExportMnemonicScreen() {
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
   const { setChromeHidden } = useWalletSession();
+  const authBiometricRequestedRef = useRef(false);
+  const screenCaptureActiveRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [revealed, setRevealed] = useState(false);
@@ -67,6 +82,7 @@ export default function ExportMnemonicScreen() {
     try {
       setLoading(true);
       setErrorText('');
+      setRevealed(false);
 
       const requestedWalletId =
         typeof params.walletId === 'string' ? params.walletId.trim() : '';
@@ -78,16 +94,14 @@ export default function ExportMnemonicScreen() {
         throw new Error('No active wallet found.');
       }
 
-      if (wallet.kind !== 'mnemonic') {
-        throw new Error('This wallet has no seed phrase to export.');
-      }
-
       const secret = await getWalletSecret(wallet.id);
       const mnemonic = String(secret?.mnemonic || '').trim();
       const words = mnemonic.split(/\s+/).filter(Boolean);
 
-      if (!words.length) {
-        throw new Error('Seed phrase is missing for this wallet.');
+      if (!canExportMnemonic(wallet, mnemonic) || !words.length) {
+        throw new Error(
+          'Seed phrase export is available only for wallets created in 4TEEN or restored from a seed phrase.'
+        );
       }
 
       setState({
@@ -145,35 +159,128 @@ export default function ExportMnemonicScreen() {
     };
   }, [setChromeHidden]);
 
-  const handleReveal = useCallback(async () => {
-    if (!state) return;
+  const lockScreenCapture = useCallback(async () => {
+    if (!ScreenCapture.preventScreenCaptureAsync) {
+      return false;
+    }
 
     try {
-      if (biometricAvailable) {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Reveal seed phrase',
-          cancelLabel: 'Cancel',
-          fallbackLabel: 'Use passcode',
-          disableDeviceFallback: true,
-        });
+      await ScreenCapture.preventScreenCaptureAsync(SCREEN_CAPTURE_GUARD_KEY);
+      screenCaptureActiveRef.current = true;
+      return true;
+    } catch {
+      screenCaptureActiveRef.current = false;
+      return false;
+    }
+  }, []);
 
-        if (result.success) {
-          setRevealed(true);
-          notice.showSuccessNotice('Seed phrase unlocked.', 1800);
-          return;
-        }
+  const unlockScreenCapture = useCallback(() => {
+    if (!screenCaptureActiveRef.current) return;
+
+    screenCaptureActiveRef.current = false;
+
+    ScreenCapture.allowScreenCaptureAsync(SCREEN_CAPTURE_GUARD_KEY).catch((error) => {
+      console.error('Failed to unblock screen capture:', error);
+    });
+  }, []);
+
+  const revealPhraseSecurely = useCallback(async () => {
+    const locked = await lockScreenCapture();
+
+    if (!locked) {
+      setRevealed(false);
+      notice.showErrorNotice(
+        'Secure screen protection is not available in this build. Rebuild the app before exporting the seed phrase.',
+        7000
+      );
+      return false;
+    }
+
+    setRevealed(true);
+    notice.showSuccessNotice('Seed phrase unlocked.', 1800);
+    return true;
+  }, [lockScreenCapture, notice]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active') {
+        setRevealed(false);
       }
+    });
 
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!revealed) {
+      return undefined;
+    }
+
+    let active = true;
+
+    const screenshotSubscription =
+      ScreenCapture.addScreenshotListener?.(() => {
+        if (!active) return;
+
+        setRevealed(false);
+        notice.showErrorNotice('Seed phrase hidden after screenshot attempt.', 3600);
+      }) ?? null;
+
+    const timeoutId = setTimeout(() => {
+      if (!active) return;
+
+      setRevealed(false);
+      notice.showNeutralNotice('Seed phrase hidden after 60 seconds.', 3000);
+    }, REVEAL_TIMEOUT_MS);
+
+    return () => {
+      active = false;
+      clearTimeout(timeoutId);
+      screenshotSubscription?.remove();
+      unlockScreenCapture();
+    };
+  }, [notice, revealed, unlockScreenCapture]);
+
+  const requestBiometricReveal = useCallback(async () => {
+    if (!state || !biometricAvailable || revealed) return false;
+
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Reveal seed phrase',
+        cancelLabel: 'Cancel',
+        fallbackLabel: 'Use Passcode',
+      });
+
+      if (!result.success) return false;
+
+      setPasscodeOpen(false);
       setPasscodeDigits('');
       setPasscodeError('');
-      setPasscodeOpen(true);
+      return await revealPhraseSecurely();
     } catch (error) {
       console.error(error);
-      setPasscodeDigits('');
-      setPasscodeError('');
-      setPasscodeOpen(true);
+      return false;
     }
-  }, [biometricAvailable, notice, state]);
+  }, [biometricAvailable, revealPhraseSecurely, revealed, state]);
+
+  const handleReveal = useCallback(() => {
+    if (!state) return;
+
+    authBiometricRequestedRef.current = false;
+    setPasscodeDigits('');
+    setPasscodeError('');
+    setPasscodeOpen(true);
+  }, [state]);
+
+  useEffect(() => {
+    if (!passcodeOpen || revealed || !biometricAvailable) return;
+    if (authBiometricRequestedRef.current) return;
+
+    authBiometricRequestedRef.current = true;
+    void requestBiometricReveal();
+  }, [biometricAvailable, passcodeOpen, requestBiometricReveal, revealed]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (passcodeDigits.length !== 6) return;
@@ -189,14 +296,13 @@ export default function ExportMnemonicScreen() {
       setPasscodeOpen(false);
       setPasscodeDigits('');
       setPasscodeError('');
-      setRevealed(true);
-      notice.showSuccessNotice('Seed phrase unlocked.', 1800);
+      await revealPhraseSecurely();
     } catch (error) {
       console.error(error);
       setPasscodeError('Failed to verify passcode.');
       setPasscodeDigits('');
     }
-  }, [notice, passcodeDigits]);
+  }, [passcodeDigits, revealPhraseSecurely]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -210,8 +316,12 @@ export default function ExportMnemonicScreen() {
     notice.showSuccessNotice('Seed phrase copied. Keep it offline.', 2200);
   }, [notice, revealed, state]);
 
+  const handleHide = useCallback(() => {
+    setRevealed(false);
+    notice.showNeutralNotice('Seed phrase hidden.', 1800);
+  }, [notice]);
+
   const walletLabel = state?.wallet.name || 'Seed Phrase';
-  const wordColumns = state?.words.length === 24 ? 2 : 2;
   const maskedWords = useMemo(() => {
     return state?.words.map(() => '••••') ?? [];
   }, [state]);
@@ -222,196 +332,231 @@ export default function ExportMnemonicScreen() {
 
   return (
     <>
-      <SafeAreaView style={styles.screen}>
-        <ScrollView
-          contentContainerStyle={[
-            styles.content,
-            {
-              paddingTop: navInsets.top,
-              paddingBottom: Math.max(contentBottomInset, 28),
-            },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          <ScreenBrow label="EXPORT SEED PHRASE" variant="back" />
+      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+        <View style={styles.screen}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={[
+              styles.content,
+              {
+                paddingTop: navInsets.top,
+                paddingBottom: contentBottomInset,
+              },
+            ]}
+            showsVerticalScrollIndicator={false}
+            bounces
+          >
+            <ScreenBrow label="EXPORT SEED PHRASE" variant="back" />
 
-          <View style={styles.heroCard}>
-            <Text style={styles.heroEyebrow}>Wallet</Text>
-            <Text style={styles.heroTitle}>{walletLabel}</Text>
-            <Text style={styles.heroBody}>
-              This phrase gives full control over the wallet. Reveal it only in private and never
-              share screenshots or cloud copies.
+            <Text style={styles.pageTitle}>
+              Export <Text style={styles.pageTitleAccent}>recovery phrase</Text>
             </Text>
-          </View>
 
-          {errorText ? (
-            <View style={styles.errorCard}>
-              <Text style={styles.errorTitle}>Unavailable</Text>
-              <Text style={styles.errorBody}>{errorText}</Text>
-            </View>
-          ) : null}
+            <Text style={styles.pageLead}>
+              Reveal the seed phrase only when you are alone. Screenshots are blocked while it is
+              visible, and the phrase hides automatically after one minute.
+            </Text>
 
-          {state ? (
-            <>
-              <View style={styles.warningCard}>
-                <Text style={styles.warningEyebrow}>Warning</Text>
-                <Text style={styles.warningBody}>
-                  Anyone with this phrase can drain the wallet. Store it offline and verify every
-                  word before leaving this screen.
-                </Text>
+            {errorText ? (
+              <View style={styles.errorCard}>
+                <Text style={styles.errorTitle}>Unavailable</Text>
+                <Text style={styles.errorBody}>{errorText}</Text>
               </View>
+            ) : null}
 
-              <View style={styles.wordsCard}>
-                <View style={styles.wordsHeader}>
-                  <Text style={styles.wordsTitle}>Seed Phrase</Text>
-                  <Text style={styles.wordsCount}>{state.words.length} words</Text>
+            {state ? (
+              <>
+                <View style={styles.warningCard}>
+                  <Text style={ui.sectionEyebrow}>Before you reveal</Text>
+                  <Text style={styles.warningBody}>
+                    Anyone with these words can move the funds. 4TEEN will never ask for them.
+                    Write them down offline, verify every word, then hide the phrase.
+                  </Text>
                 </View>
 
-                <View style={styles.wordsGrid}>
-                  {(revealed ? state.words : maskedWords).map((word, index) => (
-                    <View
-                      key={`${index + 1}-${word}`}
-                      style={[
-                        styles.wordCell,
-                        wordColumns === 2 ? styles.wordCellHalf : styles.wordCellFull,
-                      ]}
+                <View style={styles.wordsCard}>
+                  <View style={styles.wordsHeader}>
+                    <Text style={ui.sectionEyebrow}>Recovery Phrase</Text>
+                    <Text style={styles.wordsCount}>{state.words.length} words</Text>
+                  </View>
+
+                  <View style={styles.walletRow}>
+                    <Text style={styles.walletLabel}>Wallet</Text>
+                    <Text style={styles.walletValue}>{walletLabel}</Text>
+                  </View>
+
+                  <View style={styles.wordsGrid}>
+                    {(revealed ? state.words : maskedWords).map((word, index) => (
+                      <View
+                        key={`${index + 1}-${word}`}
+                        style={styles.wordCell}
+                      >
+                        <Text style={styles.wordIndex}>{index + 1}</Text>
+                        <Text style={styles.wordValue}>{word}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+
+                {revealed ? (
+                  <View style={styles.actionsRow}>
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      style={[styles.primaryButton, styles.actionButtonFlex]}
+                      onPress={handleCopy}
                     >
-                      <Text style={styles.wordIndex}>{index + 1}</Text>
-                      <Text style={styles.wordValue}>{word}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
+                      <Text style={styles.primaryButtonText}>COPY PHRASE</Text>
+                    </TouchableOpacity>
 
-              {revealed ? (
-                <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton} onPress={handleCopy}>
-                  <Text style={styles.primaryButtonText}>Copy Seed Phrase</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton} onPress={() => void handleReveal()}>
-                  <Text style={styles.primaryButtonText}>Reveal Seed Phrase</Text>
-                </TouchableOpacity>
-              )}
-            </>
-          ) : null}
-        </ScrollView>
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      style={[styles.secondaryButton, styles.actionButtonFlex]}
+                      onPress={handleHide}
+                    >
+                      <Text style={styles.secondaryButtonText}>HIDE</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton} onPress={() => void handleReveal()}>
+                    <Text style={styles.primaryButtonText}>REVEAL PHRASE</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : null}
+          </ScrollView>
+        </View>
       </SafeAreaView>
 
       <Modal
         visible={passcodeOpen}
-        transparent
         animationType="fade"
+        presentationStyle="fullScreen"
+        transparent={false}
+        statusBarTranslucent
         onRequestClose={() => {
           setPasscodeOpen(false);
           setPasscodeDigits('');
           setPasscodeError('');
         }}
       >
-        <View style={styles.authOverlay}>
-          <View style={styles.authCard}>
-            <View style={styles.authHeaderRow}>
-              <Text style={styles.authTitle}>Unlock</Text>
-              <Text style={styles.authError}>{passcodeError || ' '}</Text>
+        <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
+          <View style={styles.authOverlay}>
+            <View style={styles.authScreen}>
+              <View style={styles.authContent}>
+                <Text style={ui.eyebrow}>Seed Phrase Export</Text>
+
+                <Text style={styles.authTitle}>
+                  Confirm with <Text style={styles.authTitleAccent}>Passcode</Text>
+                </Text>
+
+                <Text style={styles.authLead}>
+                  This unlocks the wallet root key locally. Confirm with your 6-digit passcode
+                  {biometricAvailable
+                    ? ` or ${resolveBiometricPromptLabel(biometricLabel)}`
+                    : ''}
+                  ; nothing is sent to 4TEEN servers.
+                </Text>
+
+                <View style={styles.authPasscodeCard}>
+                  <View style={styles.authCardHeaderRow}>
+                    <Text style={ui.sectionEyebrow}>Reveal Seed Phrase</Text>
+                    <Text style={styles.authCardErrorText} numberOfLines={1}>
+                      {passcodeError || ' '}
+                    </Text>
+                  </View>
+
+                  <View style={styles.dotsRow}>
+                    {Array.from({ length: 6 }).map((_, index) => (
+                      <View
+                        key={index}
+                        style={[styles.dot, passcodeDigits.length > index && styles.dotFilled]}
+                      />
+                    ))}
+                  </View>
+                </View>
+
+                <NumericKeypad
+                  onDigitPress={(digit: string) => {
+                    setPasscodeError('');
+                    setPasscodeDigits((prev) => (prev.length >= 6 ? prev : `${prev}${digit}`));
+                  }}
+                  onBackspacePress={() => {
+                    setPasscodeError('');
+                    setPasscodeDigits((prev) => prev.slice(0, -1));
+                  }}
+                  leftSlot={
+                    biometricAvailable ? (
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={styles.specialKey}
+                        onPress={() => void requestBiometricReveal()}
+                      >
+                        <BioLoginIcon width={22} height={22} />
+                      </TouchableOpacity>
+                    ) : null
+                  }
+                  backspaceIcon={<BackspaceIcon width={22} height={22} />}
+                />
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.cancelButton}
+                  onPress={() => {
+                    setPasscodeOpen(false);
+                    setPasscodeDigits('');
+                    setPasscodeError('');
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>CANCEL</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <Text style={styles.authBody}>
-              Authorize seed phrase export with your 6-digit passcode
-              {biometricAvailable
-                ? ` or ${resolveBiometricPromptLabel(biometricLabel)}`
-                : ''}
-              .
-            </Text>
-
-            <View style={styles.dotsRow}>
-              {Array.from({ length: 6 }).map((_, index) => (
-                <View key={index} style={[styles.dot, passcodeDigits.length > index && styles.dotFilled]} />
-              ))}
-            </View>
-
-            <NumericKeypad
-              onDigitPress={(digit: string) => {
-                setPasscodeError('');
-                setPasscodeDigits((prev) => (prev.length >= 6 ? prev : `${prev}${digit}`));
-              }}
-              onBackspacePress={() => {
-                setPasscodeError('');
-                setPasscodeDigits((prev) => prev.slice(0, -1));
-              }}
-              leftSlot={
-                biometricAvailable ? (
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    style={styles.specialKey}
-                    onPress={() => void handleReveal()}
-                  >
-                    <BioLoginIcon width={22} height={22} />
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.specialSpacer} />
-                )
-              }
-              backspaceIcon={<BackspaceIcon width={22} height={22} />}
-            />
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={styles.cancelButton}
-              onPress={() => {
-                setPasscodeOpen(false);
-                setPasscodeDigits('');
-                setPasscodeError('');
-              }}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
   screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: layout.screenPaddingX,
+  },
+
+  scroll: {
     flex: 1,
     backgroundColor: colors.bg,
   },
 
   content: {
-    paddingHorizontal: layout.screenPaddingX,
-    gap: 14,
+    gap: 0,
   },
 
-  heroCard: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255,105,0,0.22)',
-    backgroundColor: 'rgba(255,105,0,0.08)',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 8,
-  },
-
-  heroEyebrow: {
-    color: colors.accent,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-    textTransform: 'uppercase',
-  },
-
-  heroTitle: {
+  pageTitle: {
+    marginTop: 8,
     color: colors.white,
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 34,
+    lineHeight: 40,
+    fontFamily: 'Sora_700Bold',
+    maxWidth: '96%',
+  },
+
+  pageTitleAccent: {
+    color: colors.accent,
     fontFamily: 'Sora_700Bold',
   },
 
-  heroBody: {
-    color: colors.textSoft,
-    fontSize: 14,
-    lineHeight: 21,
-    fontFamily: 'Sora_400Regular',
+  pageLead: {
+    ...ui.lead,
+    marginTop: 14,
+    marginBottom: 22,
   },
 
   errorCard: {
@@ -422,6 +567,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     gap: 6,
+    marginBottom: 14,
   },
 
   errorTitle: {
@@ -442,25 +588,18 @@ const styles = StyleSheet.create({
   warningCard: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.lineSoft,
+    borderColor: colors.lineStrong,
     backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    gap: 6,
-  },
-
-  warningEyebrow: {
-    color: colors.accent,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-    textTransform: 'uppercase',
+    gap: 8,
+    marginBottom: 14,
   },
 
   warningBody: {
     color: colors.textSoft,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 15,
+    lineHeight: 24,
     fontFamily: 'Sora_400Regular',
   },
 
@@ -472,6 +611,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     gap: 14,
+    marginBottom: 14,
   },
 
   wordsHeader: {
@@ -481,19 +621,40 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  wordsTitle: {
-    color: colors.white,
-    fontSize: 16,
-    lineHeight: 20,
-    fontFamily: 'Sora_600SemiBold',
-  },
-
   wordsCount: {
     color: colors.textDim,
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
     textTransform: 'uppercase',
+  },
+
+  walletRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.lineSoft,
+    paddingVertical: 12,
+  },
+
+  walletLabel: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    textTransform: 'uppercase',
+  },
+
+  walletValue: {
+    flex: 1,
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 19,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'right',
   },
 
   wordsGrid: {
@@ -507,20 +668,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
+    backgroundColor: 'rgba(10,10,10,0.74)',
     paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-
-  wordCellHalf: {
     width: '48%',
-  },
-
-  wordCellFull: {
-    width: '100%',
   },
 
   wordIndex: {
@@ -536,6 +690,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
+    flex: 1,
+  },
+
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+
+  actionButtonFlex: {
     flex: 1,
   },
 
@@ -555,67 +718,108 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
   },
 
-  authOverlay: {
+  secondaryButton: {
+    minHeight: 54,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+
+  secondaryButtonText: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  authModalSafe: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.94)',
+    backgroundColor: '#000000',
+  },
+
+  authOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 200,
+    backgroundColor: '#000000',
+  },
+
+  authScreen: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     paddingHorizontal: layout.screenPaddingX,
   },
 
-  authCard: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    gap: 16,
+  authContent: {
+    paddingBottom: 18,
   },
 
-  authHeaderRow: {
+  authPasscodeCard: {
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: radius.md,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: 16,
+    paddingBottom: 16,
+    marginBottom: 20,
+  },
+
+  authCardHeaderRow: {
+    minHeight: 18,
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
 
-  authTitle: {
-    color: colors.white,
-    fontSize: 20,
-    lineHeight: 24,
-    fontFamily: 'Sora_700Bold',
-  },
-
-  authError: {
+  authCardErrorText: {
+    flex: 1,
     color: colors.red,
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
     textAlign: 'right',
-    minHeight: 16,
   },
 
-  authBody: {
-    color: colors.textSoft,
-    fontSize: 14,
-    lineHeight: 21,
-    fontFamily: 'Sora_400Regular',
+  authTitle: {
+    marginTop: 8,
+    color: colors.white,
+    fontSize: 34,
+    lineHeight: 40,
+    fontFamily: 'Sora_700Bold',
+    maxWidth: '96%',
+  },
+
+  authTitleAccent: {
+    color: colors.accent,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  authLead: {
+    ...ui.lead,
+    marginTop: 14,
+    marginBottom: 22,
   },
 
   dotsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: 14,
+    marginTop: 18,
+    marginBottom: 6,
   },
 
   dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 14,
+    height: 14,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.lineStrong,
-    backgroundColor: 'transparent',
+    backgroundColor: colors.bg,
   },
 
   dotFilled: {
@@ -624,15 +828,10 @@ const styles = StyleSheet.create({
   },
 
   specialKey: {
-    width: 52,
-    height: 52,
+    width: '100%',
+    minHeight: 64,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-
-  specialSpacer: {
-    width: 52,
-    height: 52,
   },
 
   cancelButton: {

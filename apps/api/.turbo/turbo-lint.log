@@ -1,0 +1,4 @@
+
+> @4teen/api@0.1.0 lint /Users/stanataev/4teen-wallet-app/apps/api
+> node -c server.js && find src -name '*.js' -print0 | xargs -0 -n1 node -c
+

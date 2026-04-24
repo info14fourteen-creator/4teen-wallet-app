@@ -10,39 +10,42 @@ import {
   View,
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  buildAmbassadorSlugHash,
-  checkAmbassadorSlugAvailability,
-  confirmAmbassadorRegistrationEnergy,
-  getAmbassadorRegistrationEnergyQuote,
-  isValidAmbassadorSlug,
-  normalizeAmbassadorSlug,
-  registerAmbassador,
-  type AmbassadorRegistrationEnergyQuote,
-} from '../src/services/ambassador';
-import { clearWalletRuntimeCaches, TRX_TOKEN_ID } from '../src/services/tron/api';
-import { sendAssetTransfer } from '../src/services/wallet/send';
-import EnergyResaleCard from '../src/ui/energy-resale-card';
-import { getActiveWallet, type WalletMeta } from '../src/services/wallet/storage';
-import type { EnergyResaleQuote } from '../src/services/energy-resale';
-import { getBiometricsEnabled, verifyPasscode } from '../src/security/local-auth';
-import { useNotice } from '../src/notice/notice-provider';
-import { colors, layout, radius } from '../src/theme/tokens';
-import { ui } from '../src/theme/ui';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
+import EnergyResaleCard from '../src/ui/energy-resale-card';
+import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
+import { BackspaceIcon, BioLoginIcon, SendIcon } from '../src/ui/ui-icons';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useNavigationInsets } from '../src/ui/navigation';
-import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
+import { useNotice } from '../src/notice/notice-provider';
+import { getBiometricsEnabled, verifyPasscode } from '../src/security/local-auth';
+import { clearWalletRuntimeCaches, FOURTEEN_LOGO } from '../src/services/tron/api';
+import {
+  estimateAmbassadorRegistration,
+  isValidAmbassadorSlug,
+  normalizeAmbassadorSlug,
+  registerAmbassadorWithOptions,
+  type AmbassadorRegistrationReview,
+} from '../src/services/ambassador';
+import {
+  getEnergyResaleQuote,
+  rentEnergyForPurpose,
+  type EnergyResaleQuote,
+} from '../src/services/energy-resale';
+import {
+  formatTrxFromSunAmount,
+  getAvailableResource,
+} from '../src/services/wallet/resources';
+import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
-
-const REGISTRATION_CONTROLLER_ADDRESS = 'TF8yhohRfMxsdVRr7fFrYLh5fxK8sAFkeZ';
-const ZERO_META_HASH = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
 type RegistrationApprovalMode = 'burn' | 'rent';
 
@@ -56,18 +59,6 @@ function shortenAddress(address: string) {
   const safe = String(address || '').trim();
   if (safe.length <= 14) return safe || '—';
   return `${safe.slice(0, 6)}...${safe.slice(-6)}`;
-}
-
-function shortenMiddle(value: string, start = 12, end = 10) {
-  const text = String(value || '').trim();
-  if (!text || text.length <= start + end + 3) return text || '—';
-  return `${text.slice(0, start)}...${text.slice(-end)}`;
-}
-
-function formatWalletAccessLabel(kind: WalletMeta['kind']) {
-  if (kind === 'mnemonic') return 'SEED PHRASE';
-  if (kind === 'private-key') return 'PRIVATE KEY';
-  return 'WATCH ONLY';
 }
 
 export default function AmbassadorConfirmScreen() {
@@ -86,93 +77,54 @@ export default function AmbassadorConfirmScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [pendingApprovalMode, setPendingApprovalMode] =
-    useState<RegistrationApprovalMode>('burn');
-  const [wallet, setWallet] = useState<WalletMeta | null>(null);
-  const [energyQuote, setEnergyQuote] = useState<AmbassadorRegistrationEnergyQuote | null>(null);
-  const [slugAvailable, setSlugAvailable] = useState(false);
+  const [review, setReview] = useState<AmbassadorRegistrationReview | null>(null);
   const [errorText, setErrorText] = useState('');
-  const [energyRentalText, setEnergyRentalText] = useState('');
   const [passcodeOpen, setPasscodeOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
+  const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
+  const [energyRenting, setEnergyRenting] = useState(false);
+  const [pendingApprovalMode, setPendingApprovalMode] =
+    useState<RegistrationApprovalMode>('burn');
+  const burnWarningShownRef = useRef(false);
   const preserveNoticeOnExitRef = useRef(false);
 
   useChromeLoading(loading || refreshing);
 
-  const slugHash = useMemo(
-    () => (requestedSlug ? buildAmbassadorSlugHash(requestedSlug) : ''),
-    [requestedSlug]
+  const energyAvailable = review ? getAvailableResource(review.resources.available, 'energy') : 0;
+  const bandwidthAvailable = review
+    ? getAvailableResource(review.resources.available, 'bandwidth')
+    : 0;
+  const hasResourceShortfall = Boolean(
+    review &&
+      (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
-  const isApproveDisabled =
-    submitting ||
-    !wallet ||
-    wallet.kind === 'watch-only' ||
-    !slugAvailable ||
-    !isValidAmbassadorSlug(requestedSlug);
-  const isRentApproveDisabled = isApproveDisabled || !energyQuote;
-  const energyResaleQuote = useMemo<EnergyResaleQuote | null>(() => {
-    if (!energyQuote) return null;
-
-    return {
-      purpose: 'ambassador_registration',
-      mode: energyQuote.mode || 'api',
-      wallet: energyQuote.wallet || wallet?.address || null,
-      paymentAddress: energyQuote.paymentAddress,
-      amountSun: energyQuote.amountSun,
-      amountTrx: energyQuote.amountTrx,
-      energyQuantity: energyQuote.energyQuantity,
-      readyEnergy: energyQuote.readyEnergy,
-      requiredEnergy: energyQuote.energyQuantity,
-      packageCount: 1,
-      label: 'Ambassador registration',
-    };
-  }, [energyQuote, wallet?.address]);
+  const canRentResources = Boolean(
+    review &&
+      (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
+  );
+  const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
+  const isApproveDisabled = submitting || !review || !hasTrxForBurn;
 
   const load = useCallback(async () => {
     try {
-      setErrorText('');
       setLoading(true);
+      setErrorText('');
 
       if (!isValidAmbassadorSlug(requestedSlug)) {
         throw new Error('Ambassador slug is invalid. Go back and enter a valid slug.');
       }
 
-      const activeWallet = await getActiveWallet();
-
-      if (!activeWallet) {
-        throw new Error('No active wallet selected.');
-      }
-
-      if (activeWallet.kind === 'watch-only') {
-        throw new Error('Watch-only wallet cannot register as ambassador.');
-      }
-
-      await checkAmbassadorSlugAvailability(requestedSlug);
-      const quote = await getAmbassadorRegistrationEnergyQuote({
-        wallet: activeWallet.address,
-        slug: requestedSlug,
-      }).catch((quoteError) => {
-        console.error('Failed to load ambassador energy quote:', quoteError);
-        return null;
-      });
-
-      setWallet(activeWallet);
-      setEnergyQuote(quote);
-      setEnergyRentalText(
-        quote
-          ? ''
-          : 'Energy rental quote is temporarily unavailable. You can still register by burning your own TRX.'
-      );
-      setSlugAvailable(true);
+      const nextReview = await estimateAmbassadorRegistration(requestedSlug);
+      setReview(nextReview);
     } catch (error) {
       console.error(error);
-      setWallet(null);
+      setReview(null);
       setEnergyQuote(null);
-      setSlugAvailable(false);
       setErrorText(
         error instanceof Error ? error.message : 'Failed to build ambassador confirmation.'
       );
@@ -224,7 +176,60 @@ export default function AmbassadorConfirmScreen() {
   }, [passcodeOpen, setChromeHidden]);
 
   useEffect(() => {
+    if (!review) return;
+
+    if (!review.trxCoverage.canCoverBurn) {
+      if (burnWarningShownRef.current) return;
+
+      burnWarningShownRef.current = true;
+      notice.showErrorNotice(
+        `Not enough TRX for network burn. Top up at least ${formatTrxFromSunAmount(
+          review.trxCoverage.missingTrxSun
+        )} TRX first.`,
+        3200
+      );
+      return;
+    }
+
+    burnWarningShownRef.current = false;
+    notice.hideNotice();
+  }, [notice, review]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!review || !canRentResources || review.wallet.kind === 'watch-only') {
+      setEnergyQuote(null);
+      setEnergyQuoteLoading(false);
+      return;
+    }
+
+    setEnergyQuoteLoading(true);
+    getEnergyResaleQuote({
+      purpose: 'ambassador_registration',
+      wallet: review.wallet.address,
+      requiredEnergy: review.resources.energyShortfall || review.resources.estimatedEnergy,
+      requiredBandwidth:
+        review.resources.bandwidthShortfall || review.resources.estimatedBandwidth,
+      metadata: {
+        slug: requestedSlug,
+      },
+    })
+      .then((quote) => {
+        if (!cancelled) setEnergyQuote(quote);
+      })
+      .finally(() => {
+        if (!cancelled) setEnergyQuoteLoading(false);
+      });
+
     return () => {
+      cancelled = true;
+    };
+  }, [canRentResources, requestedSlug, review]);
+
+  useEffect(() => {
+    return () => {
+      burnWarningShownRef.current = false;
       setChromeHidden(false);
       if (!preserveNoticeOnExitRef.current) {
         notice.hideNotice();
@@ -234,62 +239,64 @@ export default function AmbassadorConfirmScreen() {
   }, [notice, setChromeHidden]);
 
   const handleRefresh = useCallback(async () => {
-    if (submitting) return;
+    if (submitting || energyRenting) return;
 
     setRefreshing(true);
     await load();
-  }, [load, submitting]);
+  }, [energyRenting, load, submitting]);
 
   const handleReject = useCallback(() => {
-    if (submitting) return;
+    if (submitting || energyRenting) return;
 
     preserveNoticeOnExitRef.current = true;
     notice.showNeutralNotice('Ambassador registration rejected by user.', 2200);
     router.back();
-  }, [notice, router, submitting]);
+  }, [energyRenting, notice, router, submitting]);
 
-  const performRegistration = useCallback(async (mode: RegistrationApprovalMode) => {
-    if (submitting || isApproveDisabled) return;
+  const performRentEnergy = useCallback(async () => {
+    if (!review || !energyQuote || energyRenting) return false;
+
+    try {
+      setEnergyRenting(true);
+      notice.showNeutralNotice('Sending Energy rental payment...', 2500);
+      await rentEnergyForPurpose({
+        purpose: 'ambassador_registration',
+        wallet: review.wallet.address,
+        quote: energyQuote,
+        metadata: {
+          slug: requestedSlug,
+        },
+        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
+      });
+      clearWalletRuntimeCaches(review.wallet.address);
+      preserveNoticeOnExitRef.current = true;
+      notice.showSuccessNotice('Energy is live. Sending ambassador registration...', 3000);
+      await load();
+      return true;
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice(
+        error instanceof Error ? error.message : 'Energy rental failed.',
+        4200
+      );
+      return false;
+    } finally {
+      setEnergyRenting(false);
+      setPasscodeOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+    }
+  }, [energyQuote, energyRenting, load, notice, requestedSlug, review]);
+
+  const performRegistration = useCallback(async () => {
+    if (!review || submitting) return;
 
     try {
       setSubmitting(true);
 
-      if (mode === 'rent') {
-        if (!wallet || !energyQuote) {
-          throw new Error('Energy rental quote is unavailable.');
-        }
-
-        const isResaleRental = String(energyQuote.mode || '').toLowerCase() === 'resale';
-
-        setEnergyRentalText(
-          isResaleRental
-            ? `Sending ${energyQuote.amountTrx} TRX to GasStation resale package. Waiting for ${energyQuote.energyQuantity.toLocaleString('en-US')} Energy distribution.`
-            : `Sending ${energyQuote.amountTrx} TRX rental payment, then requesting ${energyQuote.energyQuantity.toLocaleString('en-US')} Energy.`
-        );
-        notice.showNeutralNotice('Sending Energy rental payment...', 2600);
-        const payment = await sendAssetTransfer({
-          tokenId: TRX_TOKEN_ID,
-          toAddress: energyQuote.paymentAddress,
-          amount: energyQuote.amountTrx,
-        });
-
-        notice.showNeutralNotice('Energy rental payment sent. Waiting for confirmation...', 2600);
-        setEnergyRentalText(
-          isResaleRental
-            ? 'Payment confirmed. Waiting for GasStation automatic Energy distribution...'
-            : 'Payment confirmed. Requesting Energy sublease from GasStation...'
-        );
-        await confirmAmbassadorRegistrationEnergy({
-          wallet: wallet.address,
-          slug: requestedSlug,
-          paymentTxId: payment.txId,
-        });
-        clearWalletRuntimeCaches(wallet.address);
-        notice.showNeutralNotice('Energy is live. Sending ambassador registration...', 2600);
-        setEnergyRentalText('Energy is available. Sending ambassador registration...');
-      }
-
-      const receipt = await registerAmbassador(requestedSlug);
+      const receipt = await registerAmbassadorWithOptions(requestedSlug, {
+        feeLimitSun: review.resources.recommendedFeeLimitSun,
+      });
 
       setPasscodeOpen(false);
       setPasscodeDigits('');
@@ -307,19 +314,10 @@ export default function AmbassadorConfirmScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [
-    energyQuote,
-    isApproveDisabled,
-    notice,
-    requestedSlug,
-    router,
-    submitting,
-    triggerWalletDataRefresh,
-    wallet,
-  ]);
+  }, [notice, requestedSlug, review, router, submitting, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
-    if (submitting || passcodeDigits.length !== 6) return;
+    if (submitting || energyRenting || passcodeDigits.length !== 6) return;
 
     try {
       const ok = await verifyPasscode(passcodeDigits);
@@ -330,13 +328,28 @@ export default function AmbassadorConfirmScreen() {
         return;
       }
 
-      await performRegistration(pendingApprovalMode);
+      if (pendingApprovalMode === 'rent') {
+        const rented = await performRentEnergy();
+        if (rented) {
+          await performRegistration();
+        }
+        return;
+      }
+
+      await performRegistration();
     } catch (error) {
       console.error(error);
       setPasscodeError('Failed to verify passcode.');
       setPasscodeDigits('');
     }
-  }, [passcodeDigits, pendingApprovalMode, performRegistration, submitting]);
+  }, [
+    energyRenting,
+    passcodeDigits,
+    pendingApprovalMode,
+    performRegistration,
+    performRentEnergy,
+    submitting,
+  ]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -344,12 +357,10 @@ export default function AmbassadorConfirmScreen() {
     }
   }, [handlePasscodeSubmit, passcodeDigits, passcodeOpen]);
 
-  const handleApprove = useCallback(async (mode: RegistrationApprovalMode) => {
-    if (submitting) return;
-    if (mode === 'burn' && isApproveDisabled) return;
-    if (mode === 'rent' && isRentApproveDisabled) return;
+  const handleApprove = useCallback(async () => {
+    if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
 
-    setPendingApprovalMode(mode);
+    setPendingApprovalMode('burn');
 
     if (biometricAvailable && biometricsEnabled) {
       try {
@@ -360,10 +371,39 @@ export default function AmbassadorConfirmScreen() {
         });
 
         if (result.success) {
-          await performRegistration(mode);
+          await performRegistration();
           return;
         }
+      } catch (error) {
+        console.error(error);
+      }
+    }
 
+    setPasscodeError('');
+    setPasscodeDigits('');
+    setPasscodeOpen(true);
+  }, [biometricAvailable, biometricsEnabled, performRegistration, review, submitting]);
+
+  const handleRentEnergy = useCallback(async () => {
+    if (!review || !energyQuote || submitting || energyRenting) return;
+
+    setPendingApprovalMode('rent');
+
+    if (biometricAvailable && biometricsEnabled) {
+      try {
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Confirm Energy Rental',
+          fallbackLabel: 'Use Passcode',
+          cancelLabel: 'Cancel',
+        });
+
+        if (result.success) {
+          const rented = await performRentEnergy();
+          if (rented) {
+            await performRegistration();
+          }
+          return;
+        }
       } catch (error) {
         console.error(error);
       }
@@ -375,28 +415,19 @@ export default function AmbassadorConfirmScreen() {
   }, [
     biometricAvailable,
     biometricsEnabled,
-    isApproveDisabled,
-    isRentApproveDisabled,
+    energyQuote,
+    energyRenting,
     performRegistration,
+    performRentEnergy,
+    review,
     submitting,
   ]);
 
-  const handlePasscodeDigitPress = useCallback((digit: string) => {
-    if (submitting) return;
-    setPasscodeError('');
-    setPasscodeDigits((prev) => {
-      if (prev.length >= 6) return prev;
-      return `${prev}${digit}`;
-    });
-  }, [submitting]);
+  const controllerUrl = review
+    ? `https://tronscan.org/#/contract/${review.controllerAddress}`
+    : 'https://tronscan.org/#/';
 
-  const handlePasscodeBackspace = useCallback(() => {
-    if (submitting) return;
-    setPasscodeError('');
-    setPasscodeDigits((prev) => prev.slice(0, -1));
-  }, [submitting]);
-
-  if (loading && !wallet && !errorText) {
+  if (loading && !review && !errorText) {
     return <ScreenLoadingState label="Building ambassador confirmation" />;
   }
 
@@ -420,9 +451,9 @@ export default function AmbassadorConfirmScreen() {
             />
           }
         >
-          <ScreenBrow label="CONFIRM" variant="back" />
+          <ScreenBrow label="AMBASSADOR" variant="back" />
 
-          {errorText || !wallet ? (
+          {errorText || !review ? (
             <View style={styles.errorCard}>
               <Text style={styles.errorText}>
                 {errorText || 'Ambassador confirmation is unavailable.'}
@@ -431,81 +462,101 @@ export default function AmbassadorConfirmScreen() {
           ) : (
             <>
               <View style={styles.heroCard}>
-                <View style={styles.heroTopRow}>
-                  <View style={styles.heroWalletBlock}>
-                    <Text style={styles.heroWalletName}>{wallet.name}</Text>
-                    <Text style={styles.heroFromLabel}>WALLET</Text>
-                    <Text style={styles.heroFromAddress}>{wallet.address}</Text>
-                  </View>
-                </View>
+                <Image source={{ uri: FOURTEEN_LOGO }} style={styles.heroWatermark} contentFit="contain" />
+                <Text style={styles.heroWalletName}>{review.wallet.name}</Text>
+                <Text style={styles.heroWalletAddress}>{review.wallet.address}</Text>
 
                 <View style={styles.heroSlugBlock}>
-                  <Text style={styles.heroSlugLabel}>AMBASSADOR SLUG</Text>
-                  <Text style={styles.heroSlug}>{requestedSlug}</Text>
+                  <Text style={styles.heroSlugLabel}>SLUG</Text>
+                  <Text style={styles.heroSlugValue}>{requestedSlug}</Text>
+                  <Text style={styles.heroSlugHint}>This slug becomes permanent after registration.</Text>
+                </View>
+
+                <View style={styles.heroMetaRow}>
+                  <Text style={styles.heroMetaLabel}>Estimated burn</Text>
+                  <Text style={[styles.heroMetaValue, hasResourceShortfall ? styles.heroMetaValueRisk : null]}>
+                    {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
+                  </Text>
                 </View>
               </View>
 
               <TouchableOpacity
                 activeOpacity={0.9}
                 style={[styles.primaryButton, isApproveDisabled && styles.primaryButtonDisabled]}
-                onPress={() => void handleApprove('burn')}
+                onPress={() => void handleApprove()}
                 disabled={isApproveDisabled}
               >
-                {submitting ? (
+                {submitting && pendingApprovalMode === 'burn' ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
-                  <Text style={styles.primaryButtonText}>BURN OWN TRX & REGISTER</Text>
+                  <Text style={styles.primaryButtonText}>
+                    {hasTrxForBurn ? 'APPROVE & REGISTER' : 'TOP UP TRX'}
+                  </Text>
                 )}
               </TouchableOpacity>
 
               <EnergyResaleCard
-                quote={energyResaleQuote}
-                processing={submitting && pendingApprovalMode === 'rent'}
-                disabled={isRentApproveDisabled}
+                quote={energyQuote}
+                loading={energyQuoteLoading}
+                processing={energyRenting}
+                disabled={submitting || energyRenting}
+                showUnavailable={canRentResources}
                 actionLabel="REGISTER"
-                onRent={() => void handleApprove('rent')}
+                estimatedBurnSun={review.resources.estimatedBurnSun}
+                onRent={() => void handleRentEnergy()}
               />
 
-              <View style={styles.detailCard}>
-                <DetailRow label="Access" value={formatWalletAccessLabel(wallet.kind)} />
-                <DetailRow label="Action" value="registerAsAmbassador" />
-                <DetailRow label="Controller" value={shortenAddress(REGISTRATION_CONTROLLER_ADDRESS)} />
-                <DetailRow label="Slug Hash" value={shortenMiddle(slugHash)} accent />
-                <DetailRow label="Meta Hash" value={shortenMiddle(ZERO_META_HASH)} />
-                <DetailRow label="Slug Check" value={slugAvailable ? 'Available' : 'Unavailable'} accent={slugAvailable} />
-                <DetailRow label="Resource Note" value="~98K Energy / ~345 Bandwidth" accent />
-                {energyQuote ? (
-                  <>
-                    <DetailRow
-                      label="Rental Mode"
-                      value={String(energyQuote.mode || 'api').toUpperCase()}
-                      accent
-                    />
-                    <DetailRow label="Rental Energy" value={`${energyQuote.energyQuantity.toLocaleString('en-US')} Energy`} accent />
-                    <DetailRow label="Rental Payment" value={`${energyQuote.amountTrx} TRX`} accent />
-                    <DetailRow label="Rental Receiver" value={shortenAddress(energyQuote.paymentAddress)} />
-                  </>
-                ) : null}
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionEyebrow}>REGISTRATION REVIEW</Text>
+                <View style={styles.detailCard}>
+                  <DetailRow label="Wallet" value={review.wallet.name} first />
+                  <DetailRow label="Slug" value={requestedSlug} />
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.linkRow}
+                    onPress={() => void openInAppBrowser(router, controllerUrl)}
+                  >
+                    <Text style={styles.detailLabel}>Controller</Text>
+                    <View style={styles.linkRowValueWrap}>
+                      <Text style={styles.linkRowValue}>{shortenAddress(review.controllerAddress)}</Text>
+                      <SendIcon width={16} height={16} color={colors.textSoft} />
+                    </View>
+                  </TouchableOpacity>
+                  <DetailRow label="Fee Cap" value={`${formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX`} />
+                  <DetailRow label="TRX Available" value={review.trxCoverage.trxBalanceDisplay} />
+                </View>
               </View>
 
-              <View style={styles.infoRow}>
-                <Text style={styles.infoRowText}>
-                  This is an on-chain registration. The wallet signs the controller call first,
-                  then the backend completes the slug mapping after the transaction is accepted.
+              <ConfirmNetworkLoadCard
+                estimatedEnergy={review.resources.estimatedEnergy}
+                estimatedBandwidth={review.resources.estimatedBandwidth}
+                availableEnergy={energyAvailable}
+                availableBandwidth={bandwidthAvailable}
+                energyShortfall={review.resources.energyShortfall}
+                bandwidthShortfall={review.resources.bandwidthShortfall}
+                message={
+                  !review.trxCoverage.canCoverBurn
+                    ? 'Not enough TRX to cover the estimated burn.'
+                    : hasResourceShortfall
+                      ? 'You are short on resources. The burn estimate above already includes this gap.'
+                      : 'You have enough resources for this action. Extra burn is unlikely.'
+                }
+                messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
+              />
+
+              <View style={styles.noticeCard}>
+                <Text style={styles.noticeCardText}>
+                  This sends your ambassador registration to FourteenController. After the
+                  transaction is accepted, the backend completes slug mapping for the same wallet
+                  and referral link.
                 </Text>
               </View>
-
-              {energyRentalText ? (
-                <View style={styles.energyRentalStatusCard}>
-                  <Text style={styles.energyRentalStatusText}>{energyRentalText}</Text>
-                </View>
-              ) : null}
 
               <TouchableOpacity
                 activeOpacity={0.9}
                 style={styles.secondaryButton}
                 onPress={handleReject}
-                disabled={submitting}
+                disabled={submitting || energyRenting}
               >
                 <Text style={styles.secondaryButtonText}>REJECT</Text>
               </TouchableOpacity>
@@ -518,7 +569,11 @@ export default function AmbassadorConfirmScreen() {
           animationType="fade"
           presentationStyle="fullScreen"
           transparent={false}
-          onRequestClose={() => setPasscodeOpen(false)}
+          onRequestClose={() => {
+            setPasscodeOpen(false);
+            setPasscodeDigits('');
+            setPasscodeError('');
+          }}
           statusBarTranslucent
         >
           <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
@@ -557,13 +612,23 @@ export default function AmbassadorConfirmScreen() {
                   </View>
 
                   <NumericKeypad
-                    onDigitPress={handlePasscodeDigitPress}
-                    onBackspacePress={handlePasscodeBackspace}
+                    onDigitPress={(digit) => {
+                      if (submitting || energyRenting) return;
+                      setPasscodeError('');
+                      setPasscodeDigits((prev) => (prev.length >= 6 ? prev : `${prev}${digit}`));
+                    }}
+                    onBackspacePress={() => {
+                      if (submitting || energyRenting) return;
+                      setPasscodeError('');
+                      setPasscodeDigits((prev) => prev.slice(0, -1));
+                    }}
                     leftSlot={
                       biometricAvailable && biometricsEnabled ? (
                         <TouchableOpacity
                           activeOpacity={0.9}
-                          onPress={() => void handleApprove(pendingApprovalMode)}
+                          onPress={() =>
+                            void (pendingApprovalMode === 'rent' ? handleRentEnergy() : handleApprove())
+                          }
                         >
                           <BioLoginIcon width={22} height={22} />
                         </TouchableOpacity>
@@ -575,8 +640,12 @@ export default function AmbassadorConfirmScreen() {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.authCancelButton}
-                    onPress={() => setPasscodeOpen(false)}
-                    disabled={submitting}
+                    onPress={() => {
+                      setPasscodeOpen(false);
+                      setPasscodeDigits('');
+                      setPasscodeError('');
+                    }}
+                    disabled={submitting || energyRenting}
                   >
                     <Text style={styles.authCancelButtonText}>CANCEL</Text>
                   </TouchableOpacity>
@@ -593,109 +662,134 @@ export default function AmbassadorConfirmScreen() {
 function DetailRow({
   label,
   value,
-  accent,
+  first = false,
+  accent = false,
 }: {
   label: string;
   value: string;
+  first?: boolean;
   accent?: boolean;
 }) {
   return (
-    <View style={styles.detailRow}>
+    <View style={first ? styles.detailRowFirst : styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={[styles.detailValue, accent ? styles.detailValueAccent : null]} numberOfLines={2}>
-        {value}
-      </Text>
+      <Text style={accent ? styles.detailValueAccent : styles.detailValue}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    paddingHorizontal: layout.screenPaddingX,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    flexGrow: 1,
-  },
+  safe: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: layout.screenPaddingX },
+  scroll: { flex: 1 },
+  content: { flexGrow: 1 },
+
   heroCard: {
     marginTop: 10,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineStrong,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 22,
+    backgroundColor: 'rgba(255,105,0,0.08)',
+    padding: 16,
     overflow: 'hidden',
+    position: 'relative',
+    gap: 10,
   },
-  heroTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 14,
-  },
-  heroWalletBlock: {
-    flex: 1,
-    gap: 4,
+  heroWatermark: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 120,
+    height: 120,
+    opacity: 0.05,
   },
   heroWalletName: {
     color: colors.white,
     fontSize: 18,
-    lineHeight: 23,
+    lineHeight: 24,
     fontFamily: 'Sora_700Bold',
   },
-  heroFromLabel: {
+  heroWalletAddress: {
     color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 14,
-    fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.4,
-  },
-  heroFromAddress: {
-    color: colors.textSoft,
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
   },
   heroSlugBlock: {
-    gap: 7,
+    marginTop: 10,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 6,
   },
   heroSlugLabel: {
-    color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 14,
+    color: colors.accent,
+    fontSize: 10,
+    lineHeight: 13,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.5,
   },
-  heroSlug: {
-    color: colors.green,
-    fontSize: 30,
-    lineHeight: 36,
+  heroSlugValue: {
+    color: colors.white,
+    fontSize: 18,
+    lineHeight: 24,
     fontFamily: 'Sora_700Bold',
   },
+  heroSlugHint: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+  heroMetaRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroMetaLabel: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+  heroMetaValue: {
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+  heroMetaValueRisk: { color: colors.red },
+
   primaryButton: {
+    marginTop: 14,
     minHeight: 58,
     borderRadius: radius.sm,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
-    paddingHorizontal: 16,
   },
-  primaryButtonDisabled: {
-    opacity: 0.4,
-  },
+  primaryButtonDisabled: { opacity: 0.45 },
   primaryButtonText: {
-    ...ui.actionLabel,
     color: colors.white,
+    fontSize: 13,
+    lineHeight: 17,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.7,
+  },
+  sectionBlock: {
+    marginTop: 16,
+    gap: 8,
+  },
+  sectionEyebrow: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.5,
   },
   secondaryButton: {
     minHeight: 54,
@@ -711,35 +805,7 @@ const styles = StyleSheet.create({
     ...ui.actionLabel,
     color: colors.textSoft,
   },
-  energyRentButton: {
-    minHeight: 54,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(24,224,58,0.28)',
-    backgroundColor: 'rgba(24,224,58,0.07)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 14,
-    paddingHorizontal: 16,
-  },
-  energyRentButtonText: {
-    ...ui.actionLabel,
-    color: colors.white,
-  },
-  energyRentalStatusCard: {
-    marginTop: 10,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  energyRentalStatusText: {
-    color: colors.textSoft,
-    fontSize: 13,
-    lineHeight: 20,
-  },
+
   detailCard: {
     marginTop: 16,
     borderRadius: radius.md,
@@ -748,10 +814,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
     overflow: 'hidden',
   },
+  detailRowFirst: {
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
   detailRow: {
     minHeight: 50,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.lineSoft,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
     paddingHorizontal: 14,
     paddingVertical: 11,
     flexDirection: 'row',
@@ -776,7 +851,84 @@ const styles = StyleSheet.create({
   },
   detailValueAccent: {
     color: colors.green,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+    textAlign: 'right',
+    flex: 1,
   },
+  linkRow: {
+    minHeight: 50,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  linkRowValueWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  linkRowValue: {
+    flexShrink: 1,
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+    textAlign: 'right',
+  },
+
+  resourcesInlineRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
+  },
+  resourceInlineCol: {
+    gap: 6,
+  },
+  resourceInlineLabel: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+  },
+  resourceInlineLabelRisk: {
+    color: colors.red,
+  },
+  resourceBarTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  resourceBarTrackRisk: {
+    backgroundColor: 'rgba(255,48,73,0.14)',
+  },
+  resourceBarAvailable: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(24,224,58,0.18)',
+  },
+  resourceBarAvailableRisk: {
+    backgroundColor: 'rgba(255,48,73,0.12)',
+  },
+  resourceBarUsed: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+  },
+
   infoRow: {
     marginTop: 12,
     borderRadius: radius.sm,
@@ -787,6 +939,23 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   infoRowText: {
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  infoRowTextRisk: {
+    color: colors.red,
+  },
+  noticeCard: {
+    marginTop: 12,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  noticeCardText: {
     color: colors.textSoft,
     fontSize: 13,
     lineHeight: 20,
@@ -805,6 +974,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
+
   authModalSafe: {
     flex: 1,
     backgroundColor: colors.bg,

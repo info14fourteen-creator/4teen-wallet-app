@@ -7,6 +7,16 @@ export const FOURTEEN_API_BASE_URL = (
   'https://api.4teen.me'
 ).replace(/\/+$/, '');
 
+export const FOURTEEN_API_FALLBACK_BASE_URL = readEnv(
+  'EXPO_PUBLIC_4TEEN_API_BASE_URL_FALLBACK'
+).replace(/\/+$/, '');
+
+export function getFourteenApiBaseUrls() {
+  return Array.from(
+    new Set([FOURTEEN_API_BASE_URL, FOURTEEN_API_FALLBACK_BASE_URL].filter(Boolean))
+  );
+}
+
 export const TRONGRID_BASE_URL = `${FOURTEEN_API_BASE_URL}/trongrid`;
 export const TRONSCAN_BASE_URL = `${FOURTEEN_API_BASE_URL}/tronscan`;
 export const CMC_PRO_BASE_URL = `${FOURTEEN_API_BASE_URL}/cmc/pro`;

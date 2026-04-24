@@ -2,12 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 
 export type WalletKind = 'mnemonic' | 'private-key' | 'watch-only';
+export type WalletMnemonicSource = 'created-in-app' | 'imported-seed';
 
 export type WalletMeta = {
   id: string;
   name: string;
   address: string;
   kind: WalletKind;
+  mnemonicSource?: WalletMnemonicSource;
   createdAt: string;
 };
 
@@ -15,6 +17,18 @@ export type WalletSecretPayload = {
   mnemonic?: string;
   privateKey?: string;
 };
+
+export function canWalletExposeMnemonic(wallet: WalletMeta | null | undefined): boolean {
+  if (!wallet || wallet.kind !== 'mnemonic') return false;
+  if (!wallet.mnemonicSource) return true;
+
+  return wallet.mnemonicSource === 'created-in-app' || wallet.mnemonicSource === 'imported-seed';
+}
+
+export function canWalletExposePrivateKey(wallet: WalletMeta | null | undefined): boolean {
+  if (!wallet) return false;
+  return wallet.kind === 'mnemonic' || wallet.kind === 'private-key';
+}
 
 const WALLET_LIST_KEY = 'fourteen_wallet_list_v1';
 const ACTIVE_WALLET_ID_KEY = 'fourteen_active_wallet_id_v1';
@@ -73,6 +87,7 @@ export async function saveWallet(
     name: string;
     address: string;
     kind: WalletKind;
+    mnemonicSource?: WalletMnemonicSource;
     secret?: WalletSecretPayload;
   }
 ): Promise<WalletMeta> {
@@ -113,6 +128,9 @@ export async function saveWallet(
     name,
     address,
     kind: input.kind,
+    ...(input.kind === 'mnemonic' && input.mnemonicSource
+      ? { mnemonicSource: input.mnemonicSource }
+      : {}),
     createdAt: new Date().toISOString(),
   };
 

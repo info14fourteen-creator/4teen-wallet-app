@@ -1,0 +1,212 @@
+import { StyleSheet } from 'react-native';
+import { colors, fontFamilies, layout, radius } from './tokens';
+
+export const patterns = StyleSheet.create({
+  textEyebrow: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamilies.display,
+    textTransform: 'uppercase',
+    letterSpacing: 0.45,
+  },
+
+  textSectionEyebrow: {
+    color: colors.accent,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: fontFamilies.display,
+    textTransform: 'uppercase',
+    letterSpacing: 0.45,
+  },
+
+  textTitleLg: {
+    color: colors.white,
+    fontSize: 30,
+    lineHeight: 36,
+    fontFamily: fontFamilies.display,
+    letterSpacing: 0,
+  },
+
+  textTitleMd: {
+    color: colors.white,
+    fontSize: 24,
+    lineHeight: 30,
+    fontFamily: fontFamilies.display,
+    letterSpacing: 0,
+  },
+
+  textTitleSm: {
+    color: colors.white,
+    fontSize: 19,
+    lineHeight: 24,
+    fontFamily: fontFamilies.displaySemi,
+    letterSpacing: 0,
+  },
+
+  textLead: {
+    color: colors.textSoft,
+    fontSize: 17,
+    lineHeight: 28,
+  },
+
+  textBody: {
+    color: colors.textSoft,
+    fontSize: 15,
+    lineHeight: 25,
+  },
+
+  textAction: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 18,
+    fontFamily: fontFamilies.displaySemi,
+    letterSpacing: 0,
+  },
+
+  textButton: {
+    color: colors.white,
+    fontSize: 15,
+    lineHeight: 18,
+    fontFamily: fontFamilies.displaySemi,
+    letterSpacing: 0,
+  },
+
+  textHelper: {
+    color: colors.textDim,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: fontFamilies.displaySemi,
+  },
+
+  surfaceCardSoftMd: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 10,
+  },
+
+  surfaceCardSoftSm: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 8,
+  },
+
+  surfaceBoxDark: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.bg,
+  },
+
+  surfaceBoxDarkStrong: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.bg,
+  },
+
+  surfaceSummaryAccent: {
+    backgroundColor: 'rgba(255,105,0,0.06)',
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    borderRadius: radius.md,
+    padding: 16,
+    gap: 8,
+  },
+
+  surfaceStubAccent: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: 'rgba(255,105,0,0.05)',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 8,
+  },
+
+  surfaceRow: {
+    minHeight: 56,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  rowBetween: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  rowCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  fieldHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  buttonPrimary: {
+    minHeight: layout.buttonHeight,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+
+  buttonSecondary: {
+    minHeight: layout.buttonHeight,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+
+  buttonIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  inputShell: {
+    minHeight: 56,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.bg,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
+
+  inputShellValid: {
+    borderColor: colors.lineStrong,
+  },
+
+  inputShellInvalid: {
+    borderColor: colors.red,
+  },
+});

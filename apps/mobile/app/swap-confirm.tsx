@@ -17,6 +17,7 @@ import { Image } from 'expo-image';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import EnergyResaleCard from '../src/ui/energy-resale-card';
+import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -50,8 +51,6 @@ import {
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
-  clampResourcePercent,
-  formatResourceAmount,
   formatTrxFromSunAmount,
   getAvailableResource,
   normalizeResourceAmount,
@@ -161,7 +160,6 @@ export default function SwapConfirmScreen() {
     normalizeResourceAmount(review?.resources.swap?.estimatedBandwidth);
   const totalAvailableEnergy = Math.max(approvalAvailableEnergy, swapAvailableEnergy);
   const totalAvailableBandwidth = Math.max(approvalAvailableBandwidth, swapAvailableBandwidth);
-  const hasNoEnergyAvailable = totalAvailableEnergy <= 0;
   const resourceEnergyShortfall =
     normalizeResourceAmount(review?.resources.approval?.energyShortfall) +
     normalizeResourceAmount(review?.resources.swap?.energyShortfall);
@@ -170,12 +168,6 @@ export default function SwapConfirmScreen() {
     normalizeResourceAmount(review?.resources.swap?.bandwidthShortfall);
   const hasResourceShortfall = resourceEnergyShortfall > 0 || resourceBandwidthShortfall > 0;
   const canRentResources = estimatedEnergy > 0 || estimatedBandwidth > 0;
-  const energyBarPercent = clampResourcePercent(
-    (estimatedEnergy / Math.max(estimatedEnergy, totalAvailableEnergy, 1)) * 100
-  );
-  const bandwidthBarPercent = clampResourcePercent(
-    (estimatedBandwidth / Math.max(estimatedBandwidth, totalAvailableBandwidth, 1)) * 100
-  );
 
   const load = useCallback(async () => {
     try {
@@ -669,148 +661,91 @@ export default function SwapConfirmScreen() {
                 loading={energyQuoteLoading}
                 processing={energyRenting}
                 disabled={submitting}
+                showUnavailable={canRentResources}
                 actionLabel="SWAP"
                 estimatedBurnSun={review.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
 
-              <View style={styles.detailCard}>
-                <View style={styles.detailRowFirst}>
-                  <Text style={styles.detailLabel}>From</Text>
-                  <Text style={styles.detailValue}>{review.inputToken.symbol}</Text>
-                </View>
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionEyebrow}>SWAP REVIEW</Text>
+                <View style={styles.detailCard}>
+                  <View style={styles.detailRowFirst}>
+                    <Text style={styles.detailLabel}>From</Text>
+                    <Text style={styles.detailValue}>{review.inputToken.symbol}</Text>
+                  </View>
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>To</Text>
-                  <Text style={styles.detailValue}>{review.outputToken.symbol}</Text>
-                </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>To</Text>
+                    <Text style={styles.detailValue}>{review.outputToken.symbol}</Text>
+                  </View>
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Route</Text>
-                  <Text style={styles.detailValue}>{review.route.routeLabel}</Text>
-                </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Route</Text>
+                    <Text style={styles.detailValue}>{review.route.routeLabel}</Text>
+                  </View>
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Path</Text>
-                  <Text style={styles.detailValue}>{review.route.symbols.join(' → ')}</Text>
-                </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Path</Text>
+                    <Text style={styles.detailValue}>{review.route.symbols.join(' → ')}</Text>
+                  </View>
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Provider</Text>
-                  <Text style={styles.detailValue}>{review.route.providerName}</Text>
-                </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Provider</Text>
+                    <Text style={styles.detailValue}>{review.route.providerName}</Text>
+                  </View>
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Slippage</Text>
-                  <Text style={styles.detailValue}>{review.slippage}%</Text>
-                </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Slippage</Text>
+                    <Text style={styles.detailValue}>{review.slippage}%</Text>
+                  </View>
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Approve</Text>
-                  <Text
-                    style={[
-                      styles.detailValue,
-                      review.approvalRequired ? styles.detailValueAccent : null,
-                    ]}
-                  >
-                    {review.approvalRequired ? 'Required before swap' : 'Already approved'}
-                  </Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Estimated Burn</Text>
-                  <Text style={styles.detailValueAccent}>
-                    {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
-                  </Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Fee Cap</Text>
-                  <Text style={styles.detailValue}>
-                    {formatTrxFromSunAmount(
-                      Number(review.resources.swap?.recommendedFeeLimitSun || 0) +
-                        Number(review.resources.approval?.recommendedFeeLimitSun || 0)
-                    )}{' '}
-                    TRX
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.detailCard}>
-                <View style={styles.detailRowFirst}>
-                  <Text style={styles.detailLabel}>Energy</Text>
-                  <Text style={styles.detailValue}>{formatResourceAmount(estimatedEnergy)}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Bandwidth</Text>
-                  <Text style={styles.detailValue}>{formatResourceAmount(estimatedBandwidth)}</Text>
-                </View>
-
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Shortfall</Text>
-                  <Text style={styles.detailValue}>
-                    {formatResourceAmount(resourceEnergyShortfall)} energy ·{' '}
-                    {formatResourceAmount(resourceBandwidthShortfall)} bandwidth
-                  </Text>
-                </View>
-
-                <View style={styles.resourcesInlineRow}>
-                  <View style={styles.resourceInlineCol}>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Approve</Text>
                     <Text
                       style={[
-                        styles.resourceInlineLabel,
-                        hasNoEnergyAvailable ? styles.resourceInlineLabelRisk : null,
+                        styles.detailValue,
+                        review.approvalRequired ? styles.detailValueAccent : null,
                       ]}
                     >
-                      Energy {formatResourceAmount(estimatedEnergy)}/
-                      {formatResourceAmount(totalAvailableEnergy)}
+                      {review.approvalRequired ? 'Required before swap' : 'Already approved'}
                     </Text>
-                    <View
-                      style={[
-                        styles.resourceBarTrack,
-                        hasNoEnergyAvailable ? styles.resourceBarTrackRisk : null,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.resourceBarAvailable,
-                          hasNoEnergyAvailable ? styles.resourceBarAvailableRisk : null,
-                        ]}
-                      />
-                      <View style={[styles.resourceBarUsed, { width: `${energyBarPercent}%` }]} />
-                    </View>
                   </View>
 
-                  <View style={styles.resourceInlineCol}>
-                    <Text style={styles.resourceInlineLabel}>
-                      Bandwidth {formatResourceAmount(estimatedBandwidth)}/
-                      {formatResourceAmount(totalAvailableBandwidth)}
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Estimated Burn</Text>
+                    <Text style={styles.detailValueAccent}>
+                      {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
                     </Text>
-                    <View style={styles.resourceBarTrack}>
-                      <View style={styles.resourceBarAvailable} />
-                      <View
-                        style={[styles.resourceBarUsed, { width: `${bandwidthBarPercent}%` }]}
-                      />
-                    </View>
+                  </View>
+
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Fee Cap</Text>
+                    <Text style={styles.detailValue}>
+                      {formatTrxFromSunAmount(
+                        Number(review.resources.swap?.recommendedFeeLimitSun || 0) +
+                          Number(review.resources.approval?.recommendedFeeLimitSun || 0)
+                      )}{' '}
+                      TRX
+                    </Text>
                   </View>
                 </View>
               </View>
 
-              <View style={styles.infoRow}>
-                <Text
-                  style={[
-                    styles.infoRowText,
-                    hasResourceShortfall ? styles.infoRowTextRisk : null,
-                  ]}
-                >
-                  {hasResourceShortfall
-                    ? 'Resources are short. Network burn is included in the estimate above.'
-                    : review.approvalRequired
-                      ? 'This flow will first approve 4TEEN, then submit the swap.'
-                      : 'Approval is already live. The wallet should go straight to the swap.'}
-                </Text>
-              </View>
+              <ConfirmNetworkLoadCard
+                estimatedEnergy={estimatedEnergy}
+                estimatedBandwidth={estimatedBandwidth}
+                availableEnergy={totalAvailableEnergy}
+                availableBandwidth={totalAvailableBandwidth}
+                energyShortfall={resourceEnergyShortfall}
+                bandwidthShortfall={resourceBandwidthShortfall}
+                message={
+                  hasResourceShortfall
+                    ? 'You are short on resources. The burn estimate above already includes this gap.'
+                    : 'You have enough resources for this action. Extra burn is unlikely.'
+                }
+                messageRisk={hasResourceShortfall}
+              />
 
               {review.routeChanged ? (
                 <View style={styles.noticeCard}>
@@ -845,7 +780,11 @@ export default function SwapConfirmScreen() {
           animationType="fade"
           presentationStyle="fullScreen"
           transparent={false}
-          onRequestClose={() => setPasscodeOpen(false)}
+          onRequestClose={() => {
+            setPasscodeOpen(false);
+            setPasscodeDigits('');
+            setPasscodeError('');
+          }}
           statusBarTranslucent
         >
           <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
@@ -899,7 +838,11 @@ export default function SwapConfirmScreen() {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.authCancelButton}
-                    onPress={() => setPasscodeOpen(false)}
+                    onPress={() => {
+                      setPasscodeOpen(false);
+                      setPasscodeDigits('');
+                      setPasscodeError('');
+                    }}
                     disabled={submitting}
                   >
                     <Text style={styles.authCancelButtonText}>CANCEL</Text>
@@ -1080,35 +1023,41 @@ const styles = StyleSheet.create({
   },
 
   detailCard: {
-    marginTop: 14,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     backgroundColor: colors.surfaceSoft,
-    padding: 16,
+    overflow: 'hidden',
   },
 
   detailRowFirst: {
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    alignItems: 'center',
+    gap: 16,
   },
 
   detailRow: {
-    marginTop: 12,
-    paddingTop: 12,
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     borderTopWidth: 1,
     borderTopColor: colors.lineSoft,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    alignItems: 'center',
+    gap: 16,
   },
 
   detailLabel: {
     color: colors.textDim,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
+    flexShrink: 0,
   },
 
   detailValue: {
@@ -1123,15 +1072,32 @@ const styles = StyleSheet.create({
   detailValueAccent: {
     color: colors.accent,
   },
+  sectionBlock: {
+    marginTop: 16,
+    gap: 8,
+  },
+  sectionEyebrow: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.5,
+  },
 
   infoRow: {
     marginTop: 12,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: 'rgba(255,105,0,0.06)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
 
   infoRowText: {
     color: colors.textSoft,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 20,
     fontFamily: 'Sora_600SemiBold',
   },
   infoRowTextRisk: {
@@ -1161,7 +1127,7 @@ const styles = StyleSheet.create({
   },
 
   secondaryButton: {
-    marginTop: 18,
+    marginTop: 14,
     minHeight: layout.buttonHeight,
     borderRadius: radius.sm,
     borderWidth: 1,
@@ -1172,14 +1138,14 @@ const styles = StyleSheet.create({
   },
 
   secondaryButtonText: {
-    color: colors.white,
-    fontSize: 15,
+    color: colors.textSoft,
+    fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
   },
 
   primaryButton: {
-    marginTop: 18,
+    marginTop: 14,
     minHeight: layout.buttonHeight,
     borderRadius: radius.sm,
     backgroundColor: colors.accent,
@@ -1193,9 +1159,10 @@ const styles = StyleSheet.create({
 
   primaryButtonText: {
     color: colors.white,
-    fontSize: 15,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 17,
     fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.7,
   },
 
   errorWrap: {
@@ -1307,20 +1274,21 @@ const styles = StyleSheet.create({
   },
 
   resourcesInlineRow: {
-    marginTop: 14,
-    flexDirection: 'row',
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
   },
 
   resourceInlineCol: {
-    flex: 1,
-    gap: 8,
+    gap: 6,
   },
 
   resourceInlineLabel: {
     color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
   },
   resourceInlineLabelRisk: {
@@ -1328,10 +1296,11 @@ const styles = StyleSheet.create({
   },
 
   resourceBarTrack: {
-    height: 6,
+    height: 8,
     borderRadius: 999,
     overflow: 'hidden',
-    backgroundColor: 'rgba(24,224,58,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    position: 'relative',
   },
   resourceBarTrackRisk: {
     backgroundColor: 'rgba(255,48,73,0.14)',
@@ -1339,11 +1308,10 @@ const styles = StyleSheet.create({
 
   resourceBarAvailable: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.green,
-    opacity: 0.9,
+    backgroundColor: 'rgba(24,224,58,0.18)',
   },
   resourceBarAvailableRisk: {
-    backgroundColor: colors.red,
+    backgroundColor: 'rgba(255,48,73,0.12)',
   },
 
   resourceBarUsed: {
@@ -1351,7 +1319,8 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.red,
+    backgroundColor: colors.accent,
+    borderRadius: 999,
   },
 
   authCancelButtonText: {

@@ -165,15 +165,14 @@ function encryptAesEcbPkcs7Base64(plainText, secretKey) {
   return encrypted.toString('base64');
 }
 
-async function requestJson({
+async function performRequestJson({
   url,
   method = 'GET',
-  proxyUrl,
+  dispatcher,
   timeoutMs = DEFAULT_TIMEOUT_MS
 }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
 
   try {
     const response = await undiciFetch(url, {
@@ -229,23 +228,84 @@ async function requestJson({
     }
 
     return parsed.data ?? null;
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw new Error('GasStation request timed out');
-    }
-
-    const message =
-      error && typeof error.message === 'string' && error.message.trim()
-        ? error.message.trim()
-        : 'fetch failed';
-
-    throw new Error(`GasStation fetch failed: ${message}`);
   } finally {
     clearTimeout(timer);
+  }
+}
 
-    if (dispatcher) {
+function normalizeRequestError(error) {
+  if (error?.name === 'AbortError') {
+    return 'GasStation request timed out';
+  }
+
+  if (error && typeof error.message === 'string' && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  return 'fetch failed';
+}
+
+async function requestJson({
+  url,
+  method = 'GET',
+  proxyUrl,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+}) {
+  let proxyDispatcher;
+
+  if (!proxyUrl) {
+    try {
+      return await performRequestJson({
+        url,
+        method,
+        timeoutMs
+      });
+    } catch (error) {
+      throw new Error(`GasStation request failed: ${normalizeRequestError(error)}`);
+    }
+  }
+
+  try {
+    proxyDispatcher = new ProxyAgent(proxyUrl);
+
+    return await performRequestJson({
+      url,
+      method,
+      dispatcher: proxyDispatcher,
+      timeoutMs
+    });
+  } catch (proxyError) {
+    const proxyMessage = normalizeRequestError(proxyError);
+
+    try {
+      const directResult = await performRequestJson({
+        url,
+        method,
+        timeoutMs
+      });
+
+      console.warn('[GasStation] proxy request failed, used direct fallback instead', {
+        error: proxyMessage
+      });
+
+      return directResult;
+    } catch (directError) {
+      const directMessage = normalizeRequestError(directError);
+
+      if (/fetch failed/i.test(proxyMessage) && /403|forbidden/i.test(directMessage)) {
+        throw new Error(
+          'GasStation proxy authentication failed or proxy is invalid; direct access is forbidden by GasStation whitelist'
+        );
+      }
+
+      throw new Error(
+        `GasStation proxy request failed: ${proxyMessage}; direct retry failed: ${directMessage}`
+      );
+    }
+  } finally {
+    if (proxyDispatcher) {
       try {
-        await dispatcher.close();
+        await proxyDispatcher.close();
       } catch (_) {}
     }
   }

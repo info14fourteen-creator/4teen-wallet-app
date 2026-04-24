@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import EnergyResaleCard from '../src/ui/energy-resale-card';
+import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -49,8 +50,6 @@ import {
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
-  clampResourcePercent,
-  formatResourceAmount,
   formatTrxFromSunAmount,
   getAvailableResource,
 } from '../src/services/wallet/resources';
@@ -167,26 +166,15 @@ export default function BuyConfirmScreen() {
   const bandwidthAvailable = review
     ? getAvailableResource(review.resources.available, 'bandwidth')
     : 0;
-  const energyBarPercent = review
-    ? clampResourcePercent(
-        (review.resources.estimatedEnergy /
-          Math.max(review.resources.estimatedEnergy, energyAvailable, 1)) *
-          100
-      )
-    : 0;
-  const bandwidthBarPercent = review
-    ? clampResourcePercent(
-        (review.resources.estimatedBandwidth /
-          Math.max(review.resources.estimatedBandwidth, bandwidthAvailable, 1)) *
-          100
-      )
-    : 0;
-  const hasNoEnergyAvailable = energyAvailable <= 0;
   const lockReleaseParts = review ? formatLockReleaseParts(review.lockReleaseAt) : null;
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
   const canRentResources = Boolean(
     review &&
       (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
+  );
+  const hasResourceShortfall = Boolean(
+    review &&
+      (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
 
   const load = useCallback(async () => {
@@ -438,7 +426,7 @@ export default function BuyConfirmScreen() {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Approve direct buy',
         cancelLabel: 'Cancel',
-        fallbackLabel: 'Use passcode',
+        fallbackLabel: 'Use Passcode',
       });
 
       if (result.success) {
@@ -490,7 +478,7 @@ export default function BuyConfirmScreen() {
         const result = await LocalAuthentication.authenticateAsync({
           promptMessage: 'Confirm Energy Rental',
           cancelLabel: 'Cancel',
-          fallbackLabel: 'Use passcode',
+          fallbackLabel: 'Use Passcode',
         });
 
         if (result.success) {
@@ -735,6 +723,7 @@ export default function BuyConfirmScreen() {
                   loading={energyQuoteLoading}
                   processing={energyRenting}
                   disabled={submitting}
+                  showUnavailable={canRentResources}
                   actionLabel="BUY"
                   estimatedBurnSun={review.resources.estimatedBurnSun}
                   onRent={() => void handleRentEnergy()}
@@ -785,88 +774,22 @@ export default function BuyConfirmScreen() {
                 </View>
               </View>
 
-              <View style={styles.sectionBlock}>
-                <Text style={styles.sectionEyebrow}>NETWORK LOAD</Text>
-                <View style={styles.detailCard}>
-                  <View style={styles.detailRowFirst}>
-                    <Text style={styles.detailLabel}>Energy</Text>
-                    <Text style={styles.detailValue}>
-                      {formatResourceAmount(review.resources.estimatedEnergy)} /{' '}
-                      {formatResourceAmount(energyAvailable)}
-                    </Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Bandwidth</Text>
-                    <Text style={styles.detailValue}>
-                      {formatResourceAmount(review.resources.estimatedBandwidth)} /{' '}
-                      {formatResourceAmount(bandwidthAvailable)}
-                    </Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Shortfall</Text>
-                    <Text style={styles.detailValue}>
-                      {formatResourceAmount(review.resources.energyShortfall)} energy ·{' '}
-                      {formatResourceAmount(review.resources.bandwidthShortfall)} bandwidth
-                    </Text>
-                  </View>
-
-                  <View style={styles.resourcesInlineRow}>
-                    <View style={styles.resourceInlineCol}>
-                      <Text
-                        style={[
-                          styles.resourceInlineLabel,
-                          hasNoEnergyAvailable ? styles.resourceInlineLabelRisk : null,
-                        ]}
-                      >
-                        Energy {formatResourceAmount(review.resources.estimatedEnergy)}/
-                        {formatResourceAmount(energyAvailable)}
-                      </Text>
-                      <View
-                        style={[
-                          styles.resourceBarTrack,
-                          hasNoEnergyAvailable ? styles.resourceBarTrackRisk : null,
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.resourceBarAvailable,
-                            hasNoEnergyAvailable ? styles.resourceBarAvailableRisk : null,
-                          ]}
-                        />
-                        <View
-                          style={[styles.resourceBarUsed, { width: `${energyBarPercent}%` }]}
-                        />
-                      </View>
-                    </View>
-
-                    <View style={styles.resourceInlineCol}>
-                      <Text style={styles.resourceInlineLabel}>
-                        Bandwidth {formatResourceAmount(review.resources.estimatedBandwidth)}/
-                        {formatResourceAmount(bandwidthAvailable)}
-                      </Text>
-                      <View style={styles.resourceBarTrack}>
-                        <View style={styles.resourceBarAvailable} />
-                        <View
-                          style={[styles.resourceBarUsed, { width: `${bandwidthBarPercent}%` }]}
-                        />
-                      </View>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text
-                    style={[
-                      styles.infoRowText,
-                      !review.trxCoverage.canCoverBurn ? styles.infoRowTextRisk : null,
-                    ]}
-                  >
-                    {!review.trxCoverage.canCoverBurn
-                      ? 'TRX is short for buy value and network burn. Top up before approving this transaction.'
-                      : 'Resources are sufficient. This buy should execute without extra surprises.'}
-                  </Text>
-                </View>
-              </View>
+              <ConfirmNetworkLoadCard
+                estimatedEnergy={review.resources.estimatedEnergy}
+                estimatedBandwidth={review.resources.estimatedBandwidth}
+                availableEnergy={energyAvailable}
+                availableBandwidth={bandwidthAvailable}
+                energyShortfall={review.resources.energyShortfall}
+                bandwidthShortfall={review.resources.bandwidthShortfall}
+                message={
+                  !review.trxCoverage.canCoverBurn
+                    ? 'Not enough TRX to cover the buy and the estimated burn.'
+                    : hasResourceShortfall
+                      ? 'You are short on resources. The burn estimate above already includes this gap.'
+                      : 'You have enough resources for this action. Extra burn is unlikely.'
+                }
+                messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
+              />
 
               {errorText ? (
                 <View style={styles.errorCard}>
@@ -895,7 +818,11 @@ export default function BuyConfirmScreen() {
           animationType="fade"
           presentationStyle="fullScreen"
           transparent={false}
-          onRequestClose={() => setPasscodeOpen(false)}
+          onRequestClose={() => {
+            setPasscodeOpen(false);
+            setPasscodeDigits('');
+            setPasscodeError('');
+          }}
           statusBarTranslucent
         >
           <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
@@ -952,7 +879,11 @@ export default function BuyConfirmScreen() {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.authCancelButton}
-                    onPress={() => setPasscodeOpen(false)}
+                    onPress={() => {
+                      setPasscodeOpen(false);
+                      setPasscodeDigits('');
+                      setPasscodeError('');
+                    }}
                     disabled={submitting}
                   >
                     <Text style={styles.authCancelButtonText}>CANCEL</Text>
@@ -989,16 +920,16 @@ const styles = StyleSheet.create({
   },
 
   sectionBlock: {
-    marginBottom: 14,
+    marginTop: 16,
+    gap: 8,
   },
 
   sectionEyebrow: {
-    color: colors.textSoft,
+    color: colors.textDim,
     fontSize: 11,
     lineHeight: 14,
     fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.6,
-    marginBottom: 8,
+    letterSpacing: 0.5,
   },
 
   heroCard: {
@@ -1201,33 +1132,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.lineSoft,
     backgroundColor: colors.surfaceSoft,
-    padding: 16,
+    overflow: 'hidden',
   },
 
   detailRowFirst: {
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
   },
 
   detailRow: {
-    marginTop: 13,
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 16,
   },
 
   detailLabel: {
     color: colors.textDim,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
+    flexShrink: 0,
   },
 
   detailValue: {
-    flexShrink: 1,
+    flex: 1,
     color: colors.white,
     fontSize: 13,
     lineHeight: 18,
@@ -1236,7 +1175,7 @@ const styles = StyleSheet.create({
   },
 
   detailValueAccent: {
-    flexShrink: 1,
+    flex: 1,
     color: colors.accent,
     fontSize: 13,
     lineHeight: 18,
@@ -1246,13 +1185,18 @@ const styles = StyleSheet.create({
 
   infoRow: {
     marginTop: 12,
-    paddingHorizontal: 2,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: 'rgba(255,105,0,0.06)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
 
   infoRowText: {
-    color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 15,
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 20,
     fontFamily: 'Sora_600SemiBold',
   },
 
@@ -1261,20 +1205,21 @@ const styles = StyleSheet.create({
   },
 
   resourcesInlineRow: {
-    marginTop: 14,
-    flexDirection: 'row',
-    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
   },
 
   resourceInlineCol: {
-    flex: 1,
-    gap: 8,
+    gap: 6,
   },
 
   resourceInlineLabel: {
     color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
   },
   resourceInlineLabelRisk: {
@@ -1282,10 +1227,11 @@ const styles = StyleSheet.create({
   },
 
   resourceBarTrack: {
-    height: 6,
+    height: 8,
     borderRadius: 999,
     overflow: 'hidden',
-    backgroundColor: 'rgba(24,224,58,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    position: 'relative',
   },
   resourceBarTrackRisk: {
     backgroundColor: 'rgba(255,48,73,0.14)',
@@ -1293,11 +1239,10 @@ const styles = StyleSheet.create({
 
   resourceBarAvailable: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.green,
-    opacity: 0.9,
+    backgroundColor: 'rgba(24,224,58,0.18)',
   },
   resourceBarAvailableRisk: {
-    backgroundColor: colors.red,
+    backgroundColor: 'rgba(255,48,73,0.12)',
   },
 
   resourceBarUsed: {
@@ -1305,7 +1250,8 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.red,
+    backgroundColor: colors.accent,
+    borderRadius: 999,
   },
 
   primaryButton: {
@@ -1327,9 +1273,10 @@ const styles = StyleSheet.create({
 
   primaryButtonText: {
     color: colors.white,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 17,
     fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.7,
   },
 
   rejectButton: {
@@ -1363,8 +1310,8 @@ const styles = StyleSheet.create({
   },
 
   secondaryButtonText: {
-    color: colors.white,
-    fontSize: 14,
+    color: colors.textSoft,
+    fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
   },

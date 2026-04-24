@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -11,12 +11,13 @@ import {
   verifyPasscode,
 } from '../src/security/local-auth';
 import { useWalletSession } from '../src/wallet/wallet-session';
-import { BackspaceIcon } from '../src/ui/ui-icons';
+import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 import NumericKeypad from '../src/ui/numeric-keypad';
 
 export default function UnlockScreen() {
   const router = useRouter();
   const { triggerNavigationIntro } = useWalletSession();
+  const initialUnlockRequestedRef = useRef(false);
 
   const [passcodeOpen, setPasscodeOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
@@ -92,39 +93,47 @@ export default function UnlockScreen() {
     }
   }, [handlePasscodeSubmit, passcodeDigits.length, passcodeOpen]);
 
-  const handleUnlockRequest = useCallback(async () => {
+  const requestBiometricUnlock = useCallback(async (openPasscodeOnFallback = false) => {
     if (submitting) return;
 
-    if (biometricAvailable && biometricsEnabled) {
-      try {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Unlock Wallet',
-          fallbackLabel: 'Use Passcode',
-          cancelLabel: 'Cancel',
-        });
-
-        if (result.success) {
-          triggerNavigationIntro();
-          router.replace('/wallet');
-          return;
-        }
-
-      } catch (error) {
-        console.error(error);
+    if (!biometricAvailable || !biometricsEnabled) {
+      if (openPasscodeOnFallback) {
+        setPasscodeError('');
+        setPasscodeDigits('');
+        setPasscodeOpen(true);
       }
+      return;
     }
 
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeOpen(true);
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Unlock Wallet',
+        fallbackLabel: 'Use Passcode',
+        cancelLabel: 'Cancel',
+      });
+
+      if (result.success) {
+        triggerNavigationIntro();
+        router.replace('/wallet');
+        return;
+      }
+    } catch (error) {
+      console.error(error);
+    }
+
+    if (openPasscodeOnFallback) {
+      setPasscodeError('');
+      setPasscodeDigits('');
+      setPasscodeOpen(true);
+    }
   }, [biometricAvailable, biometricsEnabled, router, submitting, triggerNavigationIntro]);
 
   useEffect(() => {
-    if (!biometricsLoaded) return;
-    if (passcodeOpen) return;
+    if (!biometricsLoaded || initialUnlockRequestedRef.current) return;
 
-    void handleUnlockRequest();
-  }, [biometricsLoaded, handleUnlockRequest, passcodeOpen]);
+    initialUnlockRequestedRef.current = true;
+    void requestBiometricUnlock(true);
+  }, [biometricsLoaded, requestBiometricUnlock]);
 
   const handleDigitPress = useCallback(
     (digit: string) => {
@@ -144,6 +153,13 @@ export default function UnlockScreen() {
     setPasscodeDigits((prev) => prev.slice(0, -1));
   }, [submitting]);
 
+  const handlePasscodeCancel = useCallback(() => {
+    if (submitting) return;
+    setPasscodeOpen(false);
+    setPasscodeDigits('');
+    setPasscodeError('');
+  }, [submitting]);
+
   const canUseBiometrics = biometricAvailable && biometricsEnabled;
 
   const biometricMethodText =
@@ -154,6 +170,16 @@ export default function UnlockScreen() {
   }`;
 
   const backspaceIcon = <BackspaceIcon width={22} height={22} />;
+  const bioSlot = canUseBiometrics ? (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={styles.specialKey}
+      onPress={() => void requestBiometricUnlock(false)}
+      disabled={submitting}
+    >
+      <BioLoginIcon width={22} height={22} />
+    </TouchableOpacity>
+  ) : null;
 
   const dots = Array.from({ length: 6 }, (_, index) => (
     <View
@@ -194,10 +220,31 @@ export default function UnlockScreen() {
               <NumericKeypad
                 onDigitPress={handleDigitPress}
                 onBackspacePress={handleBackspace}
+                leftSlot={bioSlot}
                 backspaceIcon={backspaceIcon}
               />
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.authCancelButton}
+                onPress={handlePasscodeCancel}
+                disabled={submitting}
+              >
+                <Text style={styles.authCancelButtonText}>CANCEL</Text>
+              </TouchableOpacity>
             </>
-          ) : null}
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              style={styles.unlockButton}
+              onPress={() => void requestBiometricUnlock(true)}
+              disabled={submitting}
+            >
+              <Text style={styles.unlockButtonText}>
+                {canUseBiometrics ? `USE ${biometricsLabel.toUpperCase()}` : 'ENTER PASSCODE'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -291,4 +338,41 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
   },
 
+  specialKey: {
+    width: '100%',
+    minHeight: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  unlockButton: {
+    minHeight: 54,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  unlockButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+  },
+
+  authCancelButton: {
+    marginTop: 16,
+    minHeight: 48,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  authCancelButtonText: {
+    color: colors.textDim,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
 });

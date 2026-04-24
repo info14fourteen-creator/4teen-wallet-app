@@ -1,0 +1,256 @@
+import { useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  PanResponder,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import AppHeader from '../src/ui/app-header';
+import {
+  APP_HEADER_HEIGHT,
+  APP_HEADER_TOP_PADDING,
+} from '../src/ui/app-header.constants';
+import MenuSheet from '../src/ui/menu-sheet';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
+
+import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
+
+export default function UiShellLab() {
+  const router = useRouter();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [input, setInput] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const bottomInset = useBottomInset();
+
+  const topAnim = useRef(new Animated.Value(-60)).current;
+  const bottomAnim = useRef(new Animated.Value(120)).current;
+
+  const runIntroAnimation = () => {
+    topAnim.setValue(-60);
+    bottomAnim.setValue(120);
+
+    Animated.parallel([
+      Animated.timing(topAnim, {
+        toValue: 0,
+        duration: 260,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bottomAnim, {
+        toValue: 0,
+        duration: 260,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  useEffect(() => {
+    runIntroAnimation();
+  }, []);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 20 && Math.abs(g.dy) < 10,
+      onPanResponderRelease: (_, g) => {
+        if (g.dx > 80) {
+          router.back();
+        }
+      },
+    })
+  ).current;
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await new Promise((r) => setTimeout(r, 600));
+
+    runIntroAnimation();
+
+    setRefreshing(false);
+  };
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <View style={styles.screen} {...panResponder.panHandlers}>
+
+        {/* TOP */}
+        <Animated.View
+          style={[
+            styles.headerSlot,
+            { transform: [{ translateY: topAnim }] },
+          ]}
+        >
+          <AppHeader onMenuPress={() => setMenuOpen(true)} />
+        </Animated.View>
+
+        {/* CONTENT */}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: bottomInset },
+          ]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+            />
+          }
+        >
+          <View style={styles.section}>
+            <Text style={ui.sectionEyebrow}>SYSTEM EYEBROW</Text>
+            <Text style={styles.title}>UI Shell Lab</Text>
+            <Text style={styles.text}>
+              Layout sandbox. Now behaves like a real screen.
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.label}>Keyboard test</Text>
+
+            <View style={styles.inputShell}>
+              <TextInput
+                value={input}
+                onChangeText={setInput}
+                placeholder="Type something..."
+                placeholderTextColor={colors.textDim}
+                style={styles.input}
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            {Array.from({ length: 20 }).map((_, i) => (
+              <Text key={i} style={styles.text}>
+                Row {i + 1}
+              </Text>
+            ))}
+          </View>
+
+          {/* TEST NAV */}
+          <TouchableOpacity
+            style={styles.reloadBtn}
+            onPress={() => router.push('/ui-shell-test-a')}
+          >
+            <Text style={styles.reloadText}>Open test navigation</Text>
+          </TouchableOpacity>
+
+          {/* RELOAD */}
+          <TouchableOpacity
+            style={styles.reloadBtn}
+            onPress={handleRefresh}
+          >
+            <Text style={styles.reloadText}>Reload animation</Text>
+          </TouchableOpacity>
+
+        </ScrollView>
+
+        {/* FAKE BOTTOM */}
+        <Animated.View
+          style={[
+            styles.fakeBottom,
+            { transform: [{ translateY: bottomAnim }] },
+          ]}
+        />
+
+        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: layout.screenPaddingX,
+    paddingTop: APP_HEADER_TOP_PADDING,
+  },
+
+  headerSlot: {
+    height: APP_HEADER_HEIGHT,
+    justifyContent: 'center',
+  },
+
+  scroll: {
+    flex: 1,
+  },
+
+  content: {
+    paddingTop: 14,
+  },
+
+  section: {
+    marginBottom: 24,
+    gap: 10,
+  },
+
+  title: {
+    ...ui.titleLg,
+  },
+
+  text: {
+    ...ui.body,
+  },
+
+  label: {
+    ...ui.muted,
+  },
+
+  inputShell: {
+    minHeight: 54,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+  },
+
+  input: {
+    color: colors.white,
+    fontSize: 15,
+  },
+
+  reloadBtn: {
+    marginTop: 20,
+    minHeight: 48,
+    borderRadius: radius.sm,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  reloadText: {
+    color: colors.bg,
+    fontSize: 14,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  fakeBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 40,
+    backgroundColor: 'rgba(255,105,0,0.08)',
+  },
+});

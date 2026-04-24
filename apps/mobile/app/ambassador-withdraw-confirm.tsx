@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -18,6 +18,7 @@ import NumericKeypad from '../src/ui/numeric-keypad';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import EnergyResaleCard from '../src/ui/energy-resale-card';
+import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -40,8 +41,6 @@ import {
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
-  clampResourcePercent,
-  formatResourceAmount,
   formatTrxFromSunAmount,
   getAvailableResource,
 } from '../src/services/wallet/resources';
@@ -83,7 +82,6 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const bandwidthAvailable = review
     ? getAvailableResource(review.resources.available, 'bandwidth')
     : 0;
-  const hasNoEnergyAvailable = energyAvailable <= 0;
   const hasResourceShortfall = Boolean(
     review &&
       (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
@@ -92,16 +90,6 @@ export default function AmbassadorWithdrawConfirmScreen() {
     review &&
       (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
   );
-  const energyBarPercent = useMemo(() => {
-    if (!review) return 0;
-    const base = Math.max(review.resources.estimatedEnergy, energyAvailable, 1);
-    return clampResourcePercent((review.resources.estimatedEnergy / base) * 100);
-  }, [energyAvailable, review]);
-  const bandwidthBarPercent = useMemo(() => {
-    if (!review) return 0;
-    const base = Math.max(review.resources.estimatedBandwidth, bandwidthAvailable, 1);
-    return clampResourcePercent((review.resources.estimatedBandwidth / base) * 100);
-  }, [bandwidthAvailable, review]);
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
   const isApproveDisabled = submitting || !review || !hasTrxForBurn;
 
@@ -482,56 +470,40 @@ export default function AmbassadorWithdrawConfirmScreen() {
                 loading={energyQuoteLoading}
                 processing={energyRenting}
                 disabled={submitting}
+                showUnavailable={canRentResources}
                 actionLabel="WITHDRAW"
                 estimatedBurnSun={review.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
 
-              <View style={styles.detailCard}>
-                <DetailRow label="Wallet" value={review.wallet.name} first />
-                <DetailRow label="Controller" value={shortAddress(review.controllerAddress)} />
-                <DetailRow label="Claimable" value={`${formatTrxFromSun(review.claimableRewardsSun)} TRX`} accent />
-                <DetailRow label="Estimated Burn" value={`${formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX`} accent={hasResourceShortfall} />
-                <DetailRow label="Fee Cap" value={`${formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX`} />
-                <DetailRow label="TRX Available" value={review.trxCoverage.trxBalanceDisplay} />
-              </View>
-
-              <View style={styles.detailCard}>
-                <DetailRow label="Energy" value={formatResourceAmount(review.resources.estimatedEnergy)} first />
-                <DetailRow label="Bandwidth" value={formatResourceAmount(review.resources.estimatedBandwidth)} />
-                <DetailRow
-                  label="Shortfall"
-                  value={`${formatResourceAmount(review.resources.energyShortfall)} energy · ${formatResourceAmount(review.resources.bandwidthShortfall)} bandwidth`}
-                  accent={hasResourceShortfall}
-                />
-
-                <View style={styles.resourcesInlineRow}>
-                  <ResourceBar
-                    label={`Energy ${formatResourceAmount(review.resources.estimatedEnergy)}/${formatResourceAmount(energyAvailable)}`}
-                    risk={hasNoEnergyAvailable}
-                    percent={energyBarPercent}
-                  />
-                  <ResourceBar
-                    label={`Bandwidth ${formatResourceAmount(review.resources.estimatedBandwidth)}/${formatResourceAmount(bandwidthAvailable)}`}
-                    percent={bandwidthBarPercent}
-                  />
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionEyebrow}>WITHDRAW REVIEW</Text>
+                <View style={styles.detailCard}>
+                  <DetailRow label="Wallet" value={review.wallet.name} first />
+                  <DetailRow label="Controller" value={shortAddress(review.controllerAddress)} />
+                  <DetailRow label="Claimable" value={`${formatTrxFromSun(review.claimableRewardsSun)} TRX`} accent />
+                  <DetailRow label="Estimated Burn" value={`${formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX`} accent={hasResourceShortfall} />
+                  <DetailRow label="Fee Cap" value={`${formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX`} />
+                  <DetailRow label="TRX Available" value={review.trxCoverage.trxBalanceDisplay} />
                 </View>
               </View>
 
-              <View style={styles.infoRow}>
-                <Text
-                  style={[
-                    styles.infoRowText,
-                    (!review.trxCoverage.canCoverBurn || hasResourceShortfall) ? styles.infoRowTextRisk : null,
-                  ]}
-                >
-                  {!review.trxCoverage.canCoverBurn
-                    ? 'TRX is too low to cover the estimated network burn.'
+              <ConfirmNetworkLoadCard
+                estimatedEnergy={review.resources.estimatedEnergy}
+                estimatedBandwidth={review.resources.estimatedBandwidth}
+                availableEnergy={energyAvailable}
+                availableBandwidth={bandwidthAvailable}
+                energyShortfall={review.resources.energyShortfall}
+                bandwidthShortfall={review.resources.bandwidthShortfall}
+                message={
+                  !review.trxCoverage.canCoverBurn
+                    ? 'Not enough TRX to cover the estimated burn.'
                     : hasResourceShortfall
-                      ? 'Resources are short. Network burn is included in the estimate above.'
-                      : 'Resources are sufficient. This withdrawal should avoid extra burn.'}
-                </Text>
-              </View>
+                      ? 'You are short on resources. The burn estimate above already includes this gap.'
+                      : 'You have enough resources for this action. Extra burn is unlikely.'
+                }
+                messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
+              />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>
@@ -551,7 +523,11 @@ export default function AmbassadorWithdrawConfirmScreen() {
           animationType="fade"
           presentationStyle="fullScreen"
           transparent={false}
-          onRequestClose={() => setPasscodeOpen(false)}
+          onRequestClose={() => {
+            setPasscodeOpen(false);
+            setPasscodeDigits('');
+            setPasscodeError('');
+          }}
           statusBarTranslucent
         >
           <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
@@ -597,7 +573,11 @@ export default function AmbassadorWithdrawConfirmScreen() {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.authCancelButton}
-                    onPress={() => setPasscodeOpen(false)}
+                    onPress={() => {
+                      setPasscodeOpen(false);
+                      setPasscodeDigits('');
+                      setPasscodeError('');
+                    }}
                     disabled={submitting}
                   >
                     <Text style={styles.authCancelButtonText}>CANCEL</Text>
@@ -627,26 +607,6 @@ function DetailRow({
     <View style={first ? styles.detailRowFirst : styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
       <Text style={accent ? styles.detailValueAccent : styles.detailValue}>{value}</Text>
-    </View>
-  );
-}
-
-function ResourceBar({
-  label,
-  percent,
-  risk = false,
-}: {
-  label: string;
-  percent: number;
-  risk?: boolean;
-}) {
-  return (
-    <View style={styles.resourceInlineCol}>
-      <Text style={[styles.resourceInlineLabel, risk ? styles.resourceInlineLabelRisk : null]}>{label}</Text>
-      <View style={[styles.resourceBarTrack, risk ? styles.resourceBarTrackRisk : null]}>
-        <View style={[styles.resourceBarAvailable, risk ? styles.resourceBarAvailableRisk : null]} />
-        <View style={[styles.resourceBarUsed, { width: `${percent}%` }]} />
-      </View>
     </View>
   );
 }
@@ -750,112 +710,138 @@ const styles = StyleSheet.create({
   primaryButtonDisabled: { opacity: 0.45 },
   primaryButtonText: {
     color: colors.white,
-    fontSize: 15,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 17,
     fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.35,
+    letterSpacing: 0.7,
+  },
+  sectionBlock: {
+    marginTop: 16,
+    gap: 8,
+  },
+  sectionEyebrow: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.5,
   },
   secondaryButton: {
     marginTop: 14,
-    minHeight: 52,
+    minHeight: 54,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 14,
   },
   secondaryButtonText: {
     color: colors.textSoft,
     fontSize: 13,
-    lineHeight: 16,
+    lineHeight: 18,
     fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.35,
+    letterSpacing: 0.7,
   },
 
   detailCard: {
-    marginTop: 14,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 14,
+    overflow: 'hidden',
   },
   detailRowFirst: {
-    minHeight: 52,
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 16,
   },
   detailRow: {
-    minHeight: 52,
+    minHeight: 50,
     borderTopWidth: 1,
     borderTopColor: colors.lineSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 14,
+    gap: 16,
+  },
+  detailValue: {
+    flex: 1,
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+    textAlign: 'right',
+  },
+  detailValueAccent: {
+    flex: 1,
+    color: colors.accent,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+    textAlign: 'right',
   },
   detailLabel: {
     color: colors.textDim,
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
-    textTransform: 'uppercase',
-  },
-  detailValue: {
-    flexShrink: 1,
-    color: colors.white,
-    fontSize: 13,
-    lineHeight: 17,
-    fontFamily: 'Sora_700Bold',
-    textAlign: 'right',
-  },
-  detailValueAccent: {
-    flexShrink: 1,
-    color: colors.accent,
-    fontSize: 13,
-    lineHeight: 17,
-    fontFamily: 'Sora_700Bold',
-    textAlign: 'right',
+    flexShrink: 0,
   },
 
-  resourcesInlineRow: { borderTopWidth: 1, borderTopColor: colors.lineSoft, paddingVertical: 14, gap: 12 },
-  resourceInlineCol: { gap: 8 },
+  resourcesInlineRow: {
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  resourceInlineCol: { gap: 6 },
   resourceInlineLabel: {
     color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
-    textTransform: 'uppercase',
   },
   resourceInlineLabelRisk: { color: colors.red },
   resourceBarTrack: {
-    height: 7,
+    height: 8,
     borderRadius: radius.pill,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    position: 'relative',
   },
-  resourceBarTrackRisk: { backgroundColor: 'rgba(255,48,73,0.16)' },
+  resourceBarTrackRisk: { backgroundColor: 'rgba(255,48,73,0.14)' },
   resourceBarAvailable: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(21,224,56,0.22)',
+    backgroundColor: 'rgba(24,224,58,0.18)',
   },
-  resourceBarAvailableRisk: { backgroundColor: 'rgba(255,48,73,0.18)' },
+  resourceBarAvailableRisk: { backgroundColor: 'rgba(255,48,73,0.12)' },
   resourceBarUsed: {
-    height: '100%',
-    borderRadius: radius.pill,
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
     backgroundColor: colors.accent,
+    borderRadius: radius.pill,
   },
 
   infoRow: {
-    marginTop: 14,
-    borderRadius: radius.md,
+    marginTop: 12,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    padding: 14,
+    backgroundColor: 'rgba(255,105,0,0.06)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  infoRowText: { color: colors.textSoft, fontSize: 13, lineHeight: 20 },
+  infoRowText: { color: colors.textSoft, fontSize: 13, lineHeight: 20, fontFamily: 'Sora_600SemiBold' },
   infoRowTextRisk: { color: colors.red },
   noticeCard: {
     marginTop: 12,

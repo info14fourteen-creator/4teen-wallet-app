@@ -24,6 +24,8 @@ import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import {
+  canWalletExposeMnemonic,
+  canWalletExposePrivateKey,
   getActiveWalletId,
   listWallets,
   removeWallet,
@@ -278,7 +280,7 @@ export default function WalletsScreen() {
   };
 
   const handleOpenMnemonicExport = async (wallet: WalletMeta) => {
-    if (wallet.kind !== 'mnemonic') {
+    if (!canWalletExposeMnemonic(wallet)) {
       notice.showErrorNotice('This wallet has no seed phrase to export.', 2400);
       return;
     }
@@ -294,6 +296,26 @@ export default function WalletsScreen() {
     } catch (error) {
       console.error(error);
       notice.showErrorNotice('Seed phrase export failed to open.', 2400);
+    }
+  };
+
+  const handleOpenPrivateKeyExport = async (wallet: WalletMeta) => {
+    if (!canWalletExposePrivateKey(wallet)) {
+      notice.showErrorNotice('This wallet has no private key to export.', 2400);
+      return;
+    }
+
+    try {
+      await setActiveWalletId(wallet.id);
+      setPendingWalletSelectionId(wallet.id);
+      setActiveWalletIdState(wallet.id);
+      router.push({
+        pathname: '/backup-private-key',
+        params: { walletId: wallet.id },
+      });
+    } catch (error) {
+      console.error(error);
+      notice.showErrorNotice('Private key export failed to open.', 2400);
     }
   };
 
@@ -445,17 +467,19 @@ export default function WalletsScreen() {
                           />
                         )}
 
-                        {wallet.kind === 'mnemonic' ? (
+                        {canWalletExposeMnemonic(wallet) ? (
                           <StubRow
                             label="Export Mnemonic"
                             onPress={() => void handleOpenMnemonicExport(wallet)}
                           />
                         ) : null}
 
-                        <StubRow
-                          label="Back Up Private Key"
-                          onPress={() => router.push('/backup-private-key')}
-                        />
+                        {canWalletExposePrivateKey(wallet) ? (
+                          <StubRow
+                            label="Export Private Key"
+                            onPress={() => void handleOpenPrivateKeyExport(wallet)}
+                          />
+                        ) : null}
 
                         <StubRow
                           label="Multisig Transactions"

@@ -1,0 +1,97 @@
+import { useMemo } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { colors } from '../theme/tokens';
+import AppHeader from './app-header';
+import FooterNav from './footer-nav';
+import MenuSheet from './menu-sheet';
+import {
+  NAV_HEADER_HEIGHT,
+  NAV_HEADER_TOP_PADDING,
+  NAV_HEADER_DROP_OFFSET,
+  NAV_FOOTER_RESERVED_SPACE,
+  NAV_FOOTER_BOTTOM_OFFSET,
+} from './navigation.constants';
+
+export function getNavigationHeaderInset(topInset: number, extra: number = 0) {
+  return Math.max(topInset, NAV_HEADER_TOP_PADDING) + NAV_HEADER_DROP_OFFSET + NAV_HEADER_HEIGHT + extra;
+}
+
+export function getNavigationBottomInset(bottomInset: number, extra: number = 0) {
+  return NAV_FOOTER_RESERVED_SPACE + NAV_FOOTER_BOTTOM_OFFSET + Math.max(bottomInset, 6) + extra;
+}
+
+export function useNavigationInsets(options?: {
+  topExtra?: number;
+  bottomExtra?: number;
+}) {
+  const insets = useSafeAreaInsets();
+  const topExtra = options?.topExtra ?? 0;
+  const bottomExtra = options?.bottomExtra ?? 0;
+
+  return useMemo(() => {
+    return {
+      top: getNavigationHeaderInset(insets.top, topExtra),
+      bottom: getNavigationBottomInset(insets.bottom, bottomExtra),
+    };
+  }, [bottomExtra, insets.bottom, insets.top, topExtra]);
+}
+
+type NavigationChromeProps = {
+  menuOpen: boolean;
+  onOpenMenu: () => void;
+  onCloseMenu: () => void;
+  forceFooterVisible?: boolean;
+  loadingProgress?: number;
+  onScanPress?: () => void;
+  onSearchPress?: () => void;
+};
+
+export function NavigationChrome({
+  menuOpen,
+  onOpenMenu,
+  onCloseMenu,
+  forceFooterVisible = false,
+  loadingProgress,
+  onScanPress,
+  onSearchPress,
+}: NavigationChromeProps) {
+  return (
+    <>
+      <View pointerEvents="box-none" style={styles.headerLayer}>
+        <AppHeader
+          onMenuPress={onOpenMenu}
+          showClose={menuOpen}
+          onClosePress={onCloseMenu}
+          onScanPress={onScanPress}
+          onSearchPress={onSearchPress}
+          loadingProgress={loadingProgress}
+        />
+      </View>
+
+      <View pointerEvents="box-none" style={styles.footerLayer}>
+        <FooterNav forceVisible={forceFooterVisible} />
+      </View>
+
+      <MenuSheet open={menuOpen} onClose={onCloseMenu} />
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    backgroundColor: colors.bg,
+  },
+
+  footerLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+    backgroundColor: 'transparent',
+  },
+});
