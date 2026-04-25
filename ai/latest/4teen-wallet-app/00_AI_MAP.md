@@ -1,13 +1,13 @@
 # 4teen-wallet-app — AI MAP
 
-Generated: 2026-04-25T13:31:07.747Z
+Generated: 2026-04-25T17:33:28.391Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 30741bd3a165c3bde4e269bd0a28bc32bf8df7e1
-Short commit: 30741bd
-Commit subject: Add airdrop queue clock and funding flow
+Last commit: 897ec35dfc69863bd5e27c298fe49f8960878c59
+Short commit: 897ec35
+Commit subject: Tighten wallet flows, airdrop UX, and execution limits
 Commit author: info14fourteen-creator
-Commit date: 2026-04-25T18:30:59+05:00
+Commit date: 2026-04-25T22:33:11+05:00
 
 ## Snapshot files
 

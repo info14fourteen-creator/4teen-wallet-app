@@ -1,37 +1,32 @@
 # 4teen-wallet-app — RECENT CHANGES
 
-Generated: 2026-04-25T13:31:07.750Z
+Generated: 2026-04-25T17:33:28.394Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 30741bd3a165c3bde4e269bd0a28bc32bf8df7e1
-Short commit: 30741bd
-Commit subject: Add airdrop queue clock and funding flow
+Last commit: 897ec35dfc69863bd5e27c298fe49f8960878c59
+Short commit: 897ec35
+Commit subject: Tighten wallet flows, airdrop UX, and execution limits
 Commit author: info14fourteen-creator
-Commit date: 2026-04-25T18:30:59+05:00
+Commit date: 2026-04-25T22:33:11+05:00
 
 ## Files changed in last commit
 
-- M	Procfile
-- M	ai/latest/4teen-wallet-app.zip
-- M	ai/latest/4teen-wallet-app/00_AI_MAP.md
-- M	ai/latest/4teen-wallet-app/01_PROJECT_OVERVIEW.md
-- M	ai/latest/4teen-wallet-app/02_BUILD_AND_TOOLING.md
-- M	ai/latest/4teen-wallet-app/03_APP_STRUCTURE.md
-- M	ai/latest/4teen-wallet-app/04_NAVIGATION_AND_SCREENS.md
-- M	ai/latest/4teen-wallet-app/05_WALLET_CORE.md
-- M	ai/latest/4teen-wallet-app/06_UI_AND_COMPONENTS.md
-- M	ai/latest/4teen-wallet-app/07_CONFIG_AND_NATIVE.md
-- M	ai/latest/4teen-wallet-app/08_RECENT_CHANGES.md
-- M	ai/latest/4teen-wallet-app/09_ACTIVE_FILES.md
-- M	ai/latest/4teen-wallet-app/10_OPEN_TODO_SURFACE.md
-- M	ai/latest/4teen-wallet-app/manifest.json
-- A	apps/api/clock.js
 - M	apps/api/src/services/airdrop/telegramBot.js
-- M	apps/api/src/services/airdrop/telegramClaims.js
-- M	apps/api/src/services/gasstation/gasStation.js
+- M	apps/mobile/app/airdrop.tsx
+- M	apps/mobile/app/send.tsx
+- M	apps/mobile/package.json
+- M	apps/mobile/src/config/app-version.ts
+- M	apps/mobile/src/notice/notice-provider.tsx
+- M	apps/mobile/src/services/ambassador.ts
+- M	apps/mobile/src/services/direct-buy.ts
+- M	apps/mobile/src/services/liquidity-controller.ts
+- M	apps/mobile/src/services/swap/sunio.ts
+- M	apps/mobile/src/services/wallet/send.ts
 
 ## Recent commits
 
+- 897ec35 | 2026-04-25 | Tighten wallet flows, airdrop UX, and execution limits
+- 4c9d0c2 | 2026-04-25 | chore: update wallet AI bundle [skip ci]
 - 30741bd | 2026-04-25 | Add airdrop queue clock and funding flow
 - acd9318 | 2026-04-25 | chore: update wallet AI bundle [skip ci]
 - 8de013b | 2026-04-25 | Route airdrop rental funding through operator wallet
@@ -40,5 +35,3 @@ Commit date: 2026-04-25T18:30:59+05:00
 - 4db9e7a | 2026-04-25 | chore: update wallet AI bundle [skip ci]
 - 24e8a9e | 2026-04-25 | Fix Telegram airdrop flow and unify wallet selectors
 - fd528f9 | 2026-04-24 | chore: update wallet AI bundle [skip ci]
-- 180c827 | 2026-04-24 | Merge remote-tracking branch 'origin/main'
-- 8b3e418 | 2026-04-24 | Save current wallet, ambassador, rental, and airdrop snapshot
