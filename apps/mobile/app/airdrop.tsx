@@ -14,7 +14,6 @@ import {
 import { getCachedWalletPortfolio } from '../src/services/wallet/portfolio';
 import { listWallets, setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
 import { useNotice } from '../src/notice/notice-provider';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import {
   ProductScreen,
 } from '../src/ui/product-shell';
@@ -562,9 +561,9 @@ export default function AirdropScreen() {
   return (
     <ProductScreen
       eyebrow="AIRDROP"
+      loadingOverlayVisible={refreshing || Boolean(switchingWalletId) || launching}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} />}
     >
-      <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
       <SelectedWalletSwitcher
         wallet={
           wallet

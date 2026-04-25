@@ -110,9 +110,11 @@ export default function AmbassadorConfirmScreen() {
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
   const isApproveDisabled = submitting || !review || !hasTrxForBurn;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!options?.silent) {
+        setLoading(true);
+      }
       setErrorText('');
 
       if (!isValidAmbassadorSlug(requestedSlug)) {
@@ -121,6 +123,7 @@ export default function AmbassadorConfirmScreen() {
 
       const nextReview = await estimateAmbassadorRegistration(requestedSlug);
       setReview(nextReview);
+      return nextReview;
     } catch (error) {
       console.error(error);
       setReview(null);
@@ -128,8 +131,11 @@ export default function AmbassadorConfirmScreen() {
       setErrorText(
         error instanceof Error ? error.message : 'Failed to build ambassador confirmation.'
       );
+      return null;
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
       setRefreshing(false);
     }
   }, [requestedSlug]);
@@ -269,10 +275,21 @@ export default function AmbassadorConfirmScreen() {
         onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
       });
       clearWalletRuntimeCaches(review.wallet.address);
+      const refreshedReview = await load({ silent: true });
+
+      if (
+        refreshedReview &&
+        (refreshedReview.resources.energyShortfall > 0 ||
+          refreshedReview.resources.bandwidthShortfall > 0)
+      ) {
+        throw new Error(
+          'Energy rental is confirmed, but wallet resources are still syncing. Pull to refresh in a few seconds and try again.'
+        );
+      }
+
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Energy is live. Sending ambassador registration...', 3000);
-      await load();
-      return true;
+      return refreshedReview || review;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
@@ -288,14 +305,16 @@ export default function AmbassadorConfirmScreen() {
     }
   }, [energyQuote, energyRenting, load, notice, requestedSlug, review]);
 
-  const performRegistration = useCallback(async () => {
-    if (!review || submitting) return;
+  const performRegistration = useCallback(async (reviewOverride?: typeof review | null) => {
+    const currentReview = reviewOverride || (await load({ silent: true })) || review;
+
+    if (!currentReview || submitting) return;
 
     try {
       setSubmitting(true);
 
       const receipt = await registerAmbassadorWithOptions(requestedSlug, {
-        feeLimitSun: review.resources.recommendedFeeLimitSun,
+        feeLimitSun: currentReview.resources.recommendedFeeLimitSun,
       });
 
       setPasscodeOpen(false);
@@ -314,7 +333,7 @@ export default function AmbassadorConfirmScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [notice, requestedSlug, review, router, submitting, triggerWalletDataRefresh]);
+  }, [load, notice, requestedSlug, review, router, submitting, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -331,7 +350,7 @@ export default function AmbassadorConfirmScreen() {
       if (pendingApprovalMode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
-          await performRegistration();
+          await performRegistration(rented);
         }
         return;
       }
@@ -400,7 +419,7 @@ export default function AmbassadorConfirmScreen() {
         if (result.success) {
           const rented = await performRentEnergy();
           if (rented) {
-            await performRegistration();
+            await performRegistration(rented);
           }
           return;
         }

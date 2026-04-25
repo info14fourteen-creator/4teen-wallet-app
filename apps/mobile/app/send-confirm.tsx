@@ -98,9 +98,11 @@ export default function SendConfirmScreen() {
 
   useChromeLoading(loading || refreshing);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!options?.silent) {
+        setLoading(true);
+      }
       setErrorText('');
 
       if (!tokenId || !address || !amount) {
@@ -114,12 +116,16 @@ export default function SendConfirmScreen() {
       });
 
       setEstimate(nextEstimate);
+      return nextEstimate;
     } catch (error) {
       console.error(error);
       setEstimate(null);
       setErrorText(error instanceof Error ? error.message : 'Failed to build send confirmation.');
+      return null;
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, [address, amount, tokenId]);
 
@@ -261,10 +267,21 @@ export default function SendConfirmScreen() {
         onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
       });
       clearWalletRuntimeCaches(estimate.wallet.address);
+      const refreshedEstimate = await load({ silent: true });
+
+      if (
+        refreshedEstimate &&
+        (refreshedEstimate.resources.energyShortfall > 0 ||
+          refreshedEstimate.resources.bandwidthShortfall > 0)
+      ) {
+        throw new Error(
+          'Energy rental is confirmed, but wallet resources are still syncing. Pull to refresh in a few seconds and try again.'
+        );
+      }
+
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Energy is live. Sending transfer...', 3000);
-      await load();
-      return true;
+      return refreshedEstimate || estimate;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
@@ -280,22 +297,24 @@ export default function SendConfirmScreen() {
     }
   }, [energyQuote, energyRenting, estimate, load, notice]);
 
-  const performSend = useCallback(async () => {
-    if (!estimate || sending) return;
+  const performSend = useCallback(async (estimateOverride?: typeof estimate | null) => {
+    const currentEstimate = estimateOverride || (await load({ silent: true })) || estimate;
+
+    if (!currentEstimate || sending) return;
 
     try {
       setSending(true);
 
-      if (estimate.requestedTokenId !== estimate.token.tokenId) {
+      if (currentEstimate.requestedTokenId !== currentEstimate.token.tokenId) {
         throw new Error('Selected token changed before approval. Go back and rebuild the transfer.');
       }
 
       const result = await sendAssetTransfer({
-        tokenId: estimate.token.tokenId,
-        toAddress: estimate.recipientAddress,
-        amount: estimate.token.amount,
-        ...(estimate.token.recommendedFeeLimitSun > 0
-          ? { feeLimitSun: estimate.token.recommendedFeeLimitSun }
+        tokenId: currentEstimate.token.tokenId,
+        toAddress: currentEstimate.recipientAddress,
+        amount: currentEstimate.token.amount,
+        ...(currentEstimate.token.recommendedFeeLimitSun > 0
+          ? { feeLimitSun: currentEstimate.token.recommendedFeeLimitSun }
           : {}),
       });
 
@@ -303,55 +322,55 @@ export default function SendConfirmScreen() {
       setPasscodeDigits('');
       setPasscodeError('');
       await rememberRecentRecipient({
-        name: contactName || estimate.recipientAddress,
-        address: estimate.recipientAddress,
+        name: contactName || currentEstimate.recipientAddress,
+        address: currentEstimate.recipientAddress,
       });
-      const optimisticAmountFormatted = estimate.token.amount;
-      await prependWalletHistoryCacheItem(estimate.wallet.address, {
-        id: `${estimate.token.tokenId}:${result.txId}:SEND:${estimate.token.amountRaw}`,
+      const optimisticAmountFormatted = currentEstimate.token.amount;
+      await prependWalletHistoryCacheItem(currentEstimate.wallet.address, {
+        id: `${currentEstimate.token.tokenId}:${result.txId}:SEND:${currentEstimate.token.amountRaw}`,
         txHash: result.txId,
         type: 'OUT',
         displayType: 'SEND',
-        amountRaw: estimate.token.amountRaw,
+        amountRaw: currentEstimate.token.amountRaw,
         amountFormatted: optimisticAmountFormatted,
         timestamp: Date.now(),
-        from: estimate.wallet.address,
-        to: estimate.recipientAddress,
-        counterpartyAddress: estimate.recipientAddress,
-        counterpartyLabel: contactName || estimate.recipientAddress,
+        from: currentEstimate.wallet.address,
+        to: currentEstimate.recipientAddress,
+        counterpartyAddress: currentEstimate.recipientAddress,
+        counterpartyLabel: contactName || currentEstimate.recipientAddress,
         isKnownContact: Boolean(contactName),
         tronscanUrl: result.explorerUrl,
-        tokenId: estimate.token.tokenId,
-        tokenName: estimate.token.name,
-        tokenSymbol: estimate.token.symbol,
-        tokenLogo: estimate.token.logo || undefined,
+        tokenId: currentEstimate.token.tokenId,
+        tokenName: currentEstimate.token.name,
+        tokenSymbol: currentEstimate.token.symbol,
+        tokenLogo: currentEstimate.token.logo || undefined,
       });
-      await prependTokenHistoryCacheItem(estimate.wallet.address, estimate.token.tokenId, {
+      await prependTokenHistoryCacheItem(currentEstimate.wallet.address, currentEstimate.token.tokenId, {
         id: result.txId,
         txHash: result.txId,
         type: 'OUT',
         displayType: 'SEND',
-        amountRaw: estimate.token.amountRaw,
+        amountRaw: currentEstimate.token.amountRaw,
         amountFormatted: optimisticAmountFormatted,
         timestamp: Date.now(),
-        from: estimate.wallet.address,
-        to: estimate.recipientAddress,
-        counterpartyAddress: estimate.recipientAddress,
-        counterpartyLabel: contactName || estimate.recipientAddress,
+        from: currentEstimate.wallet.address,
+        to: currentEstimate.recipientAddress,
+        counterpartyAddress: currentEstimate.recipientAddress,
+        counterpartyLabel: contactName || currentEstimate.recipientAddress,
         isKnownContact: Boolean(contactName),
         tronscanUrl: result.explorerUrl,
       });
       await applyOutgoingTransferToPortfolioCache({
-        walletAddress: estimate.wallet.address,
-        tokenId: estimate.token.tokenId,
-        tokenDecimals: estimate.token.decimals,
-        amountRaw: estimate.token.amountRaw,
-        estimatedBurnSun: estimate.resources.estimatedBurnSun,
+        walletAddress: currentEstimate.wallet.address,
+        tokenId: currentEstimate.token.tokenId,
+        tokenDecimals: currentEstimate.token.decimals,
+        amountRaw: currentEstimate.token.amountRaw,
+        estimatedBurnSun: currentEstimate.resources.estimatedBurnSun,
       });
-      clearWalletRuntimeCaches(estimate.wallet.address);
+      clearWalletRuntimeCaches(currentEstimate.wallet.address);
       triggerWalletDataRefresh();
       notice.showSuccessNotice(
-        `${estimate.token.symbol} sent. It will appear in history shortly.`,
+        `${currentEstimate.token.symbol} sent. It will appear in history shortly.`,
         2800
       );
       preserveNoticeOnExitRef.current = true;
@@ -366,7 +385,7 @@ export default function SendConfirmScreen() {
     } finally {
       setSending(false);
     }
-  }, [contactName, estimate, notice, router, sending, triggerWalletDataRefresh]);
+  }, [contactName, estimate, load, notice, router, sending, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if ((sending || energyRenting) || passcodeDigits.length !== 6) return;
@@ -383,7 +402,7 @@ export default function SendConfirmScreen() {
       if (pendingApprovalMode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
-          await performSend();
+          await performSend(rented);
         }
         return;
       }
@@ -446,7 +465,7 @@ export default function SendConfirmScreen() {
         if (result.success) {
           const rented = await performRentEnergy();
           if (rented) {
-            await performSend();
+            await performSend(rented);
           }
           return;
         }

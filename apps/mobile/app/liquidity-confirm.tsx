@@ -123,20 +123,26 @@ export default function LiquidityConfirmScreen() {
     };
   }, [canRentResources, review]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!options?.silent) {
+        setLoading(true);
+      }
       setErrorText('');
       const nextReview = await estimateLiquidityControllerExecution();
       setReview(nextReview);
+      return nextReview;
     } catch (error) {
       console.error(error);
       setReview(null);
       setErrorText(
         error instanceof Error ? error.message : 'Failed to build liquidity confirmation.'
       );
+      return null;
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
       setRefreshing(false);
     }
   }, []);
@@ -230,10 +236,21 @@ export default function LiquidityConfirmScreen() {
         onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
       });
       clearWalletRuntimeCaches(review.wallet.address);
+      const refreshedReview = await load({ silent: true });
+
+      if (
+        refreshedReview &&
+        (refreshedReview.resources.energyShortfall > 0 ||
+          refreshedReview.resources.bandwidthShortfall > 0)
+      ) {
+        throw new Error(
+          'Energy rental is confirmed, but wallet resources are still syncing. Pull to refresh in a few seconds and try again.'
+        );
+      }
+
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Energy is live. Triggering liquidity...', 3000);
-      await load();
-      return true;
+      return refreshedReview || review;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
@@ -249,13 +266,15 @@ export default function LiquidityConfirmScreen() {
     }
   }, [energyQuote, energyRenting, load, notice, review]);
 
-  const performLiquidityExecution = useCallback(async () => {
-    if (!review || submitting) return;
+  const performLiquidityExecution = useCallback(async (reviewOverride?: typeof review | null) => {
+    const currentReview = reviewOverride || (await load({ silent: true })) || review;
+
+    if (!currentReview || submitting) return;
 
     try {
       setSubmitting(true);
       const receipt = await executeLiquidityController({
-        feeLimitSun: review.resources.recommendedFeeLimitSun,
+        feeLimitSun: currentReview.resources.recommendedFeeLimitSun,
       });
 
       setPasscodeOpen(false);
@@ -273,7 +292,7 @@ export default function LiquidityConfirmScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [notice, review, router, submitting, triggerWalletDataRefresh]);
+  }, [load, notice, review, router, submitting, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -290,7 +309,7 @@ export default function LiquidityConfirmScreen() {
       if (pendingApprovalMode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
-          await performLiquidityExecution();
+          await performLiquidityExecution(rented);
         }
         return;
       }
@@ -365,7 +384,7 @@ export default function LiquidityConfirmScreen() {
         if (result.success) {
           const rented = await performRentEnergy();
           if (rented) {
-            await performLiquidityExecution();
+            await performLiquidityExecution(rented);
           }
           return;
         }

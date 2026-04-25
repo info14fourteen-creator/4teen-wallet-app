@@ -113,6 +113,30 @@ function getSwapConfirmErrorText(error: unknown) {
   return message || 'Failed to build swap confirmation.';
 }
 
+function getSwapResourceSnapshot(review: FourteenSwapReview | null) {
+  const baseAvailable = review?.resources.approval?.available ?? review?.resources.swap?.available;
+  const estimatedEnergy =
+    normalizeResourceAmount(review?.resources.approval?.estimatedEnergy) +
+    normalizeResourceAmount(review?.resources.swap?.estimatedEnergy);
+  const estimatedBandwidth =
+    normalizeResourceAmount(review?.resources.approval?.estimatedBandwidth) +
+    normalizeResourceAmount(review?.resources.swap?.estimatedBandwidth);
+  const availableEnergy = baseAvailable ? getAvailableResource(baseAvailable, 'energy') : 0;
+  const availableBandwidth = baseAvailable ? getAvailableResource(baseAvailable, 'bandwidth') : 0;
+  const energyShortfall = Math.max(0, estimatedEnergy - availableEnergy);
+  const bandwidthShortfall = Math.max(0, estimatedBandwidth - availableBandwidth);
+
+  return {
+    estimatedEnergy,
+    estimatedBandwidth,
+    availableEnergy,
+    availableBandwidth,
+    energyShortfall,
+    bandwidthShortfall,
+    hasShortfall: energyShortfall > 0 || bandwidthShortfall > 0,
+  };
+}
+
 export default function SwapConfirmScreen() {
   const router = useRouter();
   const notice = useNotice();
@@ -140,38 +164,22 @@ export default function SwapConfirmScreen() {
 
   useChromeLoading(loading || refreshing);
 
-  const approvalAvailableEnergy = review?.resources.approval
-    ? getAvailableResource(review.resources.approval.available, 'energy')
-    : 0;
-  const swapAvailableEnergy = review?.resources.swap
-    ? getAvailableResource(review.resources.swap.available, 'energy')
-    : 0;
-  const approvalAvailableBandwidth = review?.resources.approval
-    ? getAvailableResource(review.resources.approval.available, 'bandwidth')
-    : 0;
-  const swapAvailableBandwidth = review?.resources.swap
-    ? getAvailableResource(review.resources.swap.available, 'bandwidth')
-    : 0;
-  const estimatedEnergy =
-    normalizeResourceAmount(review?.resources.approval?.estimatedEnergy) +
-    normalizeResourceAmount(review?.resources.swap?.estimatedEnergy);
-  const estimatedBandwidth =
-    normalizeResourceAmount(review?.resources.approval?.estimatedBandwidth) +
-    normalizeResourceAmount(review?.resources.swap?.estimatedBandwidth);
-  const totalAvailableEnergy = Math.max(approvalAvailableEnergy, swapAvailableEnergy);
-  const totalAvailableBandwidth = Math.max(approvalAvailableBandwidth, swapAvailableBandwidth);
-  const resourceEnergyShortfall =
-    normalizeResourceAmount(review?.resources.approval?.energyShortfall) +
-    normalizeResourceAmount(review?.resources.swap?.energyShortfall);
-  const resourceBandwidthShortfall =
-    normalizeResourceAmount(review?.resources.approval?.bandwidthShortfall) +
-    normalizeResourceAmount(review?.resources.swap?.bandwidthShortfall);
-  const hasResourceShortfall = resourceEnergyShortfall > 0 || resourceBandwidthShortfall > 0;
+  const {
+    estimatedEnergy,
+    estimatedBandwidth,
+    availableEnergy: totalAvailableEnergy,
+    availableBandwidth: totalAvailableBandwidth,
+    energyShortfall: resourceEnergyShortfall,
+    bandwidthShortfall: resourceBandwidthShortfall,
+    hasShortfall: hasResourceShortfall,
+  } = getSwapResourceSnapshot(review);
   const canRentResources = estimatedEnergy > 0 || estimatedBandwidth > 0;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!options?.silent) {
+        setLoading(true);
+      }
       setErrorText('');
 
       const draft = await getFourteenSwapDraft();
@@ -182,11 +190,15 @@ export default function SwapConfirmScreen() {
 
       const nextReview = await buildSwapReview(draft);
       setReview(nextReview);
+      return nextReview;
     } catch (error) {
       setReview(null);
       setErrorText(getSwapConfirmErrorText(error));
+      return null;
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -303,10 +315,18 @@ export default function SwapConfirmScreen() {
         onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
       });
       clearWalletRuntimeCaches(review.wallet.address);
+      const refreshedReview = await load({ silent: true });
+      const refreshedResources = getSwapResourceSnapshot(refreshedReview);
+
+      if (refreshedReview && refreshedResources.hasShortfall) {
+        throw new Error(
+          'Energy rental is confirmed, but wallet resources are still syncing. Pull to refresh in a few seconds and try again.'
+        );
+      }
+
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Energy is live. Starting swap...', 3000);
-      await load();
-      return true;
+      return refreshedReview || review;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
@@ -322,20 +342,22 @@ export default function SwapConfirmScreen() {
     }
   }, [energyQuote, energyRenting, load, notice, review]);
 
-  const performSwap = useCallback(async () => {
-    if (!review || submitting) return;
+  const performSwap = useCallback(async (reviewOverride?: FourteenSwapReview | null) => {
+    const currentReview = reviewOverride || (await load({ silent: true })) || review;
+
+    if (!currentReview || submitting) return;
 
     try {
       setSubmitting(true);
 
       const result = await executeSwap({
-        route: review.route,
-        amountIn: review.amountIn,
-        slippage: review.slippage,
-        sourceToken: review.inputToken,
-        walletId: review.wallet.id,
-        feeLimitSun: review.resources.swap?.recommendedFeeLimitSun,
-        approvalFeeLimitSun: review.resources.approval?.recommendedFeeLimitSun,
+        route: currentReview.route,
+        amountIn: currentReview.amountIn,
+        slippage: currentReview.slippage,
+        sourceToken: currentReview.inputToken,
+        walletId: currentReview.wallet.id,
+        feeLimitSun: currentReview.resources.swap?.recommendedFeeLimitSun,
+        approvalFeeLimitSun: currentReview.resources.approval?.recommendedFeeLimitSun,
         onProgress(progress) {
           if (
             progress.step === 'approval-submitted' ||
@@ -349,30 +371,30 @@ export default function SwapConfirmScreen() {
 
       const timestamp = Date.now();
       const explorerUrl = buildTronscanTxUrl(result.txid);
-      const sourceAmountRaw = decimalToRaw(review.amountIn, review.inputToken.decimals);
-      const sourceAmountFormatted = `-${review.amountIn}`;
-      const outputAmountRaw = String(review.route.expectedOutRaw || '0');
-      const outputAmountFormatted = `+ ${review.expectedOut}`;
+      const sourceAmountRaw = decimalToRaw(currentReview.amountIn, currentReview.inputToken.decimals);
+      const sourceAmountFormatted = `-${currentReview.amountIn}`;
+      const outputAmountRaw = String(currentReview.route.expectedOutRaw || '0');
+      const outputAmountFormatted = `+ ${currentReview.expectedOut}`;
 
-      await prependWalletHistoryCacheItem(review.wallet.address, {
-        id: `${review.inputToken.tokenId}:${result.txid}:SEND:${sourceAmountRaw}`,
+      await prependWalletHistoryCacheItem(currentReview.wallet.address, {
+        id: `${currentReview.inputToken.tokenId}:${result.txid}:SEND:${sourceAmountRaw}`,
         txHash: result.txid,
         type: 'OUT',
         displayType: 'SEND',
         amountRaw: sourceAmountRaw,
         amountFormatted: sourceAmountFormatted,
         timestamp,
-        from: review.wallet.address,
-        counterpartyLabel: review.route.providerName,
+        from: currentReview.wallet.address,
+        counterpartyLabel: currentReview.route.providerName,
         isKnownContact: false,
         tronscanUrl: explorerUrl,
-        tokenId: review.inputToken.tokenId,
-        tokenName: review.inputToken.name || review.inputToken.symbol,
-        tokenSymbol: review.inputToken.symbol,
-        tokenLogo: review.inputToken.logo || undefined,
+        tokenId: currentReview.inputToken.tokenId,
+        tokenName: currentReview.inputToken.name || currentReview.inputToken.symbol,
+        tokenSymbol: currentReview.inputToken.symbol,
+        tokenLogo: currentReview.inputToken.logo || undefined,
       });
 
-      await prependTokenHistoryCacheItem(review.wallet.address, review.inputToken.tokenId, {
+      await prependTokenHistoryCacheItem(currentReview.wallet.address, currentReview.inputToken.tokenId, {
         id: `${result.txid}:source`,
         txHash: result.txid,
         type: 'OUT',
@@ -380,33 +402,33 @@ export default function SwapConfirmScreen() {
         amountRaw: sourceAmountRaw,
         amountFormatted: sourceAmountFormatted,
         timestamp,
-        from: review.wallet.address,
-        counterpartyLabel: review.route.providerName,
+        from: currentReview.wallet.address,
+        counterpartyLabel: currentReview.route.providerName,
         isKnownContact: false,
         tronscanUrl: explorerUrl,
       });
 
-      await prependWalletHistoryCacheItem(review.wallet.address, {
-        id: `${review.outputToken.tokenId}:${result.txid}:RECEIVE:${outputAmountRaw}`,
+      await prependWalletHistoryCacheItem(currentReview.wallet.address, {
+        id: `${currentReview.outputToken.tokenId}:${result.txid}:RECEIVE:${outputAmountRaw}`,
         txHash: result.txid,
         type: 'IN',
         displayType: 'RECEIVE',
         amountRaw: outputAmountRaw,
         amountFormatted: outputAmountFormatted,
         timestamp,
-        to: review.wallet.address,
-        counterpartyLabel: review.route.providerName,
+        to: currentReview.wallet.address,
+        counterpartyLabel: currentReview.route.providerName,
         isKnownContact: false,
         tronscanUrl: explorerUrl,
-        tokenId: review.outputToken.tokenId,
+        tokenId: currentReview.outputToken.tokenId,
         tokenName:
-          review.outputToken.name ||
-          (review.outputToken.tokenId === TRX_TOKEN_ID ? 'TRON' : review.outputToken.symbol),
-        tokenSymbol: review.outputToken.symbol,
-        tokenLogo: review.outputToken.logo || undefined,
+          currentReview.outputToken.name ||
+          (currentReview.outputToken.tokenId === TRX_TOKEN_ID ? 'TRON' : currentReview.outputToken.symbol),
+        tokenSymbol: currentReview.outputToken.symbol,
+        tokenLogo: currentReview.outputToken.logo || undefined,
       });
 
-      await prependTokenHistoryCacheItem(review.wallet.address, review.outputToken.tokenId, {
+      await prependTokenHistoryCacheItem(currentReview.wallet.address, currentReview.outputToken.tokenId, {
         id: `${result.txid}:output`,
         txHash: result.txid,
         type: 'IN',
@@ -414,18 +436,18 @@ export default function SwapConfirmScreen() {
         amountRaw: outputAmountRaw,
         amountFormatted: outputAmountFormatted,
         timestamp,
-        to: review.wallet.address,
-        counterpartyLabel: review.route.providerName,
+        to: currentReview.wallet.address,
+        counterpartyLabel: currentReview.route.providerName,
         isKnownContact: false,
         tronscanUrl: explorerUrl,
       });
 
       await clearFourteenSwapDraft();
-      clearWalletRuntimeCaches(review.wallet.address);
+      clearWalletRuntimeCaches(currentReview.wallet.address);
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice(
-        `Swap confirmed. ${review.outputToken.symbol} will appear in your wallet shortly.`,
+        `Swap confirmed. ${currentReview.outputToken.symbol} will appear in your wallet shortly.`,
         3000
       );
       router.replace('/wallet');
@@ -435,7 +457,7 @@ export default function SwapConfirmScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [notice, review, router, submitting, triggerWalletDataRefresh]);
+  }, [load, notice, review, router, submitting, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -452,7 +474,7 @@ export default function SwapConfirmScreen() {
       if (pendingApprovalMode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
-          await performSwap();
+          await performSwap(rented);
         }
         return;
       }
@@ -514,7 +536,7 @@ export default function SwapConfirmScreen() {
         if (result.success) {
           const rented = await performRentEnergy();
           if (rented) {
-            await performSwap();
+            await performSwap(rented);
           }
           return;
         }

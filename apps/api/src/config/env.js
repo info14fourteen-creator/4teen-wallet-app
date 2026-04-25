@@ -45,7 +45,7 @@ module.exports = {
   TELEGRAM_WEBHOOK_BASE_URL: optionalEnv('TELEGRAM_WEBHOOK_BASE_URL', ''),
   TELEGRAM_GROUP_ID: optionalEnv('TELEGRAM_GROUP_ID', '-1003375405784'),
   TELEGRAM_CHANNEL_ID: optionalEnv('TELEGRAM_CHANNEL_ID', '-1003233193685'),
-  TELEGRAM_GROUP_URL: optionalEnv('TELEGRAM_GROUP_URL', 'https://t.me/+wsIZ1b1LtPExNjMx'),
+  TELEGRAM_GROUP_URL: optionalEnv('TELEGRAM_GROUP_URL', 'https://t.me/FourTeenCommunity'),
   TELEGRAM_CHANNEL_URL: optionalEnv('TELEGRAM_CHANNEL_URL', 'https://t.me/fourteentoken'),
   TRON_FULL_HOST: optionalEnv('TRON_FULL_HOST', 'https://api.trongrid.io'),
   TRON_PRIVATE_KEY: optionalEnv('TRON_PRIVATE_KEY', ''),

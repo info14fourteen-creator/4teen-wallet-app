@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import {
+  Animated,
   Pressable,
   type RefreshControlProps,
   ScrollView,
@@ -14,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, layout, radius } from '../theme/tokens';
 import { ui } from '../theme/ui';
 import KeyboardView from './KeyboardView';
+import ScreenLoadingOverlay from './screen-loading-overlay';
 import ScreenBrow from './screen-brow';
 import { useBottomInset } from './use-bottom-inset';
 import { useNavigationInsets } from './navigation';
@@ -26,6 +29,7 @@ export function ProductScreen({
   bottomInsetExtra,
   keyboardAware = false,
   keyboardExtraScrollHeight = 42,
+  loadingOverlayVisible = false,
 }: {
   eyebrow: string;
   browVariant?: 'plain' | 'back';
@@ -34,46 +38,74 @@ export function ProductScreen({
   bottomInsetExtra?: number;
   keyboardAware?: boolean;
   keyboardExtraScrollHeight?: number;
+  loadingOverlayVisible?: boolean;
 }) {
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset(bottomInsetExtra);
+  const reveal = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(reveal, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [reveal]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        {keyboardAware ? (
-          <KeyboardView
-            style={styles.scroll}
-            refreshControl={refreshControl}
-            extraScrollHeight={keyboardExtraScrollHeight}
-            contentContainerStyle={[
-              styles.content,
-              { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-            ]}
-            bounces={Boolean(refreshControl)}
-            alwaysBounceVertical={Boolean(refreshControl)}
-          >
-            <ScreenBrow label={eyebrow} variant={browVariant} />
-            {children}
-          </KeyboardView>
-        ) : (
-          <ScrollView
-            style={styles.scroll}
-            refreshControl={refreshControl}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            contentContainerStyle={[
-              styles.content,
-              { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-            ]}
-            showsVerticalScrollIndicator={false}
-            bounces={Boolean(refreshControl)}
-            alwaysBounceVertical={Boolean(refreshControl)}
-          >
-            <ScreenBrow label={eyebrow} variant={browVariant} />
-            {children}
-          </ScrollView>
-        )}
+        <Animated.View
+          style={[
+            styles.revealWrap,
+            {
+              opacity: reveal,
+              transform: [
+                {
+                  translateY: reveal.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [18, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {keyboardAware ? (
+            <KeyboardView
+              style={styles.scroll}
+              refreshControl={refreshControl}
+              extraScrollHeight={keyboardExtraScrollHeight}
+              contentContainerStyle={[
+                styles.content,
+                { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+              ]}
+              bounces={Boolean(refreshControl)}
+              alwaysBounceVertical={Boolean(refreshControl)}
+            >
+              <ScreenBrow label={eyebrow} variant={browVariant} />
+              {children}
+            </KeyboardView>
+          ) : (
+            <ScrollView
+              style={styles.scroll}
+              refreshControl={refreshControl}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              contentContainerStyle={[
+                styles.content,
+                { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+              ]}
+              showsVerticalScrollIndicator={false}
+              bounces={Boolean(refreshControl)}
+              alwaysBounceVertical={Boolean(refreshControl)}
+            >
+              <ScreenBrow label={eyebrow} variant={browVariant} />
+              {children}
+            </ScrollView>
+          )}
+        </Animated.View>
+        <ScreenLoadingOverlay visible={loadingOverlayVisible} />
       </View>
     </SafeAreaView>
   );
@@ -275,6 +307,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
+    position: 'relative',
+  },
+
+  revealWrap: {
+    flex: 1,
   },
 
   scroll: {

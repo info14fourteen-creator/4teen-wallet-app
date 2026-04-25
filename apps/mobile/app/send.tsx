@@ -19,8 +19,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image';
 
 import KeyboardView from '../src/ui/KeyboardView';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
@@ -779,6 +779,7 @@ export default function SendScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={loading || refreshing || Boolean(switchingWalletId)} />
         <KeyboardView
           innerRef={(ref: any) => {
             scrollRef.current = ref;
@@ -806,12 +807,7 @@ export default function SendScreen() {
           }
         >
           <ScreenBrow label="SEND" variant="back" />
-          <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
-          {loading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          ) : draft ? (
+          {draft ? (
             <>
               <View style={styles.selectionBlock}>
                 <SelectedWalletSwitcher

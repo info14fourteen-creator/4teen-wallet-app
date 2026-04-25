@@ -11,6 +11,7 @@ const SUN = 1_000_000n;
 const API_QUOTE_CACHE_TTL_MS = 30_000;
 const apiQuoteCache = new Map();
 const apiQuoteInflight = new Map();
+const apiRentalInflight = new Map();
 
 function normalizePurpose(value) {
   return String(value || '')
@@ -418,6 +419,84 @@ async function ensureEnergyResaleOrdersTable() {
   `);
 }
 
+async function markEnergyResaleOrderFailed(paymentTxHash, payload) {
+  await pool.query(
+    `
+      UPDATE energy_resale_orders
+      SET
+        status = 'failed',
+        row_json = $2,
+        updated_at = NOW()
+      WHERE payment_tx_hash = $1
+    `,
+    [paymentTxHash, JSON.stringify(payload || {})]
+  );
+}
+
+function scheduleApiEnergyResaleOrder({
+  paymentTxHash,
+  purpose,
+  wallet,
+  packageConfig,
+  payment
+}) {
+  const key = normalizeTxid(paymentTxHash);
+
+  if (!key || apiRentalInflight.has(key)) {
+    return;
+  }
+
+  const task = (async () => {
+    try {
+      const rented = await rentResourcesForWallet({
+        receiveAddress: wallet,
+        energyNum: packageConfig.energyQuantity,
+        bandwidthNum: packageConfig.bandwidthQuantity,
+        requestPrefix: `energy-resale-${purpose}`,
+        paymentAmountSun: payment.amountSun,
+        context: {
+          purpose,
+          paymentTxid: paymentTxHash
+        }
+      });
+
+      await pool.query(
+        `
+          UPDATE energy_resale_orders
+          SET
+            status = 'completed',
+            row_json = $2,
+            updated_at = NOW()
+          WHERE payment_tx_hash = $1
+        `,
+        [
+          paymentTxHash,
+          JSON.stringify({
+            mode: 'api',
+            package: packageConfig,
+            payment,
+            rented
+          })
+        ]
+      );
+    } catch (error) {
+      console.error('Energy resale API order failed:', error);
+      await markEnergyResaleOrderFailed(paymentTxHash, {
+        mode: 'api',
+        package: packageConfig,
+        payment,
+        error: {
+          message: String(error?.message || error || 'Unknown error')
+        }
+      });
+    } finally {
+      apiRentalInflight.delete(key);
+    }
+  })();
+
+  apiRentalInflight.set(key, task);
+}
+
 async function confirmEnergyResalePayment({
   purpose,
   wallet,
@@ -451,7 +530,23 @@ async function confirmEnergyResalePayment({
     requiredEnergy,
     requiredBandwidth
   });
-  const payment = await readTrxPayment(txid);
+  let payment;
+
+  try {
+    payment = await readTrxPayment(txid, {
+      attempts: 8,
+      delayMs: 1500
+    });
+  } catch (error) {
+    if (String(error?.message || '').includes('Transaction not found')) {
+      error.status = 202;
+      error.details = {
+        paymentTxid: txid,
+        pending: true
+      };
+    }
+    throw error;
+  }
 
   if (payment.owner !== resolvedWallet) {
     const error = new Error('Payment sender does not match wallet');
@@ -520,40 +615,21 @@ async function confirmEnergyResalePayment({
   }
 
   if (packageConfig.mode === 'api') {
-    const rented = await rentResourcesForWallet({
-      receiveAddress: resolvedWallet,
-      energyNum: packageConfig.energyQuantity,
-      bandwidthNum: packageConfig.bandwidthQuantity,
-      requestPrefix: `energy-resale-${resolvedPurpose}`,
-      paymentAmountSun: payment.amountSun,
-      context: {
-        purpose: resolvedPurpose,
-        paymentTxid: txid
-      }
+    scheduleApiEnergyResaleOrder({
+      paymentTxHash: txid,
+      purpose: resolvedPurpose,
+      wallet: resolvedWallet,
+      packageConfig,
+      payment
     });
 
-    const updated = await pool.query(
-      `
-        UPDATE energy_resale_orders
-        SET
-          status = 'completed',
-          row_json = $2,
-          updated_at = NOW()
-        WHERE payment_tx_hash = $1
-        RETURNING *
-      `,
-      [
-        txid,
-        JSON.stringify({
-          mode: 'api',
-          package: packageConfig,
-          payment,
-          rented
-        })
-      ]
-    );
-
-    return updated.rows[0];
+    const pendingError = new Error('Payment confirmed. Waiting for Energy distribution...');
+    pendingError.status = 202;
+    pendingError.details = {
+      paymentTxid: txid,
+      pending: true
+    };
+    throw pendingError;
   }
 
   const energyState = await waitForEnergyFulfillment(

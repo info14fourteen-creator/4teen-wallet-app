@@ -177,9 +177,11 @@ export default function BuyConfirmScreen() {
       (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true);
+      if (!options?.silent) {
+        setLoading(true);
+      }
       setErrorText('');
 
       const routeAmountTrx = resolveParam(params.amountTrx).trim();
@@ -206,11 +208,15 @@ export default function BuyConfirmScreen() {
         contractAddress: draft.contractAddress,
       });
       setReview(nextReview);
+      return nextReview;
     } catch (error) {
       setReview(null);
       setErrorText(error instanceof Error ? error.message : 'Failed to build buy confirmation.');
+      return null;
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, [params.amountTrx, params.contractAddress]);
 
@@ -334,10 +340,21 @@ export default function BuyConfirmScreen() {
         onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
       });
       clearWalletRuntimeCaches(review.wallet.address);
+      const refreshedReview = await load({ silent: true });
+
+      if (
+        refreshedReview &&
+        (refreshedReview.resources.energyShortfall > 0 ||
+          refreshedReview.resources.bandwidthShortfall > 0)
+      ) {
+        throw new Error(
+          'Energy rental is confirmed, but wallet resources are still syncing. Pull to refresh in a few seconds and try again.'
+        );
+      }
+
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Energy is live. Sending buy transaction...', 3000);
-      await load();
-      return true;
+      return refreshedReview || review;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
@@ -353,16 +370,18 @@ export default function BuyConfirmScreen() {
     }
   }, [energyQuote, energyRenting, load, notice, review]);
 
-  const performBuy = useCallback(async () => {
-    if (!review || submitting) return;
+  const performBuy = useCallback(async (reviewOverride?: typeof review | null) => {
+    const currentReview = reviewOverride || (await load({ silent: true })) || review;
+
+    if (!currentReview || submitting) return;
 
     try {
       setSubmitting(true);
 
       const nextReceipt = await executeDirectBuy({
-        trxAmount: review.amountTrx,
-        contractAddress: review.contractAddress,
-        feeLimitSun: review.resources.recommendedFeeLimitSun,
+        trxAmount: currentReview.amountTrx,
+        contractAddress: currentReview.contractAddress,
+        feeLimitSun: currentReview.resources.recommendedFeeLimitSun,
       });
 
       try {
@@ -406,7 +425,7 @@ export default function BuyConfirmScreen() {
       }
 
       await clearDirectBuyDraft();
-      await clearWalletRuntimeCaches(review.wallet.address);
+      await clearWalletRuntimeCaches(currentReview.wallet.address);
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice('Direct buy transaction sent.', 3200);
@@ -419,7 +438,7 @@ export default function BuyConfirmScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [notice, review, submitting, triggerWalletDataRefresh]);
+  }, [load, notice, review, submitting, triggerWalletDataRefresh]);
 
   const requestBiometricUnlock = useCallback(async () => {
     try {
@@ -484,7 +503,7 @@ export default function BuyConfirmScreen() {
         if (result.success) {
           const rented = await performRentEnergy();
           if (rented) {
-            await performBuy();
+            await performBuy(rented);
           }
           return;
         }
@@ -540,7 +559,7 @@ export default function BuyConfirmScreen() {
       if (pendingApprovalMode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
-          await performBuy();
+          await performBuy(rented);
         }
         return;
       }

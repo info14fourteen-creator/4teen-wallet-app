@@ -32,8 +32,8 @@ import {
   FOOTER_NAV_BOTTOM_OFFSET,
   FOOTER_NAV_RESERVED_SPACE,
 } from '../src/ui/footer-nav';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
@@ -237,31 +237,32 @@ export default function UnlockTimelineScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={[
-          styles.content,
-          {
-            paddingTop: navInsets.top,
-            paddingBottom: FOOTER_NAV_RESERVED_SPACE + FOOTER_NAV_BOTTOM_OFFSET + 30,
-          },
-        ]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.accent}
+      <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing || Boolean(switchingWalletId)} />
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: navInsets.top,
+              paddingBottom: FOOTER_NAV_RESERVED_SPACE + FOOTER_NAV_BOTTOM_OFFSET + 30,
+            },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={colors.accent}
+            />
+          }
+          scrollEventThrottle={16}
+        >
+          <ScreenBrow
+            label="UNLOCK TIMELINE"
+            variant="backLink"
+            labelChevron={infoExpanded ? 'up' : 'down'}
+            onLabelPress={() => setInfoExpanded((prev) => !prev)}
           />
-        }
-        scrollEventThrottle={16}
-      >
-        <ScreenBrow
-          label="UNLOCK TIMELINE"
-          variant="backLink"
-          labelChevron={infoExpanded ? 'up' : 'down'}
-          onLabelPress={() => setInfoExpanded((prev) => !prev)}
-        />
-        <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
 
         {infoExpanded ? (
           <View style={styles.infoPanel}>
@@ -487,7 +488,8 @@ export default function UnlockTimelineScreen() {
             </Text>
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -501,6 +503,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.bg,
+    position: 'relative',
+  },
+
+  scroll: {
+    flex: 1,
   },
 
   content: {

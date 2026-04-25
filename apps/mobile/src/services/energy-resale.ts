@@ -53,6 +53,11 @@ export type EnergyResaleStatus = {
   lastOrder?: {
     status?: string;
     payment_tx_hash?: string;
+    row_json?: {
+      error?: {
+        message?: string;
+      };
+    };
   } | null;
 };
 
@@ -174,34 +179,62 @@ export async function confirmEnergyResalePayment(input: {
   onProgress?: (progress: EnergyResaleProgress) => void;
 }): Promise<EnergyResaleConfirmation> {
   try {
-    const payload = await fetchJsonAcrossApiOrigins<{
-      ok?: boolean;
-      result?: EnergyResaleConfirmation;
-    }>(
-      '/resources/rental/confirm',
-      (baseUrl) => ({
-        url: buildApiUrl('/resources/rental/confirm').replace(API_BASE_URL, baseUrl.replace(/\/+$/, '')),
-        options: {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            purpose: input.purpose,
-            wallet: input.wallet,
-            paymentTxId: input.paymentTxId,
-            requiredEnergy: input.requiredEnergy,
-            requiredBandwidth: input.requiredBandwidth,
-            ...(input.metadata || {}),
-          }),
-        },
-      })
-    );
+    let payload:
+      | {
+          ok?: boolean;
+          result?: EnergyResaleConfirmation;
+        }
+      | null = null;
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        payload = await fetchJsonAcrossApiOrigins<{
+          ok?: boolean;
+          result?: EnergyResaleConfirmation;
+        }>(
+          '/resources/rental/confirm',
+          (baseUrl) => ({
+            url: buildApiUrl('/resources/rental/confirm').replace(API_BASE_URL, baseUrl.replace(/\/+$/, '')),
+            options: {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                purpose: input.purpose,
+                wallet: input.wallet,
+                paymentTxId: input.paymentTxId,
+                requiredEnergy: input.requiredEnergy,
+                requiredBandwidth: input.requiredBandwidth,
+                ...(input.metadata || {}),
+              }),
+            },
+          })
+        );
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error || '');
+        const shouldRetryConfirm =
+          error instanceof EnergyResaleApiError &&
+          error.status === 202 &&
+          message.toLowerCase().includes('transaction not found');
+
+        if (!shouldRetryConfirm || attempt >= 3) {
+          throw error;
+        }
+
+        input.onProgress?.({
+          step: 'waiting-energy',
+          message: 'Payment sent. Waiting for TRON confirmation...',
+        });
+        await wait(1500);
+      }
+    }
 
     input.onProgress?.({
       step: 'energy-ready',
       message: 'Energy rental confirmed. Continuing transaction...',
     });
 
-    return payload.result || {};
+    return payload?.result || {};
   } catch (error) {
     if (!(error instanceof EnergyResaleApiError) || error.status !== 202) {
       throw error;
@@ -267,6 +300,13 @@ async function waitForEnergyResaleReady(input: {
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
     lastStatus = await getEnergyResaleStatus(input);
+
+    if (lastStatus.lastOrder?.status === 'failed') {
+      const failureMessage =
+        lastStatus.lastOrder?.row_json?.error?.message ||
+        'Energy rental failed on the server side.';
+      throw new Error(failureMessage);
+    }
 
     if (lastStatus.ready) {
       input.onProgress?.({
