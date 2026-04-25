@@ -1,158 +1,35 @@
 {
-  "generatedAt": "2026-04-25T12:58:59.765Z",
+  "generatedAt": "2026-04-22T19:30:43.919Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "24e8a9ee23dcf7bd22b22f3f5d36ac9b36701a97",
-    "shortHash": "24e8a9e",
-    "subject": "Fix Telegram airdrop flow and unify wallet selectors",
+    "hash": "b330314800a01a08ade1f0821d90a7793921119f",
+    "shortHash": "b330314",
+    "subject": "Merge remote-tracking branch 'origin/main'",
     "author": "info14fourteen-creator",
-    "date": "2026-04-25T17:58:42+05:00"
+    "date": "2026-04-23T00:30:11+05:00"
   },
-  "changedFiles": [
-    "M\tai/latest/4teen-wallet-app.zip",
-    "M\tai/latest/4teen-wallet-app/00_AI_MAP.md",
-    "M\tai/latest/4teen-wallet-app/01_PROJECT_OVERVIEW.md",
-    "M\tai/latest/4teen-wallet-app/02_BUILD_AND_TOOLING.md",
-    "M\tai/latest/4teen-wallet-app/03_APP_STRUCTURE.md",
-    "M\tai/latest/4teen-wallet-app/04_NAVIGATION_AND_SCREENS.md",
-    "M\tai/latest/4teen-wallet-app/05_WALLET_CORE.md",
-    "M\tai/latest/4teen-wallet-app/06_UI_AND_COMPONENTS.md",
-    "M\tai/latest/4teen-wallet-app/07_CONFIG_AND_NATIVE.md",
-    "M\tai/latest/4teen-wallet-app/08_RECENT_CHANGES.md",
-    "M\tai/latest/4teen-wallet-app/09_ACTIVE_FILES.md",
-    "M\tai/latest/4teen-wallet-app/10_OPEN_TODO_SURFACE.md",
-    "M\tai/latest/4teen-wallet-app/manifest.json",
-    "M\tapps/api/src/services/airdrop/telegramBot.js",
-    "M\tapps/mobile/app.json",
-    "M\tapps/mobile/app/about.tsx",
-    "M\tapps/mobile/app/about.tsx.bak_2026-04-16_232856",
-    "M\tapps/mobile/app/about.tsx.bak_2026-04-17_174704",
-    "M\tapps/mobile/app/airdrop.tsx",
-    "M\tapps/mobile/app/ambassador-program.tsx",
-    "M\tapps/mobile/app/buy.tsx",
-    "M\tapps/mobile/app/liquidity-controller.tsx",
-    "M\tapps/mobile/app/send.tsx",
-    "M\tapps/mobile/app/swap.tsx",
-    "M\tapps/mobile/app/unlock-timeline.tsx",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/services/airdrop.ts",
-    "A\tapps/mobile/src/ui/selected-wallet-switcher.tsx",
-    "M\tapps/mobile/src/ui/top-chrome.tsx",
-    "M\tbackups/search-header-20260415-210130/about.tsx"
-  ],
+  "changedFiles": [],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 5
-    },
-    {
-      "file": "apps/api/src/services/gasstation/energyResale.js",
       "count": 4
     },
     {
-      "file": "apps/api/src/config/env.js",
+      "file": "apps/api/src/services/gasstation/energyResale.js",
       "count": 3
+    },
+    {
+      "file": "apps/api/src/config/env.js",
+      "count": 2
     },
     {
       "file": "apps/api/src/routes/ambassador.js",
-      "count": 3
+      "count": 2
     },
     {
       "file": "apps/api/src/services/gasstation/gasStation.js",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/ambassador-program.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/services/ambassador.ts",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/services/energy-resale.ts",
-      "count": 3
-    },
-    {
-      "file": "apps/api/src/app.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/services/airdrop/telegramBot.js",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/about.tsx.bak_2026-04-16_232856",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/about.tsx.bak_2026-04-17_174704",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/airdrop.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/ambassador-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/buy-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/export-mnemonic.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/liquidity-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/liquidity-controller.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/send-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/swap-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/unlock-timeline.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/unlock.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/wallet.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/wallets.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/src/services/airdrop.ts",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/src/services/tron/api.ts",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/src/services/wallet/storage.ts",
       "count": 2
     },
     {
@@ -160,8 +37,52 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/src/ui/product-shell.tsx",
-      "count": 2
+      "file": "apps/api/src/app.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/routes/energyResale.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/routes/resources.js",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/ambassador-confirm.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/buy-confirm.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/liquidity-confirm.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/send-confirm.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/swap-confirm.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/src/services/ambassador.ts",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/src/services/energy-resale.ts",
+      "count": 1
+    },
+    {
+      "file": "Procfile",
+      "count": 1
     }
   ],
   "todoCount": 11,
@@ -191,15 +112,12 @@
     "apps/api/src/config/env.js",
     "apps/api/src/db/pool.js",
     "apps/api/src/db/queries/ambassadorCabinet.js",
-    "apps/api/src/routes/airdrop.js",
     "apps/api/src/routes/ambassador.js",
     "apps/api/src/routes/gasstation.js",
     "apps/api/src/routes/health.js",
     "apps/api/src/routes/proxy.js",
     "apps/api/src/routes/resources.js",
     "apps/api/src/routes/wallet.js",
-    "apps/api/src/services/airdrop/telegramBot.js",
-    "apps/api/src/services/airdrop/telegramClaims.js",
     "apps/api/src/services/ambassador/controller.js",
     "apps/api/src/services/gasstation/energyResale.js",
     "apps/api/src/services/gasstation/gasStation.js",
@@ -259,8 +177,6 @@
     "apps/mobile/app/token-details.tsx",
     "apps/mobile/app/ui-lab.tsx",
     "apps/mobile/app/ui-shell-lab.tsx",
-    "apps/mobile/app/ui-shell-test-a.tsx",
-    "apps/mobile/app/ui-shell-test-b.tsx",
     "apps/mobile/app/unlock-timeline.tsx",
     "apps/mobile/app/unlock.tsx",
     "apps/mobile/app/wallet-access.tsx",
@@ -376,9 +292,7 @@
     "apps/mobile/src/search/search-types.ts",
     "apps/mobile/src/security/local-auth.ts",
     "apps/mobile/src/services/address-book.ts",
-    "apps/mobile/src/services/airdrop.ts",
     "apps/mobile/src/services/ambassador.ts",
-    "apps/mobile/src/services/app-cache.ts",
     "apps/mobile/src/services/asset-wallets.ts",
     "apps/mobile/src/services/direct-buy-draft.ts",
     "apps/mobile/src/services/direct-buy.ts",
@@ -398,7 +312,14 @@
     "apps/mobile/src/services/wallet/resources.ts",
     "apps/mobile/src/services/wallet/send.ts",
     "apps/mobile/src/services/wallet/storage.ts",
-    "apps/mobile/src/theme/patterns.ts"
+    "apps/mobile/src/theme/patterns.ts",
+    "apps/mobile/src/theme/tokens.ts",
+    "apps/mobile/src/theme/ui.ts",
+    "apps/mobile/src/ui/address-qr-modal.tsx",
+    "apps/mobile/src/ui/app-header.constants.ts",
+    "apps/mobile/src/ui/app-header.tsx",
+    "apps/mobile/src/ui/energy-resale-card.tsx",
+    "apps/mobile/src/ui/expand-chevron.tsx"
   ],
   "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
   "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"
