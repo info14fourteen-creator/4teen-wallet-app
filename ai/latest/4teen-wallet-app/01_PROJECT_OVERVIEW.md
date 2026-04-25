@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-22T19:30:43.917Z
+Generated: 2026-04-25T13:31:07.748Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: b330314800a01a08ade1f0821d90a7793921119f
-Short commit: b330314
-Commit subject: Merge remote-tracking branch 'origin/main'
+Last commit: 30741bd3a165c3bde4e269bd0a28bc32bf8df7e1
+Short commit: 30741bd
+Commit subject: Add airdrop queue clock and funding flow
 Commit author: info14fourteen-creator
-Commit date: 2026-04-23T00:30:11+05:00
+Commit date: 2026-04-25T18:30:59+05:00
 
 ## Curated project tree
 
@@ -26,6 +26,7 @@ Commit date: 2026-04-23T00:30:11+05:00
           - ambassadorCabinet.js
         - pool.js
       - routes/
+        - airdrop.js
         - ambassador.js
         - gasstation.js
         - health.js
@@ -33,6 +34,9 @@ Commit date: 2026-04-23T00:30:11+05:00
         - resources.js
         - wallet.js
       - services/
+        - airdrop/
+          - telegramBot.js
+          - telegramClaims.js
         - ambassador/
           - controller.js
         - gasstation/
@@ -46,6 +50,7 @@ Commit date: 2026-04-23T00:30:11+05:00
           - client.js
           - payments.js
       - app.js
+    - clock.js
     - package.json
     - server.js
   - mobile/
@@ -101,6 +106,8 @@ Commit date: 2026-04-23T00:30:11+05:00
       - token-details.tsx
       - ui-lab.tsx
       - ui-shell-lab.tsx
+      - ui-shell-test-a.tsx
+      - ui-shell-test-b.tsx
       - unlock-timeline.tsx
       - unlock.tsx
       - wallet-access.tsx
@@ -245,7 +252,9 @@ Commit date: 2026-04-23T00:30:11+05:00
           - send.ts
           - storage.ts
         - address-book.ts
+        - airdrop.ts
         - ambassador.ts
+        - app-cache.ts
         - asset-wallets.ts
         - direct-buy-draft.ts
         - direct-buy.ts
@@ -254,16 +263,6 @@ Commit date: 2026-04-23T00:30:11+05:00
         - recent-recipients.ts
         - referral.ts
         - unlock-timeline.ts
-      - theme/
-        - patterns.ts
-        - tokens.ts
-        - ui.ts
-      - ui/
-        - address-qr-modal.tsx
-        - app-header.constants.ts
-        - app-header.tsx
-        - energy-resale-card.tsx
-        - expand-chevron.tsx
     - app.json
     - eslint.config.js
     - metro.config.js
