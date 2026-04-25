@@ -297,9 +297,29 @@ async function waitForEnergyResaleReady(input: {
   onProgress?: (progress: EnergyResaleProgress) => void;
 }) {
   let lastStatus: EnergyResaleStatus | null = null;
+  let transientStatusFailures = 0;
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    lastStatus = await getEnergyResaleStatus(input);
+    try {
+      lastStatus = await getEnergyResaleStatus(input);
+      transientStatusFailures = 0;
+    } catch (error) {
+      const retryableStatusError =
+        error instanceof EnergyResaleApiError &&
+        (error.status === 503 || error.status === 502 || error.status === 504);
+
+      if (!retryableStatusError || transientStatusFailures >= 4) {
+        throw error;
+      }
+
+      transientStatusFailures += 1;
+      input.onProgress?.({
+        step: 'waiting-energy',
+        message: 'Waiting for Energy distribution...',
+      });
+      await wait(2000);
+      continue;
+    }
 
     if (lastStatus.lastOrder?.status === 'failed') {
       const failureMessage =

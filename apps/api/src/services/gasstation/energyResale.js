@@ -677,11 +677,8 @@ async function getEnergyResaleStatus({ purpose, wallet, requiredEnergy, required
     throw error;
   }
 
-  const packageConfig = await getEnergyResalePackage(resolvedPurpose, {
-    requiredEnergy,
-    requiredBandwidth
-  });
-  const energyState = await readWalletEnergyState(resolvedWallet);
+  await ensureEnergyResaleOrdersTable();
+
   const lastOrder = await pool.query(
     `
       SELECT *
@@ -693,6 +690,32 @@ async function getEnergyResaleStatus({ purpose, wallet, requiredEnergy, required
     `,
     [resolvedPurpose, resolvedWallet]
   ).catch(() => ({ rows: [] }));
+
+  const lastOrderRow = lastOrder.rows[0] || null;
+  const storedPackage =
+    lastOrderRow?.row_json &&
+    typeof lastOrderRow.row_json === 'object' &&
+    lastOrderRow.row_json.package &&
+    typeof lastOrderRow.row_json.package === 'object'
+      ? lastOrderRow.row_json.package
+      : null;
+
+  let packageConfig;
+
+  try {
+    packageConfig = await getEnergyResalePackage(resolvedPurpose, {
+      requiredEnergy,
+      requiredBandwidth
+    });
+  } catch (error) {
+    if (!storedPackage) {
+      throw error;
+    }
+
+    packageConfig = storedPackage;
+  }
+
+  const energyState = await readWalletEnergyState(resolvedWallet);
 
   const requiredReadyEnergy = Number(packageConfig.readyEnergy || packageConfig.energyQuantity || 0);
   const requiredReadyBandwidth = Number(
@@ -709,7 +732,7 @@ async function getEnergyResaleStatus({ purpose, wallet, requiredEnergy, required
     requiredBandwidth: requiredReadyBandwidth,
     energyState,
     package: packageConfig,
-    lastOrder: lastOrder.rows[0] || null
+    lastOrder: lastOrderRow
   };
 }
 
