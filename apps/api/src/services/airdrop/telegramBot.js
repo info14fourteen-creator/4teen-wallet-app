@@ -14,6 +14,7 @@ const {
   updateTelegramClaimSession,
   upsertTelegramAccountLink
 } = require('./telegramClaims');
+const { rentResourcesForWallet } = require('../gasstation/gasStation');
 
 const TronWeb = TronWebPackage.TronWeb || TronWebPackage.default || TronWebPackage;
 
@@ -361,7 +362,37 @@ async function sendAirdropTransaction(walletAddress, rewardAmount) {
 }
 
 async function processQueuedTelegramClaim(claim) {
-  const resourceState = await hasEnoughAirdropResources();
+  let resourceState = await hasEnoughAirdropResources();
+  let rentalResult = null;
+
+  if (!resourceState.hasEnough) {
+    try {
+      rentalResult = await rentResourcesForWallet({
+        receiveAddress: resourceState.walletAddress,
+        energyNum: Number(env.TELEGRAM_AIRDROP_REQUIRED_ENERGY || 0),
+        bandwidthNum: Number(env.TELEGRAM_AIRDROP_REQUIRED_BANDWIDTH || 0),
+        requestPrefix: 'airdrop-telegram',
+        context: {
+          purpose: 'airdrop_send',
+          walletAddress: claim.wallet_address,
+          claimId: claim.id
+        }
+      });
+
+      resourceState = await hasEnoughAirdropResources();
+    } catch (error) {
+      return updateTelegramClaim({
+        claimId: claim.id,
+        status: 'queued',
+        metaPatch: {
+          waitingResources: true,
+          resourceState,
+          rentalError: error instanceof Error ? error.message : 'Automatic resource rental failed',
+          lastAttemptAt: new Date().toISOString()
+        }
+      });
+    }
+  }
 
   if (!resourceState.hasEnough) {
     return updateTelegramClaim({
@@ -370,6 +401,7 @@ async function processQueuedTelegramClaim(claim) {
       metaPatch: {
         waitingResources: true,
         resourceState,
+        rental: rentalResult,
         lastAttemptAt: new Date().toISOString()
       }
     });
@@ -385,7 +417,8 @@ async function processQueuedTelegramClaim(claim) {
       metaPatch: {
         waitingResources: false,
         lastAttemptAt: new Date().toISOString(),
-        resourceState
+        resourceState,
+        rental: rentalResult
       }
     });
   } catch (error) {
