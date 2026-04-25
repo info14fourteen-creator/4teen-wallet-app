@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Keyboard,
   LayoutChangeEvent,
   Pressable,
@@ -17,9 +16,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image';
 
 import KeyboardView from '../src/ui/KeyboardView';
+import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import NumericKeypad from '../src/ui/numeric-keypad';
+import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useSwipeDownDismiss } from '../src/ui/use-swipe-down-dismiss';
@@ -47,7 +48,8 @@ import {
   getAllWalletPortfolios,
 } from '../src/services/wallet/portfolio';
 import { setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
-import { BackspaceIcon, CloseIcon, OpenDownIcon } from '../src/ui/ui-icons';
+import { useWalletSession } from '../src/wallet/wallet-session';
+import { BackspaceIcon, CloseIcon } from '../src/ui/ui-icons';
 
 function resolveParam(value: string | string[] | undefined) {
   if (typeof value === 'string') return value;
@@ -140,16 +142,11 @@ type WalletSwitcherItem = {
   balanceDisplay: string;
 };
 
-function formatWalletAccessLabel(kind: WalletMeta['kind']) {
-  if (kind === 'mnemonic') return 'Seed Phrase';
-  if (kind === 'private-key') return 'Private Key';
-  return 'Watch Only';
-}
-
 export default function BuyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ amount?: string | string[] }>();
   const notice = useNotice();
+  const { setPendingWalletSelectionId } = useWalletSession();
   const insets = useSafeAreaInsets();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const scrollRef = useRef<any>(null);
@@ -251,15 +248,15 @@ export default function BuyScreen() {
       closeAmountKeyboard();
       setAmount('');
       await setActiveWalletId(wallet.id);
+      setPendingWalletSelectionId(wallet.id);
       await load({ silent: true });
-      notice.showSuccessNotice(`Buy wallet: ${wallet.name}`, 2200);
     } catch (error) {
       console.error(error);
       notice.showErrorNotice('Failed to switch buy wallet.', 2400);
     } finally {
       setSwitchingWalletId(null);
     }
-  }, [closeAmountKeyboard, load, notice]);
+  }, [closeAmountKeyboard, load, notice, setPendingWalletSelectionId]);
 
   const openAmountKeyboard = useCallback(() => {
     setWalletOptionsOpen(false);
@@ -389,80 +386,32 @@ export default function BuyScreen() {
           }}
         >
           <ScreenBrow label="BUY" variant="back" />
+          <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
 
           <View style={styles.sectionBlock}>
-            <Text style={styles.sectionEyebrow}>SELECTED WALLET · TAP TO SWITCH</Text>
-
-            <TouchableOpacity
-              activeOpacity={0.88}
-              onPress={handleToggleWalletOptions}
-              style={[
-                styles.walletCard,
-                walletOptionsOpen ? styles.walletCardOpen : styles.walletCardClosed,
-              ]}
-            >
-              <View style={styles.walletCardCopy}>
-                <View style={styles.walletTitleRow}>
-                  <Text style={styles.walletName}>
-                    {selectedWalletOption?.name || context?.wallet.name || 'No signing wallet'}
-                  </Text>
-                  <Text style={styles.activeBadge}>SELECTED</Text>
-                </View>
-                <Text style={styles.walletBalance}>
-                  Balance: {selectedWalletOption?.balanceDisplay || context?.trxValueDisplay || '$0.00'}
-                </Text>
-                <Text style={styles.walletAccess}>
-                  Access: {formatWalletAccessLabel(selectedWalletOption?.kind || context?.wallet.kind || 'watch-only')}
-                </Text>
-                <Text style={styles.walletAddress} numberOfLines={1}>
-                  {selectedWalletOption?.address ||
-                    (context ? context.wallet.address : 'Import or switch to a full-access wallet.')}
-                </Text>
-              </View>
-              {visibleWalletChoices.length > 0 ? (
-                <View style={styles.walletCaretWrap}>
-                  <OpenDownIcon
-                    width={18}
-                    height={18}
-                    color={walletOptionsOpen ? colors.accent : colors.white}
-                  />
-                </View>
-              ) : null}
-            </TouchableOpacity>
-
-            {walletOptionsOpen ? (
-              <View style={styles.walletOptionsList}>
-                {visibleWalletChoices.map((wallet) => {
-                  const switching = wallet.id === switchingWalletId;
-                  return (
-                    <TouchableOpacity
-                      key={wallet.id}
-                      activeOpacity={0.9}
-                      style={styles.walletOptionCard}
-                      disabled={switching}
-                      onPress={() => void handleChooseWallet(wallet)}
-                    >
-                      <View style={styles.walletOptionCopy}>
-                        <Text style={styles.walletOptionName}>{wallet.name}</Text>
-                        <Text style={styles.walletOptionAddress}>
-                          Access: {formatWalletAccessLabel(wallet.kind)}
-                        </Text>
-                        <Text style={styles.walletOptionAddress} numberOfLines={1}>
-                          {wallet.address}
-                        </Text>
-                      </View>
-
-                      <View style={styles.walletOptionSide}>
-                        <Text style={styles.walletOptionBalance}>
-                          {formatCompactTrx(wallet.balanceDisplay)} TRX
-                        </Text>
-                        {switching ? <ActivityIndicator color={colors.accent} /> : null}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : null}
+            <SelectedWalletSwitcher
+              wallet={
+                context
+                  ? {
+                      id: context.wallet.id,
+                      name: selectedWalletOption?.name || context.wallet.name,
+                      address: selectedWalletOption?.address || context.wallet.address,
+                      kind: selectedWalletOption?.kind || context.wallet.kind,
+                      balanceDisplay:
+                        selectedWalletOption?.balanceDisplay || context.trxValueDisplay || '$0.00',
+                    }
+                  : null
+              }
+              visibleWalletChoices={visibleWalletChoices}
+              walletOptionsOpen={walletOptionsOpen}
+              switchingWalletId={switchingWalletId}
+              onToggle={handleToggleWalletOptions}
+              onChooseWallet={(wallet) => {
+                void handleChooseWallet(wallet);
+              }}
+              emptyTitle="No signing wallet"
+              emptyBody="Import or switch to a full-access wallet."
+            />
           </View>
 
           <View style={styles.sectionBlock} onLayout={handleAmountSectionLayout}>

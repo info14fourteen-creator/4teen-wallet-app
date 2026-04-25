@@ -39,7 +39,7 @@ import YoutubeIcon from '../assets/icons/ui/socials/youtube_social.svg';
 const socials = [
   { Icon: TelegramIcon, label: 'Telegram', url: 'https://t.me/fourteentoken' },
   { Icon: DiscordIcon, label: 'Discord', url: 'https://discord.gg/jWZF6KzPCB' },
-  { Icon: XIcon, label: 'X', url: 'https://x.com/4teenDeFi' },
+  { Icon: XIcon, label: 'X', url: 'https://x.com/4teen_me' },
   { Icon: FacebookIcon, label: 'Facebook', url: 'https://facebook.com/Fourteentoken' },
   { Icon: InstagramIcon, label: 'Instagram', url: 'https://instagram.com/fourteentoken' },
   { Icon: ThreadsIcon, label: 'Threads', url: 'https://www.threads.com/@fourteentoken' },

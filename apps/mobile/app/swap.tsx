@@ -18,9 +18,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image';
 
 import ScreenBrow from '../src/ui/screen-brow';
+import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import KeyboardView from '../src/ui/KeyboardView';
 import NumericKeypad from '../src/ui/numeric-keypad';
+import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useSwipeDownDismiss } from '../src/ui/use-swipe-down-dismiss';
@@ -48,7 +50,7 @@ import {
   type SwapTokenMeta,
 } from '../src/services/swap/sunio';
 import { saveFourteenSwapDraft } from '../src/services/swap/draft';
-import { BackspaceIcon, CloseIcon, OpenDownIcon, OpenRightIcon } from '../src/ui/ui-icons';
+import { BackspaceIcon, CloseIcon } from '../src/ui/ui-icons';
 import {
   getAllWalletPortfolios,
   getWalletPortfolio,
@@ -59,6 +61,7 @@ import {
   setActiveWalletId,
   type WalletMeta,
 } from '../src/services/wallet/storage';
+import { useWalletSession } from '../src/wallet/wallet-session';
 
 function resolveParam(value: string | string[] | undefined) {
   if (typeof value === 'string') return value;
@@ -130,12 +133,6 @@ type WalletSwitcherItem = {
   kind: WalletMeta['kind'];
   balanceDisplay: string;
 };
-
-function formatWalletAccessLabel(kind: WalletMeta['kind']) {
-  if (kind === 'mnemonic') return 'Seed Phrase';
-  if (kind === 'private-key') return 'Private Key';
-  return 'Watch Only';
-}
 
 type SwapAssetChoice = PortfolioAsset & SwapTokenMeta;
 
@@ -235,6 +232,7 @@ export default function SwapScreen() {
   const contentBottomInset = useBottomInset(amountKeyboardVisible ? 312 : 0);
   const amountBackspaceActsAsClose = amount === '' || amount === '0';
   const notice = useNotice();
+  const { setPendingWalletSelectionId } = useWalletSession();
   const scrollRef = useRef<any>(null);
 
   const requestedTokenId = resolveParam(params.tokenId).trim();
@@ -320,6 +318,7 @@ export default function SwapScreen() {
 
       if (resolvedWallet.id !== currentWallet?.id) {
         await setActiveWalletId(resolvedWallet.id);
+        setPendingWalletSelectionId(resolvedWallet.id);
       }
 
       const [portfolio, walletSnapshot, customCatalog, tronscanCatalog] = await Promise.all([
@@ -438,7 +437,7 @@ export default function SwapScreen() {
     } finally {
       setLoading(false);
     }
-  }, [notice, refreshing, requestedTokenId, requestedWalletId, router]);
+  }, [notice, refreshing, requestedTokenId, requestedWalletId, router, setPendingWalletSelectionId]);
 
   const refreshSwapContext = useCallback(async () => {
     try {
@@ -678,15 +677,15 @@ export default function SwapScreen() {
       closeAmountKeyboard();
       closeInlinePickers();
       await setActiveWalletId(wallet.id);
+      setPendingWalletSelectionId(wallet.id);
       await loadSwapContext();
-      notice.showSuccessNotice(`Swap wallet: ${wallet.name}`, 2200);
     } catch (error) {
       console.error(error);
       notice.showErrorNotice('Failed to switch swap wallet.', 2400);
     } finally {
       setSwitchingWalletId(null);
     }
-  }, [closeAmountKeyboard, closeInlinePickers, loadSwapContext, notice]);
+  }, [closeAmountKeyboard, closeInlinePickers, loadSwapContext, notice, setPendingWalletSelectionId]);
 
   const handleToggleSourceTokenOptions = useCallback(() => {
     if (visibleSourceTokenChoices.length <= 0) {
@@ -801,73 +800,32 @@ export default function SwapScreen() {
             }}
           >
             <ScreenBrow label="SWAP" variant="back" />
+            <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
 
             <View style={styles.swapSelectionBlock}>
-              <Text style={styles.swapSelectionEyebrow}>SELECTED WALLET · TAP TO SWITCH</Text>
-
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={styles.swapWalletCard}
-                onPress={handleToggleWalletOptions}
-              >
-                <View style={styles.swapWalletCardText}>
-                  <View style={styles.swapWalletTitleRow}>
-                    <Text style={styles.swapWalletName}>
-                      {activeWallet?.name || 'No wallet selected'}
-                    </Text>
-                    <Text style={styles.swapActiveBadge}>
-                      SELECTED
-                    </Text>
-                  </View>
-
-                  <Text style={styles.swapWalletBalance}>
-                    Balance: {selectedWalletOption?.balanceDisplay ?? '$0.00'}
-                  </Text>
-                  <Text style={styles.swapWalletBalance}>
-                    Access: {formatWalletAccessLabel(activeWallet?.kind || 'watch-only')}
-                  </Text>
-                  <Text style={styles.swapWalletAddress}>{activeWallet?.address || ''}</Text>
-                </View>
-
-                {walletOptionsOpen ? (
-                  <OpenDownIcon width={22} height={22} />
-                ) : (
-                  <OpenRightIcon width={18} height={18} />
-                )}
-              </TouchableOpacity>
+              <SelectedWalletSwitcher
+                wallet={
+                  activeWallet
+                    ? {
+                        id: activeWallet.id,
+                        name: activeWallet.name,
+                        address: activeWallet.address,
+                        kind: activeWallet.kind,
+                        balanceDisplay: selectedWalletOption?.balanceDisplay ?? '$0.00',
+                      }
+                    : null
+                }
+                visibleWalletChoices={visibleWalletChoices}
+                walletOptionsOpen={walletOptionsOpen}
+                switchingWalletId={switchingWalletId}
+                onToggle={handleToggleWalletOptions}
+                onChooseWallet={(wallet) => {
+                  void handleChooseWallet(wallet);
+                }}
+                emptyTitle="No wallet selected"
+                emptyBody="Create or import a full-access wallet first."
+              />
             </View>
-
-            {walletOptionsOpen ? (
-              <View style={styles.swapWalletOptionsList}>
-                {visibleWalletChoices.map((wallet) => {
-                  const switching = wallet.id === switchingWalletId;
-
-                  return (
-                    <TouchableOpacity
-                      key={wallet.id}
-                      activeOpacity={0.9}
-                      style={styles.swapWalletOptionRow}
-                      onPress={() => void handleChooseWallet(wallet)}
-                    >
-                      <View style={styles.swapWalletOptionText}>
-                        <Text style={styles.swapWalletName}>{wallet.name}</Text>
-                        <Text style={styles.swapWalletBalance}>Balance: {wallet.balanceDisplay}</Text>
-                        <Text style={styles.swapWalletBalance}>
-                          Access: {formatWalletAccessLabel(wallet.kind)}
-                        </Text>
-                        <Text style={styles.swapWalletAddress}>{wallet.address}</Text>
-                      </View>
-
-                      {switching ? (
-                        <ActivityIndicator color={colors.accent} />
-                      ) : (
-                        <OpenRightIcon width={18} height={18} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : null}
 
             <View style={styles.swapSelectionBlock}>
               <Text style={styles.swapSelectionEyebrow}>SELECTED ASSET · TAP TO SWITCH</Text>

@@ -23,11 +23,11 @@ import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
+import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useSwipeDownDismiss } from '../src/ui/use-swipe-down-dismiss';
 import { colors, layout, radius } from '../src/theme/tokens';
-import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import { listSavedContacts, type SavedContact } from '../src/services/address-book';
 import {
@@ -42,13 +42,13 @@ import {
   type PortfolioAsset,
 } from '../src/services/wallet/portfolio';
 import { setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
+import { useWalletSession } from '../src/wallet/wallet-session';
 
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { FOOTER_NAV_BOTTOM_OFFSET, FOOTER_NAV_RESERVED_SPACE } from '../src/ui/footer-nav';
 import {
   BackspaceIcon,
   CloseIcon,
-  OpenDownIcon,
   OpenRightIcon,
   PasteIcon,
   ScanIcon,
@@ -64,12 +64,6 @@ type WalletSwitcherItem = {
   kind: WalletMeta['kind'];
   balanceDisplay: string;
 };
-
-function formatWalletAccessLabel(kind: WalletMeta['kind']) {
-  if (kind === 'mnemonic') return 'Seed Phrase';
-  if (kind === 'private-key') return 'Private Key';
-  return 'Watch Only';
-}
 
 function isValidTronAddress(value: string) {
   return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(value || '').trim());
@@ -141,6 +135,7 @@ function normalizeAddressMatch(value: string) {
 export default function SendScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { setPendingWalletSelectionId } = useWalletSession();
   const insets = useSafeAreaInsets();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const params = useLocalSearchParams<{
@@ -696,8 +691,8 @@ export default function SendScreen() {
         closeAmountKeyboard();
         setContactsOpen(false);
         await setActiveWalletId(wallet.id);
+        setPendingWalletSelectionId(wallet.id);
         await load();
-        notice.showSuccessNotice(`Send wallet: ${wallet.name}`, 2200);
       } catch (error) {
         console.error(error);
         notice.showErrorNotice('Failed to switch send wallet.', 2400);
@@ -705,7 +700,7 @@ export default function SendScreen() {
         setSwitchingWalletId(null);
       }
     },
-    [closeAmountKeyboard, load, notice]
+    [closeAmountKeyboard, load, notice, setPendingWalletSelectionId]
   );
 
   const handleSend = useCallback(async () => {
@@ -811,7 +806,7 @@ export default function SendScreen() {
           }
         >
           <ScreenBrow label="SEND" variant="back" />
-          <InlineRefreshLoader visible={refreshing} />
+          <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
           {loading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator color={colors.accent} />
@@ -819,73 +814,23 @@ export default function SendScreen() {
           ) : draft ? (
             <>
               <View style={styles.selectionBlock}>
-                <Text style={styles.selectionEyebrow}>SELECTED WALLET · TAP TO SWITCH</Text>
-
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={[
-                    styles.walletCard,
-                    walletOptionsOpen ? styles.walletCardOpen : styles.walletCardClosed,
-                  ]}
-                  onPress={handleToggleWalletOptions}
-                >
-                  <View style={styles.walletCardText}>
-                    <View style={styles.walletTitleRow}>
-                      <Text style={styles.walletName}>{draft.wallet.name}</Text>
-                      <Text style={styles.activeBadge}>SELECTED</Text>
-                    </View>
-
-                    <Text style={styles.walletBalance}>
-                      Balance: {selectedWalletOption?.balanceDisplay ?? '$0.00'}
-                    </Text>
-                    <Text style={styles.walletBalance}>
-                      Access: {formatWalletAccessLabel(draft.wallet.kind)}
-                    </Text>
-                    <Text style={styles.walletAddress}>{draft.wallet.address}</Text>
-                  </View>
-
-                  {walletOptionsOpen ? (
-                    <OpenDownIcon width={22} height={22} />
-                  ) : (
-                    <OpenRightIcon width={18} height={18} />
-                  )}
-                </TouchableOpacity>
+                <SelectedWalletSwitcher
+                  wallet={{
+                    id: draft.wallet.id,
+                    name: draft.wallet.name,
+                    address: draft.wallet.address,
+                    kind: draft.wallet.kind,
+                    balanceDisplay: selectedWalletOption?.balanceDisplay ?? '$0.00',
+                  }}
+                  visibleWalletChoices={visibleWalletChoices}
+                  walletOptionsOpen={walletOptionsOpen}
+                  switchingWalletId={switchingWalletId}
+                  onToggle={handleToggleWalletOptions}
+                  onChooseWallet={(wallet) => {
+                    void handleChooseWallet(wallet);
+                  }}
+                />
               </View>
-
-              {walletOptionsOpen ? (
-                <View style={styles.walletOptionsList}>
-                  {visibleWalletChoices.map((wallet) => {
-                    const switching = wallet.id === switchingWalletId;
-
-                    return (
-                      <TouchableOpacity
-                        key={wallet.id}
-                        activeOpacity={0.9}
-                        style={[styles.walletOptionRow, styles.walletOptionRowInactive]}
-                        onPress={() => void handleChooseWallet(wallet)}
-                      >
-                        <View style={styles.walletOptionText}>
-                          <View style={styles.walletTitleRow}>
-                            <Text style={ui.actionLabel}>{wallet.name}</Text>
-                          </View>
-
-                          <Text style={styles.optionBalance}>Balance: {wallet.balanceDisplay}</Text>
-                          <Text style={styles.optionBalance}>
-                            Access: {formatWalletAccessLabel(wallet.kind)}
-                          </Text>
-                          <Text style={styles.optionAddress}>{wallet.address}</Text>
-                        </View>
-
-                        {switching ? (
-                          <ActivityIndicator color={colors.accent} />
-                        ) : (
-                          <OpenRightIcon width={18} height={18} />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : null}
 
               <View style={styles.selectionBlock}>
                 <Text style={styles.selectionEyebrow}>SELECTED ASSET · TAP TO SWITCH</Text>

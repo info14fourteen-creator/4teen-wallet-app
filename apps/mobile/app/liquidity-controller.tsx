@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -37,12 +36,14 @@ import {
   FOOTER_NAV_BOTTOM_OFFSET,
   FOOTER_NAV_RESERVED_SPACE,
 } from '../src/ui/footer-nav';
+import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import { useNavigationInsets } from '../src/ui/navigation';
+import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
-import { OpenDownIcon, OpenRightIcon } from '../src/ui/ui-icons';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
+import { useWalletSession } from '../src/wallet/wallet-session';
 
 type WalletSwitcherItem = {
   id: string;
@@ -51,12 +52,6 @@ type WalletSwitcherItem = {
   kind: WalletMeta['kind'];
   balanceDisplay: string;
 };
-
-function formatWalletAccessLabel(kind: WalletMeta['kind']) {
-  if (kind === 'mnemonic') return 'SEED PHRASE';
-  if (kind === 'private-key') return 'PRIVATE KEY';
-  return 'WATCH ONLY';
-}
 
 function shortenAddress(address: string) {
   const value = String(address || '').trim();
@@ -68,6 +63,7 @@ function shortenAddress(address: string) {
 export default function LiquidityControllerScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { setPendingWalletSelectionId } = useWalletSession();
   const navInsets = useNavigationInsets({ topExtra: 14 });
 
   const [loading, setLoading] = useState(true);
@@ -148,8 +144,8 @@ export default function LiquidityControllerScreen() {
         setSwitchingWalletId(wallet.id);
         setWalletOptionsOpen(false);
         await setActiveWalletId(wallet.id);
+        setPendingWalletSelectionId(wallet.id);
         await load({ silent: true, force: true });
-        notice.showSuccessNotice(`Liquidity wallet: ${wallet.name}`, 2200);
       } catch (error) {
         console.error(error);
         notice.showErrorNotice('Failed to switch liquidity wallet.', 2400);
@@ -157,7 +153,7 @@ export default function LiquidityControllerScreen() {
         setSwitchingWalletId(null);
       }
     },
-    [load, notice]
+    [load, notice, setPendingWalletSelectionId]
   );
 
   const handleExecute = useCallback(async () => {
@@ -256,6 +252,7 @@ export default function LiquidityControllerScreen() {
           labelChevron={infoExpanded ? 'up' : 'down'}
           onLabelPress={() => setInfoExpanded((prev) => !prev)}
         />
+        <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
 
         {infoExpanded ? (
           <View style={styles.infoPanel}>
@@ -267,75 +264,23 @@ export default function LiquidityControllerScreen() {
         {activeWallet ? (
           <>
             <View style={styles.selectionBlock}>
-              <Text style={styles.selectionEyebrow}>SELECTED WALLET · TAP TO SWITCH</Text>
-
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={styles.walletCard}
-                onPress={handleToggleWalletOptions}
-              >
-                <Image
-                  source={{ uri: FOURTEEN_LOGO }}
-                  style={styles.heroWatermark}
-                  contentFit="contain"
-                />
-
-                <View style={styles.walletCardText}>
-                  <View style={styles.walletTitleRow}>
-                    <Text style={styles.walletName}>{activeWallet.name}</Text>
-                    <Text style={styles.activeBadge}>SELECTED</Text>
-                  </View>
-                  <Text style={styles.walletBalance}>
-                    Balance: {selectedWalletOption?.balanceDisplay ?? '$0.00'}
-                  </Text>
-                  <Text style={styles.walletBalance}>
-                    Access: {formatWalletAccessLabel(activeWallet.kind)}
-                  </Text>
-                  <Text style={styles.walletAddress}>{activeWallet.address}</Text>
-                </View>
-
-                {walletOptionsOpen ? (
-                  <OpenDownIcon width={22} height={22} />
-                ) : (
-                  <OpenRightIcon width={18} height={18} />
-                )}
-              </TouchableOpacity>
+              <SelectedWalletSwitcher
+                wallet={{
+                  id: activeWallet.id,
+                  name: activeWallet.name,
+                  address: activeWallet.address,
+                  kind: activeWallet.kind,
+                  balanceDisplay: selectedWalletOption?.balanceDisplay ?? '$0.00',
+                }}
+                visibleWalletChoices={visibleWalletChoices}
+                walletOptionsOpen={walletOptionsOpen}
+                switchingWalletId={switchingWalletId}
+                onToggle={handleToggleWalletOptions}
+                onChooseWallet={(wallet) => {
+                  void handleChooseWallet(wallet);
+                }}
+              />
             </View>
-
-            {walletOptionsOpen ? (
-              <View style={styles.walletOptionsList}>
-                {visibleWalletChoices.map((wallet) => {
-                  const switching = switchingWalletId === wallet.id;
-
-                  return (
-                    <TouchableOpacity
-                      key={wallet.id}
-                      activeOpacity={0.9}
-                      style={styles.walletOptionRow}
-                      onPress={() => void handleChooseWallet(wallet)}
-                    >
-                      <View style={styles.walletOptionText}>
-                        <View style={styles.walletTitleRow}>
-                          <Text style={ui.actionLabel}>{wallet.name}</Text>
-                        </View>
-
-                        <Text style={styles.optionBalance}>Balance: {wallet.balanceDisplay}</Text>
-                        <Text style={styles.optionBalance}>
-                          Access: {formatWalletAccessLabel(wallet.kind)}
-                        </Text>
-                        <Text style={styles.optionAddress}>{wallet.address}</Text>
-                      </View>
-
-                      {switching ? (
-                        <ActivityIndicator color={colors.accent} />
-                      ) : (
-                        <OpenRightIcon width={18} height={18} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : null}
           </>
         ) : (
           <View style={styles.emptyWalletCard}>
