@@ -275,6 +275,17 @@ function buildTelegramStatusMessage({ session, membership, guard, claim, link, r
 
   if (claim?.status === 'queued') {
     lines.push(`✓ Claim status: queued for ${formatReward(claim.reward_amount)} 4TEEN`);
+    if (Number(claim.queue_position || 0) > 0) {
+      lines.push(
+        `• Queue: #${formatInteger(claim.queue_position)} of ${formatInteger(
+          Number(claim.queue_size || claim.queue_position || 0)
+        )}`
+      );
+    }
+    if (claim?.meta_json?.rentalError) {
+      lines.push('• AIRDROP_CONTROL_WALLET is being replenished from purchases.');
+      lines.push('• Wait a bit and tap CHECK AGAIN soon.');
+    }
     if (resourceState && !resourceState.hasEnough) {
       lines.push('• Waiting for airdrop wallet resources before send.');
     } else {

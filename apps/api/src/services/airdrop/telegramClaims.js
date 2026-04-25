@@ -663,11 +663,36 @@ async function getTelegramAirdropOverview({ walletAddress }) {
     )
   ]);
 
+  let claim = claimResult.rows[0] || null;
+
+  if (claim?.status === 'queued') {
+    const queueResult = await pool.query(
+      `
+        SELECT
+          COUNT(*)::INT AS queue_size,
+          COUNT(*) FILTER (
+            WHERE queued_at < $2
+               OR (queued_at = $2 AND id <= $3)
+          )::INT AS queue_position
+        FROM airdrop_claims
+        WHERE platform = $1
+          AND status = 'queued'
+      `,
+      [PLATFORM_TELEGRAM, claim.queued_at, claim.id]
+    );
+
+    claim = {
+      ...claim,
+      queue_size: Number(queueResult.rows[0]?.queue_size || 0),
+      queue_position: Number(queueResult.rows[0]?.queue_position || 0)
+    };
+  }
+
   return {
     walletAddress: wallet,
     guard,
     link: linkResult.rows[0] || null,
-    claim: claimResult.rows[0] || null,
+    claim,
     session: sessionResult.rows[0] || null
   };
 }

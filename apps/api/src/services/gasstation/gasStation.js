@@ -5,6 +5,7 @@ const { tronWeb } = require('../tron/client');
 
 const SUN = 1_000_000;
 const MIN_OPERATOR_RESERVE_SUN = 2 * SUN;
+const DEFAULT_FUNDING_WALLET_RESERVE_SUN = SUN;
 const DEFAULT_BACKGROUND_REPLENISH_RESERVE_SUN = SUN;
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_BASE_URL = 'https://openapi.gasstation.ai';
@@ -572,10 +573,11 @@ async function waitForOrderSuccess(client, requestId, { attempts = 20, delayMs =
   throw new Error(`Gas Station order timeout for request_id=${requestId}`);
 }
 
-async function getOperatorState() {
-  const account = await tronWeb.trx.getAccount(env.OPERATOR_WALLET);
-  const resources = await tronWeb.trx.getAccountResources(env.OPERATOR_WALLET);
-  const balanceSun = Number(await tronWeb.trx.getBalance(env.OPERATOR_WALLET) || 0);
+async function getWalletState(walletAddress) {
+  const safeWallet = assertNonEmpty(walletAddress, 'walletAddress');
+  const account = await tronWeb.trx.getAccount(safeWallet);
+  const resources = await tronWeb.trx.getAccountResources(safeWallet);
+  const balanceSun = Number(await tronWeb.trx.getBalance(safeWallet) || 0);
 
   const freeNetLimit = Number(account?.freeNetLimit || 0);
   const freeNetUsed = Number(account?.freeNetUsed || 0);
@@ -589,12 +591,16 @@ async function getOperatorState() {
   const availableEnergy = Math.max(0, energyLimit - energyUsed);
 
   return {
-    wallet: env.OPERATOR_WALLET,
+    wallet: safeWallet,
     balanceSun,
     balanceTrx: fromSun(balanceSun),
     availableEnergy,
     availableBandwidth
   };
+}
+
+async function getOperatorState() {
+  return getWalletState(env.OPERATOR_WALLET);
 }
 
 function getOperatorPrivateKey() {
@@ -606,21 +612,55 @@ function getOperatorPrivateKey() {
   );
 }
 
-async function sendTrx(toAddress, amountSun) {
+function getAirdropFundingConfig() {
+  const wallet = String(env.AIRDROP_CONTROL_WALLET || '').trim();
+  const privateKey = String(env.AIRDROP_CONTROL_WALLET_PRIVATE_KEY || '').trim();
+
+  if (!wallet || !privateKey) {
+    return null;
+  }
+
+  return {
+    wallet,
+    privateKey,
+    reserveSun: DEFAULT_FUNDING_WALLET_RESERVE_SUN,
+    label: 'airdrop_control_wallet'
+  };
+}
+
+function resolveFundingConfig(context = {}) {
+  if (String(context?.purpose || '').trim().toLowerCase() === 'airdrop_send') {
+    return getAirdropFundingConfig();
+  }
+
+  return null;
+}
+
+async function sendTrxFromWallet({ fromAddress, privateKey, toAddress, amountSun, errorMessage }) {
   const unsignedTx = await tronWeb.transactionBuilder.sendTrx(
     toAddress,
     amountSun,
-    env.OPERATOR_WALLET
+    fromAddress
   );
 
-  const signedTx = await tronWeb.trx.sign(unsignedTx, getOperatorPrivateKey());
+  const signedTx = await tronWeb.trx.sign(unsignedTx, privateKey);
   const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
 
   if (!broadcast?.result) {
-    throw new Error('Failed to top up Gas Station deposit address');
+    throw new Error(errorMessage || 'Failed to send TRX');
   }
 
   return String(broadcast.txid || signedTx.txID || '');
+}
+
+async function sendTrx(toAddress, amountSun) {
+  return sendTrxFromWallet({
+    fromAddress: env.OPERATOR_WALLET,
+    privateKey: getOperatorPrivateKey(),
+    toAddress,
+    amountSun,
+    errorMessage: 'Failed to top up Gas Station deposit address'
+  });
 }
 
 async function resolveGasStationDepositAddress(client, gasBalance = null) {
@@ -634,9 +674,14 @@ async function resolveGasStationDepositAddress(client, gasBalance = null) {
   return String(balance?.deposit_address || '').trim();
 }
 
-async function waitForOperatorTopUpCapacity(requiredTopUpSun, minRetainedSun = MIN_OPERATOR_RESERVE_SUN) {
+async function waitForOperatorTopUpCapacity(
+  requiredTopUpSun,
+  minRetainedSun = MIN_OPERATOR_RESERVE_SUN,
+  context = {}
+) {
   const requiredSpendableSun = normalizeSunAmount(requiredTopUpSun);
   const requiredRetainedSun = normalizeSunAmount(minRetainedSun);
+  let fundingTransfer = null;
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const operator = await getOperatorState();
@@ -644,9 +689,51 @@ async function waitForOperatorTopUpCapacity(requiredTopUpSun, minRetainedSun = M
     if (operator.balanceSun >= requiredSpendableSun + requiredRetainedSun) {
       return {
         operator,
+        fundingTransfer,
         waited: attempt > 0,
         attempts: attempt + 1
       };
+    }
+
+    if (!fundingTransfer) {
+      const funding = resolveFundingConfig(context);
+
+      if (funding && funding.wallet !== env.OPERATOR_WALLET) {
+        const shortfallSun = requiredSpendableSun + requiredRetainedSun - operator.balanceSun;
+
+        if (shortfallSun > 0) {
+          const fundingState = await getWalletState(funding.wallet);
+
+          if (fundingState.balanceSun < shortfallSun + funding.reserveSun) {
+            const fundingError = new Error(
+              `${funding.label} does not have enough confirmed TRX to fund operator wallet`
+            );
+            fundingError.details = {
+              fundingWallet: funding.wallet,
+              operatorWallet: env.OPERATOR_WALLET,
+              fundingBalanceSun: fundingState.balanceSun,
+              fundingRequiredSun: shortfallSun,
+              fundingReserveSun: funding.reserveSun
+            };
+            throw fundingError;
+          }
+
+          const txid = await sendTrxFromWallet({
+            fromAddress: funding.wallet,
+            privateKey: funding.privateKey,
+            toAddress: env.OPERATOR_WALLET,
+            amountSun: shortfallSun,
+            errorMessage: 'Failed to fund operator wallet from airdrop control wallet'
+          });
+
+          fundingTransfer = {
+            fromWallet: funding.wallet,
+            toWallet: env.OPERATOR_WALLET,
+            amountSun: shortfallSun,
+            txid
+          };
+        }
+      }
     }
 
     if (attempt < 19) {
@@ -659,7 +746,8 @@ async function waitForOperatorTopUpCapacity(requiredTopUpSun, minRetainedSun = M
   error.details = {
     requiredTopUpSun: requiredSpendableSun,
     minRetainedSun: requiredRetainedSun,
-    operatorBalanceSun: operator.balanceSun
+    operatorBalanceSun: operator.balanceSun,
+    fundingTransfer
   };
   throw error;
 }
@@ -676,14 +764,16 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun, options = {}) 
       depositAddress: gasBalance?.deposit_address || null,
       topUpTxHash: null,
       topUpAmountSun: 0,
-      waitedForOperator: false
+      waitedForOperator: false,
+      fundingTransfer: null
     };
   }
 
   const requiredTopUpSun = Math.max(0, requiredSun - currentGasBalanceSun);
-  const { waited } = await waitForOperatorTopUpCapacity(
+  const { waited, fundingTransfer } = await waitForOperatorTopUpCapacity(
     requiredTopUpSun,
-    options.minOperatorRetainedSun ?? MIN_OPERATOR_RESERVE_SUN
+    options.minOperatorRetainedSun ?? MIN_OPERATOR_RESERVE_SUN,
+    options.context || {}
   );
 
   if (requiredTopUpSun <= 0) {
@@ -711,7 +801,8 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun, options = {}) 
         depositAddress,
         topUpTxHash,
         topUpAmountSun: requiredTopUpSun,
-        waitedForOperator: waited
+        waitedForOperator: waited,
+        fundingTransfer
       };
     }
   }
@@ -719,7 +810,12 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun, options = {}) 
   throw new Error('Gas Station balance did not update after top up');
 }
 
-async function replenishGasStationCost(client, costAmountSunInput, minRetainedSunInput = 0) {
+async function replenishGasStationCost(
+  client,
+  costAmountSunInput,
+  minRetainedSunInput = 0,
+  context = {}
+) {
   const topUpAmountSun = normalizeSunAmount(costAmountSunInput);
   const minRetainedSun = normalizeSunAmount(minRetainedSunInput);
 
@@ -732,7 +828,11 @@ async function replenishGasStationCost(client, costAmountSunInput, minRetainedSu
     };
   }
 
-  const { waited } = await waitForOperatorTopUpCapacity(topUpAmountSun, minRetainedSun);
+  const { waited, fundingTransfer } = await waitForOperatorTopUpCapacity(
+    topUpAmountSun,
+    minRetainedSun,
+    context
+  );
 
   const depositAddress = await resolveGasStationDepositAddress(client);
   const topUpTxHash = await sendTrx(depositAddress, topUpAmountSun);
@@ -743,7 +843,8 @@ async function replenishGasStationCost(client, costAmountSunInput, minRetainedSu
     topUpAmountSun,
     depositAddress,
     topUpTxHash,
-    waitedForOperator: waited
+    waitedForOperator: waited,
+    fundingTransfer
   };
 }
 
@@ -763,7 +864,7 @@ function scheduleGasStationReplenishment(client, costAmountSun, context = {}) {
 
   const task = async () => {
     try {
-      const result = await replenishGasStationCost(client, amountSun, minRetainedSun);
+      const result = await replenishGasStationCost(client, amountSun, minRetainedSun, context);
       console.info('[GasStation] background replenish complete', {
         purpose: context.purpose || null,
         paymentTxid: context.paymentTxid || null,
@@ -1047,7 +1148,8 @@ async function rentEnergyForWallet({
     });
     const retainedSun = Math.max(0, normalizeSunAmount(paymentAmountSun) - estimate.totalAmountSun);
     const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun, {
-      minOperatorRetainedSun: retainedSun > 0 ? retainedSun : MIN_OPERATOR_RESERVE_SUN
+      minOperatorRetainedSun: retainedSun > 0 ? retainedSun : MIN_OPERATOR_RESERVE_SUN,
+      context
     });
     const replenishCostSun = Math.max(0, estimate.totalAmountSun - normalizeSunAmount(topUp?.topUpAmountSun));
     const backgroundReplenishment = scheduleGasStationReplenishment(client, replenishCostSun, {
@@ -1108,7 +1210,8 @@ async function rentResourcesForWallet({
     });
     const retainedSun = Math.max(0, normalizeSunAmount(paymentAmountSun) - estimate.totalAmountSun);
     const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun, {
-      minOperatorRetainedSun: retainedSun > 0 ? retainedSun : MIN_OPERATOR_RESERVE_SUN
+      minOperatorRetainedSun: retainedSun > 0 ? retainedSun : MIN_OPERATOR_RESERVE_SUN,
+      context
     });
     const replenishCostSun = Math.max(0, estimate.totalAmountSun - normalizeSunAmount(topUp?.topUpAmountSun));
     const backgroundReplenishment = scheduleGasStationReplenishment(client, replenishCostSun, {
