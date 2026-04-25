@@ -75,6 +75,7 @@ const NoticeContext = createContext<NoticeContextValue | null>(null);
 const NOTICE_RADIUS = 14;
 const NOTICE_STROKE = 1.5;
 const EXTRA_MS_PER_LINE = 1400;
+const NOTICE_DEDUPE_WINDOW_MS = 2200;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const AnimatedRect = Animated.createAnimatedComponent(Rect);
@@ -111,6 +112,17 @@ function getEffectiveDuration(baseDuration: number, lineCount: number) {
   return baseDuration + Math.max(0, lineCount - 1) * EXTRA_MS_PER_LINE;
 }
 
+function buildNoticeDedupeKey(input: Pick<NoticeOptions, 'type' | 'message' | 'dismissMode' | 'actions'>) {
+  const type = input.type ?? 'neutral';
+  const dismissMode = input.dismissMode ?? 'auto';
+  const message = String(input.message || '').trim();
+  const actions = Array.isArray(input.actions)
+    ? input.actions.map((action) => action.label).join('|')
+    : '';
+
+  return `${type}::${dismissMode}::${message}::${actions}`;
+}
+
 export function NoticeProvider({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   const [notice, setNotice] = useState<InternalNotice | null>(null);
@@ -120,6 +132,7 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
   const nextIdRef = useRef(1);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animatedNoticeIdRef = useRef<number | null>(null);
+  const recentNoticeKeysRef = useRef<Map<string, number>>(new Map());
 
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-10)).current;
@@ -192,6 +205,21 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
   }, [animateOut, clearHideTimer, stopBorderProgress]);
 
   const showNotice = useCallback((input: NoticeOptions) => {
+    const dedupeKey = buildNoticeDedupeKey(input);
+    const now = Date.now();
+
+    for (const [key, seenAt] of recentNoticeKeysRef.current.entries()) {
+      if (now - seenAt > NOTICE_DEDUPE_WINDOW_MS) {
+        recentNoticeKeysRef.current.delete(key);
+      }
+    }
+
+    const lastSeenAt = recentNoticeKeysRef.current.get(dedupeKey);
+
+    if (lastSeenAt && now - lastSeenAt < NOTICE_DEDUPE_WINDOW_MS) {
+      return;
+    }
+
     clearHideTimer();
     stopBorderProgress();
     opacity.stopAnimation();
@@ -200,11 +228,23 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
 
     setNotice((current) => {
       const prepared = normalizeNotice(input, nextIdRef.current++);
+      const currentIsEquivalent =
+        current &&
+        current.type === prepared.type &&
+        current.dismissMode === prepared.dismissMode &&
+        current.message === prepared.message &&
+        areActionsEquivalent(current.actions, prepared.actions);
+
+      if (currentIsEquivalent) {
+        recentNoticeKeysRef.current.set(dedupeKey, now);
+        return current;
+      }
 
       setBoxSize({ width: 0, height: 0 });
       setMessageLineCount(0);
 
       if (!current) {
+        recentNoticeKeysRef.current.set(dedupeKey, now);
         return prepared;
       }
 
@@ -218,15 +258,18 @@ export function NoticeProvider({ children }: { children: React.ReactNode }) {
         const sameActions = areActionsEquivalent(current.actions, prepared.actions);
 
         if (sameMessage && sameActions) {
+          recentNoticeKeysRef.current.set(dedupeKey, now);
           return current;
         }
 
+        recentNoticeKeysRef.current.set(dedupeKey, now);
         return {
           ...prepared,
           id: current.id,
         };
       }
 
+      recentNoticeKeysRef.current.set(dedupeKey, now);
       return prepared;
     });
   }, [clearHideTimer, opacity, stopBorderProgress, translateY]);
