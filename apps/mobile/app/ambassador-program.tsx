@@ -29,15 +29,17 @@ import { getCachedWalletPortfolio } from '../src/services/wallet/portfolio';
 import { listWallets, setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
 import { colors, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
+import { useWalletSession } from '../src/wallet/wallet-session';
 import {
   ProductActionRow,
   ProductScreen,
   ProductSection,
   ProductStatGrid,
 } from '../src/ui/product-shell';
+import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
+import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
-import { OpenDownIcon, OpenRightIcon } from '../src/ui/ui-icons';
 
 type WalletSwitcherItem = {
   id: string;
@@ -65,12 +67,6 @@ const DEFAULT_CABINET_SECTIONS: Record<CabinetSectionId, boolean> = {
   pending: false,
   guide: true,
 };
-
-function formatWalletAccessLabel(kind: WalletMeta['kind']) {
-  if (kind === 'mnemonic') return 'SEED PHRASE';
-  if (kind === 'private-key') return 'PRIVATE KEY';
-  return 'WATCH ONLY';
-}
 
 function shortenAddress(address: string) {
   if (!address) return '—';
@@ -143,6 +139,7 @@ function readRowSun(row: Record<string, unknown>, keys: string[]) {
 export default function AmbassadorProgramScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { setPendingWalletSelectionId } = useWalletSession();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -321,8 +318,8 @@ export default function AmbassadorProgramScreen() {
         setSwitchingWalletId(wallet.id);
         setWalletOptionsOpen(false);
         await setActiveWalletId(wallet.id);
+        setPendingWalletSelectionId(wallet.id);
         await load({ silent: true, force: true });
-        notice.showSuccessNotice(`Ambassador wallet: ${wallet.name}`, 2200);
       } catch (error) {
         console.error(error);
         notice.showErrorNotice('Failed to switch ambassador wallet.', 2400);
@@ -331,7 +328,7 @@ export default function AmbassadorProgramScreen() {
         setBusyAction(null);
       }
     },
-    [load, notice]
+    [load, notice, setPendingWalletSelectionId]
   );
 
   const handleNormalizeSlug = useCallback((value: string) => {
@@ -394,10 +391,16 @@ export default function AmbassadorProgramScreen() {
         />
       }
     >
+      <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
       {activeWallet ? (
-        <WalletSelector
-          activeWallet={activeWallet}
-          selectedWalletOption={selectedWalletOption}
+        <SelectedWalletSwitcher
+          wallet={{
+            id: activeWallet.id,
+            name: activeWallet.name,
+            address: activeWallet.address,
+            kind: activeWallet.kind,
+            balanceDisplay: selectedWalletOption?.balanceDisplay ?? '—',
+          }}
           visibleWalletChoices={visibleWalletChoices}
           walletOptionsOpen={walletOptionsOpen}
           switchingWalletId={switchingWalletId}
@@ -465,81 +468,6 @@ export default function AmbassadorProgramScreen() {
         />
       ) : null}
     </ProductScreen>
-  );
-}
-
-function WalletSelector({
-  activeWallet,
-  selectedWalletOption,
-  visibleWalletChoices,
-  walletOptionsOpen,
-  switchingWalletId,
-  onToggle,
-  onChooseWallet,
-}: {
-  activeWallet: WalletMeta;
-  selectedWalletOption: WalletSwitcherItem | null;
-  visibleWalletChoices: WalletSwitcherItem[];
-  walletOptionsOpen: boolean;
-  switchingWalletId: string | null;
-  onToggle: () => void;
-  onChooseWallet: (wallet: WalletSwitcherItem) => void;
-}) {
-  return (
-    <View style={styles.selectionBlock}>
-      <Text style={styles.selectionEyebrow}>SELECTED WALLET · TAP TO SWITCH</Text>
-
-      <TouchableOpacity
-        activeOpacity={0.9}
-        style={[styles.walletCard, walletOptionsOpen ? styles.walletCardOpen : styles.walletCardClosed]}
-        onPress={onToggle}
-      >
-        <View style={styles.walletCardText}>
-          <View style={styles.walletTitleRow}>
-            <Text style={styles.walletName}>{activeWallet.name}</Text>
-            <Text style={styles.activeBadge}>SELECTED</Text>
-          </View>
-
-          <Text style={styles.walletBalance}>
-            Balance: {selectedWalletOption?.balanceDisplay ?? '—'}
-          </Text>
-          <Text style={styles.walletBalance}>
-            Access: {formatWalletAccessLabel(activeWallet.kind)}
-          </Text>
-          <Text style={styles.walletAddress}>{activeWallet.address}</Text>
-        </View>
-
-        {walletOptionsOpen ? <OpenDownIcon width={22} height={22} /> : <OpenRightIcon width={18} height={18} />}
-      </TouchableOpacity>
-
-      {walletOptionsOpen ? (
-        <View style={styles.walletOptionsList}>
-          {visibleWalletChoices.map((wallet) => {
-            const switching = wallet.id === switchingWalletId;
-
-            return (
-              <TouchableOpacity
-                key={wallet.id}
-                activeOpacity={0.9}
-                style={styles.walletOptionRow}
-                onPress={() => onChooseWallet(wallet)}
-              >
-                <View style={styles.walletOptionText}>
-                  <Text style={ui.actionLabel}>{wallet.name}</Text>
-                  <Text style={styles.optionBalance}>Balance: {wallet.balanceDisplay}</Text>
-                  <Text style={styles.optionBalance}>
-                    Access: {formatWalletAccessLabel(wallet.kind)}
-                  </Text>
-                  <Text style={styles.optionAddress}>{wallet.address}</Text>
-                </View>
-
-                {switching ? <ActivityIndicator color={colors.accent} /> : <OpenRightIcon width={18} height={18} />}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      ) : null}
-    </View>
   );
 }
 

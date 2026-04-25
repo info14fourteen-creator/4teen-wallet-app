@@ -20,6 +20,11 @@
     "android": {
       "softwareKeyboardLayoutMode": "resize"
     },
+    "ios": {
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["tg"]
+      }
+    },
     "scheme": "fourteenwallet"
   }
 }
