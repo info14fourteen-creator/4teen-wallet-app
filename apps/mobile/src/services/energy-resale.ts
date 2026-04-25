@@ -16,6 +16,7 @@ export type EnergyResaleQuote = {
   purpose: string;
   mode: string;
   wallet: string | null;
+  gasStationAccount?: string;
   paymentAddress: string;
   amountSun: string;
   amountTrx: string;
@@ -299,7 +300,7 @@ async function waitForEnergyResaleReady(input: {
   let lastStatus: EnergyResaleStatus | null = null;
   let transientStatusFailures = 0;
 
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
     try {
       lastStatus = await getEnergyResaleStatus(input);
       transientStatusFailures = 0;

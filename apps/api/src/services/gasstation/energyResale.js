@@ -312,7 +312,8 @@ async function getEnergyResalePackage(purposeInput, requirements = {}) {
       requiredEnergy,
       requiredBandwidth,
       rentalPeriodSeconds: 0,
-      label: String(purpose || 'resource-rental')
+      label: String(purpose || 'resource-rental'),
+      gasStationAccount: String(quote.gasStationAccount || '').trim()
       };
 
       writeCachedApiQuote(cacheKey, result);
@@ -454,6 +455,7 @@ function scheduleApiEnergyResaleOrder({
         bandwidthNum: packageConfig.bandwidthQuantity,
         requestPrefix: `energy-resale-${purpose}`,
         paymentAmountSun: payment.amountSun,
+        gasStationAccount: packageConfig.gasStationAccount,
         context: {
           purpose,
           paymentTxid: paymentTxHash
