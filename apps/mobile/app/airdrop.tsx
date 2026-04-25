@@ -351,14 +351,29 @@ export default function AirdropScreen() {
         return;
       }
 
-      setWallet(snapshot.wallet);
+      const signingWallets = wallets.filter((item) => item.kind !== 'watch-only');
+
+      if (snapshot.wallet?.kind === 'watch-only' && signingWallets[0]) {
+        await setActiveWalletId(signingWallets[0].id);
+        setPendingWalletSelectionId(signingWallets[0].id);
+
+        if (loadRequestIdRef.current === requestId) {
+          void load(refresh);
+        }
+        return;
+      }
+
+      const resolvedWallet =
+        snapshot.wallet?.kind === 'watch-only' ? null : snapshot.wallet;
+
+      setWallet(resolvedWallet);
       setOverview(snapshot.overview);
       setOnChain((current) =>
-        current && current.walletAddress === snapshot.wallet?.address ? current : null
+        current && current.walletAddress === resolvedWallet?.address ? current : null
       );
       setWalletChoices(
         await Promise.all(
-          wallets.map(async (item) => {
+          signingWallets.map(async (item) => {
             const cachedPortfolio = await getCachedWalletPortfolio(item.address, {
               allowStale: true,
             }).catch(() => null);
@@ -374,12 +389,12 @@ export default function AirdropScreen() {
         )
       );
 
-      if (!snapshot.wallet?.address) {
+      if (!resolvedWallet?.address) {
         setOnChain(null);
         return;
       }
 
-      const nextOnChain = await getWalletAirdropOnChainSnapshot(snapshot.wallet.address, {
+      const nextOnChain = await getWalletAirdropOnChainSnapshot(resolvedWallet.address, {
         force: refresh,
       });
 
@@ -412,7 +427,7 @@ export default function AirdropScreen() {
         setRefreshing(false);
       }
     }
-  }, [notice]);
+  }, [notice, setPendingWalletSelectionId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -471,7 +486,7 @@ export default function AirdropScreen() {
   const openTelegram = useCallback(async () => {
     try {
       if (!wallet) {
-        notice.showNeutralNotice('Create or import a wallet first.', 2400);
+        notice.showNeutralNotice('Create or import a full-access wallet first.', 2400);
         router.push('/wallets');
         return;
       }
@@ -524,12 +539,12 @@ export default function AirdropScreen() {
 
   const handleToggleWalletOptions = useCallback(() => {
     if (!walletChoices.length) {
-      notice.showNeutralNotice('Create or import a wallet first.', 2200);
+      notice.showNeutralNotice('No full-access wallets available.', 2200);
       return;
     }
 
     if (visibleWalletChoices.length === 0) {
-      notice.showNeutralNotice('No other wallets available.', 2200);
+      notice.showNeutralNotice('No other full-access wallets available.', 2200);
       return;
     }
 

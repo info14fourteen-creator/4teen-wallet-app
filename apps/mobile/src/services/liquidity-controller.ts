@@ -24,6 +24,7 @@ const SUN = 1_000_000;
 const LIQUIDITY_EVENTS_LIMIT = 10;
 const LIQUIDITY_CACHE_TTL_MS = 60 * 1000;
 const DEFAULT_EXECUTE_FEE_LIMIT_SUN = 150_000_000;
+const DEFAULT_EXECUTION_FEE_LIMIT_FLOOR_SUN = 220_000_000;
 const DEFAULT_EXECUTE_ESTIMATED_ENERGY = 220_000;
 const DEFAULT_EXECUTE_ESTIMATED_BANDWIDTH = 650;
 
@@ -400,8 +401,8 @@ export async function executeLiquidityController(options?: {
   const result = await contract.bootstrapAndExecute().send({
     feeLimit:
       typeof options?.feeLimitSun === 'number' && Number.isFinite(options.feeLimitSun)
-        ? Math.max(1_000_000, Math.floor(options.feeLimitSun))
-        : DEFAULT_EXECUTE_FEE_LIMIT_SUN,
+        ? Math.max(1_000_000, Math.floor(Math.max(options.feeLimitSun, DEFAULT_EXECUTION_FEE_LIMIT_FLOOR_SUN)))
+        : DEFAULT_EXECUTION_FEE_LIMIT_FLOOR_SUN,
     shouldPollResponse: false,
   });
   const txId = extractTxId(result);

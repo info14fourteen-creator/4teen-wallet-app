@@ -415,6 +415,11 @@ export default function SendScreen() {
     return selectedTokenAsset?.symbol || draft?.token?.symbol || 'TOKEN';
   }, [draft?.token?.symbol, selectedTokenAsset?.symbol]);
 
+  const selectedTokenDecimals = useMemo(() => {
+    const decimals = Number(selectedTokenAsset?.decimals ?? draft?.token?.decimals ?? 6);
+    return Number.isFinite(decimals) && decimals >= 0 ? decimals : 6;
+  }, [draft?.token?.decimals, selectedTokenAsset?.decimals]);
+
   const selectedTokenPriceUsd = useMemo(() => {
     if (
       selectedTokenAsset &&
@@ -440,8 +445,8 @@ export default function SendScreen() {
     }
 
     const tokenValue = parsedAmountValue / selectedTokenPriceUsd;
-    return `${formatDisplayNumber(tokenValue, 6)} ${selectedTokenUnitLabel}`;
-  }, [amountInputMode, parsedAmountValue, selectedTokenPriceUsd, selectedTokenUnitLabel]);
+    return `${formatDisplayNumber(tokenValue, selectedTokenDecimals)} ${selectedTokenUnitLabel}`;
+  }, [amountInputMode, parsedAmountValue, selectedTokenDecimals, selectedTokenPriceUsd, selectedTokenUnitLabel]);
 
   const amountSuffixLabel = amountInputMode === 'token' ? selectedTokenUnitLabel : 'USD';
 
@@ -454,8 +459,8 @@ export default function SendScreen() {
       return '';
     }
 
-    return String(parsedAmountValue / selectedTokenPriceUsd);
-  }, [amount, amountInputMode, parsedAmountValue, selectedTokenPriceUsd]);
+    return formatInputNumber(parsedAmountValue / selectedTokenPriceUsd, selectedTokenDecimals);
+  }, [amount, amountInputMode, parsedAmountValue, selectedTokenDecimals, selectedTokenPriceUsd]);
 
   const maxTokenAmountValue = useMemo(() => {
     return parseDecimalInput(draft?.spendableAmount ?? '') ?? 0;
@@ -468,7 +473,7 @@ export default function SendScreen() {
     return 0;
   }, [selectedTokenAsset]);
 
-  const amountPrecision = amountInputMode === 'token' ? 6 : 2;
+  const amountPrecision = amountInputMode === 'token' ? selectedTokenDecimals : 2;
   const maxAmountValue = amountInputMode === 'token' ? maxTokenAmountValue : maxUsdAmountValue;
   const amountBackspaceActsAsClose = amount === '' || amount === '0';
 
@@ -501,9 +506,9 @@ export default function SendScreen() {
     }
 
     const tokenValue = parsedAmountValue / selectedTokenPriceUsd;
-    setAmount(formatInputNumber(tokenValue, 6));
+    setAmount(formatInputNumber(tokenValue, selectedTokenDecimals));
     setAmountInputMode('token');
-  }, [amountInputMode, parsedAmountValue, selectedTokenPriceUsd]);
+  }, [amountInputMode, parsedAmountValue, selectedTokenDecimals, selectedTokenPriceUsd]);
 
   const openAmountKeyboard = useCallback(() => {
     setWalletOptionsOpen(false);
@@ -540,11 +545,11 @@ export default function SendScreen() {
 
   const handleSetMax = useCallback(() => {
     if (amountInputMode === 'token') {
-      setAmount(formatInputNumber(maxTokenAmountValue, 6));
+      setAmount(formatInputNumber(maxTokenAmountValue, selectedTokenDecimals));
       return;
     }
     setAmount(formatInputNumber(maxUsdAmountValue, 2));
-  }, [amountInputMode, maxTokenAmountValue, maxUsdAmountValue]);
+  }, [amountInputMode, maxTokenAmountValue, maxUsdAmountValue, selectedTokenDecimals]);
 
   useEffect(() => {
     setAmount((current) => {

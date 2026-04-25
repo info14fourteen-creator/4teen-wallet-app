@@ -24,6 +24,7 @@ import {
 } from './resources';
 
 const DEFAULT_TRC20_FEE_LIMIT_SUN = 100_000_000;
+const DEFAULT_TRC20_EXECUTION_FEE_LIMIT_SUN = 150_000_000;
 const DEFAULT_TRC20_TRANSFER_ESTIMATED_ENERGY = 65_000;
 const DEFAULT_BANDWIDTH_PRICE_SUN = 1_000;
 const DEFAULT_ENERGY_PRICE_SUN = 420;
@@ -153,12 +154,8 @@ function decimalToRaw(amount: string, decimals: number) {
   }
 
   const [wholePart, fractionPart = ''] = safe.split('.');
-
-  if (fractionPart.length > decimals) {
-    throw new Error(`Too many decimal places. Max allowed: ${decimals}.`);
-  }
-
-  const paddedFraction = fractionPart.padEnd(decimals, '0');
+  const normalizedFraction = fractionPart.slice(0, Math.max(0, decimals));
+  const paddedFraction = normalizedFraction.padEnd(decimals, '0');
   const normalized = `${wholePart}${paddedFraction}`.replace(/^0+(?=\d)/, '');
 
   return normalized || '0';
@@ -394,8 +391,8 @@ export async function sendAssetTransfer(
   const amount = normalizeAmountInput(input.amount);
   const feeLimitSun =
     typeof input.feeLimitSun === 'number' && Number.isFinite(input.feeLimitSun)
-      ? Math.max(1_000_000, Math.floor(input.feeLimitSun))
-      : DEFAULT_TRC20_FEE_LIMIT_SUN;
+      ? Math.max(1_000_000, Math.floor(Math.max(input.feeLimitSun, DEFAULT_TRC20_EXECUTION_FEE_LIMIT_SUN)))
+      : DEFAULT_TRC20_EXECUTION_FEE_LIMIT_SUN;
 
   if (!isValidTronAddress(toAddress)) {
     throw new Error('Enter a valid TRON address.');
@@ -561,8 +558,8 @@ export async function estimateAssetTransfer(
   const amount = normalizeAmountInput(input.amount);
   const feeLimitSun =
     typeof input.feeLimitSun === 'number' && Number.isFinite(input.feeLimitSun)
-      ? Math.max(1_000_000, Math.floor(input.feeLimitSun))
-      : DEFAULT_TRC20_FEE_LIMIT_SUN;
+      ? Math.max(1_000_000, Math.floor(Math.max(input.feeLimitSun, DEFAULT_TRC20_EXECUTION_FEE_LIMIT_SUN)))
+      : DEFAULT_TRC20_EXECUTION_FEE_LIMIT_SUN;
 
   if (!isValidTronAddress(toAddress)) {
     throw new Error('Enter a valid TRON address.');

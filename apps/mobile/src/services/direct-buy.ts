@@ -30,7 +30,8 @@ const DEFAULT_DIRECT_BUY_PRICE_SUN = 1_147_500;
 const DEFAULT_PRICE_UPDATE_INTERVAL = 90 * 24 * 60 * 60;
 const DEFAULT_LOCK_DURATION = 14 * 24 * 60 * 60;
 const DEFAULT_ANNUAL_GROWTH_RATE = 1475;
-const DEFAULT_DIRECT_BUY_FEE_LIMIT_SUN = 20_000_000;
+const DEFAULT_DIRECT_BUY_FEE_LIMIT_SUN = 120_000_000;
+const DEFAULT_DIRECT_BUY_EXECUTION_FEE_LIMIT_SUN = 120_000_000;
 const DEFAULT_DIRECT_BUY_ESTIMATED_ENERGY = 20_000;
 const DEFAULT_DIRECT_BUY_ESTIMATED_BANDWIDTH = 420;
 
@@ -815,8 +816,8 @@ export async function executeDirectBuy(input: {
     callValue,
     feeLimit:
       typeof input.feeLimitSun === 'number' && Number.isFinite(input.feeLimitSun)
-        ? Math.max(1_000_000, Math.floor(input.feeLimitSun))
-        : DEFAULT_DIRECT_BUY_FEE_LIMIT_SUN,
+        ? Math.max(1_000_000, Math.floor(Math.max(input.feeLimitSun, DEFAULT_DIRECT_BUY_EXECUTION_FEE_LIMIT_SUN)))
+        : DEFAULT_DIRECT_BUY_EXECUTION_FEE_LIMIT_SUN,
     shouldPollResponse: false,
   });
   const txId = extractTxid(result);

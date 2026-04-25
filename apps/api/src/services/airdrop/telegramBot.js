@@ -146,6 +146,25 @@ function formatReward(amount) {
   });
 }
 
+function shortenAddress(address) {
+  const safe = normalizeValue(address);
+
+  if (!safe) {
+    return '—';
+  }
+
+  if (safe.length <= 14) {
+    return safe;
+  }
+
+  return `${safe.slice(0, 6)}...${safe.slice(-6)}`;
+}
+
+function buildTransactionUrl(txid) {
+  const safe = normalizeTxid(txid);
+  return safe ? `https://tronscan.org/#/transaction/${safe}` : '';
+}
+
 function buildTelegramStartLinks(sessionToken) {
   const username = getBotUsername();
   const safeToken = normalizeValue(sessionToken);
@@ -175,72 +194,99 @@ function buildWalletChallenge({ walletAddress, sessionToken, expiresAt }) {
   ].join('\n');
 }
 
-function buildTelegramVerifyKeyboard(sessionToken) {
+function buildTelegramVerifyKeyboard(sessionToken, membership) {
   const safeToken = normalizeValue(sessionToken);
+  const rows = [];
+  const joinButtons = [];
+
+  if (!membership || membership.groupOk !== true) {
+    joinButtons.push({ text: 'Join Community', url: normalizeValue(env.TELEGRAM_GROUP_URL) });
+  }
+
+  if (!membership || membership.channelOk !== true) {
+    joinButtons.push({ text: 'Join Channel', url: normalizeValue(env.TELEGRAM_CHANNEL_URL) });
+  }
+
+  if (joinButtons.length > 0) {
+    rows.push(joinButtons);
+  }
 
   return {
     inline_keyboard: [
-      [
-        { text: 'Join Community', url: normalizeValue(env.TELEGRAM_GROUP_URL) },
-        { text: 'Join Channel', url: normalizeValue(env.TELEGRAM_CHANNEL_URL) }
-      ],
+      ...rows,
       [{ text: 'CHECK AGAIN', callback_data: `${SESSION_CALLBACK_PREFIX}${safeToken}` }]
     ]
   };
+}
+
+function buildTelegramReplyMarkup({ sessionToken, membership, claim, guard }) {
+  const safeToken = normalizeValue(sessionToken);
+  const txid = claim?.txid || guard?.claimedTxid || '';
+  const txUrl = buildTransactionUrl(txid);
+
+  if (txUrl) {
+    return {
+      inline_keyboard: [[{ text: 'VIEW TRANSACTION', url: txUrl }]]
+    };
+  }
+
+  if (!membership?.ready) {
+    return buildTelegramVerifyKeyboard(safeToken, membership);
+  }
+
+  if (safeToken) {
+    return {
+      inline_keyboard: [[{ text: 'CHECK AGAIN', callback_data: `${SESSION_CALLBACK_PREFIX}${safeToken}` }]]
+    };
+  }
+
+  return undefined;
 }
 
 function buildTelegramProgressMessage() {
   return [
     '4TEEN Telegram Airdrop',
     '',
-    'Checking wallet session...',
-    'Checking previous claim...',
-    'Checking channel subscription...',
-    'Checking community subscription...'
+    '🟠 Preparing your claim...',
+    '• Checking your wallet session',
+    '• Checking previous reward status',
+    '• Checking channel subscription',
+    '• Checking community subscription'
   ].join('\n');
 }
 
 function buildTelegramStatusMessage({ session, membership, guard, claim, link, resourceState }) {
   const lines = ['4TEEN Telegram Airdrop', ''];
 
-  lines.push(`Wallet: ${session.wallet_address}`);
-
-  if (link?.telegram_username) {
-    lines.push(`Telegram: @${link.telegram_username}`);
-  } else if (session.telegram_user_id) {
-    lines.push(`Telegram ID: ${session.telegram_user_id}`);
-  }
+  lines.push('🪪 We identified your wallet automatically.');
+  lines.push(`Wallet address: ${shortenAddress(session.wallet_address)}`);
 
   lines.push('');
 
   if (guard.walletBlockedByLegacyClaim || guard.telegramBlockedByLegacyClaim) {
-    lines.push('✓ Previous claim check: already used in the legacy bot flow');
-    if (guard.claimedTxid) {
-      lines.push(`TX: ${guard.claimedTxid}`);
-    }
-    lines.push('');
-    lines.push('Reward is already exhausted for this Telegram claim.');
+    lines.push('🟡 Previous reward: already received in the legacy bot flow');
+    lines.push('✅ This Telegram reward is already consumed.');
     return lines.join('\n');
   }
 
   if (claim?.status === 'sent' && claim?.txid) {
-    lines.push('✓ Previous claim check: reward already received');
-    lines.push(`✓ Reward sent: ${formatReward(claim.reward_amount)} 4TEEN`);
-    lines.push(`TX: ${claim.txid}`);
+    lines.push('🎉 Reward delivered successfully');
+    lines.push(`✅ Received: ${formatReward(claim.reward_amount)} 4TEEN`);
+    lines.push(`✅ Status: on-chain and confirmed`);
     return lines.join('\n');
   }
 
   if (guard.telegramLinked && guard.telegramLinkedWalletAddress !== session.wallet_address) {
-    lines.push('✓ Previous claim check: clear');
-    lines.push('✕ Telegram account link: already linked to another wallet');
+    lines.push('✅ Previous reward check: clear');
+    lines.push('❌ Telegram link: this Telegram account is already linked to another wallet');
     lines.push('');
     lines.push('Use another Telegram account or unlink the old one first.');
     return lines.join('\n');
   }
 
   if (guard.walletLinked && guard.walletLinkedTelegramUserId !== session.telegram_user_id) {
-    lines.push('✓ Previous claim check: clear');
-    lines.push('✕ Wallet link: already linked to another Telegram account');
+    lines.push('✅ Previous reward check: clear');
+    lines.push('❌ Wallet link: this wallet is already linked to another Telegram account');
     lines.push('');
     lines.push('Use the linked Telegram account or rebind later.');
     return lines.join('\n');
@@ -248,54 +294,54 @@ function buildTelegramStatusMessage({ session, membership, guard, claim, link, r
 
   lines.push(
     claim?.status === 'queued' || claim?.status === 'failed'
-      ? '✓ Previous claim check: claim record exists'
-      : '✓ Previous claim check: clear'
+      ? '✅ Previous reward check: claim record already exists'
+      : '✅ Previous reward check: clear'
   );
 
   if (membership) {
     lines.push(
-      `${membership.channelOk ? '✓' : '✕'} Channel subscription: ${
-        membership.channelOk ? 'subscribed' : 'not subscribed'
+      `${membership.channelOk ? '✅' : '❌'} Channel: ${
+        membership.channelOk ? 'subscribed' : 'not subscribed yet'
       }`
     );
     lines.push(
-      `${membership.groupOk ? '✓' : '✕'} Community subscription: ${
-        membership.groupOk ? 'subscribed' : 'not subscribed'
+      `${membership.groupOk ? '✅' : '❌'} Community: ${
+        membership.groupOk ? 'subscribed' : 'not subscribed yet'
       }`
     );
   }
 
   if (!membership?.ready) {
     lines.push('');
-    lines.push('Subscribe to the missing Telegram chats, then tap CHECK AGAIN.');
+    lines.push('Join the missing Telegram chats, then tap CHECK AGAIN.');
     return lines.join('\n');
   }
 
-  lines.push('✓ Wallet link: verified');
+  lines.push('✅ Wallet link: verified');
 
   if (claim?.status === 'queued') {
-    lines.push(`✓ Claim status: queued for ${formatReward(claim.reward_amount)} 4TEEN`);
+    lines.push(`🟠 Claim queued: ${formatReward(claim.reward_amount)} 4TEEN`);
     if (Number(claim.queue_position || 0) > 0) {
       lines.push(
-        `• Queue: #${formatInteger(claim.queue_position)} of ${formatInteger(
+        `• Queue position: #${formatInteger(claim.queue_position)} of ${formatInteger(
           Number(claim.queue_size || claim.queue_position || 0)
         )}`
       );
     }
     if (claim?.meta_json?.rentalError) {
       lines.push('• AIRDROP_CONTROL_WALLET is being replenished from purchases.');
-      lines.push('• Wait a bit and tap CHECK AGAIN soon.');
+      lines.push('• Please wait a bit, then tap CHECK AGAIN.');
     }
     if (resourceState && !resourceState.hasEnough) {
       lines.push('• Waiting for airdrop wallet resources before send.');
     } else {
-      lines.push('• Waiting for on-chain send.');
+      lines.push('• Waiting for the on-chain transfer.');
     }
     return lines.join('\n');
   }
 
   if (claim?.status === 'failed') {
-    lines.push('✕ Claim send: failed in the previous attempt');
+    lines.push('❌ Claim send: the previous attempt failed');
     if (claim.failure_reason) {
       lines.push(`Reason: ${claim.failure_reason}`);
     }
@@ -304,7 +350,7 @@ function buildTelegramStatusMessage({ session, membership, guard, claim, link, r
     return lines.join('\n');
   }
 
-  lines.push('✓ Claim status: accepted');
+  lines.push('✅ Claim accepted');
   lines.push('• Preparing the airdrop transaction now.');
 
   return lines.join('\n');
@@ -706,7 +752,12 @@ async function processTelegramMembershipAndClaim({
         claim: null,
         link: null
       }),
-      replyMarkup: buildTelegramVerifyKeyboard(sessionToken)
+      replyMarkup: buildTelegramReplyMarkup({
+        sessionToken,
+        membership,
+        guard,
+        claim: null
+      })
     };
   }
 
@@ -722,6 +773,12 @@ async function processTelegramMembershipAndClaim({
         guard,
         claim: null,
         link: null
+      }),
+      replyMarkup: buildTelegramReplyMarkup({
+        sessionToken,
+        membership,
+        guard,
+        claim: null
       })
     };
   }
@@ -738,6 +795,12 @@ async function processTelegramMembershipAndClaim({
         guard,
         claim: null,
         link: null
+      }),
+      replyMarkup: buildTelegramReplyMarkup({
+        sessionToken,
+        membership,
+        guard,
+        claim: null
       })
     };
   }
@@ -778,6 +841,12 @@ async function processTelegramMembershipAndClaim({
         guard: overviewAfterLink.guard,
         claim: overviewAfterLink.claim,
         link: overviewAfterLink.link || link
+      }),
+      replyMarkup: buildTelegramReplyMarkup({
+        sessionToken,
+        membership,
+        guard: overviewAfterLink.guard,
+        claim: overviewAfterLink.claim
       })
     };
   }
@@ -827,6 +896,12 @@ async function processTelegramMembershipAndClaim({
       claim: finalOverview.claim,
       link: finalOverview.link,
       resourceState
+    }),
+    replyMarkup: buildTelegramReplyMarkup({
+      sessionToken,
+      membership,
+      guard: finalOverview.guard,
+      claim: finalOverview.claim
     })
   };
 }
@@ -850,7 +925,7 @@ async function handleTelegramWebhookUpdate(update) {
       telegramChatId: message.chat?.id
     });
 
-    const replyMarkup = result.replyMarkup || buildTelegramVerifyKeyboard(token);
+    const replyMarkup = result.replyMarkup;
 
     try {
       if (progressMessage?.message_id) {
@@ -882,7 +957,7 @@ async function handleTelegramWebhookUpdate(update) {
     });
 
     try {
-      const replyMarkup = result.replyMarkup || buildTelegramVerifyKeyboard(token);
+      const replyMarkup = result.replyMarkup;
 
       if (callbackQuery.message?.message_id) {
         await editTelegramMessage(

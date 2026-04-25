@@ -31,10 +31,12 @@ const TRON_DERIVATION_PATH = "m/44'/195'/0'/0/0";
 const SLUG_MAX_LENGTH = 24;
 const AMBASSADOR_CACHE_TTL_MS = 45_000;
 const AMBASSADOR_POSITIVE_IDENTITY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const DEFAULT_REGISTER_FEE_LIMIT_SUN = 120_000_000;
+const DEFAULT_REGISTER_FEE_LIMIT_SUN = 180_000_000;
+const DEFAULT_REGISTER_EXECUTION_FEE_LIMIT_SUN = 180_000_000;
 const DEFAULT_REGISTER_ESTIMATED_ENERGY = 98_297;
 const DEFAULT_REGISTER_ESTIMATED_BANDWIDTH = 345;
-const DEFAULT_WITHDRAW_FEE_LIMIT_SUN = 80_000_000;
+const DEFAULT_WITHDRAW_FEE_LIMIT_SUN = 120_000_000;
+const DEFAULT_WITHDRAW_EXECUTION_FEE_LIMIT_SUN = 120_000_000;
 const DEFAULT_WITHDRAW_ESTIMATED_ENERGY = 80_000;
 const DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH = 420;
 const LOCAL_AMBASSADOR_SLUG_KEY_PREFIX = 'fourteen_ambassador_local_slug_v1';
@@ -1137,7 +1139,10 @@ export async function registerAmbassadorWithOptions(
   const contract = await getControllerContract(tronWeb);
   const feeLimitSun = Math.max(
     1_000_000,
-    Math.min(DEFAULT_REGISTER_FEE_LIMIT_SUN, Number(options?.feeLimitSun || DEFAULT_REGISTER_FEE_LIMIT_SUN))
+    Math.max(
+      DEFAULT_REGISTER_EXECUTION_FEE_LIMIT_SUN,
+      Math.min(DEFAULT_REGISTER_FEE_LIMIT_SUN, Number(options?.feeLimitSun || DEFAULT_REGISTER_FEE_LIMIT_SUN))
+    )
   );
   const result = await contract.registerAsAmbassador(slugHash, ZERO_BYTES32).send({
     feeLimit: feeLimitSun,
@@ -1395,7 +1400,7 @@ export async function withdrawAmbassadorRewards(): Promise<AmbassadorWithdrawalR
   const tronWeb = createTronWeb(privateKey, wallet.address);
   const contract = await getControllerContract(tronWeb);
   const result = await contract.withdrawRewards().send({
-    feeLimit: DEFAULT_WITHDRAW_FEE_LIMIT_SUN,
+    feeLimit: DEFAULT_WITHDRAW_EXECUTION_FEE_LIMIT_SUN,
     shouldPollResponse: false,
   });
   const txId = extractTxid(result);

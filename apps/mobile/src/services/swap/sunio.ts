@@ -32,7 +32,9 @@ const TRX_CONTRACT = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 const USDT_LOGO = 'https://s2.coinmarketcap.com/static/img/coins/64x64/825.png';
 const ROUTER_URL = 'https://rot.endjgfsv.link/swap/routerUniversal';
 const SMART_ROUTER_ADDRESS = 'TJ4NNy8xZEqsowCBhLvZ45LCqPdGjkET5j';
-const DEFAULT_FEE_LIMIT_SUN = 120_000_000;
+const DEFAULT_FEE_LIMIT_SUN = 180_000_000;
+const DEFAULT_APPROVAL_EXECUTION_FEE_LIMIT_SUN = 180_000_000;
+const DEFAULT_SWAP_EXECUTION_FEE_LIMIT_SUN = 350_000_000;
 const DEFAULT_SLIPPAGE_BPS = 300;
 const DEFAULT_DEADLINE_SECONDS = 60 * 20;
 const TRON_DERIVATION_PATH = "m/44'/195'/0'/0/0";
@@ -41,6 +43,12 @@ const DEFAULT_APPROVAL_ESTIMATED_ENERGY = 65_000;
 const DEFAULT_APPROVAL_ESTIMATED_BANDWIDTH = 420;
 const DEFAULT_SWAP_ESTIMATED_ENERGY = 180_000;
 const DEFAULT_SWAP_ESTIMATED_BANDWIDTH = 520;
+const APPROVAL_RESOURCE_HEADROOM_MULTIPLIER = 1.25;
+const SWAP_RESOURCE_HEADROOM_MULTIPLIER = 1.8;
+const APPROVAL_RESOURCE_HEADROOM_ENERGY_FLOOR = 25_000;
+const SWAP_RESOURCE_HEADROOM_ENERGY_FLOOR = 150_000;
+const APPROVAL_RESOURCE_HEADROOM_BANDWIDTH_FLOOR = 120;
+const SWAP_RESOURCE_HEADROOM_BANDWIDTH_FLOOR = 400;
 
 const TRC20_ABI = [
   {
@@ -221,6 +229,57 @@ function normalizeSwapTokenMeta(token: SwapTokenMeta): SwapTokenMeta {
     balance: Number.isFinite(token.balance) ? Number(token.balance) : 0,
     valueDisplay: token.valueDisplay ?? '',
     valueInUsd: Number.isFinite(token.valueInUsd) ? Number(token.valueInUsd) : 0,
+  };
+}
+
+function applySwapEstimateHeadroom(
+  estimate: ContractCallResourceEstimate,
+  options: {
+    energyMultiplier: number;
+    energyFloor: number;
+    bandwidthMultiplier: number;
+    bandwidthFloor: number;
+  }
+): ContractCallResourceEstimate {
+  const availableEnergy = getAvailableResource(estimate.available, 'energy');
+  const availableBandwidth = getAvailableResource(estimate.available, 'bandwidth');
+  const estimatedEnergyBase = normalizeResourceAmount(estimate.estimatedEnergy);
+  const estimatedBandwidthBase = normalizeResourceAmount(estimate.estimatedBandwidth);
+  const estimatedEnergy = normalizeResourceAmount(
+    Math.max(
+      estimatedEnergyBase + options.energyFloor,
+      Math.ceil(estimatedEnergyBase * options.energyMultiplier)
+    )
+  );
+  const estimatedBandwidth = normalizeResourceAmount(
+    Math.max(
+      estimatedBandwidthBase + options.bandwidthFloor,
+      Math.ceil(estimatedBandwidthBase * options.bandwidthMultiplier)
+    )
+  );
+  const energyShortfall = getResourceShortfall(estimatedEnergy, availableEnergy);
+  const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
+  const estimatedBurnSun = getResourceBurnSun({
+    energyShortfall,
+    bandwidthShortfall,
+    energyPriceSun: estimate.energyPriceSun,
+    bandwidthPriceSun: estimate.bandwidthPriceSun,
+  });
+
+  return {
+    ...estimate,
+    estimatedEnergy,
+    estimatedBandwidth,
+    energyShortfall,
+    bandwidthShortfall,
+    estimatedBurnSun,
+    recommendedFeeLimitSun: Math.max(
+      estimate.recommendedFeeLimitSun,
+      Math.min(
+        DEFAULT_FEE_LIMIT_SUN,
+        Math.ceil(Math.max(estimatedBurnSun, 1_000_000) * 1.45)
+      )
+    ),
   };
 }
 
@@ -784,7 +843,14 @@ async function estimateSwapResources(input: {
           estimatedEnergy: DEFAULT_APPROVAL_ESTIMATED_ENERGY,
           estimatedBandwidth: DEFAULT_APPROVAL_ESTIMATED_BANDWIDTH,
         })
-      : approvalEstimate;
+      : approvalEstimate
+        ? applySwapEstimateHeadroom(approvalEstimate, {
+            energyMultiplier: APPROVAL_RESOURCE_HEADROOM_MULTIPLIER,
+            energyFloor: APPROVAL_RESOURCE_HEADROOM_ENERGY_FLOOR,
+            bandwidthMultiplier: APPROVAL_RESOURCE_HEADROOM_MULTIPLIER,
+            bandwidthFloor: APPROVAL_RESOURCE_HEADROOM_BANDWIDTH_FLOOR,
+          })
+        : approvalEstimate;
 
   const swapEstimate = await estimateContractCallResources({
     tronWeb,
@@ -812,7 +878,12 @@ async function estimateSwapResources(input: {
           estimatedEnergy: DEFAULT_SWAP_ESTIMATED_ENERGY,
           estimatedBandwidth: DEFAULT_SWAP_ESTIMATED_BANDWIDTH,
         })
-      : swapEstimate;
+      : applySwapEstimateHeadroom(swapEstimate, {
+          energyMultiplier: SWAP_RESOURCE_HEADROOM_MULTIPLIER,
+          energyFloor: SWAP_RESOURCE_HEADROOM_ENERGY_FLOOR,
+          bandwidthMultiplier: SWAP_RESOURCE_HEADROOM_MULTIPLIER,
+          bandwidthFloor: SWAP_RESOURCE_HEADROOM_BANDWIDTH_FLOOR,
+        });
 
   return {
     approval,
@@ -1013,7 +1084,15 @@ async function ensureApproval(
 
   const contract = await tronWeb.contract(TRC20_ABI, token.address);
   const txid = await contract.approve(SMART_ROUTER_ADDRESS, MAX_UINT256).send({
-    feeLimit: Math.max(1_000_000, Math.floor(feeLimitSun || DEFAULT_FEE_LIMIT_SUN)),
+    feeLimit: Math.max(
+      1_000_000,
+      Math.floor(
+        Math.max(
+          feeLimitSun || DEFAULT_FEE_LIMIT_SUN,
+          DEFAULT_APPROVAL_EXECUTION_FEE_LIMIT_SUN
+        )
+      )
+    ),
     callValue: 0,
     shouldPollResponse: false,
   });
@@ -1101,7 +1180,15 @@ export async function executeSwap(input: {
       input.route.fees.map((value: number) => Number(value)),
       swapData
     ).send({
-      feeLimit: Math.max(1_000_000, Math.floor(input.feeLimitSun || DEFAULT_FEE_LIMIT_SUN)),
+      feeLimit: Math.max(
+        1_000_000,
+        Math.floor(
+          Math.max(
+            input.feeLimitSun || DEFAULT_FEE_LIMIT_SUN,
+            DEFAULT_SWAP_EXECUTION_FEE_LIMIT_SUN
+          )
+        )
+      ),
       callValue: isNativeSwapToken(sourceToken) ? Number(amountInRaw) : 0,
       shouldPollResponse: false,
     });
