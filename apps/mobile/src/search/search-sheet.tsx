@@ -17,6 +17,7 @@ import * as Clipboard from 'expo-clipboard';
 import { colors, radius } from '../theme/tokens';
 import { APP_HEADER_HEIGHT, APP_HEADER_TOP_PADDING, APP_HEADER_DROP_OFFSET, APP_HEADER_SIDE_PADDING } from '../ui/app-header.constants';
 import ThinOrangeLoader from '../ui/thin-orange-loader';
+import LottieIcon from '../ui/lottie-icon';
 import { APP_SEARCH_ROUTES } from './search-routes';
 import type {
   SearchQuickPageIcon,
@@ -49,7 +50,6 @@ import {
   AirdropQuickIcon,
   AmbassadorQuickIcon,
   BuyQuickIcon,
-  CloseIcon,
   CreateAddWalletQuickIcon,
   LiquidityQuickIcon,
   PasteIcon,
@@ -62,6 +62,9 @@ import {
   WalletIcon,
   AddContactIcon as ContactIcon,
 } from '../ui/ui-icons';
+
+const searchMagnifierSource = require('../../assets/icons/search/search_magnifier.json');
+const searchCloseSource = require('../../assets/icons/search/search_close.json');
 
 function isTronAddress(value: string) {
   return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(value.trim());
@@ -273,6 +276,10 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
 
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [searchIconPlayToken, setSearchIconPlayToken] = useState(0);
+  const [searchIconAnimating, setSearchIconAnimating] = useState(false);
+  const [closeIconPlayToken, setCloseIconPlayToken] = useState(0);
+  const [closeIconAnimating, setCloseIconAnimating] = useState(false);
 
   const [activeWallet, setActiveWallet] = useState<WalletMeta | null>(null);
   const [wallets, setWallets] = useState<WalletMeta[]>([]);
@@ -340,8 +347,13 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
     if (!visible) {
       setQuery('');
       setLiveContractToken(null);
+      setSearchIconAnimating(false);
+      setCloseIconAnimating(false);
       return;
     }
+
+    setSearchIconAnimating(true);
+    setSearchIconPlayToken((value) => value + 1);
 
     const timer = setTimeout(() => {
       focusInput(query);
@@ -581,6 +593,16 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
     onClose();
   }, [notice, onClose]);
 
+  const handleAnimatedClose = useCallback(() => {
+    setCloseIconAnimating(true);
+    setCloseIconPlayToken((value) => value + 1);
+    Keyboard.dismiss();
+    notice.hideNotice();
+    setTimeout(() => {
+      onClose();
+    }, 110);
+  }, [notice, onClose]);
+
   const handlePastePress = useCallback(async () => {
     try {
       const hasString =
@@ -720,7 +742,26 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
           <View style={styles.searchRow}>
             <View style={styles.searchInputWrap}>
               <View style={styles.searchInner}>
-                <SearchIcon width={16} height={16} />
+                {searchIconAnimating ? (
+                  <LottieIcon
+                    key={`search-magnifier-animated-${searchIconPlayToken}`}
+                    source={searchMagnifierSource}
+                    size={16}
+                    playToken={searchIconPlayToken}
+                    frames={[0, 119]}
+                    speed={1.8}
+                    onAnimationFinish={() => {
+                      setSearchIconAnimating(false);
+                    }}
+                  />
+                ) : (
+                  <LottieIcon
+                    key="search-magnifier-static"
+                    source={searchMagnifierSource}
+                    size={16}
+                    staticFrame={119}
+                  />
+                )}
 
                 <TextInput
                   ref={inputRef}
@@ -751,9 +792,25 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
                   activeOpacity={0.88}
                   style={[styles.inlineIconButton, styles.closeIconButton]}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  onPress={handleClose}
+                  onPress={handleAnimatedClose}
                 >
-                  <CloseIcon width={18} height={18} />
+                  {closeIconAnimating ? (
+                    <LottieIcon
+                      key={`search-close-animated-${closeIconPlayToken}`}
+                      source={searchCloseSource}
+                      size={18}
+                      playToken={closeIconPlayToken}
+                      frames={[0, 58]}
+                      speed={1.8}
+                    />
+                  ) : (
+                    <LottieIcon
+                      key="search-close-static"
+                      source={searchCloseSource}
+                      size={18}
+                      staticFrame={58}
+                    />
+                  )}
                 </TouchableOpacity>
               </View>
             </View>

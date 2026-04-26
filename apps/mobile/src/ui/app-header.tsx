@@ -1,5 +1,5 @@
-import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,7 +11,11 @@ import {
   APP_HEADER_DROP_OFFSET,
   APP_HEADER_SIDE_PADDING,
 } from './app-header.constants';
+import LottieIcon from './lottie-icon';
 import { shouldRenderSharedNavigation } from './navigation-routes';
+
+const headerQrSource = require('../../assets/icons/header/header_qr.json');
+const headerSearchSource = require('../../assets/icons/search/search_magnifier.json');
 
 type AppHeaderProps = {
   onMenuPress?: () => void;
@@ -41,6 +45,18 @@ export default function AppHeader({
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { openSearch } = useGlobalSearch();
+  const [qrPlayToken, setQrPlayToken] = useState(0);
+  const [searchPlayToken, setSearchPlayToken] = useState(0);
+  const burgerProgress = useRef(new Animated.Value(showClose ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(burgerProgress, {
+      toValue: showClose ? 1 : 0,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [burgerProgress, showClose]);
 
   if (!forceVisible && shouldRenderSharedNavigation(pathname)) {
     return null;
@@ -59,6 +75,8 @@ export default function AppHeader({
   };
 
   const handleScanPress = () => {
+    setQrPlayToken((value) => value + 1);
+
     if (onScanPress) {
       onScanPress();
       return;
@@ -73,6 +91,8 @@ export default function AppHeader({
   };
 
   const handleSearchPress = () => {
+    setSearchPlayToken((value) => value + 1);
+
     if (onSearchPress) {
       onSearchPress();
       return;
@@ -108,11 +128,90 @@ export default function AppHeader({
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <View style={styles.iconBox}>
-              <MaterialCommunityIcons
-                name={showClose ? 'close' : 'menu'}
-                size={showClose ? 22 : 22}
-                color={colors.white}
-              />
+              <View style={styles.burgerWrap}>
+                <Animated.View
+                  style={[
+                    styles.burgerLine,
+                    styles.burgerLineTop,
+                    {
+                      backgroundColor: burgerProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [colors.white, colors.accent],
+                      }),
+                      transform: [
+                        {
+                          translateY: burgerProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 6],
+                          }),
+                        },
+                        {
+                          rotate: burgerProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', '45deg'],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.burgerLine,
+                    styles.burgerLineMiddle,
+                    {
+                      backgroundColor: burgerProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [colors.accent, colors.accent],
+                      }),
+                      opacity: burgerProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 0],
+                      }),
+                      transform: [
+                        {
+                          scaleX: burgerProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 0.45],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.burgerLine,
+                    styles.burgerLineBottom,
+                    {
+                      backgroundColor: burgerProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [colors.white, colors.accent],
+                      }),
+                      transform: [
+                        {
+                          scaleX: burgerProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [14 / 18, 1],
+                          }),
+                        },
+                        {
+                          translateY: burgerProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, -6],
+                          }),
+                        },
+                        {
+                          rotate: burgerProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', '-45deg'],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+              </View>
             </View>
           </TouchableOpacity>
 
@@ -121,7 +220,14 @@ export default function AppHeader({
             style={({ pressed }) => [styles.searchButton, pressed && styles.searchButtonPressed]}
           >
             <View style={styles.searchLeft}>
-              <MaterialCommunityIcons name="magnify" size={17} color={colors.textDim} />
+              <LottieIcon
+                source={headerSearchSource}
+                size={17}
+                staticFrame={119}
+                playToken={searchPlayToken}
+                frames={[0, 119]}
+                speed={1.8}
+              />
               <Text style={styles.searchText}>crypto, address, dapp...</Text>
             </View>
           </Pressable>
@@ -133,7 +239,14 @@ export default function AppHeader({
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <View style={styles.iconBox}>
-              <MaterialCommunityIcons name="qrcode-scan" size={20} color={colors.white} />
+              <LottieIcon
+                source={headerQrSource}
+                size={20}
+                staticFrame={269}
+                playToken={qrPlayToken}
+                frames={[0, 269]}
+                speed={2}
+              />
             </View>
           </TouchableOpacity>
         </View>
@@ -192,6 +305,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.sm,
     backgroundColor: colors.bg,
+  },
+
+  burgerWrap: {
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  burgerLine: {
+    position: 'absolute',
+    height: 2,
+    borderRadius: 999,
+  },
+
+  burgerLineTop: {
+    width: 18,
+    top: 4,
+  },
+
+  burgerLineMiddle: {
+    width: 18,
+    top: 9,
+  },
+
+  burgerLineBottom: {
+    width: 14,
+    top: 14,
   },
 
   searchButton: {

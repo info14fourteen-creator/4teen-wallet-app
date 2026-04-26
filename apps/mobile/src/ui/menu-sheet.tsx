@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,9 +27,68 @@ export default function MenuSheet({ open, onClose, forceVisible = false }: MenuS
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const shouldHide = !forceVisible && shouldRenderSharedNavigation(pathname);
+  const [mounted, setMounted] = useState(open);
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const sheetTranslateY = useRef(new Animated.Value(-28)).current;
+  const sheetOpacity = useRef(new Animated.Value(0)).current;
 
-  if (!forceVisible && shouldRenderSharedNavigation(pathname)) return null;
-  if (!open) return null;
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      Animated.parallel([
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: 220,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(sheetTranslateY, {
+          toValue: 0,
+          duration: 260,
+          easing: Easing.out(Easing.exp),
+          useNativeDriver: true,
+        }),
+        Animated.timing(sheetOpacity, {
+          toValue: 1,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+      return;
+    }
+
+    if (!mounted) return;
+
+    Animated.parallel([
+      Animated.timing(backdropOpacity, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetTranslateY, {
+        toValue: -20,
+        duration: 200,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetOpacity, {
+        toValue: 0,
+        duration: 150,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) {
+        setMounted(false);
+      }
+    });
+  }, [backdropOpacity, mounted, open, sheetOpacity, sheetTranslateY]);
+
+  if (shouldHide) return null;
+  if (!mounted) return null;
 
   const headerVisibleHeight =
     Math.max(insets.top, APP_HEADER_TOP_PADDING) + APP_HEADER_DROP_OFFSET + APP_HEADER_HEIGHT;
@@ -43,7 +102,15 @@ export default function MenuSheet({ open, onClose, forceVisible = false }: MenuS
 
   return (
     <View pointerEvents="box-none" style={styles.root}>
-      <View pointerEvents="none" style={styles.backdrop} />
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.backdrop,
+          {
+            opacity: backdropOpacity,
+          },
+        ]}
+      />
 
       <Pressable
         style={[
@@ -56,12 +123,14 @@ export default function MenuSheet({ open, onClose, forceVisible = false }: MenuS
         onPress={onClose}
       />
 
-      <View
+      <Animated.View
         style={[
           styles.sheet,
           {
             top: headerVisibleHeight,
             bottom: footerVisibleHeight,
+            opacity: sheetOpacity,
+            transform: [{ translateY: sheetTranslateY }],
           },
         ]}
       >
@@ -95,7 +164,7 @@ export default function MenuSheet({ open, onClose, forceVisible = false }: MenuS
             />
           </View>
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 }

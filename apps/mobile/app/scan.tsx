@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,11 +24,14 @@ import {
 
 import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenBrow from '../src/ui/screen-brow';
+import LottieIcon from '../src/ui/lottie-icon';
 
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
+
+const scanGallerySource = require('../assets/icons/scan/scan_gallery.json');
 
 function isTronAddress(value: string) {
   return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(value.trim());
@@ -608,7 +610,7 @@ export default function ScanScreen() {
                   onPress={() => void handlePickFromGallery()}
                   disabled={processingImage}
                 >
-                  <Ionicons name="images-outline" size={18} color={colors.white} />
+                  <LottieIcon source={scanGallerySource} size={18} staticFrame={269} />
                 </TouchableOpacity>
               </View>
 
