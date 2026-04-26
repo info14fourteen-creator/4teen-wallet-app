@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-26T08:39:18.992Z
+Generated: 2026-04-26T23:26:31.930Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: a6da6d1eec0f24179cb0c28e53e435b995e94eb7
-Short commit: a6da6d1
-Commit subject: Unify mobile loading, spacing, and button patterns
+Last commit: 73afe52826a59c5a61aecb2e0a3db60b05cfe35f
+Short commit: 73afe52
+Commit subject: Refine mobile shell animations and search chrome
 Commit author: info14fourteen-creator
-Commit date: 2026-04-26T13:39:02+05:00
+Commit date: 2026-04-27T04:26:04+05:00
 
 ## Curated project tree
 
@@ -121,7 +121,32 @@ Commit date: 2026-04-26T13:39:02+05:00
           - airdrop_footer.svg
           - ambassador_footer.svg
           - buy_footer.svg
+          - footer_airdrop_idle_v7.json
+          - footer_airdrop_press_v7.json
+          - footer_ambassador_idle_v7.json
+          - footer_ambassador_press_v7.json
+          - footer_buy_idle_v8.json
+          - footer_buy_press_v8.json
+          - footer_earn_green_v2.json
+          - footer_earn_orange_v2.json
+          - footer_home_orange.json
+          - footer_home_red.json
+          - footer_info_idle.json
+          - footer_info.json
+          - footer_liquidity_idle.json
+          - footer_liquidity.json
+          - footer_send.json
+          - footer_swap.json
+          - footer_unlock_idle.json
+          - footer_unlock.json
           - swap_footer.svg
+        - header/
+          - header_qr.json
+        - scan/
+          - scan_gallery.json
+        - search/
+          - search_close.json
+          - search_magnifier.json
         - ui/
           - socials/
             - discord_social.svg
@@ -237,32 +262,7 @@ Commit date: 2026-04-26T13:39:02+05:00
       - security/
         - local-auth.ts
       - services/
-        - swap/
-          - draft.ts
-          - sunio.ts
-        - tron/
-          - api.ts
-          - fourteen-price.ts
-          - index.ts
-        - wallet/
-          - import.ts
-          - index.ts
-          - portfolio.ts
-          - resources.ts
-          - send.ts
-          - storage.ts
         - address-book.ts
-        - airdrop.ts
-        - ambassador.ts
-        - app-cache.ts
-        - asset-wallets.ts
-        - direct-buy-draft.ts
-        - direct-buy.ts
-        - energy-resale.ts
-        - liquidity-controller.ts
-        - recent-recipients.ts
-        - referral.ts
-        - unlock-timeline.ts
     - app.json
     - eslint.config.js
     - metro.config.js

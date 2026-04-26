@@ -1,55 +1,56 @@
 {
-  "generatedAt": "2026-04-26T08:39:18.994Z",
+  "generatedAt": "2026-04-26T23:26:31.932Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "a6da6d1eec0f24179cb0c28e53e435b995e94eb7",
-    "shortHash": "a6da6d1",
-    "subject": "Unify mobile loading, spacing, and button patterns",
+    "hash": "73afe52826a59c5a61aecb2e0a3db60b05cfe35f",
+    "shortHash": "73afe52",
+    "subject": "Refine mobile shell animations and search chrome",
     "author": "info14fourteen-creator",
-    "date": "2026-04-26T13:39:02+05:00"
+    "date": "2026-04-27T04:26:04+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/add-custom-token.tsx",
-    "M\tapps/mobile/app/airdrop.tsx",
-    "M\tapps/mobile/app/ambassador-confirm.tsx",
-    "M\tapps/mobile/app/ambassador-program.tsx",
-    "M\tapps/mobile/app/ambassador-withdraw-confirm.tsx",
-    "M\tapps/mobile/app/backup-private-key.tsx",
-    "M\tapps/mobile/app/buy-confirm.tsx",
-    "M\tapps/mobile/app/buy.tsx",
-    "M\tapps/mobile/app/create-wallet.tsx",
-    "M\tapps/mobile/app/enable-biometrics.tsx",
-    "M\tapps/mobile/app/export-mnemonic.tsx",
-    "M\tapps/mobile/app/liquidity-confirm.tsx",
-    "M\tapps/mobile/app/liquidity-controller.tsx",
-    "M\tapps/mobile/app/manage-crypto.tsx",
     "M\tapps/mobile/app/scan.tsx",
-    "M\tapps/mobile/app/select-wallet.tsx",
-    "M\tapps/mobile/app/send-confirm.tsx",
-    "M\tapps/mobile/app/send.tsx",
-    "M\tapps/mobile/app/swap-confirm.tsx",
-    "M\tapps/mobile/app/swap.tsx",
-    "M\tapps/mobile/app/token-details.tsx",
-    "M\tapps/mobile/app/unlock-timeline.tsx",
-    "M\tapps/mobile/app/wallet.tsx",
-    "M\tapps/mobile/app/wallets.tsx",
+    "A\tapps/mobile/assets/icons/footer/footer_airdrop_idle_v7.json",
+    "A\tapps/mobile/assets/icons/footer/footer_airdrop_press_v7.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle_v7.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_press_v7.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v8.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_press_v8.json",
+    "A\tapps/mobile/assets/icons/footer/footer_earn_green_v2.json",
+    "A\tapps/mobile/assets/icons/footer/footer_earn_orange_v2.json",
+    "A\tapps/mobile/assets/icons/footer/footer_home_orange.json",
+    "A\tapps/mobile/assets/icons/footer/footer_home_red.json",
+    "A\tapps/mobile/assets/icons/footer/footer_info.json",
+    "A\tapps/mobile/assets/icons/footer/footer_info_idle.json",
+    "A\tapps/mobile/assets/icons/footer/footer_liquidity.json",
+    "A\tapps/mobile/assets/icons/footer/footer_liquidity_idle.json",
+    "A\tapps/mobile/assets/icons/footer/footer_send.json",
+    "A\tapps/mobile/assets/icons/footer/footer_swap.json",
+    "A\tapps/mobile/assets/icons/footer/footer_unlock.json",
+    "A\tapps/mobile/assets/icons/footer/footer_unlock_idle.json",
+    "A\tapps/mobile/assets/icons/header/header_qr.json",
+    "A\tapps/mobile/assets/icons/scan/scan_gallery.json",
+    "A\tapps/mobile/assets/icons/search/search_close.json",
+    "A\tapps/mobile/assets/icons/search/search_magnifier.json",
     "M\tapps/mobile/metro.config.js",
     "M\tapps/mobile/package.json",
     "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/ui/address-qr-modal.tsx",
-    "M\tapps/mobile/src/ui/foundation.tsx",
-    "M\tapps/mobile/src/ui/product-shell.tsx",
-    "A\tapps/mobile/src/ui/screen-loading-overlay.tsx"
+    "M\tapps/mobile/src/search/search-sheet.tsx",
+    "M\tapps/mobile/src/ui/app-header.tsx",
+    "M\tapps/mobile/src/ui/footer-nav.tsx",
+    "A\tapps/mobile/src/ui/lottie-icon.tsx",
+    "M\tapps/mobile/src/ui/menu-sheet.tsx",
+    "M\tpnpm-lock.yaml"
   ],
   "activeFiles": [
     {
-      "file": "apps/api/src/services/airdrop/telegramBot.js",
-      "count": 5
+      "file": "apps/mobile/src/config/app-version.ts",
+      "count": 6
     },
     {
-      "file": "apps/mobile/src/config/app-version.ts",
+      "file": "apps/api/src/services/airdrop/telegramBot.js",
       "count": 5
     },
     {
@@ -58,6 +59,10 @@
     },
     {
       "file": "apps/mobile/app/ambassador-program.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/package.json",
       "count": 4
     },
     {
@@ -113,7 +118,7 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/package.json",
+      "file": "apps/mobile/metro.config.js",
       "count": 3
     },
     {
@@ -153,15 +158,11 @@
       "count": 2
     },
     {
+      "file": "apps/mobile/app/scan.tsx",
+      "count": 2
+    },
+    {
       "file": "apps/mobile/app/swap.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/unlock.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/metro.config.js",
       "count": 2
     }
   ],
@@ -273,7 +274,29 @@
     "apps/mobile/assets/icons/footer/airdrop_footer.svg",
     "apps/mobile/assets/icons/footer/ambassador_footer.svg",
     "apps/mobile/assets/icons/footer/buy_footer.svg",
+    "apps/mobile/assets/icons/footer/footer_airdrop_idle_v7.json",
+    "apps/mobile/assets/icons/footer/footer_airdrop_press_v7.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_idle_v7.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_press_v7.json",
+    "apps/mobile/assets/icons/footer/footer_buy_idle_v8.json",
+    "apps/mobile/assets/icons/footer/footer_buy_press_v8.json",
+    "apps/mobile/assets/icons/footer/footer_earn_green_v2.json",
+    "apps/mobile/assets/icons/footer/footer_earn_orange_v2.json",
+    "apps/mobile/assets/icons/footer/footer_home_orange.json",
+    "apps/mobile/assets/icons/footer/footer_home_red.json",
+    "apps/mobile/assets/icons/footer/footer_info_idle.json",
+    "apps/mobile/assets/icons/footer/footer_info.json",
+    "apps/mobile/assets/icons/footer/footer_liquidity_idle.json",
+    "apps/mobile/assets/icons/footer/footer_liquidity.json",
+    "apps/mobile/assets/icons/footer/footer_send.json",
+    "apps/mobile/assets/icons/footer/footer_swap.json",
+    "apps/mobile/assets/icons/footer/footer_unlock_idle.json",
+    "apps/mobile/assets/icons/footer/footer_unlock.json",
     "apps/mobile/assets/icons/footer/swap_footer.svg",
+    "apps/mobile/assets/icons/header/header_qr.json",
+    "apps/mobile/assets/icons/scan/scan_gallery.json",
+    "apps/mobile/assets/icons/search/search_close.json",
+    "apps/mobile/assets/icons/search/search_magnifier.json",
     "apps/mobile/assets/icons/ui/add_contact_btn.svg",
     "apps/mobile/assets/icons/ui/add_wallet_btn.svg",
     "apps/mobile/assets/icons/ui/address_btn.svg",
@@ -377,29 +400,7 @@
     "apps/mobile/src/search/search-sheet.tsx",
     "apps/mobile/src/search/search-types.ts",
     "apps/mobile/src/security/local-auth.ts",
-    "apps/mobile/src/services/address-book.ts",
-    "apps/mobile/src/services/airdrop.ts",
-    "apps/mobile/src/services/ambassador.ts",
-    "apps/mobile/src/services/app-cache.ts",
-    "apps/mobile/src/services/asset-wallets.ts",
-    "apps/mobile/src/services/direct-buy-draft.ts",
-    "apps/mobile/src/services/direct-buy.ts",
-    "apps/mobile/src/services/energy-resale.ts",
-    "apps/mobile/src/services/liquidity-controller.ts",
-    "apps/mobile/src/services/recent-recipients.ts",
-    "apps/mobile/src/services/referral.ts",
-    "apps/mobile/src/services/swap/draft.ts",
-    "apps/mobile/src/services/swap/sunio.ts",
-    "apps/mobile/src/services/tron/api.ts",
-    "apps/mobile/src/services/tron/fourteen-price.ts",
-    "apps/mobile/src/services/tron/index.ts",
-    "apps/mobile/src/services/unlock-timeline.ts",
-    "apps/mobile/src/services/wallet/import.ts",
-    "apps/mobile/src/services/wallet/index.ts",
-    "apps/mobile/src/services/wallet/portfolio.ts",
-    "apps/mobile/src/services/wallet/resources.ts",
-    "apps/mobile/src/services/wallet/send.ts",
-    "apps/mobile/src/services/wallet/storage.ts"
+    "apps/mobile/src/services/address-book.ts"
   ],
   "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
   "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"
