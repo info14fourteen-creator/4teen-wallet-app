@@ -893,17 +893,17 @@ const styles = StyleSheet.create({
   },
 
   primaryButton: {
-    backgroundColor: 'rgba(255,105,0,0.14)',
+    backgroundColor: colors.accent,
     borderColor: colors.lineStrong,
   },
 
   secondaryButton: {
-    backgroundColor: colors.surfaceSoft,
-    borderColor: colors.lineSoft,
+    backgroundColor: 'transparent',
+    borderColor: colors.lineStrong,
   },
 
   primaryButtonText: {
-    color: colors.accent,
+    color: colors.white,
     fontSize: 13,
     lineHeight: 16,
     fontFamily: 'Sora_700Bold',

@@ -937,7 +937,7 @@ const styles = StyleSheet.create({
   },
 
   secondaryButtonText: {
-    color: colors.textSoft,
+    color: colors.white,
     fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',

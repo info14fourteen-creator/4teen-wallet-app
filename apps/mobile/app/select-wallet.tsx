@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
@@ -132,6 +132,7 @@ export default function SelectWalletScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -151,7 +152,6 @@ export default function SelectWalletScreen() {
           }
         >
           <ScreenBrow label="SELECT WALLET" variant="backLink" />
-          <InlineRefreshLoader visible={refreshing} />
           <View style={styles.summaryCard}>
             <Text style={ui.eyebrow}>Total Assets</Text>
             <Text style={styles.summaryValue}>

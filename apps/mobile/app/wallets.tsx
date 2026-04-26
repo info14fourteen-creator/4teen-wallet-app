@@ -13,8 +13,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useBottomInset } from '../src/ui/use-bottom-inset';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
@@ -326,6 +326,7 @@ export default function WalletsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -347,7 +348,6 @@ export default function WalletsScreen() {
           }
         >
           <ScreenBrow label="WALLET MANAGEMENT" variant="back" />
-          <InlineRefreshLoader visible={refreshing} />
           <View style={styles.summaryCard}>
             <Text style={ui.eyebrow}>Total Assets</Text>
             <Text style={styles.summaryValue}>

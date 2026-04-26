@@ -15,6 +15,7 @@ import { colors, layout, radius } from '../theme/tokens';
 import { ui } from '../theme/ui';
 import KeyboardView from './KeyboardView';
 import ScreenBrow from './screen-brow';
+import ScreenLoadingOverlay from './screen-loading-overlay';
 import { useBottomInset } from './use-bottom-inset';
 import { useNavigationInsets } from './navigation';
 
@@ -26,6 +27,7 @@ export function ProductScreen({
   bottomInsetExtra,
   keyboardAware = false,
   keyboardExtraScrollHeight = 42,
+  loadingOverlayVisible = false,
 }: {
   eyebrow: string;
   browVariant?: 'plain' | 'back';
@@ -34,6 +36,7 @@ export function ProductScreen({
   bottomInsetExtra?: number;
   keyboardAware?: boolean;
   keyboardExtraScrollHeight?: number;
+  loadingOverlayVisible?: boolean;
 }) {
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset(bottomInsetExtra);
@@ -41,6 +44,7 @@ export function ProductScreen({
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={loadingOverlayVisible} />
         {keyboardAware ? (
           <KeyboardView
             style={styles.scroll}
@@ -416,7 +420,7 @@ const styles = StyleSheet.create({
   },
 
   primaryButtonText: {
-    color: colors.bg,
+    color: colors.white,
     fontSize: 14,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',

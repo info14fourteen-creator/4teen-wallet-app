@@ -36,7 +36,6 @@ import {
   ProductSection,
   ProductStatGrid,
 } from '../src/ui/product-shell';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
@@ -381,6 +380,7 @@ export default function AmbassadorProgramScreen() {
       eyebrow="AMBASSADOR"
       keyboardAware={snapshot?.status === 'register'}
       keyboardExtraScrollHeight={96}
+      loadingOverlayVisible={refreshing || Boolean(switchingWalletId) || Boolean(busyAction)}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -391,7 +391,6 @@ export default function AmbassadorProgramScreen() {
         />
       }
     >
-      <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
       {activeWallet ? (
         <SelectedWalletSwitcher
           wallet={{

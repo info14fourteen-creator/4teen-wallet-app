@@ -21,8 +21,8 @@ import { Image } from 'expo-image';
 
 import AddressQrModal from '../src/ui/address-qr-modal';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
@@ -1944,6 +1944,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -1972,7 +1973,6 @@ export default function HomeScreen() {
             rightIcon={<AddWalletIcon width={16} height={16} />}
             onRightPress={() => router.push('/wallet-access')}
           />
-          <InlineRefreshLoader visible={refreshing} />
 
           {walletCards.length > 0 ? (
             <View style={styles.walletCardSection}>

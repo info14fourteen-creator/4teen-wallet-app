@@ -803,7 +803,7 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     ...ui.actionLabel,
-    color: colors.textSoft,
+    color: colors.white,
   },
 
   detailCard: {

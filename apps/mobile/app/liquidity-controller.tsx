@@ -36,10 +36,10 @@ import {
   FOOTER_NAV_BOTTOM_OFFSET,
   FOOTER_NAV_RESERVED_SPACE,
 } from '../src/ui/footer-nav';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import { useNavigationInsets } from '../src/ui/navigation';
 import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
 import ScreenBrow from '../src/ui/screen-brow';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
@@ -228,6 +228,7 @@ export default function LiquidityControllerScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <ScreenLoadingOverlay visible={refreshing || Boolean(switchingWalletId)} />
       <ScrollView
         style={styles.screen}
         contentContainerStyle={[
@@ -252,7 +253,6 @@ export default function LiquidityControllerScreen() {
           labelChevron={infoExpanded ? 'up' : 'down'}
           onLabelPress={() => setInfoExpanded((prev) => !prev)}
         />
-        <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
 
         {infoExpanded ? (
           <View style={styles.infoPanel}>
@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
   },
 
   selectionBlock: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
 
   selectionEyebrow: {
@@ -670,7 +670,7 @@ const styles = StyleSheet.create({
   walletOptionsList: {
     gap: 10,
     marginTop: -6,
-    marginBottom: 18,
+    marginBottom: 16,
   },
 
   walletOptionRow: {

@@ -18,7 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image';
 
 import ScreenBrow from '../src/ui/screen-brow';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import KeyboardView from '../src/ui/KeyboardView';
 import NumericKeypad from '../src/ui/numeric-keypad';
@@ -769,6 +769,7 @@ export default function SwapScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing || Boolean(switchingWalletId)} />
         {loading ? (
           <ScreenLoadingState label="Loading swap..." />
         ) : (
@@ -800,7 +801,6 @@ export default function SwapScreen() {
             }}
           >
             <ScreenBrow label="SWAP" variant="back" />
-            <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
 
             <View style={styles.swapSelectionBlock}>
               <SelectedWalletSwitcher
@@ -1241,7 +1241,7 @@ const styles = StyleSheet.create({
   },
 
   swapSelectionBlock: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
 
   swapSectionBlock: {
@@ -1279,7 +1279,7 @@ const styles = StyleSheet.create({
   swapWalletOptionsList: {
     gap: 10,
     marginTop: -6,
-    marginBottom: 18,
+    marginBottom: 16,
   },
 
   swapWalletOptionRow: {
@@ -1352,7 +1352,7 @@ const styles = StyleSheet.create({
 
   swapTokenOptionsList: {
     marginTop: -4,
-    marginBottom: 18,
+    marginBottom: 16,
     maxHeight: 272,
   },
 

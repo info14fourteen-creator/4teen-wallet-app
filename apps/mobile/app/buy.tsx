@@ -16,8 +16,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image';
 
 import KeyboardView from '../src/ui/KeyboardView';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import ScreenBrow from '../src/ui/screen-brow';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
@@ -356,6 +356,7 @@ export default function BuyScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing || Boolean(switchingWalletId)} />
         <KeyboardView
           innerRef={(ref: any) => {
             scrollRef.current = ref;
@@ -386,7 +387,6 @@ export default function BuyScreen() {
           }}
         >
           <ScreenBrow label="BUY" variant="back" />
-          <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
 
           <View style={styles.sectionBlock}>
             <SelectedWalletSwitcher
@@ -591,7 +591,7 @@ const styles = StyleSheet.create({
   },
 
   sectionBlock: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
 
   sectionEyebrow: {

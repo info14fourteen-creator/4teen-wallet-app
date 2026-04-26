@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   secondaryButton: {
     minHeight: layout.buttonHeight,
     borderRadius: radius.sm,
-    backgroundColor: colors.surfaceSoft,
+    backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: colors.lineStrong,
     alignItems: 'center',

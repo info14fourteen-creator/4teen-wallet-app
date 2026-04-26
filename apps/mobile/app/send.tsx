@@ -19,8 +19,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image';
 
 import KeyboardView from '../src/ui/KeyboardView';
-import InlineRefreshLoader from '../src/ui/inline-refresh-loader';
 import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
@@ -784,6 +784,7 @@ export default function SendScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing || Boolean(switchingWalletId)} />
         <KeyboardView
           innerRef={(ref: any) => {
             scrollRef.current = ref;
@@ -811,7 +812,6 @@ export default function SendScreen() {
           }
         >
           <ScreenBrow label="SEND" variant="back" />
-          <InlineRefreshLoader visible={refreshing || Boolean(switchingWalletId)} />
           {loading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator color={colors.accent} />
@@ -1269,7 +1269,7 @@ const styles = StyleSheet.create({
   },
 
   selectionBlock: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
 
   sectionBlock: {
@@ -1324,7 +1324,7 @@ const styles = StyleSheet.create({
   walletOptionsList: {
     gap: 10,
     marginTop: -6,
-    marginBottom: 18,
+    marginBottom: 16,
   },
 
   walletOptionRow: {
@@ -1366,7 +1366,7 @@ const styles = StyleSheet.create({
   tokenOptionsList: {
     gap: 10,
     marginTop: -4,
-    marginBottom: 18,
+    marginBottom: 16,
   },
 
   assetRowSelected: {
