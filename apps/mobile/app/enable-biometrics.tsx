@@ -9,16 +9,21 @@ import ScreenBrow from '../src/ui/screen-brow';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
-import { setBiometricsEnabled } from '../src/security/local-auth';
+import { getBiometricsStatus, setBiometricsEnabled } from '../src/security/local-auth';
+import { useNotice } from '../src/notice/notice-provider';
 
 export default function EnableBiometricsScreen() {
   const router = useRouter();
   const navInsets = useNavigationInsets({ topExtra: 14 });
-  const params = useLocalSearchParams<{ next?: string }>();
+  const params = useLocalSearchParams<{ next?: string; flow?: string }>();
   const nextPath = typeof params.next === 'string' ? params.next : '/import-wallet';
+  const flow = typeof params.flow === 'string' ? params.flow : 'enable-biometrics';
+  const notice = useNotice();
 
   const [supportedLabel, setSupportedLabel] = useState('Biometrics');
   const [available, setAvailable] = useState(false);
+  const [compatible, setCompatible] = useState(false);
+  const [enabled, setEnabled] = useState(false);
   const contentBottomInset = useBottomInset();
 
   useEffect(() => {
@@ -26,29 +31,28 @@ export default function EnableBiometricsScreen() {
   }, []);
 
   const loadSupport = async () => {
-    const compatible = await LocalAuthentication.hasHardwareAsync();
-    const enrolled = await LocalAuthentication.isEnrolledAsync();
-    const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
-
-    setAvailable(compatible && enrolled);
-
-    if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-      setSupportedLabel('Face ID');
-      return;
-    }
-
-    if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-      setSupportedLabel('Fingerprint');
-      return;
-    }
-
-    setSupportedLabel('Biometrics');
+    const status = await getBiometricsStatus();
+    setCompatible(status.compatible);
+    setAvailable(status.available);
+    setEnabled(status.enabled);
+    setSupportedLabel(status.label);
   };
 
   const handleEnable = async () => {
-    if (!available) {
+    if (flow === 'disable-biometrics' || enabled) {
       await setBiometricsEnabled(false);
+      notice.showSuccessNotice(`${supportedLabel} disabled.`, 2200);
       router.replace(nextPath as any);
+      return;
+    }
+
+    if (!available) {
+      notice.showNeutralNotice(
+        compatible
+          ? `${supportedLabel} is not enrolled on this device.`
+          : `${supportedLabel} is not available on this device.`,
+        2600
+      );
       return;
     }
 
@@ -56,14 +60,23 @@ export default function EnableBiometricsScreen() {
       promptMessage: `Enable ${supportedLabel}`,
       fallbackLabel: 'Use Passcode',
       cancelLabel: 'Cancel',
-      disableDeviceFallback: true,
     });
 
-    await setBiometricsEnabled(result.success);
-    router.replace(nextPath as any);
+    if (result.success) {
+      await setBiometricsEnabled(true);
+      notice.showSuccessNotice(`${supportedLabel} enabled.`, 2200);
+      router.replace(nextPath as any);
+    } else {
+      notice.showNeutralNotice(`${supportedLabel} was not enabled.`, 2200);
+    }
   };
 
   const handleSkip = async () => {
+    if (enabled || flow === 'disable-biometrics') {
+      router.replace(nextPath as any);
+      return;
+    }
+
     await setBiometricsEnabled(false);
     router.replace(nextPath as any);
   };
@@ -75,31 +88,44 @@ export default function EnableBiometricsScreen() {
         <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
           <ScreenBrow label="ENABLE BIOMETRICS" />
           <Text style={styles.title}>
-            Enable <Text style={styles.titleAccent}>{supportedLabel}</Text>
+            {enabled || flow === 'disable-biometrics' ? 'Disable ' : 'Enable '}
+            <Text style={styles.titleAccent}>{supportedLabel}</Text>
           </Text>
 
           <Text style={styles.lead}>
-            Biometrics can unlock the app faster after passcode setup.
+            {enabled || flow === 'disable-biometrics'
+              ? 'Turn biometric unlock off and keep passcode-only protection.'
+              : 'Biometrics can unlock the app faster after passcode setup.'}
           </Text>
 
           <View style={styles.card}>
             <Text style={ui.sectionEyebrow}>Status</Text>
             <Text style={styles.cardBody}>
-              {available
-                ? `${supportedLabel} is available on this device.`
-                : 'Biometric authentication is not available or not enrolled on this device.'}
+              {enabled
+                ? `${supportedLabel} is currently enabled for this wallet shell.`
+                : available
+                  ? `${supportedLabel} is available on this device.`
+                  : compatible
+                    ? `${supportedLabel} is supported, but not enrolled on this device yet.`
+                    : `${supportedLabel} is not available on this device.`}
             </Text>
           </View>
 
           <View style={styles.actions}>
             <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton} onPress={handleEnable}>
               <Text style={ui.buttonLabel}>
-                {available ? `Enable ${supportedLabel}` : 'Continue Without Biometrics'}
+                {enabled || flow === 'disable-biometrics'
+                  ? `Disable ${supportedLabel}`
+                  : available
+                    ? `Enable ${supportedLabel}`
+                    : 'Continue Without Biometrics'}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity activeOpacity={0.9} style={styles.secondaryButton} onPress={handleSkip}>
-              <Text style={ui.buttonLabel}>Skip for Now</Text>
+              <Text style={ui.buttonLabel}>
+                {enabled || flow === 'disable-biometrics' ? 'Keep It On' : 'Skip for Now'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

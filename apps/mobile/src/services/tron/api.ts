@@ -55,6 +55,8 @@ const TRONGRID_ACCOUNT_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_trongrid_accoun
 const ACCOUNT_RESOURCES_CACHE_STORAGE_KEY_PREFIX = 'fourteen_account_resources_cache_v1';
 const ACCOUNT_RESOURCES_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_account_resources_cache_';
 const CUSTOM_TOKEN_CATALOG_STORAGE_KEY_PREFIX = 'wallet.customTokenCatalog.v2';
+let warnedTrongridEventsRateLimit = false;
+let warnedTrongridInternalRateLimit = false;
 
 function normalizeCustomTokenCatalogWalletId(walletId: string) {
   return String(walletId || '').trim().toLowerCase();
@@ -62,6 +64,21 @@ function normalizeCustomTokenCatalogWalletId(walletId: string) {
 
 function buildCustomTokenCatalogStorageKey(walletId: string) {
   return `${CUSTOM_TOKEN_CATALOG_STORAGE_KEY_PREFIX}:${normalizeCustomTokenCatalogWalletId(walletId)}`;
+}
+
+function isTrongridRateLimitError(error: unknown) {
+  const text =
+    error instanceof Error
+      ? `${error.name} ${error.message}`
+      : typeof error === 'string'
+        ? error
+        : JSON.stringify(error);
+
+  const normalized = String(text || '').toLowerCase();
+  return (
+    normalized.includes('http 403') &&
+    normalized.includes('rate limit exceeded')
+  );
 }
 type ProviderName = 'tronscan' | 'trongrid';
 
@@ -1531,6 +1548,18 @@ async function readWalletHistoryCache(
   }
 }
 
+export async function getCachedWalletHistoryPage(
+  walletAddress: string,
+  limit = DEFAULT_WALLET_HISTORY_LIMIT
+): Promise<WalletHistoryPage | null> {
+  const safeWalletAddress = String(walletAddress || '').trim();
+  if (!safeWalletAddress) return null;
+
+  const safeLimit = Math.max(1, Math.min(50, limit));
+  const cacheKey = buildWalletHistoryCacheKey(safeWalletAddress, safeLimit);
+  return readWalletHistoryCache(cacheKey, safeLimit);
+}
+
 async function writeWalletHistoryCache(
   cacheKey: string,
   page: WalletHistoryPage,
@@ -2643,6 +2672,15 @@ async function getTrongridTransactionEvents(txHash: string) {
     );
     return response.data ?? [];
   } catch (error) {
+    if (isTrongridRateLimitError(error)) {
+      if (!warnedTrongridEventsRateLimit) {
+        warnedTrongridEventsRateLimit = true;
+        console.warn(
+          'Trongrid transaction events are rate-limited right now. Event details will be partially unavailable until the limit clears.'
+        );
+      }
+      return [];
+    }
     console.warn('Failed to load Trongrid transaction events:', safeTxHash, error);
     return [];
   }
@@ -2658,6 +2696,15 @@ async function getTrongridInternalTransactions(txHash: string) {
     );
     return response.data ?? [];
   } catch (error) {
+    if (isTrongridRateLimitError(error)) {
+      if (!warnedTrongridInternalRateLimit) {
+        warnedTrongridInternalRateLimit = true;
+        console.warn(
+          'Trongrid internal transactions are rate-limited right now. Internal transfer details will be partially unavailable until the limit clears.'
+        );
+      }
+      return [];
+    }
     console.warn('Failed to load Trongrid internal transactions:', safeTxHash, error);
     return [];
   }

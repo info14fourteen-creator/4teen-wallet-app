@@ -7,7 +7,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import {
-  getBiometricsEnabled,
+  getBiometricsStatus,
   verifyPasscode,
 } from '../src/security/local-auth';
 import { useWalletSession } from '../src/wallet/wallet-session';
@@ -30,25 +30,10 @@ export default function UnlockScreen() {
 
   const loadBiometricsState = useCallback(async () => {
     try {
-      const enabled = await getBiometricsEnabled();
-      const compatible = await LocalAuthentication.hasHardwareAsync();
-      const enrolled = await LocalAuthentication.isEnrolledAsync();
-      const supported = await LocalAuthentication.supportedAuthenticationTypesAsync();
-
-      setBiometricsEnabled(enabled);
-      setBiometricAvailable(enabled && compatible && enrolled);
-
-      if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        setBiometricsLabel('Face ID');
-        return;
-      }
-
-      if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-        setBiometricsLabel('Fingerprint');
-        return;
-      }
-
-      setBiometricsLabel('Biometrics');
+      const status = await getBiometricsStatus();
+      setBiometricsEnabled(status.enabled);
+      setBiometricAvailable(status.available);
+      setBiometricsLabel(status.label);
     } catch (error) {
       console.error(error);
       setBiometricsEnabled(false);
@@ -132,7 +117,7 @@ export default function UnlockScreen() {
     if (!biometricsLoaded || initialUnlockRequestedRef.current) return;
 
     initialUnlockRequestedRef.current = true;
-    void requestBiometricUnlock(true);
+    void requestBiometricUnlock(false);
   }, [biometricsLoaded, requestBiometricUnlock]);
 
   const handleDigitPress = useCallback(

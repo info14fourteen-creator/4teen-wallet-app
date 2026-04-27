@@ -2,25 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ExpandChevron from '../src/ui/expand-chevron';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import { clearAllAppCaches } from '../src/services/app-cache';
-import { useBottomInset } from '../src/ui/use-bottom-inset';
-import { useNavigationInsets } from '../src/ui/navigation';
-import ScreenBrow from '../src/ui/screen-brow';
+import { ProductScreen } from '../src/ui/product-shell';
 import { useWalletSession } from '../src/wallet/wallet-session';
 import { getBiometricsEnabled, hasPasscode } from '../src/security/local-auth';
+import SettingsRow from '../src/ui/settings-row';
 
 const CLEAR_HOLD_MS = 3500;
 const CLEAR_DISPLAY_MAX = 114;
@@ -29,8 +25,6 @@ export default function SettingsScreen() {
   const router = useRouter();
   const notice = useNotice();
   const { triggerWalletDataRefresh } = useWalletSession();
-  const navInsets = useNavigationInsets({ topExtra: 14 });
-  const contentBottomInset = useBottomInset();
 
   const [clearingCache, setClearingCache] = useState(false);
   const [clearActive, setClearActive] = useState(false);
@@ -153,26 +147,16 @@ export default function SettingsScreen() {
   const clearFillWidth = `${Math.min(100, (clearProgress / CLEAR_DISPLAY_MAX) * 100)}%`;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          <ScreenBrow label="SETTINGS" variant="back" />
+    <ProductScreen eyebrow="SETTINGS" browVariant="back">
           <View style={styles.list}>
-            <SettingRow label="Language" value="English" onPress={() => router.push('/language')} />
-            <SettingRow label="Currency" value="USD" onPress={() => router.push('/currency')} />
-            <SettingRow
+            <SettingsRow label="Language" value="English" onPress={() => router.push('/language')} />
+            <SettingsRow label="Currency" value="USD" onPress={() => router.push('/currency')} />
+            <SettingsRow
               label="Authentication Method"
               value={authValue}
               onPress={() => router.push('/authentication-method')}
             />
-            <SettingRow label="Appearance" value="Dark" onPress={() => router.push('/appearance')} />
+            <SettingsRow label="Appearance" value="Dark" onPress={() => router.push('/appearance')} />
 
             <ClearCacheHoldRow
               active={clearActive}
@@ -184,35 +168,7 @@ export default function SettingsScreen() {
               onPressOut={handleClearPressOut}
             />
           </View>
-
-          <Text style={styles.helperText}>
-            Clears market, portfolio, history, ambassador, unlock, liquidity, asset wallet,
-            direct-buy, and resource-pricing cache. Wallets, passcode, address book, drafts,
-            referrals, and token settings stay untouched.
-          </Text>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-function SettingRow({
-  label,
-  value,
-  onPress,
-}: {
-  label: string;
-  value: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity activeOpacity={0.9} style={styles.row} onPress={onPress}>
-      <View style={styles.rowText}>
-        <Text style={ui.actionLabel}>{label}</Text>
-        <Text style={styles.value}>{value}</Text>
-      </View>
-      <ExpandChevron open={false} />
-    </TouchableOpacity>
+    </ProductScreen>
   );
 }
 
@@ -247,7 +203,14 @@ function ClearCacheHoldRow({
         ) : null}
 
         <View style={styles.clearCacheRowTop}>
-          <Text style={ui.actionLabel}>Clear cache</Text>
+          <View style={styles.clearCacheText}>
+            <Text style={ui.actionLabel}>Clear cache</Text>
+            <Text style={styles.helperText}>
+              Clears market, portfolio, history, ambassador, unlock, liquidity, asset wallet,
+              direct-buy, and resource-pricing cache. Wallets, passcode, address book, drafts,
+              referrals, and token settings stay untouched.
+            </Text>
+          </View>
 
           {clearing ? (
             <ActivityIndicator color={colors.white} size="small" />
@@ -286,54 +249,32 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  row: {
-    minHeight: 56,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-
-  rowText: {
-    flex: 1,
-    gap: 4,
-    paddingRight: 12,
-  },
-
-  value: {
-    color: colors.textDim,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-  },
-
   clearCacheRow: {
-    minHeight: 32,
-    paddingTop: 2,
-    paddingBottom: 10,
+    minHeight: 86,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
     position: 'relative',
     overflow: 'hidden',
   },
 
   clearCacheRowTop: {
-    minHeight: 24,
+    minHeight: 56,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
   },
 
+  clearCacheText: {
+    flex: 1,
+  },
+
   helperText: {
-    marginTop: 12,
+    marginTop: 6,
     color: colors.textDim,
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
   },
 

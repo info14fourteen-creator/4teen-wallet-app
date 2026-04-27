@@ -327,7 +327,7 @@ export default function ExportMnemonicScreen() {
   }, [state]);
 
   if (loading) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading seed phrase..." />;
   }
 
   return (

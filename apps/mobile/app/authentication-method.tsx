@@ -1,29 +1,28 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import ExpandChevron from '../src/ui/expand-chevron';
-import ScreenBrow from '../src/ui/screen-brow';
-import { useBottomInset } from '../src/ui/use-bottom-inset';
-import { useNavigationInsets } from '../src/ui/navigation';
-import { getBiometricsEnabled, hasPasscode } from '../src/security/local-auth';
+import { ProductScreen } from '../src/ui/product-shell';
+import { getBiometricsStatus, hasPasscode } from '../src/security/local-auth';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
+import SettingsRow from '../src/ui/settings-row';
 
 type AuthStatus = {
   passcodeEnabled: boolean;
   biometricsEnabled: boolean;
+  biometricsAvailable: boolean;
+  biometricsLabel: string;
 };
 
 export default function AuthenticationMethodScreen() {
   const router = useRouter();
-  const navInsets = useNavigationInsets({ topExtra: 14 });
-  const contentBottomInset = useBottomInset();
 
   const [status, setStatus] = useState<AuthStatus>({
     passcodeEnabled: false,
     biometricsEnabled: false,
+    biometricsAvailable: false,
+    biometricsLabel: 'Biometrics',
   });
 
   useFocusEffect(
@@ -31,13 +30,18 @@ export default function AuthenticationMethodScreen() {
       let cancelled = false;
 
       const loadStatus = async () => {
-        const [passcodeEnabled, biometricsEnabled] = await Promise.all([
+        const [passcodeEnabled, biometrics] = await Promise.all([
           hasPasscode(),
-          getBiometricsEnabled(),
+          getBiometricsStatus(),
         ]);
 
         if (!cancelled) {
-          setStatus({ passcodeEnabled, biometricsEnabled });
+          setStatus({
+            passcodeEnabled,
+            biometricsEnabled: biometrics.enabled,
+            biometricsAvailable: biometrics.available,
+            biometricsLabel: biometrics.label,
+          });
         }
       };
 
@@ -50,18 +54,7 @@ export default function AuthenticationMethodScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          <ScreenBrow label="AUTHENTICATION METHOD" variant="back" />
-
+    <ProductScreen eyebrow="AUTHENTICATION METHOD" browVariant="back">
           <View style={styles.headerCard}>
             <Text style={styles.headerTitle}>App protection</Text>
             <Text style={styles.headerBody}>
@@ -70,65 +63,61 @@ export default function AuthenticationMethodScreen() {
           </View>
 
           <View style={styles.list}>
-            <SettingRow
+            <SettingsRow
               label="Passcode"
               value={status.passcodeEnabled ? 'Enabled' : 'Not set'}
               hint={status.passcodeEnabled ? 'Reset your app passcode' : 'Create a 6-digit passcode'}
-              onPress={() => router.push('/create-passcode')}
+              onPress={() =>
+                router.push({
+                  pathname: '/create-passcode',
+                  params: {
+                    next: '/settings',
+                    flow: status.passcodeEnabled ? 'change-passcode' : 'create-passcode',
+                  },
+                } as any)
+              }
             />
 
-            <SettingRow
-              label="Biometrics"
+            <SettingsRow
+              label={status.biometricsLabel}
               value={
                 !status.passcodeEnabled
                   ? 'Passcode required first'
                   : status.biometricsEnabled
                     ? 'Enabled'
-                    : 'Disabled'
+                    : status.biometricsAvailable
+                      ? 'Disabled'
+                      : 'Unavailable'
               }
               hint={
                 !status.passcodeEnabled
-                  ? 'Set a passcode before enabling Face ID or fingerprint'
+                  ? 'Set a passcode before enabling biometric unlock'
                   : status.biometricsEnabled
-                    ? 'Re-run biometric setup or turn it off'
-                    : 'Turn on face unlock or fingerprint'
+                    ? `Turn ${status.biometricsLabel} unlock off`
+                    : status.biometricsAvailable
+                      ? `Turn on ${status.biometricsLabel}`
+                      : `${status.biometricsLabel} is not ready on this device`
               }
               onPress={() =>
                 status.passcodeEnabled
                   ? router.push({
                       pathname: '/enable-biometrics',
-                      params: { next: '/authentication-method' },
+                      params: {
+                        next: '/authentication-method',
+                        flow: status.biometricsEnabled ? 'disable-biometrics' : 'enable-biometrics',
+                      },
                     } as any)
-                  : router.push('/create-passcode')
+                  : router.push({
+                      pathname: '/create-passcode',
+                      params: {
+                        next: '/authentication-method',
+                        flow: 'create-passcode',
+                      },
+                    } as any)
               }
             />
           </View>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
-  );
-}
-
-function SettingRow({
-  label,
-  value,
-  hint,
-  onPress,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity activeOpacity={0.9} style={styles.row} onPress={onPress}>
-      <View style={styles.rowText}>
-        <Text style={ui.actionLabel}>{label}</Text>
-        <Text style={styles.value}>{value}</Text>
-        <Text style={styles.hint}>{hint}</Text>
-      </View>
-      <ExpandChevron open={false} />
-    </TouchableOpacity>
+    </ProductScreen>
   );
 }
 
@@ -177,37 +166,4 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  row: {
-    minHeight: 86,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-
-  rowText: {
-    flex: 1,
-  },
-
-  value: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: 'Sora_400Regular',
-    marginTop: 4,
-  },
-
-  hint: {
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
-    fontFamily: 'Sora_400Regular',
-    marginTop: 6,
-  },
 });

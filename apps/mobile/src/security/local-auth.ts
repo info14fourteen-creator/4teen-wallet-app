@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 export const PASSCODE_KEY = 'fourteen_wallet_local_passcode_v1';
 export const BIOMETRICS_KEY = 'fourteen_wallet_biometrics_enabled_v1';
@@ -42,4 +43,37 @@ export async function setBiometricsEnabled(value: boolean): Promise<void> {
 export async function getBiometricsEnabled(): Promise<boolean> {
   const stored = await SecureStore.getItemAsync(BIOMETRICS_KEY);
   return stored === '1';
+}
+
+export type BiometricsStatus = {
+  enabled: boolean;
+  compatible: boolean;
+  enrolled: boolean;
+  available: boolean;
+  label: string;
+};
+
+export async function getBiometricsStatus(): Promise<BiometricsStatus> {
+  const [enabled, compatible, enrolled, supported] = await Promise.all([
+    getBiometricsEnabled(),
+    LocalAuthentication.hasHardwareAsync(),
+    LocalAuthentication.isEnrolledAsync(),
+    LocalAuthentication.supportedAuthenticationTypesAsync(),
+  ]);
+
+  let label = 'Biometrics';
+
+  if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+    label = 'Face ID';
+  } else if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+    label = 'Fingerprint';
+  }
+
+  return {
+    enabled,
+    compatible,
+    enrolled,
+    available: compatible && enrolled,
+    label,
+  };
 }

@@ -3,7 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,13 +11,9 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useFocusEffect } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useBottomInset } from '../src/ui/use-bottom-inset';
-import { useNavigationInsets } from '../src/ui/navigation';
-import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
-import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import { ProductScreen } from '../src/ui/product-shell';
 
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
@@ -62,7 +57,6 @@ function mapTokenListItemToCustomToken(token: TronscanTokenListItem): CustomToke
 
 export default function AddCustomTokenScreen() {
   const notice = useNotice();
-  const navInsets = useNavigationInsets({ topExtra: 14 });
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,8 +68,6 @@ export default function AddCustomTokenScreen() {
   const [customTokenCatalog, setCustomTokenCatalogState] = useState<CustomTokenCatalogItem[]>([]);
   const [errorText, setErrorText] = useState('');
   useChromeLoading((loading && tokens.length === 0) || refreshing);
-
-  const contentBottomInset = useBottomInset();
 
   const load = useCallback(
     async (force = false) => {
@@ -229,115 +221,97 @@ export default function AddCustomTokenScreen() {
   }, [customTokenCatalog]);
 
   if (loading && tokens.length === 0) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading custom token..." />;
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing} />
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-          keyboardDismissMode="interactive"
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.accent}
-              colors={[colors.accent]}
-              progressBackgroundColor={colors.bg}
-            />
-          }
-        >
-          <ScreenBrow
-            label={`ADD CUSTOM TOKEN (${filteredTokens.length})`}
-            variant="back"
-          />
+    <ProductScreen
+      eyebrow={`ADD CUSTOM TOKEN (${filteredTokens.length})`}
+      browVariant="back"
+      keyboardAware
+      loadingOverlayVisible={refreshing}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.accent}
+          colors={[colors.accent]}
+          progressBackgroundColor={colors.bg}
+        />
+      }
+    >
+      {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
-          {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
-
-          <View style={styles.searchWrap}>
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search by contract / name / symbol"
-              placeholderTextColor={colors.textDim}
-              style={styles.searchInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="off"
-              keyboardAppearance="dark"
-              selectionColor={colors.accent}
-              returnKeyType="search"
-              blurOnSubmit
-            />
-          </View>
-
-          <View style={styles.assetList}>
-            {loading ? (
-              <View style={styles.loaderWrap}>
-                <ActivityIndicator color={colors.accent} />
-              </View>
-            ) : filteredTokens.length > 0 ? (
-              filteredTokens.map((token) => {
-                const tokenId = String(token.id || '').trim();
-                const enabled =
-                  homeVisibleTokenIds.includes(tokenId) || selectedCustomTokenIds.has(tokenId);
-
-                return (
-                  <View key={token.id} style={styles.assetRow}>
-                    <View style={styles.assetLeft}>
-                      {token.logo ? (
-                        <Image
-                          source={{ uri: token.logo }}
-                          style={styles.assetLogo}
-                          contentFit="contain"
-                        />
-                      ) : (
-                        <View style={styles.assetFallbackLogo}>
-                          <Text style={styles.assetFallbackText}>
-                            {String(token.abbr || token.name || '?').slice(0, 1).toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
-
-                      <View style={styles.assetMeta}>
-                        <Text style={styles.assetName}>
-                          {token.name} {token.abbr ? `(${token.abbr})` : ''}
-                        </Text>
-                        <Text style={styles.assetAddress}>{token.id}</Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      style={styles.toggleButton}
-                      onPress={() => void handleToggleToken(token)}
-                    >
-                      {enabled ? (
-                        <ToggleOnIcon width={64} height={36} />
-                      ) : (
-                        <ToggleOffIcon width={64} height={36} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                );
-              })
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>Token not found.</Text>
-              </View>
-            )}
-          </View>
-        </ScrollView>
+      <View style={styles.searchWrap}>
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search by contract / name / symbol"
+          placeholderTextColor={colors.textDim}
+          style={styles.searchInput}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          keyboardAppearance="dark"
+          selectionColor={colors.accent}
+          returnKeyType="search"
+          blurOnSubmit
+        />
       </View>
-    </SafeAreaView>
+
+      <View style={styles.assetList}>
+        {loading ? (
+          <View style={styles.loaderWrap}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : filteredTokens.length > 0 ? (
+          filteredTokens.map((token) => {
+            const tokenId = String(token.id || '').trim();
+            const enabled =
+              homeVisibleTokenIds.includes(tokenId) || selectedCustomTokenIds.has(tokenId);
+
+            return (
+              <View key={token.id} style={styles.assetRow}>
+                <View style={styles.assetLeft}>
+                  {token.logo ? (
+                    <Image source={{ uri: token.logo }} style={styles.assetLogo} contentFit="contain" />
+                  ) : (
+                    <View style={styles.assetFallbackLogo}>
+                      <Text style={styles.assetFallbackText}>
+                        {String(token.abbr || token.name || '?').slice(0, 1).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.assetMeta}>
+                    <Text style={styles.assetName}>
+                      {token.name} {token.abbr ? `(${token.abbr})` : ''}
+                    </Text>
+                    <Text style={styles.assetAddress}>{token.id}</Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.toggleButton}
+                  onPress={() => void handleToggleToken(token)}
+                >
+                  {enabled ? (
+                    <ToggleOnIcon width={64} height={36} />
+                  ) : (
+                    <ToggleOffIcon width={64} height={36} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            );
+          })
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>Token not found.</Text>
+          </View>
+        )}
+      </View>
+    </ProductScreen>
   );
 }
 

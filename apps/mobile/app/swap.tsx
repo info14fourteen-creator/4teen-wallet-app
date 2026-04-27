@@ -105,6 +105,22 @@ function formatUsd(value?: number) {
   });
 }
 
+function getProtectedSwapReserve(token?: Pick<SwapTokenMeta, 'tokenId' | 'decimals'> | null) {
+  if (!token || String(token.tokenId || '').trim() !== FOURTEEN_CONTRACT) {
+    return 0;
+  }
+
+  const decimals = Number.isFinite(token.decimals) ? Number(token.decimals) : 6;
+  return 1 / 10 ** Math.max(0, decimals);
+}
+
+function getProtectedSpendableSwapBalance(
+  token?: Pick<SwapTokenMeta, 'tokenId' | 'decimals' | 'balance'> | null
+) {
+  const balance = Number.isFinite(token?.balance) ? Number(token?.balance) : 0;
+  return Math.max(0, balance - getProtectedSwapReserve(token));
+}
+
 function buildRoutePathLabel(route: SunioRoute) {
   if (route.symbols.length > 0) {
     return route.symbols.join(' → ');
@@ -529,19 +545,19 @@ export default function SwapScreen() {
   }, [amount, selectedSourceToken, selectedTargetToken]);
 
   const bestRoute = routes[0] || null;
-  const inputBalance = Number(selectedSourceToken?.amount || 0);
+  const spendableInputBalance = getProtectedSpendableSwapBalance(selectedSourceToken);
   const enteredAmount = amountAsNumber(amount);
   const canContinue =
     activeWallet?.kind !== 'watch-only' &&
     enteredAmount > 0 &&
-    enteredAmount <= inputBalance &&
+    enteredAmount <= spendableInputBalance &&
     routes.length > 0 &&
     !quotesLoading;
 
   const handleSelectMax = useCallback(() => {
-    if (!selectedSourceToken?.amountDisplay) return;
-    setAmount(String(selectedSourceToken.amountDisplay).replace(/,/g, ''));
-  }, [selectedSourceToken?.amountDisplay]);
+    if (!selectedSourceToken) return;
+    setAmount(formatTokenAmount(spendableInputBalance, selectedSourceToken.decimals));
+  }, [selectedSourceToken, spendableInputBalance]);
 
   const openAmountKeyboard = useCallback(() => {
     closeInlinePickers();
@@ -607,9 +623,11 @@ export default function SwapScreen() {
         return;
       }
 
-      if (enteredAmount > inputBalance) {
+      if (enteredAmount > spendableInputBalance) {
         notice.showErrorNotice(
-          `Not enough ${selectedSourceToken?.symbol || 'token'} balance for this swap.`,
+          selectedSourceToken?.tokenId === FOURTEEN_CONTRACT
+            ? 'You must keep at least 0.000001 4TEEN in the wallet.'
+            : `Not enough ${selectedSourceToken?.symbol || 'token'} balance for this swap.`,
           2600
         );
         return;
@@ -647,7 +665,7 @@ export default function SwapScreen() {
       amount,
       enteredAmount,
       openingRouteId,
-      inputBalance,
+      spendableInputBalance,
       notice,
       router,
       slippage,

@@ -3,7 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,13 +10,9 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useBottomInset } from '../src/ui/use-bottom-inset';
-import { useNavigationInsets } from '../src/ui/navigation';
-import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
-import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import { ProductScreen } from '../src/ui/product-shell';
 
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
@@ -135,7 +130,6 @@ async function buildManageFallbackAsset(
 export default function ManageCryptoScreen() {
   const router = useRouter();
   const notice = useNotice();
-  const navInsets = useNavigationInsets({ topExtra: 14 });
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -145,8 +139,6 @@ export default function ManageCryptoScreen() {
   ]);
   const [errorText, setErrorText] = useState('');
   useChromeLoading((loading && !portfolio) || refreshing);
-
-  const contentBottomInset = useBottomInset();
 
   const load = useCallback(async (force = false) => {
     try {
@@ -206,48 +198,65 @@ export default function ManageCryptoScreen() {
           limit: 20,
         });
 
-        const historyTokenIds = new Set(
-          historyPage.items
-            .map((item) => String(item.tokenId || '').trim())
-            .filter(Boolean)
-        );
+        const historyTokenIds = [
+          ...new Set(
+            historyPage.items
+              .map((item) => String(item.tokenId || '').trim())
+              .filter(Boolean)
+          ),
+        ];
 
         const existingIds = new Set(
           nextAssets.map((asset) => normalizeAssetTokenKey(asset))
         );
 
-        for (const tokenId of historyTokenIds) {
-          if (!tokenId || existingIds.has(tokenId)) continue;
+        const missingHistoryIds = historyTokenIds.filter(
+          (tokenId) => tokenId && !existingIds.has(tokenId)
+        );
 
-          try {
-            const details = await getTokenDetails(activeWallet.address, tokenId, force);
-            nextAssets.push({
-              id: details.tokenId,
-              name: details.name || details.symbol || tokenId,
-              symbol: details.symbol || '',
-              logo: details.logo,
-              amountDisplay: details.balanceFormatted || '0',
-              valueDisplay: '$0.00',
-              deltaDisplay: '—',
-              deltaTone: 'dim',
-              amount: 0,
-              valueInUsd: Number(details.balanceValueUsd || 0),
-              priceChange24h: undefined,
-              deltaUsd24h: 0,
-            });
-            existingIds.add(tokenId);
-          } catch {
-          }
-        }
+        const historyAssets = await Promise.all(
+          missingHistoryIds.map(async (tokenId) => {
+            try {
+              const details = await getTokenDetails(activeWallet.address, tokenId, force);
+              return {
+                id: details.tokenId,
+                name: details.name || details.symbol || tokenId,
+                symbol: details.symbol || '',
+                logo: details.logo,
+                amountDisplay: details.balanceFormatted || '0',
+                valueDisplay: '$0.00',
+                deltaDisplay: '—',
+                deltaTone: 'dim',
+                amount: 0,
+                valueInUsd: Number(details.balanceValueUsd || 0),
+                priceChange24h: undefined,
+                deltaUsd24h: 0,
+              } satisfies PortfolioAsset;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        nextAssets.push(
+          ...historyAssets.filter((asset): asset is PortfolioAsset => Boolean(asset))
+        );
       } catch {
       }
 
       const existingIds = new Set(nextAssets.map((asset) => normalizeAssetTokenKey(asset)));
 
-      for (const tokenId of DEFAULT_HOME_VISIBLE_TOKEN_IDS) {
-        if (existingIds.has(tokenId)) continue;
-        nextAssets.push(await buildManageFallbackAsset(activeWallet.address, tokenId));
-        existingIds.add(tokenId);
+      const missingDefaultIds = DEFAULT_HOME_VISIBLE_TOKEN_IDS.filter(
+        (tokenId) => !existingIds.has(tokenId)
+      );
+
+      if (missingDefaultIds.length > 0) {
+        const fallbackAssets = await Promise.all(
+          missingDefaultIds.map((tokenId) =>
+            buildManageFallbackAsset(activeWallet.address, tokenId)
+          )
+        );
+        nextAssets.push(...fallbackAssets);
       }
 
       for (const item of customCatalog) {
@@ -340,98 +349,84 @@ export default function ManageCryptoScreen() {
   }, [portfolio?.assets]);
 
   if (loading && !portfolio) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading manage crypto..." />;
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing} />
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.accent}
-              colors={[colors.accent]}
-              progressBackgroundColor={colors.bg}
-            />
-          }
-        >
-          <ScreenBrow label="MANAGE CRYPTO" variant="back" />
+    <ProductScreen
+      eyebrow="MANAGE CRYPTO"
+      browVariant="back"
+      loadingOverlayVisible={refreshing}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.accent}
+          colors={[colors.accent]}
+          progressBackgroundColor={colors.bg}
+        />
+      }
+    >
+      {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
 
-          {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
-
-          <View style={styles.assetList}>
-            {loading ? (
-              <View style={styles.loaderWrap}>
-                <ActivityIndicator color={colors.accent} />
-              </View>
-            ) : allAssets.length > 0 ? (
-              allAssets.map((asset) => {
-                const tokenKey = normalizeAssetTokenKey(asset);
-                const enabled = homeVisibleTokenIds.includes(tokenKey);
-
-                return (
-                  <View key={asset.id} style={styles.assetRow}>
-                    <View style={styles.assetLeft}>
-                      {asset.logo ? (
-                        <Image
-                          source={{ uri: asset.logo }}
-                          style={styles.assetLogo}
-                          contentFit="contain"
-                        />
-                      ) : (
-                        <View style={styles.assetFallbackLogo}>
-                          <Text style={styles.assetFallbackText}>
-                            {String(asset.symbol || asset.name || '?').slice(0, 1).toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
-
-                      <View style={styles.assetMeta}>
-                        <Text style={styles.assetName}>{asset.name}</Text>
-                        <Text style={styles.assetAmount}>{asset.amountDisplay}</Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      style={styles.toggleButton}
-                      onPress={() => void toggleTokenVisibility(tokenKey)}
-                    >
-                      {enabled ? (
-                        <ToggleOnIcon width={64} height={36} />
-                      ) : (
-                        <ToggleOffIcon width={64} height={36} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                );
-              })
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No assets found.</Text>
-              </View>
-            )}
+      <View style={styles.assetList}>
+        {loading ? (
+          <View style={styles.loaderWrap}>
+            <ActivityIndicator color={colors.accent} />
           </View>
+        ) : allAssets.length > 0 ? (
+          allAssets.map((asset) => {
+            const tokenKey = normalizeAssetTokenKey(asset);
+            const enabled = homeVisibleTokenIds.includes(tokenKey);
 
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={styles.addCustomTokenButton}
-            onPress={() => router.push('/add-custom-token')}
-          >
-            <Text style={styles.addCustomTokenText}>Add custom token</Text>
-          </TouchableOpacity>
-        </ScrollView>
+            return (
+              <View key={asset.id} style={styles.assetRow}>
+                <View style={styles.assetLeft}>
+                  {asset.logo ? (
+                    <Image source={{ uri: asset.logo }} style={styles.assetLogo} contentFit="contain" />
+                  ) : (
+                    <View style={styles.assetFallbackLogo}>
+                      <Text style={styles.assetFallbackText}>
+                        {String(asset.symbol || asset.name || '?').slice(0, 1).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.assetMeta}>
+                    <Text style={styles.assetName}>{asset.name}</Text>
+                    <Text style={styles.assetAmount}>{asset.amountDisplay}</Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.toggleButton}
+                  onPress={() => void toggleTokenVisibility(tokenKey)}
+                >
+                  {enabled ? (
+                    <ToggleOnIcon width={64} height={36} />
+                  ) : (
+                    <ToggleOffIcon width={64} height={36} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            );
+          })
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No assets found.</Text>
+          </View>
+        )}
       </View>
-    </SafeAreaView>
+
+      <TouchableOpacity
+        activeOpacity={0.85}
+        style={styles.addCustomTokenButton}
+        onPress={() => router.push('/add-custom-token')}
+      >
+        <Text style={styles.addCustomTokenText}>Add custom token</Text>
+      </TouchableOpacity>
+    </ProductScreen>
   );
 }
 

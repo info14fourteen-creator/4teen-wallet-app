@@ -5,6 +5,7 @@ import {
   TRONGRID_BASE_URL,
 } from '../../config/tron';
 import {
+  FOURTEEN_CONTRACT,
   TRX_TOKEN_ID,
   getAccountResources,
   getTokenDetails,
@@ -30,6 +31,7 @@ const DEFAULT_BANDWIDTH_PRICE_SUN = 1_000;
 const DEFAULT_ENERGY_PRICE_SUN = 420;
 const RESOURCE_PRICING_CACHE_TTL_MS = 2 * 60 * 1000;
 const TRON_DERIVATION_PATH = "m/44'/195'/0'/0/0";
+const MIN_FOURTEEN_REMAINDER_RAW = '1';
 
 type ResourceUnitPricing = {
   energySun: number;
@@ -188,6 +190,45 @@ function compareRawAmounts(left: string, right: string) {
   }
 
   return a > b ? 1 : -1;
+}
+
+function isProtectedFourteenToken(tokenId: string) {
+  return String(tokenId || '').trim() === FOURTEEN_CONTRACT;
+}
+
+function getProtectedTokenRemainderRaw(tokenId: string) {
+  return isProtectedFourteenToken(tokenId) ? MIN_FOURTEEN_REMAINDER_RAW : '0';
+}
+
+function subtractRawAmounts(left: string, right: string) {
+  if (compareRawAmounts(left, right) <= 0) {
+    return '0';
+  }
+
+  return String(BigInt(left || '0') - BigInt(right || '0'));
+}
+
+function getTokenSpendableRaw(tokenId: string, balanceRaw: string) {
+  return subtractRawAmounts(balanceRaw, getProtectedTokenRemainderRaw(tokenId));
+}
+
+function assertTokenTransferWithinSpendableBalance(
+  tokenId: string,
+  symbol: string,
+  amountRaw: string,
+  balanceRaw: string
+) {
+  const spendableRaw = getTokenSpendableRaw(tokenId, balanceRaw);
+
+  if (compareRawAmounts(amountRaw, spendableRaw) <= 0) {
+    return;
+  }
+
+  if (isProtectedFourteenToken(tokenId)) {
+    throw new Error('You must keep at least 0.000001 4TEEN in the wallet.');
+  }
+
+  throw new Error(`Insufficient ${symbol} balance.`);
 }
 
 function parseUnitPriceValue(value: unknown, fallback: number) {
@@ -471,9 +512,12 @@ export async function sendAssetTransfer(
     throw new Error('Amount must be greater than zero.');
   }
 
-  if (compareRawAmounts(amountRaw, token.balanceRaw) > 0) {
-    throw new Error(`Insufficient ${token.symbol} balance.`);
-  }
+  assertTokenTransferWithinSpendableBalance(
+    token.tokenId,
+    token.symbol,
+    amountRaw,
+    token.balanceRaw
+  );
 
   const parameters = [
     { type: 'address', value: toAddress },
@@ -649,9 +693,12 @@ export async function estimateAssetTransfer(
     throw new Error('Amount must be greater than zero.');
   }
 
-  if (compareRawAmounts(amountRaw, token.balanceRaw) > 0) {
-    throw new Error(`Insufficient ${token.symbol} balance.`);
-  }
+  assertTokenTransferWithinSpendableBalance(
+    token.tokenId,
+    token.symbol,
+    amountRaw,
+    token.balanceRaw
+  );
 
   const parameters = [
     { type: 'address', value: toAddress },
@@ -785,6 +832,9 @@ export async function getSendAssetDraft(tokenId?: string) {
       ...token,
       valueDisplay: formatUsd(valueInUsd),
     },
-    spendableAmount: rawToDecimalString(token.balanceRaw, token.decimals),
+    spendableAmount: rawToDecimalString(
+      getTokenSpendableRaw(token.tokenId, token.balanceRaw),
+      token.decimals
+    ),
   };
 }

@@ -2,19 +2,14 @@ import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useBottomInset } from '../src/ui/use-bottom-inset';
-import { useNavigationInsets } from '../src/ui/navigation';
-import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
-import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import { ProductScreen } from '../src/ui/product-shell';
 import { useWalletSession } from '../src/wallet/wallet-session';
 
 import { colors, layout, radius } from '../src/theme/tokens';
@@ -43,15 +38,12 @@ export default function SelectWalletScreen() {
   const router = useRouter();
   const notice = useNotice();
   const { setPendingWalletSelectionId } = useWalletSession();
-  const navInsets = useNavigationInsets({ topExtra: 14 });
   const [activeWalletId, setActiveWalletIdState] = useState<string | null>(null);
   const [walletList, setWalletList] = useState<WalletMeta[]>([]);
   const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   useChromeLoading(loading || refreshing);
-
-  const contentBottomInset = useBottomInset();
 
   const load = useCallback(async () => {
     try {
@@ -113,7 +105,7 @@ export default function SelectWalletScreen() {
   }, [aggregate?.totalDeltaTone]);
 
   if (loading && !aggregate) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading wallet selector..." />;
   }
 
   const handleSelectWallet = async (wallet: WalletMeta) => {
@@ -130,28 +122,20 @@ export default function SelectWalletScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing} />
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-          bounces
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.accent}
-              colors={[colors.accent]}
-              progressBackgroundColor={colors.bg}
-            />
-          }
-        >
-          <ScreenBrow label="SELECT WALLET" variant="backLink" />
+    <ProductScreen
+      eyebrow="SELECT WALLET"
+      browVariant="backLink"
+      loadingOverlayVisible={refreshing}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.accent}
+          colors={[colors.accent]}
+          progressBackgroundColor={colors.bg}
+        />
+      }
+    >
           <View style={styles.summaryCard}>
             <Text style={ui.eyebrow}>Total Assets</Text>
             <Text style={styles.summaryValue}>
@@ -222,9 +206,7 @@ export default function SelectWalletScreen() {
             <Text style={ui.actionLabel}>Add Wallet</Text>
             <AddWalletIcon width={20} height={20} />
           </TouchableOpacity>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+    </ProductScreen>
   );
 }
 

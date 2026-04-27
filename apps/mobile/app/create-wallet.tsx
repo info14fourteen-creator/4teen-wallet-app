@@ -1,18 +1,15 @@
+import { useState } from 'react';
 import {
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, layout, radius, spacing, typography } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
-import { useBottomInset } from '../src/ui/use-bottom-inset';
-import { useNavigationInsets } from '../src/ui/navigation';
-import ScreenBrow from '../src/ui/screen-brow';
+import { ProductScreen } from '../src/ui/product-shell';
 
 const bullets = [
   'You control the wallet and recovery phrase.',
@@ -27,130 +24,98 @@ const placeholders = Array.from({ length: 12 }, (_, index) => ({
 
 export default function CreateWalletScreen() {
   const router = useRouter();
-  const navInsets = useNavigationInsets({ topExtra: 14 });
   const [accepted, setAccepted] = useState(false);
-  const contentBottomInset = useBottomInset();
 
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          <ScreenBrow label="CREATE WALLET" variant="back" />
+    <ProductScreen eyebrow="CREATE WALLET" browVariant="back">
+      <Text style={styles.title}>
+        Create a new <Text style={styles.titleAccent}>self-custody</Text> wallet
+      </Text>
 
-          <Text style={styles.title}>
-            Create a new <Text style={styles.titleAccent}>self-custody</Text> wallet
-          </Text>
+      <Text style={styles.lead}>
+        This is the first protected step of the wallet flow. Right now we build the
+        screen structure, warning layer and backup logic shell before wiring real key
+        generation. Sensible, for once.
+      </Text>
 
-          <Text style={styles.lead}>
-            This is the first protected step of the wallet flow. Right now we build the
-            screen structure, warning layer and backup logic shell before wiring real key
-            generation. Sensible, for once.
-          </Text>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Before you continue</Text>
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Before you continue</Text>
-
-            <View style={styles.bullets}>
-              {bullets.map((item) => (
-                <View key={item} style={styles.bulletRow}>
-                  <View style={styles.bulletDot} />
-                  <Text style={styles.bulletText}>{item}</Text>
-                </View>
-              ))}
+        <View style={styles.bullets}>
+          {bullets.map((item) => (
+            <View key={item} style={styles.bulletRow}>
+              <View style={styles.bulletDot} />
+              <Text style={styles.bulletText}>{item}</Text>
             </View>
-          </View>
-
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Recovery Phrase Preview</Text>
-              <Text style={styles.cardHint}>Demo layout</Text>
-            </View>
-
-            <Text style={styles.cardBody}>
-              Real generation comes next. For now this block locks the visual structure
-              for the 12-word phrase grid and the backup step.
-            </Text>
-
-            <View style={styles.phraseGrid}>
-              {placeholders.map((item) => (
-                <View key={item.index} style={styles.wordChip}>
-                  <Text style={styles.wordIndex}>{item.index}.</Text>
-                  <Text style={styles.wordValue}>{item.value}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Backup Status</Text>
-            <Text style={styles.cardBody}>
-              The wallet should not be considered ready until the recovery phrase is
-              reviewed, copied safely and confirmed by the user.
-            </Text>
-
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={[styles.acceptRow, accepted && styles.acceptRowActive]}
-              onPress={() => setAccepted((prev) => !prev)}
-            >
-              <View style={[styles.checkbox, accepted && styles.checkboxActive]}>
-                {accepted ? <View style={styles.checkboxInner} /> : null}
-              </View>
-
-              <Text style={styles.acceptText}>
-                I understand that losing the recovery phrase means losing access.
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.footerActions}>
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={styles.primaryButton}
-              onPress={() => {}}
-            >
-              <Text style={ui.buttonLabel}>Generate Phrase</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={styles.secondaryButton}
-              onPress={() => router.back()}
-            >
-              <Text style={ui.buttonLabel}>Back</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+          ))}
+        </View>
       </View>
-    </SafeAreaView>
+
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Recovery Phrase Preview</Text>
+          <Text style={styles.cardHint}>Demo layout</Text>
+        </View>
+
+        <Text style={styles.cardBody}>
+          Real generation comes next. For now this block locks the visual structure
+          for the 12-word phrase grid and the backup step.
+        </Text>
+
+        <View style={styles.phraseGrid}>
+          {placeholders.map((item) => (
+            <View key={item.index} style={styles.wordChip}>
+              <Text style={styles.wordIndex}>{item.index}.</Text>
+              <Text style={styles.wordValue}>{item.value}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Backup Status</Text>
+        <Text style={styles.cardBody}>
+          The wallet should not be considered ready until the recovery phrase is
+          reviewed, copied safely and confirmed by the user.
+        </Text>
+
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={[styles.acceptRow, accepted && styles.acceptRowActive]}
+          onPress={() => setAccepted((prev) => !prev)}
+        >
+          <View style={[styles.checkbox, accepted && styles.checkboxActive]}>
+            {accepted ? <View style={styles.checkboxInner} /> : null}
+          </View>
+
+          <Text style={styles.acceptText}>
+            I understand that losing the recovery phrase means losing access.
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.footerActions}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.primaryButton}
+          onPress={() => {}}
+        >
+          <Text style={ui.buttonLabel}>Generate Phrase</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.secondaryButton}
+          onPress={() => router.back()}
+        >
+          <Text style={ui.buttonLabel}>Back</Text>
+        </TouchableOpacity>
+      </View>
+    </ProductScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-
-  screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    paddingHorizontal: layout.screenPaddingX,
-  },
-
-  scroll: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-
   content: {
     paddingBottom: spacing[7],
   },

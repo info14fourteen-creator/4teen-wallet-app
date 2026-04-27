@@ -1,14 +1,10 @@
 import {
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useBottomInset } from '../src/ui/use-bottom-inset';
-import { useNavigationInsets } from '../src/ui/navigation';
-import ScreenBrow from '../src/ui/screen-brow';
+import { ProductScreen } from '../src/ui/product-shell';
 
 import { colors, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
@@ -42,22 +38,8 @@ const summaryCards = [
 ];
 
 export default function WhitepaperScreen() {
-  const navInsets = useNavigationInsets({ topExtra: 14 });
-  const contentBottomInset = useBottomInset();
-
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          <ScreenBrow label="4TEEN WHITEPAPER" variant="backLink" />
+    <ProductScreen eyebrow="4TEEN WHITEPAPER" browVariant="backLink">
           <View style={styles.heroCard}>
             <Text style={ui.eyebrow}>4TEEN Whitepaper</Text>
             <Text style={styles.metaGreen}>Version 1.3 • March 28, 2026</Text>
@@ -377,9 +359,7 @@ export default function WhitepaperScreen() {
               it is not defined by the 4TEEN protocol.
             </NoteBox>
           </SectionCard>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+    </ProductScreen>
   );
 }
 

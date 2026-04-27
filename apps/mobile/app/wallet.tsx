@@ -42,6 +42,7 @@ import {
 } from '../src/services/wallet/storage';
 import {
   getAllWalletPortfolios,
+  getCachedWalletPortfolio,
   getWalletPortfolio,
   type PortfolioAsset,
   type WalletPortfolioAggregate,
@@ -56,6 +57,7 @@ import {
   clearWalletHistoryCache,
   FOURTEEN_CONTRACT,
   getAccountResources,
+  getCachedWalletHistoryPage,
   getCustomTokenCatalog,
   getTokenDetails,
   getWalletHistoryPage,
@@ -512,6 +514,7 @@ export default function HomeScreen() {
 
   const pagerRef = useRef<ScrollView>(null);
   const currentCardIndexRef = useRef(0);
+  const currentPagerIndexRef = useRef(0);
   const activeWalletIdRef = useRef<string | null>(null);
   const consumedWalletRouteSelectionRef = useRef<string | null>(null);
   const programmaticWalletSelectionRef = useRef<string | null>(null);
@@ -547,9 +550,11 @@ export default function HomeScreen() {
   const removalCompletedRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
+  const [entryLoading, setEntryLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorText, setErrorText] = useState('');
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [currentPagerIndex, setCurrentPagerIndex] = useState(0);
   const [assetSortMode, setAssetSortMode] = useState<'name' | 'value'>('name');
   const [contentMode, setContentMode] = useState<ContentMode>('assets');
   const [homeVisibleTokenIds, setHomeVisibleTokenIds] = useState<string[]>([
@@ -566,6 +571,7 @@ export default function HomeScreen() {
       }
     >
   >({});
+  const [pagerReady, setPagerReady] = useState(false);
 
   const cardWidth = Math.max(width - layout.screenPaddingX * 2, 1);
   const contentBottomInset = useBottomInset();
@@ -583,43 +589,38 @@ export default function HomeScreen() {
   }, [requestedWalletId, requestedWalletNonce]);
 
   const walletCards = useMemo(() => aggregate?.items ?? [], [aggregate]);
+  const walletCardIdsKey = useMemo(
+    () => walletCards.map((item) => item.wallet.id).join('|'),
+    [walletCards]
+  );
+  const walletCardLoopOffset = walletCards.length > 1 ? walletCards.length : 0;
   const pagerCards = useMemo(() => {
     if (walletCards.length <= 1) {
-      return walletCards.map((item) => ({
+      return walletCards.map((item, logicalIndex) => ({
         item,
+        logicalIndex,
         key: item.wallet.id,
       }));
     }
 
-    const firstItem = walletCards[0];
-    const lastItem = walletCards[walletCards.length - 1];
-
-    return [
-      {
-        item: lastItem,
-        key: `clone-start-${lastItem.wallet.id}`,
-      },
-      ...walletCards.map((item) => ({
+    return Array.from({ length: 3 }, (_, copyIndex) =>
+      walletCards.map((item, logicalIndex) => ({
         item,
-        key: item.wallet.id,
-      })),
-      {
-        item: firstItem,
-        key: `clone-end-${firstItem.wallet.id}`,
-      },
-    ];
+        logicalIndex,
+        key: `${copyIndex}:${item.wallet.id}:${logicalIndex}`,
+      }))
+    ).flat();
   }, [walletCards]);
-
   const scrollPagerToCardIndex = useCallback(
     (index: number, animated = false) => {
-      const pagerIndex = walletCards.length > 1 ? index + 1 : index;
+      const pagerIndex = walletCards.length > 1 ? walletCardLoopOffset + index : index;
 
       pagerRef.current?.scrollTo({
         x: pagerIndex * cardWidth,
         animated,
       });
     },
-    [cardWidth, walletCards.length]
+    [cardWidth, walletCardLoopOffset, walletCards.length]
   );
 
   const markProgrammaticWalletScroll = useCallback((walletId?: string | null) => {
@@ -644,6 +645,10 @@ export default function HomeScreen() {
   }, [currentCardIndex]);
 
   useEffect(() => {
+    currentPagerIndexRef.current = currentPagerIndex;
+  }, [currentPagerIndex]);
+
+  useEffect(() => {
     activeWalletIdRef.current = activeWallet?.id ?? null;
   }, [activeWallet?.id]);
 
@@ -662,7 +667,10 @@ export default function HomeScreen() {
     setRemovalProgress(0);
   }, [clearRemovalTimer]);
 
-  const loadHomePreferences = useCallback(async (walletId?: string | null) => {
+  const loadHomePreferences = useCallback(async (
+    walletId?: string | null,
+    portfolioAssets?: PortfolioAsset[]
+  ) => {
     const resolvedWalletId = String(walletId || activeWallet?.id || '').trim();
 
     if (!resolvedWalletId) {
@@ -683,7 +691,7 @@ export default function HomeScreen() {
         safeCatalog.map((item) => String(item.id || '').trim()).filter(Boolean)
       );
       const allowedPortfolioIds = new Set(
-        (portfolio?.assets ?? [])
+        (portfolioAssets ?? portfolio?.assets ?? [])
           .map((asset) => normalizeAssetTokenKey(asset))
           .filter(Boolean)
       );
@@ -846,6 +854,18 @@ export default function HomeScreen() {
     return historyCache[activeWallet.id] ?? [];
   }, [activeWallet?.id, historyCache]);
 
+  const resolvedActivePortfolio = useMemo(() => {
+    if (!activeWallet?.id) {
+      return null;
+    }
+
+    if (portfolio?.address && portfolio.address === activeWallet.address) {
+      return portfolio;
+    }
+
+    return portfolioCache[activeWallet.id] ?? null;
+  }, [activeWallet?.address, activeWallet?.id, portfolio, portfolioCache]);
+
   const visibleHistoryRows = useMemo(() => {
     return buildWalletHistoryRows(visibleHistory);
   }, [visibleHistory]);
@@ -862,7 +882,7 @@ export default function HomeScreen() {
         : [...DEFAULT_HOME_VISIBLE_TOKEN_IDS];
 
     const visibleTokenIdSet = new Set(activeVisibleTokenIds);
-    const sourceAssets: PortfolioAsset[] = (portfolio?.assets ?? []).filter((asset) =>
+    const sourceAssets: PortfolioAsset[] = (resolvedActivePortfolio?.assets ?? []).filter((asset) =>
       visibleTokenIdSet.has(normalizeAssetTokenKey(asset))
     );
 
@@ -959,7 +979,7 @@ export default function HomeScreen() {
     customTokenCatalog,
     historyCache,
     homeVisibleTokenIds,
-    portfolio,
+    resolvedActivePortfolio,
     visibleTokenMetaMap,
   ]);
 
@@ -1191,10 +1211,13 @@ export default function HomeScreen() {
         const nextIndex = foundIndex >= 0 ? foundIndex : 0;
         const nextActiveItem = items[nextIndex] ?? items[0];
         const nextActiveWallet = nextActiveItem.wallet;
+        const nextPagerIndex = items.length > 1 ? items.length + nextIndex : nextIndex;
 
         setActiveWallet(nextActiveWallet);
         currentCardIndexRef.current = nextIndex;
+        currentPagerIndexRef.current = nextPagerIndex;
         setCurrentCardIndex(nextIndex);
+        setCurrentPagerIndex(nextPagerIndex);
         markProgrammaticWalletScroll(nextActiveWallet.id);
         requestAnimationFrame(() => {
           markProgrammaticWalletScroll(nextActiveWallet.id);
@@ -1210,13 +1233,21 @@ export default function HomeScreen() {
           resetRemovalState();
         }
 
-        if (nextActiveItem.portfolio) {
-          setPortfolio(nextActiveItem.portfolio);
+        let resolvedPortfolio =
+          nextActiveItem.portfolio ??
+          (await getCachedWalletPortfolio(nextActiveWallet.address, {
+            allowStale: true,
+          })) ??
+          null;
+
+        if (resolvedPortfolio) {
+          setPortfolio(resolvedPortfolio);
           setPortfolioLoadingWalletId(null);
         } else {
           setPortfolioLoadingWalletId(nextActiveWallet.id);
 
           const nextPortfolio = await getWalletPortfolio(nextActiveWallet.address, { force });
+          resolvedPortfolio = nextPortfolio;
           setPortfolio(nextPortfolio);
           setPortfolioLoadingWalletId(null);
 
@@ -1226,7 +1257,28 @@ export default function HomeScreen() {
           }));
         }
 
+        await loadHomePreferences(nextActiveWallet.id, resolvedPortfolio?.assets ?? []);
+
         if (contentMode === 'history') {
+          const cachedHistory = await getCachedWalletHistoryPage(nextActiveWallet.address, 20);
+
+          if (cachedHistory?.items?.length) {
+            setHistoryCache((prev) => ({
+              ...prev,
+              [nextActiveWallet.id]: cachedHistory.items,
+            }));
+
+            setHistoryNextCursorCache((prev) => ({
+              ...prev,
+              [nextActiveWallet.id]: cachedHistory.nextFingerprint,
+            }));
+
+            setHistoryHasMoreCache((prev) => ({
+              ...prev,
+              [nextActiveWallet.id]: cachedHistory.hasMore,
+            }));
+          }
+
           await ensureWalletHistoryLoaded(nextActiveWallet, { force });
         }
       } catch (error) {
@@ -1239,12 +1291,14 @@ export default function HomeScreen() {
         notice.showErrorNotice('Wallet state failed to load.', 2600);
       } finally {
         setLoading(false);
+        setEntryLoading(false);
       }
     },
     [
       contentMode,
       editingWalletId,
       ensureWalletHistoryLoaded,
+      loadHomePreferences,
       markProgrammaticWalletScroll,
       notice,
       removalWalletId,
@@ -1291,6 +1345,7 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setEntryLoading(true);
       const pendingWalletSelectionId = consumePendingWalletSelectionId();
       const preferredWalletId =
         pendingWalletSelectionId ||
@@ -1372,14 +1427,28 @@ export default function HomeScreen() {
   }, [walletDataRefreshKey]);
 
   useEffect(() => {
-    if (walletCards.length === 0) return;
+    if (walletCards.length === 0) {
+      setPagerReady(false);
+      return;
+    }
+
+    setPagerReady(false);
 
     requestAnimationFrame(() => {
       const walletId = walletCards[currentCardIndexRef.current]?.wallet.id;
       markProgrammaticWalletScroll(walletId);
       scrollPagerToCardIndex(currentCardIndexRef.current, false);
+      currentPagerIndexRef.current =
+        walletCards.length > 1
+          ? walletCards.length + currentCardIndexRef.current
+          : currentCardIndexRef.current;
+      setCurrentPagerIndex(currentPagerIndexRef.current);
+
+      requestAnimationFrame(() => {
+        setPagerReady(true);
+      });
     });
-  }, [markProgrammaticWalletScroll, scrollPagerToCardIndex, walletCards, walletCards.length]);
+  }, [cardWidth, markProgrammaticWalletScroll, scrollPagerToCardIndex, walletCardIdsKey, walletCards]);
 
   const handleWalletCardSnap = useCallback(
     async (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -1389,17 +1458,12 @@ export default function HomeScreen() {
       }
 
       const rawIndex = Math.round(event.nativeEvent.contentOffset.x / cardWidth);
-
-      let nextIndex = rawIndex;
-      if (walletCards.length > 1) {
-        if (rawIndex <= 0) {
-          nextIndex = walletCards.length - 1;
-        } else if (rawIndex >= walletCards.length + 1) {
-          nextIndex = 0;
-        } else {
-          nextIndex = rawIndex - 1;
-        }
-      }
+      const nextIndex =
+        walletCards.length > 1
+          ? ((rawIndex % walletCards.length) + walletCards.length) % walletCards.length
+          : rawIndex;
+      const canonicalPagerIndex =
+        walletCards.length > 1 ? walletCards.length + nextIndex : nextIndex;
 
       const nextItem = walletCards[nextIndex];
 
@@ -1417,11 +1481,15 @@ export default function HomeScreen() {
           ? walletCards.findIndex((item) => item.wallet.id === programmaticWalletId)
           : nextIndex;
         const safeIndex = targetIndex >= 0 ? targetIndex : nextIndex;
+        const safePagerIndex =
+          walletCards.length > 1 ? walletCards.length + safeIndex : safeIndex;
 
         currentCardIndexRef.current = safeIndex;
+        currentPagerIndexRef.current = safePagerIndex;
         setCurrentCardIndex(safeIndex);
+        setCurrentPagerIndex(safePagerIndex);
 
-        if (isProgrammaticSnapWindow || rawIndex !== safeIndex + (walletCards.length > 1 ? 1 : 0)) {
+        if (isProgrammaticSnapWindow || rawIndex !== safePagerIndex) {
           requestAnimationFrame(() => {
             scrollPagerToCardIndex(safeIndex, false);
           });
@@ -1438,11 +1506,13 @@ export default function HomeScreen() {
       clearProgrammaticWalletScroll();
 
       currentCardIndexRef.current = nextIndex;
+      currentPagerIndexRef.current = canonicalPagerIndex;
       setCurrentCardIndex(nextIndex);
+      setCurrentPagerIndex(canonicalPagerIndex);
 
-      if (walletCards.length > 1 && rawIndex !== nextIndex + 1) {
+      if (walletCards.length > 1 && rawIndex !== canonicalPagerIndex) {
         pagerRef.current?.scrollTo({
-          x: (nextIndex + 1) * cardWidth,
+          x: canonicalPagerIndex * cardWidth,
           animated: false,
         });
       }
@@ -1459,9 +1529,14 @@ export default function HomeScreen() {
 
         suppressNextWalletRefreshForIdRef.current = nextItem.wallet.id;
         await setActiveWalletId(nextItem.wallet.id);
-        setActiveWallet(nextItem.wallet);
 
-        const cached = portfolioCache[nextItem.wallet.id] ?? nextItem.portfolio ?? null;
+        const cached =
+          portfolioCache[nextItem.wallet.id] ??
+          nextItem.portfolio ??
+          (await getCachedWalletPortfolio(nextItem.wallet.address, { allowStale: true }));
+        const cachedHistory = await getCachedWalletHistoryPage(nextItem.wallet.address, 20);
+
+        setActiveWallet(nextItem.wallet);
 
         if (cached) {
           setPortfolio(cached);
@@ -1482,6 +1557,23 @@ export default function HomeScreen() {
           setPortfolioCache((prev) => ({
             ...prev,
             [nextItem.wallet.id]: nextPortfolio,
+          }));
+        }
+
+        if (cachedHistory?.items?.length) {
+          setHistoryCache((prev) => ({
+            ...prev,
+            [nextItem.wallet.id]: cachedHistory.items,
+          }));
+
+          setHistoryNextCursorCache((prev) => ({
+            ...prev,
+            [nextItem.wallet.id]: cachedHistory.nextFingerprint,
+          }));
+
+          setHistoryHasMoreCache((prev) => ({
+            ...prev,
+            [nextItem.wallet.id]: cachedHistory.hasMore,
           }));
         }
 
@@ -1693,12 +1785,15 @@ export default function HomeScreen() {
       );
       const safeIndex = Math.min(nextIndex, nextItems.length - 1);
       const nextActiveItem = nextItems[safeIndex] ?? nextItems[0];
+      const nextPagerIndex = nextItems.length > 1 ? nextItems.length + safeIndex : safeIndex;
 
       suppressNextWalletRefreshForIdRef.current = nextActiveItem.wallet.id;
       await setActiveWalletId(nextActiveItem.wallet.id);
       setActiveWallet(nextActiveItem.wallet);
       currentCardIndexRef.current = safeIndex;
+      currentPagerIndexRef.current = nextPagerIndex;
       setCurrentCardIndex(safeIndex);
+      setCurrentPagerIndex(nextPagerIndex);
       markProgrammaticWalletScroll(nextActiveItem.wallet.id);
       requestAnimationFrame(() => {
         markProgrammaticWalletScroll(nextActiveItem.wallet.id);
@@ -1901,13 +1996,16 @@ export default function HomeScreen() {
   }, [activeWallet, ensureWalletHistoryLoaded, notice]);
 
   const isInitialScreenLoading =
-    loading &&
-    (!aggregate ||
-      !activeWallet ||
-      (Boolean(aggregate?.items?.length) && !portfolio));
+    entryLoading ||
+    (loading &&
+      (!aggregate ||
+        !activeWallet ||
+        (Boolean(aggregate?.items?.length) && !resolvedActivePortfolio)));
   useChromeLoading(isInitialScreenLoading || refreshing);
   const isActivePortfolioLoading =
-    Boolean(activeWallet?.id) && portfolioLoadingWalletId === activeWallet?.id;
+    Boolean(activeWallet?.id) &&
+    portfolioLoadingWalletId === activeWallet?.id &&
+    !resolvedActivePortfolio;
   const isActiveHistoryLoading =
     Boolean(activeWallet?.id) && historyLoadingWalletId === activeWallet?.id;
   const isActiveHistoryLoadingMore =
@@ -1916,12 +2014,12 @@ export default function HomeScreen() {
   const knownManagedTokenIds = useMemo(() => {
     const ids = new Set<string>();
 
-    for (const asset of portfolio?.assets ?? []) {
+    for (const asset of resolvedActivePortfolio?.assets ?? []) {
       ids.add(normalizeAssetTokenKey(asset));
     }
 
     return Array.from(ids);
-  }, [portfolio?.assets]);
+  }, [resolvedActivePortfolio?.assets]);
 
   const hasHiddenManagedTokens = useMemo(() => {
     if (knownManagedTokenIds.length === 0) return false;
@@ -1938,7 +2036,7 @@ export default function HomeScreen() {
     removalProgress >= REMOVE_DISPLAY_MAX ? colors.white : colors.red;
 
   if (isInitialScreenLoading) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading wallet..." />;
   }
 
   return (
@@ -1990,17 +2088,21 @@ export default function HomeScreen() {
                 }}
                 onMomentumScrollEnd={handleWalletCardSnap}
                 contentContainerStyle={styles.walletPagerContent}
+                style={[styles.walletPager, !pagerReady ? styles.walletPagerHidden : null]}
               >
-                {pagerCards.map(({ item, key }) => {
+                {pagerCards.map(({ item, key }, pagerIndex) => {
                   const wallet = item.wallet;
-                  const isActive = wallet.id === activeWallet?.id;
+                  const isActive = pagerIndex === currentPagerIndex;
                   const isWatchOnly = wallet.kind === 'watch-only';
                   const resourceData = resourceCache[wallet.id] ?? null;
                   const resourcesExpanded = resourceExpandedWalletId === wallet.id;
                   const resourcesLoading = resourceLoadingWalletId === wallet.id;
 
                   const fallbackPortfolio = portfolioCache[wallet.id] ?? item.portfolio ?? null;
-                  const visiblePortfolio = isActive ? (portfolio ?? fallbackPortfolio) : fallbackPortfolio;
+                  const visiblePortfolio =
+                    isActive && portfolio?.address === wallet.address
+                      ? portfolio
+                      : fallbackPortfolio;
 
                   const balanceDisplay = visiblePortfolio?.totalBalanceDisplay ?? '$0.00';
                   const balanceParts = splitLeadingCurrencySymbol(balanceDisplay);
@@ -2709,6 +2811,14 @@ const styles = StyleSheet.create({
 
   walletCardSection: {
     marginBottom: 18,
+  },
+
+  walletPager: {
+    minHeight: 198,
+  },
+
+  walletPagerHidden: {
+    opacity: 0,
   },
 
   walletPagerContent: {

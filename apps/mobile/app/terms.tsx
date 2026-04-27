@@ -1,35 +1,17 @@
 import {
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useBottomInset } from '../src/ui/use-bottom-inset';
-import { useNavigationInsets } from '../src/ui/navigation';
-import ScreenBrow from '../src/ui/screen-brow';
+import { ProductScreen } from '../src/ui/product-shell';
 
 import { colors, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 
 export default function TermsScreen() {
-  const navInsets = useNavigationInsets({ topExtra: 14 });
-  const contentBottomInset = useBottomInset();
-
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          <ScreenBrow label="TERMS OF SERVICE" variant="backLink" />
+    <ProductScreen eyebrow="TERMS OF SERVICE" browVariant="backLink">
           <SectionCard
             eyebrow="1. Introduction"
             title="Application access and agreement"
@@ -233,9 +215,7 @@ export default function TermsScreen() {
             </NoteBox>
           </SectionCardPlain>
 
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+    </ProductScreen>
   );
 }
 

@@ -3,29 +3,30 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import AppHeader from '../src/ui/app-header';
-import {
-  APP_HEADER_HEIGHT,
-  APP_HEADER_TOP_PADDING,
-} from '../src/ui/app-header.constants';
-
-import MenuSheet from '../src/ui/menu-sheet';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { clearPasscodeDraft, getPasscodeDraft, savePasscode } from '../src/security/local-auth';
 import { BackspaceIcon } from '../src/ui/ui-icons';
+import { useNotice } from '../src/notice/notice-provider';
+import { useNavigationInsets } from '../src/ui/navigation';
+import ScreenBrow from '../src/ui/screen-brow';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
 
 export default function ConfirmPasscodeScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ next?: string }>();
+  const params = useLocalSearchParams<{ next?: string; flow?: string }>();
   const nextPath = typeof params.next === 'string' ? params.next : '/import-wallet';
+  const flow = typeof params.flow === 'string' ? params.flow : 'create-passcode';
+  const notice = useNotice();
+  const navInsets = useNavigationInsets({ topExtra: 14 });
+  const contentBottomInset = useBottomInset();
 
   const [digits, setDigits] = useState('');
   const [error, setError] = useState('');
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const canContinue = useMemo(() => digits.length === 6, [digits]);
+  const isChangeFlow = flow === 'change-passcode';
 
   const handleDigitPress = (digit: string) => {
     setError('');
@@ -38,6 +39,10 @@ export default function ConfirmPasscodeScreen() {
   const handleBackspace = () => {
     setError('');
     setDigits((prev) => prev.slice(0, -1));
+  };
+
+  const handleCancel = () => {
+    router.replace(nextPath as any);
   };
 
   const handleContinue = async () => {
@@ -59,30 +64,36 @@ export default function ConfirmPasscodeScreen() {
     await savePasscode(digits);
     clearPasscodeDraft();
 
+    if (flow === 'change-passcode') {
+      notice.showSuccessNotice('Passcode updated.', 2200);
+      router.replace(nextPath as any);
+      return;
+    }
+
     router.replace({
       pathname: '/enable-biometrics',
       params: {
         next: nextPath,
+        flow: 'enable-biometrics',
       },
     } as any);
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <Stack.Screen options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <View style={styles.screen}>
-        <View style={styles.headerSlot}>
-          <AppHeader onMenuPress={() => setMenuOpen(true)} />
-        </View>
-
-        <View style={styles.content}>
-
+        <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
+          <ScreenBrow label={isChangeFlow ? 'CHANGE PASSCODE' : 'CONFIRM PASSCODE'} />
           <Text style={styles.title}>
-            Confirm your <Text style={styles.titleAccent}>passcode</Text>
+            Confirm your {isChangeFlow ? 'new ' : ''}
+            <Text style={styles.titleAccent}>passcode</Text>
           </Text>
 
           <Text style={styles.lead}>
-            Enter the same 6 digits again. If they do not match, we reset the confirm step.
+            {isChangeFlow
+              ? 'Enter the same new 6 digits again. If they do not match, the confirm step resets.'
+              : 'Enter the same 6 digits again. If they do not match, we reset the confirm step.'}
           </Text>
 
           <View style={styles.card}>
@@ -105,8 +116,14 @@ export default function ConfirmPasscodeScreen() {
 
           <NumericKeypad
             onDigitPress={handleDigitPress}
-            onBackspacePress={handleBackspace}
-            backspaceIcon={<BackspaceIcon width={22} height={22} />}
+            onBackspacePress={digits.length === 0 ? handleCancel : handleBackspace}
+            backspaceIcon={
+              digits.length === 0 ? (
+                <Text style={styles.cancelKeyText}>CANCEL</Text>
+              ) : (
+                <BackspaceIcon width={22} height={22} />
+              )
+            }
           />
 
           <TouchableOpacity
@@ -116,12 +133,10 @@ export default function ConfirmPasscodeScreen() {
             onPress={handleContinue}
           >
             <Text style={[ui.buttonLabel, !canContinue && styles.primaryButtonTextDisabled]}>
-              Save Passcode
+              {isChangeFlow ? 'Save Passcode' : 'Save Passcode'}
             </Text>
           </TouchableOpacity>
         </View>
-
-        <MenuSheet open={menuOpen} onClose={() => setMenuOpen(false)} />
       </View>
     </SafeAreaView>
   );
@@ -137,17 +152,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
     paddingHorizontal: layout.screenPaddingX,
-    paddingTop: APP_HEADER_TOP_PADDING,
-  },
-
-  headerSlot: {
-    height: APP_HEADER_HEIGHT,
-    justifyContent: 'center',
   },
 
   content: {
     flex: 1,
-    paddingTop: 14,
     paddingBottom: spacing[7],
   },
 
@@ -237,5 +245,13 @@ const styles = StyleSheet.create({
 
   primaryButtonTextDisabled: {
     color: colors.textDim,
+  },
+
+  cancelKeyText: {
+    color: colors.textSoft,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.8,
   },
 });

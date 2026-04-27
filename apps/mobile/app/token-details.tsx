@@ -353,7 +353,7 @@ export default function TokenDetailsScreen() {
   }, [priceChangePoint]);
 
   if (loading && !details) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading token details..." />;
   }
 
   return (

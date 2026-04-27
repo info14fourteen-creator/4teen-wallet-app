@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -10,13 +9,8 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { useBottomInset } from '../src/ui/use-bottom-inset';
-import { useNavigationInsets } from '../src/ui/navigation';
-import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
-import ScreenBrow from '../src/ui/screen-brow';
+import { ProductScreen } from '../src/ui/product-shell';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { useWalletSession } from '../src/wallet/wallet-session';
 
@@ -60,7 +54,6 @@ export default function WalletsScreen() {
   const router = useRouter();
   const notice = useNotice();
   const { setPendingWalletSelectionId } = useWalletSession();
-  const navInsets = useNavigationInsets({ topExtra: 14 });
   const [expandedWalletId, setExpandedWalletId] = useState<string | null>(null);
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
@@ -77,8 +70,6 @@ export default function WalletsScreen() {
   const removalStartedAtRef = useRef<number | null>(null);
   const removalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const removalCompletedRef = useRef(false);
-
-  const contentBottomInset = useBottomInset();
 
   const clearRemovalTimer = useCallback(() => {
     if (removalTimerRef.current) {
@@ -320,34 +311,24 @@ export default function WalletsScreen() {
   };
 
   if (loading && !aggregate) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading wallets..." />;
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing} />
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-          bounces
-          keyboardDismissMode="interactive"
-          keyboardShouldPersistTaps="handled"
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.accent}
-              colors={[colors.accent]}
-              progressBackgroundColor={colors.bg}
-            />
-          }
-        >
-          <ScreenBrow label="WALLET MANAGEMENT" variant="back" />
+    <ProductScreen
+      eyebrow="WALLET MANAGEMENT"
+      browVariant="back"
+      loadingOverlayVisible={refreshing}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.accent}
+          colors={[colors.accent]}
+          progressBackgroundColor={colors.bg}
+        />
+      }
+    >
           <View style={styles.summaryCard}>
             <Text style={ui.eyebrow}>Total Assets</Text>
             <Text style={styles.summaryValue}>
@@ -516,9 +497,7 @@ export default function WalletsScreen() {
             <Text style={ui.actionLabel}>Add Wallet</Text>
             <AddWalletIcon width={20} height={20} />
           </TouchableOpacity>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+    </ProductScreen>
   );
 }
 

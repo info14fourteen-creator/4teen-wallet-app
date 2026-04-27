@@ -3,6 +3,40 @@ const { tronWeb } = require('../tron/client');
 
 const controllerAbi = [
   {
+    inputs: [{ internalType: 'address', name: 'buyer', type: 'address' }],
+    name: 'getBuyerAmbassador',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
+    inputs: [{ internalType: 'bytes32', name: 'purchaseId', type: 'bytes32' }],
+    name: 'isPurchaseProcessed',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
+    inputs: [{ internalType: 'bytes32', name: 'slugHash', type: 'bytes32' }],
+    name: 'getAmbassadorBySlugHash',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { internalType: 'bytes32', name: 'purchaseId', type: 'bytes32' },
+      { internalType: 'address', name: 'buyer', type: 'address' },
+      { internalType: 'address', name: 'ambassadorCandidate', type: 'address' },
+      { internalType: 'uint256', name: 'purchaseAmountSun', type: 'uint256' },
+      { internalType: 'uint256', name: 'ownerShareSun', type: 'uint256' }
+    ],
+    name: 'recordVerifiedPurchase',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
     inputs: [{ internalType: 'address', name: 'ambassadorAddress', type: 'address' }],
     name: 'getDashboardCore',
     outputs: [
@@ -83,6 +117,28 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function normalizeBytes32(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^0x/, '');
+}
+
+function assertBytes32Hex(value, fieldName = 'bytes32 value') {
+  const normalized = normalizeBytes32(value);
+
+  if (!/^[0-9a-f]{64}$/.test(normalized)) {
+    throw new Error(`${fieldName} must be a 32-byte hex string`);
+  }
+
+  return `0x${normalized}`;
+}
+
+function zeroAddressToNull(value) {
+  const base58 = toBase58Address(value);
+  return base58 === 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb' ? null : base58;
+}
+
 function toBase58Address(value) {
   if (!value) return null;
 
@@ -113,6 +169,52 @@ async function getControllerContract(ownerAddress) {
   }
 
   return tronWeb.contract(controllerAbi, env.FOURTEEN_CONTROLLER_CONTRACT);
+}
+
+async function getBuyerAmbassador(buyerWallet) {
+  const contract = await getControllerContract(buyerWallet);
+  const result = await contract.getBuyerAmbassador(buyerWallet).call();
+  return zeroAddressToNull(result);
+}
+
+async function getAmbassadorBySlugHash(slugHash) {
+  const contract = await getControllerContract();
+  const result = await contract.getAmbassadorBySlugHash(assertBytes32Hex(slugHash, 'slugHash')).call();
+  return zeroAddressToNull(result);
+}
+
+async function isPurchaseProcessed(purchaseId) {
+  const contract = await getControllerContract();
+  const result = await contract.isPurchaseProcessed(assertBytes32Hex(purchaseId, 'purchaseId')).call();
+  return Boolean(result);
+}
+
+async function recordVerifiedPurchase({
+  purchaseId,
+  buyerWallet,
+  ambassadorCandidate,
+  purchaseAmountSun,
+  ownerShareSun
+}) {
+  const contract = await getControllerContract();
+  const txid = await contract
+    .recordVerifiedPurchase(
+      assertBytes32Hex(purchaseId, 'purchaseId'),
+      buyerWallet,
+      ambassadorCandidate,
+      String(purchaseAmountSun),
+      String(ownerShareSun)
+    )
+    .send({
+      feeLimit: Number(env.AMBASSADOR_ALLOCATION_FEE_LIMIT_SUN || 180_000_000),
+      shouldPollResponse: false
+    });
+
+  if (!txid) {
+    throw new Error('Controller transaction sent but txid was not returned');
+  }
+
+  return String(txid).trim().toLowerCase();
 }
 
 async function readAmbassadorDashboardOnChain(wallet) {
@@ -195,7 +297,34 @@ async function getWithdrawalEventByTxHash(txHash) {
   };
 }
 
+async function getAllocationEventByTxHash(txHash, { attempts = 4, delayMs = 750 } = {}) {
+  const event = await waitForControllerEventByTxHash(txHash, 'PurchaseFundsAllocated', {
+    attempts,
+    delayMs
+  });
+  const result = event?.result || {};
+  const blockTimestamp = Number(event?.block_timestamp || 0);
+
+  return {
+    txHash: String(event?.transaction_id || txHash || '').trim().toLowerCase(),
+    purchaseId: normalizeBytes32(result.purchaseId || result['0']),
+    buyerWallet: toBase58Address(result.buyer || result['1']),
+    ambassadorWallet: toBase58Address(result.ambassador || result['2']),
+    purchaseAmountSun: String(result.purchaseAmountSun || result['3'] || 0),
+    ownerShareSun: String(result.ownerShareSun || result['4'] || 0),
+    rewardSun: String(result.rewardSun || result['5'] || 0),
+    ownerPartSun: String(result.ownerPartSun || result['6'] || 0),
+    level: Number(result.level || result['7'] || 0),
+    blockTime: blockTimestamp ? new Date(blockTimestamp).toISOString() : new Date().toISOString()
+  };
+}
+
 module.exports = {
+  getAllocationEventByTxHash,
+  getAmbassadorBySlugHash,
+  getBuyerAmbassador,
   getWithdrawalEventByTxHash,
-  readAmbassadorDashboardOnChain
+  isPurchaseProcessed,
+  readAmbassadorDashboardOnChain,
+  recordVerifiedPurchase
 };

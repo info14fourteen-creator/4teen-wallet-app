@@ -331,7 +331,7 @@ export default function ExportPrivateKeyScreen() {
     : '';
 
   if (loading) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading private key..." />;
   }
 
   return (

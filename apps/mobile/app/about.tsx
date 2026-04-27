@@ -1,5 +1,4 @@
 import {
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -7,14 +6,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { useBottomInset } from '../src/ui/use-bottom-inset';
-import { useNavigationInsets } from '../src/ui/navigation';
-import ScreenBrow from '../src/ui/screen-brow';
+import { ProductScreen } from '../src/ui/product-shell';
 
 import ExpandChevron from '../src/ui/expand-chevron';
-import { colors, radius, spacing } from '../src/theme/tokens';
+import { colors, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import {
   getBuildDisplayString,
@@ -52,9 +47,6 @@ const socials = [
 export default function AboutScreen() {
   const router = useRouter();
   const notice = useNotice();
-  const navInsets = useNavigationInsets({ topExtra: 14 });
-
-  const contentBottomInset = useBottomInset();
 
   const isLatestVersion = true;
 
@@ -98,61 +90,48 @@ export default function AboutScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
-          ]}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          <ScreenBrow label="ABOUT US" variant="back" />
-          <View style={styles.logoWrap}>
-            <LogoWhite width={92} height={92} />
-          </View>
-
-          <View style={styles.versionRow}>
-            <Text style={ui.versionLine}>
-              VERSION {getVersionDisplayString()}
-            </Text>
-            <Text style={styles.buildLine}>
-              {getBuildDisplayString()}
-            </Text>
-          </View>
-
-          <View style={styles.card}>
-            <ActionRow label="Version Update" onPress={handleVersionUpdate} />
-            <ActionRow label="Terms of Service" onPress={() => router.push('/terms' as any)} />
-            <ActionRow label="4TEEN Whitepaper" onPress={() => router.push('/whitepaper' as any)} />
-            <ActionRow label="Rate Us" icon="star" onPress={handleRateUs} />
-            <ActionRow label="Open 4TEEN Website" icon="external" onPress={() => void openInAppBrowser(router, 'https://4teen.me')} isLast />
-          </View>
-
-          <Text style={ui.sectionEyebrow}>Official Channels</Text>
-
-          <View style={styles.socialCard}>
-            <View style={styles.socialGrid}>
-              {socials.map(({ Icon, label, url }) => (
-                <TouchableOpacity
-                  key={label}
-                  activeOpacity={0.85}
-                  style={styles.socialItem}
-                  onPress={() => void openInAppBrowser(router, url)}
-                >
-                  <View style={styles.socialIconWrap}>
-                    <Icon width={28} height={28} />
-                  </View>
-                  <Text style={ui.socialLabel}>{label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </ScrollView>
+    <ProductScreen eyebrow="ABOUT US">
+      <View style={styles.logoWrap}>
+        <LogoWhite width={92} height={92} />
       </View>
-    </SafeAreaView>
+
+      <View style={styles.versionRow}>
+        <Text style={ui.versionLine}>
+          VERSION {getVersionDisplayString()}
+        </Text>
+        <Text style={styles.buildLine}>
+          {getBuildDisplayString()}
+        </Text>
+      </View>
+
+      <View style={styles.card}>
+        <ActionRow label="Version Update" onPress={handleVersionUpdate} />
+        <ActionRow label="Terms of Service" onPress={() => router.push('/terms' as any)} />
+        <ActionRow label="4TEEN Whitepaper" onPress={() => router.push('/whitepaper' as any)} />
+        <ActionRow label="Rate Us" icon="star" onPress={handleRateUs} />
+        <ActionRow label="Open 4TEEN Website" icon="external" onPress={() => void openInAppBrowser(router, 'https://4teen.me')} isLast />
+      </View>
+
+      <Text style={ui.sectionEyebrow}>Official Channels</Text>
+
+      <View style={styles.socialCard}>
+        <View style={styles.socialGrid}>
+          {socials.map(({ Icon, label, url }) => (
+            <TouchableOpacity
+              key={label}
+              activeOpacity={0.85}
+              style={styles.socialItem}
+              onPress={() => void openInAppBrowser(router, url)}
+            >
+              <View style={styles.socialIconWrap}>
+                <Icon width={28} height={28} />
+              </View>
+              <Text style={ui.socialLabel}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    </ProductScreen>
   );
 }
 
@@ -187,26 +166,6 @@ function ActionRow({
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-
-  screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 20,
-  },
-
-  scroll: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-
-  content: {
-    paddingBottom: spacing[6],
-  },
-
   logoWrap: {
     alignItems: 'center',
     justifyContent: 'center',

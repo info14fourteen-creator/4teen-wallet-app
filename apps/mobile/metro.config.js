@@ -21,12 +21,15 @@ config.resolver = {
     'lottie-react-native': lottieReactNativePath,
   },
   resolveRequest: (context, moduleName, platform) => {
+    if (moduleName === '@noble/hashes/crypto.js') {
+      return {
+        type: 'sourceFile',
+        filePath: nobleCryptoShimPath,
+      };
+    }
+
     const rewrittenModuleName =
-      moduleName === '@noble/hashes/crypto.js'
-        ? nobleCryptoShimPath
-        : moduleName === 'lottie-react-native'
-          ? lottieReactNativePath
-          : moduleName;
+      moduleName === 'lottie-react-native' ? lottieReactNativePath : moduleName;
 
     return resolve(context, rewrittenModuleName, platform);
   },

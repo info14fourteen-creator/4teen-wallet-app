@@ -2,9 +2,23 @@ const express = require('express');
 const { pool } = require('../db/pool');
 const { loadAmbassadorCabinetDb } = require('../db/queries/ambassadorCabinet');
 const {
+  getAmbassadorBySlug,
+  getAmbassadorByWallet,
+  setAmbassadorSlug
+} = require('../db/queries/ambassadors');
+const {
   getWithdrawalEventByTxHash,
   readAmbassadorDashboardOnChain
 } = require('../services/ambassador/controller');
+const { reconcilePurchase } = require('../services/ambassador/reconcilePurchase');
+const { syncAmbassador } = require('../services/ambassador/sync');
+const {
+  enqueueAmbassadorReplayDrain,
+  getAmbassadorAllocationWalletResources,
+  hasEnoughAmbassadorAllocationResources,
+  replayPendingAmbassadorAllocationsByWallet
+} = require('../services/ambassador/replayQueue');
+const env = require('../config/env');
 
 const router = express.Router();
 
@@ -24,13 +38,54 @@ function normalizeTxid(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function readAdminToken(req) {
+  const authHeader = normalizeWallet(req.headers.authorization);
+
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    return normalizeWallet(authHeader.slice(7));
+  }
+
+  return (
+    normalizeWallet(req.headers['x-admin-token']) ||
+    normalizeWallet(req.query.adminToken) ||
+    normalizeWallet(req.body?.adminToken)
+  );
+}
+
+function requireAdminToken(req, res, next) {
+  const expected = normalizeWallet(env.ADMIN_SYNC_TOKEN);
+
+  if (!expected) {
+    return res.status(503).json({
+      ok: false,
+      error: 'ADMIN_SYNC_TOKEN is not configured'
+    });
+  }
+
+  const received = readAdminToken(req);
+
+  if (!received || received !== expected) {
+    return res.status(401).json({
+      ok: false,
+      error: 'Unauthorized'
+    });
+  }
+
+  return next();
+}
+
 function isValidTronAddress(value) {
   return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(value || '').trim());
 }
 
 function buildReferralLink(slug) {
   const normalized = normalizeSlug(slug);
-  return normalized ? `https://4teen.me/?ref=${normalized}` : '';
+  return normalized ? `https://4teen.me/?r=${normalized}` : '';
+}
+
+function normalizeHash(value) {
+  const text = String(value || '').trim();
+  return text ? text.toLowerCase() : '';
 }
 
 function buildDbFallbackSummary(wallet, ambassador, dbSummary) {
@@ -89,6 +144,206 @@ function publicErrorMessage(error, fallback) {
   return message || error?.code || error?.name || fallback;
 }
 
+router.get('/slug/check', async (req, res) => {
+  try {
+    const slug = normalizeSlug(req.query.slug);
+
+    if (!slug) {
+      return res.status(400).json({
+        ok: false,
+        error: 'slug is required'
+      });
+    }
+
+    const existing = await getAmbassadorBySlug(slug);
+
+    return res.json({
+      ok: true,
+      slug,
+      available: !existing
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.get('/by-wallet', async (req, res) => {
+  try {
+    const wallet = normalizeWallet(req.query.wallet);
+
+    if (!wallet) {
+      return res.status(400).json({
+        ok: false,
+        error: 'wallet is required'
+      });
+    }
+
+    let ambassador = await getAmbassadorByWallet(wallet);
+
+    if (!ambassador || !ambassador.exists_on_chain) {
+      try {
+        await syncAmbassador(wallet);
+      } catch (_) {}
+      ambassador = await getAmbassadorByWallet(wallet);
+    }
+
+    if (!ambassador || !ambassador.exists_on_chain) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Ambassador not found'
+      });
+    }
+
+    return res.json({
+      ok: true,
+      registered: true,
+      result: {
+        wallet: ambassador.ambassador_wallet,
+        slug: ambassador.slug || '',
+        status: ambassador.active ? 'active' : 'inactive',
+        referralLink: ambassador.slug ? buildReferralLink(ambassador.slug) : ''
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/register-complete', async (req, res) => {
+  try {
+    const wallet = normalizeWallet(req.body?.wallet);
+    const slug = normalizeSlug(req.body?.slug);
+    const requestedSlugHash = normalizeHash(req.body?.slugHash);
+
+    if (!wallet) {
+      return res.status(400).json({
+        ok: false,
+        error: 'wallet is required'
+      });
+    }
+
+    if (!isValidTronAddress(wallet)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'invalid TRON address'
+      });
+    }
+
+    if (!slug) {
+      return res.status(400).json({
+        ok: false,
+        error: 'slug is required'
+      });
+    }
+
+    const existingBySlug = await getAmbassadorBySlug(slug);
+
+    if (
+      existingBySlug &&
+      String(existingBySlug.ambassador_wallet || '').toLowerCase() !== wallet.toLowerCase()
+    ) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Slug is already taken'
+      });
+    }
+
+    await syncAmbassador(wallet);
+
+    const ambassador = await getAmbassadorByWallet(wallet);
+
+    if (!ambassador || !ambassador.exists_on_chain) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Ambassador was not found on chain after registration'
+      });
+    }
+
+    const storedSlugHash = normalizeHash(ambassador.slug_hash);
+
+    if (requestedSlugHash && storedSlugHash && storedSlugHash !== requestedSlugHash) {
+      return res.status(409).json({
+        ok: false,
+        error: 'slugHash mismatch with on-chain ambassador profile'
+      });
+    }
+
+    const updated = await setAmbassadorSlug(wallet, slug);
+
+    return res.json({
+      ok: true,
+      result: {
+        wallet,
+        slug: updated?.slug || slug,
+        status: ambassador.active ? 'active' : 'inactive',
+        referralLink: buildReferralLink(updated?.slug || slug)
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/after-buy', async (req, res) => {
+  try {
+    const txHash = normalizeTxid(req.body?.txHash);
+    const buyerWallet = normalizeWallet(req.body?.buyerWallet);
+    const slug = normalizeSlug(req.body?.slug);
+
+    if (!txHash) {
+      return res.status(400).json({
+        ok: false,
+        error: 'txHash is required'
+      });
+    }
+
+    if (!buyerWallet) {
+      return res.status(400).json({
+        ok: false,
+        error: 'buyerWallet is required'
+      });
+    }
+
+    if (!isValidTronAddress(buyerWallet)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'invalid TRON address'
+      });
+    }
+
+    if (!slug) {
+      return res.status(400).json({
+        ok: false,
+        error: 'slug is required'
+      });
+    }
+
+    const result = await reconcilePurchase(txHash, {
+      buyerWallet,
+      slug
+    });
+
+    return res.json({
+      ok: true,
+      result
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
 router.get('/cabinet/:wallet', async (req, res) => {
   try {
     const wallet = normalizeWallet(req.params.wallet);
@@ -137,7 +392,6 @@ router.get('/cabinet/:wallet', async (req, res) => {
       ...(db?.summary || {})
     };
 
-    // Contract fields are authoritative and must win over DB sync snapshots.
     if (onChainSummary) {
       Object.assign(summary, {
         ambassador_wallet: wallet,
@@ -193,6 +447,76 @@ router.get('/cabinet/:wallet', async (req, res) => {
           onChainError: onChainError ? publicErrorMessage(onChainError, 'On-chain read failed') : null
         }
       }
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.get('/allocation/health', async (_req, res) => {
+  try {
+    const resourceState = await hasEnoughAmbassadorAllocationResources().catch(() => null);
+    const resources = await getAmbassadorAllocationWalletResources().catch(() => null);
+
+    return res.json({
+      ok: true,
+      result: {
+        operatorWallet: String(env.OPERATOR_WALLET || '').trim() || null,
+        resources,
+        resourceState
+      }
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/replay-pending', async (req, res) => {
+  try {
+    const wallet = normalizeWallet(req.body?.wallet);
+    const feeLimitSun = req.body?.feeLimitSun;
+
+    if (!wallet) {
+      return res.status(400).json({ ok: false, error: 'wallet is required' });
+    }
+
+    if (!isValidTronAddress(wallet)) {
+      return res.status(400).json({ ok: false, error: 'invalid TRON address' });
+    }
+
+    const result = await replayPendingAmbassadorAllocationsByWallet(wallet, {
+      feeLimitSun:
+        feeLimitSun === undefined || feeLimitSun === null ? undefined : Number(feeLimitSun)
+    });
+
+    return res.json({
+      ok: true,
+      result
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/admin/process-pending', requireAdminToken, async (req, res) => {
+  try {
+    const limit = req.body?.limit ?? req.query?.limit;
+    const result = await enqueueAmbassadorReplayDrain(limit);
+    const resourceState = await hasEnoughAmbassadorAllocationResources().catch(() => null);
+
+    return res.json({
+      ok: true,
+      result,
+      resourceState
     });
   } catch (error) {
     return res.status(error.status || 500).json({

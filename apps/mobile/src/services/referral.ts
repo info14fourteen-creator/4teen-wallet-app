@@ -3,13 +3,13 @@ import * as Clipboard from 'expo-clipboard';
 import { Platform } from 'react-native';
 
 import { getInstallReferrerAsync } from '../../modules/install-referrer';
+import { FOURTEEN_API_BASE_URL } from '../config/tron';
 
 const REFERRAL_QUERY_PARAM = 'r';
 const REFERRAL_STORAGE_KEY = 'fourteen_referral_record';
 const REFERRAL_DEFERRED_CAPTURE_KEY = 'fourteen_referral_deferred_capture_v1';
 const REFERRAL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const REFERRAL_ATTRIBUTION_URL =
-  'https://fourteen-allocation-worker-6e0e920395d8.herokuapp.com/hooks/after-buy';
+const REFERRAL_ATTRIBUTION_URL = `${FOURTEEN_API_BASE_URL.replace(/\/+$/, '')}/ambassador/after-buy`;
 
 export type StoredReferralSource = 'query' | 'install-referrer' | 'pasteboard';
 

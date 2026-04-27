@@ -1,6 +1,8 @@
 import type { ComponentProps } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../theme/tokens';
+import ToggleOffSvg from '../../assets/icons/ui/toggle_off_btn.svg';
+import ToggleOnSvg from '../../assets/icons/ui/toggle_on_btn.svg';
 
 type MdiName = keyof typeof MaterialCommunityIcons.glyphMap;
 
@@ -56,8 +58,13 @@ export const ReceiveIcon = createIcon('arrow-bottom-left');
 export const HistoryIcon = createIcon('history');
 export const AssetsIcon = createIcon('view-grid-outline');
 export const MoreIcon = createIcon('dots-horizontal');
-export const ToggleOffIcon = createIcon('toggle-switch-off-outline');
-export const ToggleOnIcon = createIcon('toggle-switch');
+export function ToggleOffIcon({ width, height, ...rest }: UiIconProps) {
+  return <ToggleOffSvg width={width ?? 64} height={height ?? 36} {...rest} />;
+}
+
+export function ToggleOnIcon({ width, height, ...rest }: UiIconProps) {
+  return <ToggleOnSvg width={width ?? 64} height={height ?? 36} {...rest} />;
+}
 export const SearchIcon = createIcon('magnify');
 export const CloseIcon = createIcon('close');
 export const CreateAddWalletQuickIcon = createIcon('wallet-plus-outline');

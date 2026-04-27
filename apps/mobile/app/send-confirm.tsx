@@ -497,7 +497,7 @@ export default function SendConfirmScreen() {
   }, [load, sending]);
 
   if (loading && !estimate) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading send confirmation..." />;
   }
 
   return (

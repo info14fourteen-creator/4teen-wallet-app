@@ -23,8 +23,6 @@ export const FOURTEEN_CONTROLLER_ADDRESS = 'TF8yhohRfMxsdVRr7fFrYLh5fxK8sAFkeZ';
 export const AMBASSADOR_REFERRAL_BASE_URL = 'https://4teen.me/?r=';
 export const AMBASSADOR_APP_REFERRAL_BASE_URL = 'https://4teen.me/?r=';
 
-const DEFAULT_AMBASSADOR_BACKEND_BASE_URL =
-  'https://fourteen-allocation-worker-6e0e920395d8.herokuapp.com';
 const ZERO_ADDRESS_BASE58 = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000';
 const TRON_DERIVATION_PATH = "m/44'/195'/0'/0/0";
@@ -42,13 +40,6 @@ const DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH = 420;
 const LOCAL_AMBASSADOR_SLUG_KEY_PREFIX = 'fourteen_ambassador_local_slug_v1';
 const LOCAL_AMBASSADOR_IDENTITY_KEY_PREFIX = 'fourteen_ambassador_identity_v1';
 const AMBASSADOR_IDENTITY_CACHE_VERSION = 2;
-
-export const AMBASSADOR_BACKEND_BASE_URL = String(
-  process.env.EXPO_PUBLIC_AMBASSADOR_API_BASE_URL ||
-    DEFAULT_AMBASSADOR_BACKEND_BASE_URL
-)
-  .trim()
-  .replace(/\/+$/, '');
 
 const WALLET_API_BASE_URL = FOURTEEN_API_BASE_URL.replace(/\/+$/, '');
 
@@ -89,17 +80,6 @@ type FourteenControllerContract = {
   withdrawRewards: () => {
     send: (options?: { feeLimit?: number; shouldPollResponse?: boolean }) => Promise<unknown>;
   };
-};
-
-type CabinetRowsPayload = {
-  ok?: boolean;
-  total?: number;
-  rows?: Record<string, unknown>[];
-};
-
-type CabinetSummaryPayload = {
-  ok?: boolean;
-  summary?: AmbassadorCabinetSummary;
 };
 
 type WalletApiCabinetPayload = {
@@ -418,17 +398,6 @@ export function buildAmbassadorAppReferralLink(slug: string) {
   return normalized ? `${AMBASSADOR_APP_REFERRAL_BASE_URL}${normalized}` : '';
 }
 
-function buildBackendUrl(path: string, params?: Record<string, string | number | boolean>) {
-  const normalizedPath = String(path || '').startsWith('/') ? path : `/${path}`;
-  const url = new URL(`${AMBASSADOR_BACKEND_BASE_URL}${normalizedPath}`);
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    url.searchParams.set(key, String(value));
-  });
-
-  return url.toString();
-}
-
 function buildWalletApiUrl(path: string, params?: Record<string, string | number | boolean>) {
   const normalizedPath = String(path || '').startsWith('/') ? path : `/${path}`;
   const url = new URL(`${WALLET_API_BASE_URL}${normalizedPath}`);
@@ -594,18 +563,6 @@ async function lookupAmbassadorOnChain(
   });
 
   return profile;
-}
-
-async function fetchCabinetRows(path: string) {
-  const payload = await fetchJsonOrThrow<CabinetRowsPayload>(buildBackendUrl(path), {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  }).catch(() => ({ ok: true, total: 0, rows: [] }));
-
-  return {
-    rows: Array.isArray(payload?.rows) ? payload.rows : [],
-    total: Number(payload?.total || 0) || 0,
-  };
 }
 
 export function sunToTrx(value: unknown) {
@@ -793,46 +750,6 @@ export async function loadAmbassadorCabinet(
       buyersTotal: Number(proxyPayload.result.buyersTotal || 0) || 0,
       purchasesTotal: Number(proxyPayload.result.purchasesTotal || 0) || 0,
       pendingTotal: Number(proxyPayload.result.pendingTotal || 0) || 0,
-    }, await onChainCabinetPromise);
-  }
-
-  const summaryPayload = await fetchJsonOrThrow<CabinetSummaryPayload>(
-    buildBackendUrl(`/cabinet/ambassador/${encodeURIComponent(wallet)}/summary`),
-    {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      notFoundAsNull: true,
-    }
-  ).catch(() => null);
-
-  if (summaryPayload?.summary) {
-    const [buyers, purchases, pending] = await Promise.all([
-      fetchCabinetRows(`/cabinet/ambassador/${encodeURIComponent(wallet)}/buyers?limit=100&offset=0`),
-      fetchCabinetRows(`/cabinet/ambassador/${encodeURIComponent(wallet)}/purchases?limit=100&offset=0`),
-      fetchCabinetRows(`/cabinet/ambassador/${encodeURIComponent(wallet)}/pending?limit=100&offset=0`),
-    ]);
-
-    const summarySlug = normalizeAmbassadorSlug(String(summaryPayload.summary.slug || ''));
-    const resolvedProfile = {
-      ...profile,
-      slug: profile.slug || summarySlug,
-      referralLink: profile.referralLink || buildAmbassadorReferralLink(summarySlug),
-      status: summaryPayload.summary.active === false ? 'inactive' : profile.status || 'active',
-    };
-
-    return mergeCabinetWithOnChain({
-      profile: resolvedProfile,
-      summary: summaryPayload.summary,
-      buyersRows: buyers.rows,
-      purchasesRows: purchases.rows,
-      pendingRows: pending.rows,
-      buyersTotal: buyers.total,
-      purchasesTotal: purchases.total,
-      pendingTotal: pending.total,
-      source: {
-        onChain: false,
-        db: true,
-      },
     }, await onChainCabinetPromise);
   }
 
@@ -1094,7 +1011,7 @@ export async function checkAmbassadorSlugAvailability(slug: string) {
   }
 
   const payload = await fetchJsonOrThrow<{ ok?: boolean; available?: boolean; slug?: string }>(
-    buildBackendUrl('/slug/check', { slug: normalizedSlug }),
+    buildWalletApiUrl('/ambassador/slug/check', { slug: normalizedSlug }),
     {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -1157,7 +1074,7 @@ export async function registerAmbassadorWithOptions(
   const completed = await fetchJsonOrThrow<{
     ok?: boolean;
     result?: { wallet?: string; slug?: string; referralLink?: string; status?: string };
-  }>(buildBackendUrl('/ambassador/register-complete'), {
+  }>(buildWalletApiUrl('/ambassador/register-complete'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -1529,7 +1446,7 @@ export async function replayAmbassadorPendingRewards(walletAddress: string) {
   }
 
   const payload = await fetchJsonOrThrow<{ ok?: boolean; result?: unknown }>(
-    buildBackendUrl('/cabinet/replay-pending'),
+    buildWalletApiUrl('/ambassador/replay-pending'),
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

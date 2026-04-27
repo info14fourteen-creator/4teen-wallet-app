@@ -559,7 +559,7 @@ export default function SwapConfirmScreen() {
   }, [submitting]);
 
   if (loading && !review) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading swap confirmation..." />;
   }
 
   return (

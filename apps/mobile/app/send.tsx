@@ -467,11 +467,11 @@ export default function SendScreen() {
   }, [draft?.spendableAmount]);
 
   const maxUsdAmountValue = useMemo(() => {
-    if (selectedTokenAsset && Number.isFinite(selectedTokenAsset.valueInUsd)) {
-      return Math.max(0, selectedTokenAsset.valueInUsd);
+    if (selectedTokenPriceUsd > 0 && Number.isFinite(maxTokenAmountValue)) {
+      return Math.max(0, maxTokenAmountValue * selectedTokenPriceUsd);
     }
     return 0;
-  }, [selectedTokenAsset]);
+  }, [maxTokenAmountValue, selectedTokenPriceUsd]);
 
   const amountPrecision = amountInputMode === 'token' ? selectedTokenDecimals : 2;
   const maxAmountValue = amountInputMode === 'token' ? maxTokenAmountValue : maxUsdAmountValue;
@@ -778,7 +778,7 @@ export default function SendScreen() {
   ]);
 
   if (loading && !draft) {
-    return <ScreenLoadingState />;
+    return <ScreenLoadingState label="Loading send..." />;
   }
 
   return (

@@ -30,7 +30,7 @@ export function ProductScreen({
   loadingOverlayVisible = false,
 }: {
   eyebrow: string;
-  browVariant?: 'plain' | 'back';
+  browVariant?: 'plain' | 'back' | 'backLink';
   children: ReactNode;
   refreshControl?: ReactElement<RefreshControlProps>;
   bottomInsetExtra?: number;

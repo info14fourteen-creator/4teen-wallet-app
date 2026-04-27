@@ -49,6 +49,7 @@ const APPROVAL_RESOURCE_HEADROOM_ENERGY_FLOOR = 25_000;
 const SWAP_RESOURCE_HEADROOM_ENERGY_FLOOR = 150_000;
 const APPROVAL_RESOURCE_HEADROOM_BANDWIDTH_FLOOR = 120;
 const SWAP_RESOURCE_HEADROOM_BANDWIDTH_FLOOR = 400;
+const MIN_FOURTEEN_SWAP_REMAINDER_RAW = 1n;
 
 const TRC20_ABI = [
   {
@@ -230,6 +231,51 @@ function normalizeSwapTokenMeta(token: SwapTokenMeta): SwapTokenMeta {
     valueDisplay: token.valueDisplay ?? '',
     valueInUsd: Number.isFinite(token.valueInUsd) ? Number(token.valueInUsd) : 0,
   };
+}
+
+function getProtectedSwapReserveRaw(token: Pick<SwapTokenMeta, 'tokenId'>) {
+  return String(token.tokenId || '').trim() === FOURTEEN_CONTRACT
+    ? MIN_FOURTEEN_SWAP_REMAINDER_RAW
+    : 0n;
+}
+
+function getSwapTokenBalanceRaw(
+  token: Pick<SwapTokenMeta, 'balanceFormatted' | 'balance' | 'decimals'>
+) {
+  const formattedBalance = String(token.balanceFormatted || '').replace(/,/g, '').trim();
+
+  if (formattedBalance) {
+    try {
+      return normalizeBigIntLike(decimalToRaw(formattedBalance, token.decimals));
+    } catch {}
+  }
+
+  const numericBalance = Number.isFinite(token.balance) ? Number(token.balance) : 0;
+  if (numericBalance <= 0) {
+    return 0n;
+  }
+
+  return normalizeBigIntLike(decimalToRaw(numericBalance.toFixed(token.decimals), token.decimals));
+}
+
+function assertSwapAmountWithinSpendableBalance(
+  token: Pick<SwapTokenMeta, 'tokenId' | 'symbol' | 'balanceFormatted' | 'balance' | 'decimals'>,
+  amountIn: string
+) {
+  const balanceRaw = getSwapTokenBalanceRaw(token);
+  const reserveRaw = getProtectedSwapReserveRaw(token);
+  const spendableRaw = balanceRaw > reserveRaw ? balanceRaw - reserveRaw : 0n;
+  const amountInRaw = normalizeBigIntLike(decimalToRaw(amountIn, token.decimals));
+
+  if (amountInRaw <= spendableRaw) {
+    return;
+  }
+
+  if (String(token.tokenId || '').trim() === FOURTEEN_CONTRACT) {
+    throw new Error('You must keep at least 0.000001 4TEEN in the wallet.');
+  }
+
+  throw new Error(`Not enough ${token.symbol || 'token'} balance for this swap.`);
 }
 
 function applySwapEstimateHeadroom(
@@ -959,6 +1005,8 @@ export async function buildSwapReview(input: {
     throw new Error('Enter amount first.');
   }
 
+  assertSwapAmountWithinSpendableBalance(sourceToken, amountIn);
+
   const quotes = await getSwapQuotes({
     amountIn,
     sourceToken,
@@ -1111,6 +1159,7 @@ export async function executeSwap(input: {
   onProgress?: (progress: SwapExecutionProgress) => void;
 }): Promise<ExecuteSwapResult> {
   const sourceToken = normalizeSwapTokenMeta(input.sourceToken);
+  assertSwapAmountWithinSpendableBalance(sourceToken, input.amountIn);
   const { wallet, privateKey } = await getSigningContext(input.walletId);
   const owner = wallet.address;
   const tronWeb = createTronWeb(privateKey);

@@ -496,6 +496,8 @@ function CabinetView({
   const { profile, summary } = cabinet;
   const referralLink = profile.referralLink;
   const claimableSun = summary.claimable_rewards_sun || '0';
+  const claimedTotalSun = summary.total_rewards_claimed_sun || '0';
+  const accruedTotalSun = summary.total_rewards_accrued_sun || '0';
   const processedRewardSun = summary.buyers_processed_reward_sun || '0';
   const pendingRewardSun = summary.buyers_pending_reward_sun || '0';
   const pendingCount = asCount(cabinet.pendingTotal || cabinet.pendingRows.length);
@@ -538,15 +540,19 @@ function CabinetView({
             tone={canWithdraw ? 'green' : 'default'}
           />
           <RewardStatusCard
-            label="Processed reward"
-            value={`${formatTrxFromSun(processedRewardSun)} TRX`}
-            meta={`${processedRewardSun} SUN · ${processedCount} rows`}
-            tone="orange"
+            label="Claimed total"
+            value={`${formatTrxFromSun(claimedTotalSun)} TRX`}
+            meta={`${claimedTotalSun} SUN already withdrawn`}
+            tone={asCount(claimedTotalSun) > 0 ? 'orange' : 'default'}
           />
           <RewardStatusCard
             label="Pending reward"
             value={`${formatTrxFromSun(pendingRewardSun)} TRX`}
-            meta={`${pendingRewardSun} SUN · ${pendingCount} rows`}
+            meta={
+              pendingCount > 0
+                ? `${pendingRewardSun} SUN · ${pendingCount} row(s) can be replayed`
+                : 'No pending backend rows to replay'
+            }
             tone={pendingCount > 0 ? 'amber' : 'default'}
           />
         </View>
@@ -612,8 +618,9 @@ function CabinetView({
         <View style={styles.flatPanel}>
           <InfoRow label="Linked buyers" value={String(asCount(summary.buyers_count || summary.total_buyers))} />
           <InfoRow label="Attributed volume" value={`${formatTrxFromSun(summary.buyers_total_purchase_amount_sun || summary.total_volume_sun)} TRX`} />
-          <InfoRow label="Total reward" value={`${formatTrxFromSun(summary.buyers_total_reward_sun || summary.total_rewards_accrued_sun)} TRX`} />
-          <InfoRow label="Processed reward" value={`${formatTrxFromSun(processedRewardSun)} TRX`} />
+          <InfoRow label="Accrued total" value={`${formatTrxFromSun(summary.buyers_total_reward_sun || accruedTotalSun)} TRX`} />
+          <InfoRow label="Claimed total" value={`${formatTrxFromSun(claimedTotalSun)} TRX`} />
+          <InfoRow label="Processed backend reward" value={`${formatTrxFromSun(processedRewardSun)} TRX`} />
           <InfoRow label="Pending reward" value={`${formatTrxFromSun(pendingRewardSun)} TRX`} accent={pendingCount > 0} />
           <InfoRow label="Processed rows" value={String(processedCount)} />
           <InfoRow label="Pending rows" value={String(pendingCount)} accent={pendingCount > 0} />
@@ -708,18 +715,17 @@ function CabinetView({
           backend purchase rows served through the 4TEEN proxy.
         </Text>
         <Text style={ui.body}>
-          Top cards show the current ambassador state first: slug, level, reward
-          percent and claimable TRX. Claimable now is the real withdrawable amount
-          from the contract.
+          Claimable now is the only amount that can be withdrawn on-chain right now.
+          Claimed total is historical volume already withdrawn from the contract.
         </Text>
         <Text style={ui.body}>
-          Processed reward means purchase rows that already passed controller
-          allocation. Pending reward means purchases are already attributed in the
-          backend but not fully settled into withdrawable on-chain rewards yet.
+          Processed backend reward is accounting history, not a separate withdraw action.
+          Pending reward means purchases are already attributed in the backend but not
+          fully replayed into the latest cabinet state yet.
         </Text>
         <Text style={ui.body}>
-          Buyers shows linked wallets and totals. Purchases shows tracked attributed
-          rows. Pending isolates rows still waiting for final controller processing.
+          Replay pending sends a backend replay request for rows still marked as pending.
+          It does not send a wallet transaction and does not spend TRX by itself.
         </Text>
         <Text style={ui.body}>
           Referral sharing uses one canonical link only. The cabinet copies and shares the
