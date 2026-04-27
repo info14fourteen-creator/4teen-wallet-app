@@ -1,114 +1,25 @@
 {
-  "generatedAt": "2026-04-27T12:16:26.164Z",
+  "generatedAt": "2026-04-27T12:40:40.832Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "35126bbf2bca745668084a89cd1c4a8c02d8e146",
-    "shortHash": "35126bb",
-    "subject": "Fully internalize ambassador backend flow",
+    "hash": "bb8ec5ca794adf585e6f481db57efca7c3a9a07e",
+    "shortHash": "bb8ec5c",
+    "subject": "Finalize wallet screen updates",
     "author": "info14fourteen-creator",
-    "date": "2026-04-27T17:16:04+05:00"
+    "date": "2026-04-27T17:40:08+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/clock.js",
-    "M\tapps/api/src/config/env.js",
-    "A\tapps/api/src/db/queries/ambassadors.js",
-    "A\tapps/api/src/db/queries/buyerBindings.js",
-    "A\tapps/api/src/db/queries/buyers.js",
-    "A\tapps/api/src/db/queries/purchases.js",
-    "M\tapps/api/src/routes/ambassador.js",
-    "M\tapps/api/src/services/ambassador/controller.js",
-    "A\tapps/api/src/services/ambassador/reconcilePurchase.js",
-    "A\tapps/api/src/services/ambassador/replayPending.js",
-    "A\tapps/api/src/services/ambassador/replayQueue.js",
-    "A\tapps/api/src/services/ambassador/resourceGate.js",
-    "A\tapps/api/src/services/ambassador/sync.js",
-    "A\tapps/api/src/services/ambassador/token.js",
-    "M\tapps/mobile/app/about.tsx",
-    "M\tapps/mobile/app/add-custom-token.tsx",
-    "M\tapps/mobile/app/ambassador-program.tsx",
-    "M\tapps/mobile/app/authentication-method.tsx",
-    "M\tapps/mobile/app/backup-private-key.tsx",
-    "M\tapps/mobile/app/confirm-passcode.tsx",
-    "M\tapps/mobile/app/create-passcode.tsx",
-    "M\tapps/mobile/app/create-wallet.tsx",
-    "M\tapps/mobile/app/enable-biometrics.tsx",
-    "M\tapps/mobile/app/export-mnemonic.tsx",
-    "M\tapps/mobile/app/manage-crypto.tsx",
-    "M\tapps/mobile/app/select-wallet.tsx",
-    "M\tapps/mobile/app/send-confirm.tsx",
-    "M\tapps/mobile/app/send.tsx",
-    "M\tapps/mobile/app/settings.tsx",
-    "M\tapps/mobile/app/swap-confirm.tsx",
-    "M\tapps/mobile/app/swap.tsx",
-    "M\tapps/mobile/app/terms.tsx",
-    "M\tapps/mobile/app/token-details.tsx",
-    "M\tapps/mobile/app/unlock.tsx",
-    "M\tapps/mobile/app/wallet.tsx",
-    "M\tapps/mobile/app/wallets.tsx",
-    "M\tapps/mobile/app/whitepaper.tsx",
-    "A\tapps/mobile/assets/icons/footer/footer_airdrop.json",
-    "A\tapps/mobile/assets/icons/footer/footer_airdrop_idle.json",
-    "A\tapps/mobile/assets/icons/footer/footer_airdrop_idle_v4.json",
-    "A\tapps/mobile/assets/icons/footer/footer_airdrop_idle_v6.json",
-    "A\tapps/mobile/assets/icons/footer/footer_airdrop_press_v4.json",
-    "A\tapps/mobile/assets/icons/footer/footer_airdrop_press_v6.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle_v3.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle_v4.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle_v5.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle_v6.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_press_v4.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_press_v5.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_press_v6.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_v2.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_idle.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v3.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v4.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v5.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v6.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v7.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_press_v4.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_press_v5.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_press_v6.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_press_v7.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_v2.json",
-    "A\tapps/mobile/assets/icons/footer/footer_earn.json",
-    "A\tapps/mobile/assets/icons/footer/footer_earn_green.json",
-    "A\tapps/mobile/assets/icons/footer/footer_earn_orange.json",
-    "A\tapps/mobile/assets/icons/footer/footer_home.json",
-    "A\tapps/mobile/assets/icons/footer/footer_info_static.json",
-    "A\tapps/mobile/assets/icons/footer/footer_liquidity_static.json",
-    "A\tapps/mobile/assets/icons/footer/footer_unlock_static.json",
-    "M\tapps/mobile/metro.config.js",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/security/local-auth.ts",
-    "M\tapps/mobile/src/services/ambassador.ts",
-    "M\tapps/mobile/src/services/referral.ts",
-    "M\tapps/mobile/src/services/swap/sunio.ts",
-    "M\tapps/mobile/src/services/tron/api.ts",
-    "M\tapps/mobile/src/services/wallet/send.ts",
-    "M\tapps/mobile/src/ui/product-shell.tsx",
-    "M\tapps/mobile/src/ui/screen-loading-overlay.tsx",
-    "M\tapps/mobile/src/ui/screen-loading-state.tsx",
-    "A\tapps/mobile/src/ui/settings-row.tsx",
-    "M\tapps/mobile/src/ui/stub-screen.tsx",
-    "M\tapps/mobile/src/ui/ui-icons.tsx"
+    "M\tapps/mobile/app/wallet.tsx"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 7
+      "count": 6
     },
     {
       "file": "apps/api/src/services/airdrop/telegramBot.js",
-      "count": 5
-    },
-    {
-      "file": "apps/mobile/app/ambassador-program.tsx",
       "count": 5
     },
     {
@@ -116,11 +27,7 @@
       "count": 4
     },
     {
-      "file": "apps/mobile/app/export-mnemonic.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/send-confirm.tsx",
+      "file": "apps/mobile/app/ambassador-program.tsx",
       "count": 4
     },
     {
@@ -128,15 +35,7 @@
       "count": 4
     },
     {
-      "file": "apps/mobile/app/swap-confirm.tsx",
-      "count": 4
-    },
-    {
       "file": "apps/mobile/app/wallet.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/wallets.tsx",
       "count": 4
     },
     {
@@ -148,35 +47,19 @@
       "count": 4
     },
     {
-      "file": "apps/mobile/src/services/ambassador.ts",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/src/ui/product-shell.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/ambassador-confirm.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
-      "count": 3
-    },
-    {
       "file": "apps/mobile/app/backup-private-key.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/buy-confirm.tsx",
+      "file": "apps/mobile/app/export-mnemonic.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/liquidity-confirm.tsx",
+      "file": "apps/mobile/app/send-confirm.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/liquidity-controller.tsx",
+      "file": "apps/mobile/app/swap-confirm.tsx",
       "count": 3
     },
     {
@@ -184,23 +67,15 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/unlock-timeline.tsx",
+      "file": "apps/mobile/app/wallets.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/unlock.tsx",
+      "file": "apps/mobile/src/services/ambassador.ts",
       "count": 3
     },
     {
-      "file": "apps/mobile/src/services/swap/sunio.ts",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/services/tron/api.ts",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/services/wallet/send.ts",
+      "file": "apps/mobile/src/ui/product-shell.tsx",
       "count": 3
     },
     {
@@ -212,11 +87,51 @@
       "count": 2
     },
     {
-      "file": "apps/api/src/routes/ambassador.js",
+      "file": "apps/api/src/services/airdrop/telegramClaims.js",
       "count": 2
     },
     {
-      "file": "apps/api/src/services/airdrop/telegramClaims.js",
+      "file": "apps/api/src/services/gasstation/gasStation.js",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/about.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/about.tsx.bak_2026-04-16_232856",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/about.tsx.bak_2026-04-17_174704",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/add-custom-token.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/ambassador-confirm.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/buy-confirm.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/buy.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/create-wallet.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/enable-biometrics.tsx",
       "count": 2
     }
   ],
