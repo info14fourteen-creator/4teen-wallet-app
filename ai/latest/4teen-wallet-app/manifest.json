@@ -1,17 +1,23 @@
 {
-  "generatedAt": "2026-04-27T12:40:40.832Z",
+  "generatedAt": "2026-04-27T14:11:18.665Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "bb8ec5ca794adf585e6f481db57efca7c3a9a07e",
-    "shortHash": "bb8ec5c",
-    "subject": "Finalize wallet screen updates",
+    "hash": "4bd0386ab689b2ee2bedada8ca3d39626d2ee350",
+    "shortHash": "4bd0386",
+    "subject": "Improve ambassador info runtime visibility",
     "author": "info14fourteen-creator",
-    "date": "2026-04-27T17:40:08+05:00"
+    "date": "2026-04-27T19:10:54+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/wallet.tsx"
+    "M\tapps/api/src/routes/ambassador.js",
+    "M\tapps/api/src/services/gasstation/gasStation.js",
+    "M\tapps/mobile/app/earn.tsx",
+    "M\tapps/mobile/src/config/app-version.ts",
+    "M\tapps/mobile/src/services/ambassador.ts",
+    "M\tapps/mobile/src/services/asset-wallets.ts",
+    "M\tapps/mobile/src/services/tron/api.ts"
   ],
   "activeFiles": [
     {
@@ -20,14 +26,6 @@
     },
     {
       "file": "apps/api/src/services/airdrop/telegramBot.js",
-      "count": 5
-    },
-    {
-      "file": "apps/mobile/app/airdrop.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/ambassador-program.tsx",
       "count": 4
     },
     {
@@ -35,31 +33,11 @@
       "count": 4
     },
     {
-      "file": "apps/mobile/app/wallet.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/metro.config.js",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/package.json",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/backup-private-key.tsx",
+      "file": "apps/mobile/app/airdrop.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/export-mnemonic.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/send-confirm.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/swap-confirm.tsx",
+      "file": "apps/mobile/app/ambassador-program.tsx",
       "count": 3
     },
     {
@@ -67,7 +45,15 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/wallets.tsx",
+      "file": "apps/mobile/app/wallet.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/metro.config.js",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/package.json",
       "count": 3
     },
     {
@@ -75,19 +61,11 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/src/ui/product-shell.tsx",
-      "count": 3
-    },
-    {
       "file": "apps/api/clock.js",
       "count": 2
     },
     {
-      "file": "apps/api/src/config/env.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/services/airdrop/telegramClaims.js",
+      "file": "apps/api/src/routes/ambassador.js",
       "count": 2
     },
     {
@@ -99,27 +77,11 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/app/about.tsx.bak_2026-04-16_232856",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/about.tsx.bak_2026-04-17_174704",
-      "count": 2
-    },
-    {
       "file": "apps/mobile/app/add-custom-token.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/ambassador-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/buy-confirm.tsx",
+      "file": "apps/mobile/app/backup-private-key.tsx",
       "count": 2
     },
     {
@@ -132,6 +94,50 @@
     },
     {
       "file": "apps/mobile/app/enable-biometrics.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/export-mnemonic.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/liquidity-controller.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/manage-crypto.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/scan.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/select-wallet.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/send-confirm.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/swap-confirm.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/token-details.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/unlock-timeline.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/wallets.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/src/services/swap/sunio.ts",
       "count": 2
     }
   ],
