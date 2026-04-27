@@ -5,11 +5,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 
 import { colors, layout, radius, spacing, typography } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { ProductScreen } from '../src/ui/product-shell';
+import { goBackOrReplace } from '../src/ui/safe-back';
 
 const bullets = [
   'You control the wallet and recovery phrase.',
@@ -24,6 +25,7 @@ const placeholders = Array.from({ length: 12 }, (_, index) => ({
 
 export default function CreateWalletScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const [accepted, setAccepted] = useState(false);
 
   return (
@@ -106,7 +108,7 @@ export default function CreateWalletScreen() {
         <TouchableOpacity
           activeOpacity={0.9}
           style={styles.secondaryButton}
-          onPress={() => router.back()}
+          onPress={() => goBackOrReplace(router, { pathname, fallback: '/wallet-access' })}
         >
           <Text style={ui.buttonLabel}>Back</Text>
         </TouchableOpacity>

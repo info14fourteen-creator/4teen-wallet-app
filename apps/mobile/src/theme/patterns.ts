@@ -349,7 +349,7 @@ export const patterns = StyleSheet.create({
   },
 
   inputShell: {
-    minHeight: 56,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,

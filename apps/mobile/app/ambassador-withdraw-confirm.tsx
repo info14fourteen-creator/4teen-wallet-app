@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -14,13 +13,14 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import NumericKeypad from '../src/ui/numeric-keypad';
+import ApprovalAuthModal from '../src/ui/approval-auth-modal';
 import ScreenBrow from '../src/ui/screen-brow';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import EnergyResaleCard from '../src/ui/energy-resale-card';
 import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
-import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import { goBackOrReplace } from '../src/ui/safe-back';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useNotice } from '../src/notice/notice-provider';
@@ -33,7 +33,6 @@ import {
   type AmbassadorWithdrawalReview,
 } from '../src/services/ambassador';
 import { colors, layout, radius } from '../src/theme/tokens';
-import { ui } from '../src/theme/ui';
 import { useWalletSession } from '../src/wallet/wallet-session';
 import {
   getEnergyResaleQuote,
@@ -64,6 +63,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const [review, setReview] = useState<AmbassadorWithdrawalReview | null>(null);
   const [errorText, setErrorText] = useState('');
   const [passcodeOpen, setPasscodeOpen] = useState(false);
+  const [passcodeEntryOpen, setPasscodeEntryOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
@@ -75,6 +75,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const [pendingApprovalMode, setPendingApprovalMode] = useState<'withdraw' | 'rent'>('withdraw');
   const preserveNoticeOnExitRef = useRef(false);
   const burnWarningShownRef = useRef(false);
+  const canUseBiometrics = biometricAvailable && biometricsEnabled;
 
   useChromeLoading(loading || refreshing);
 
@@ -238,6 +239,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
     } finally {
       setEnergyRenting(false);
       setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
       setPasscodeDigits('');
       setPasscodeError('');
     }
@@ -251,6 +253,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
       const receipt = await withdrawAmbassadorRewards();
 
       setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
       setPasscodeDigits('');
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
@@ -304,66 +307,24 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const handleApprove = useCallback(async () => {
     if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
     setPendingApprovalMode('withdraw');
-
-    if (biometricAvailable && biometricsEnabled) {
-      try {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Confirm Ambassador Withdrawal',
-          fallbackLabel: 'Use Passcode',
-          cancelLabel: 'Cancel',
-        });
-
-        if (result.success) {
-          await performWithdraw();
-          return;
-        }
-
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeEntryOpen(!canUseBiometrics);
     setPasscodeOpen(true);
-  }, [biometricAvailable, biometricsEnabled, performWithdraw, review, submitting]);
+  }, [canUseBiometrics, review, submitting]);
 
   const handleRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || submitting || energyRenting) return;
 
     setPendingApprovalMode('rent');
-
-    if (biometricAvailable && biometricsEnabled) {
-      try {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Confirm Energy Rental',
-          fallbackLabel: 'Use Passcode',
-          cancelLabel: 'Cancel',
-        });
-
-        if (result.success) {
-          const rented = await performRentEnergy();
-          if (rented) {
-            await performWithdraw();
-          }
-          return;
-        }
-
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeEntryOpen(!canUseBiometrics);
     setPasscodeOpen(true);
   }, [
-    biometricAvailable,
-    biometricsEnabled,
+    canUseBiometrics,
     energyQuote,
     energyRenting,
-    performRentEnergy,
-    performWithdraw,
     review,
     submitting,
   ]);
@@ -372,7 +333,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
     if (submitting) return;
     preserveNoticeOnExitRef.current = true;
     notice.showNeutralNotice('Ambassador withdrawal rejected by user.', 2200);
-    router.back();
+    goBackOrReplace(router, { fallback: '/ambassador-program' });
   }, [notice, router, submitting]);
 
   const handlePasscodeDigitPress = useCallback((digit: string) => {
@@ -387,6 +348,62 @@ export default function AmbassadorWithdrawConfirmScreen() {
     setPasscodeDigits((prev) => prev.slice(0, -1));
   }, [submitting]);
 
+  const closeApprovalAuth = useCallback(() => {
+    setPasscodeOpen(false);
+    setPasscodeEntryOpen(false);
+    setPasscodeDigits('');
+    setPasscodeError('');
+  }, []);
+
+  const openPasscodeEntry = useCallback(() => {
+    setPasscodeError('');
+    setPasscodeDigits('');
+    setPasscodeEntryOpen(true);
+  }, []);
+
+  const closePasscodeEntry = useCallback(() => {
+    if (canUseBiometrics) {
+      setPasscodeDigits('');
+      setPasscodeError('');
+      setPasscodeEntryOpen(false);
+      return;
+    }
+
+    closeApprovalAuth();
+  }, [canUseBiometrics, closeApprovalAuth]);
+
+  const handleBiometricApproval = useCallback(async () => {
+    if (!canUseBiometrics) {
+      openPasscodeEntry();
+      return;
+    }
+
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage:
+          pendingApprovalMode === 'rent' ? 'Confirm Energy Rental' : 'Confirm Ambassador Withdrawal',
+        fallbackLabel: 'Use Passcode',
+        cancelLabel: 'Cancel',
+      });
+
+      if (!result.success) {
+        return;
+      }
+
+      if (pendingApprovalMode === 'rent') {
+        const rented = await performRentEnergy();
+        if (rented) {
+          await performWithdraw();
+        }
+        return;
+      }
+
+      await performWithdraw();
+    } catch (error) {
+      console.error(error);
+    }
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performWithdraw]);
+
   if (loading && !review) {
     return <ScreenLoadingState label="Building ambassador withdrawal confirmation" />;
   }
@@ -394,6 +411,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -518,75 +536,23 @@ export default function AmbassadorWithdrawConfirmScreen() {
           )}
         </ScrollView>
 
-        <Modal
+        <ApprovalAuthModal
           visible={passcodeOpen}
-          animationType="fade"
-          presentationStyle="fullScreen"
-          transparent={false}
-          onRequestClose={() => {
-            setPasscodeOpen(false);
-            setPasscodeDigits('');
-            setPasscodeError('');
-          }}
-          statusBarTranslucent
-        >
-          <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
-            <View style={styles.authOverlay}>
-              <View style={styles.authScreen}>
-                <View style={styles.authContent}>
-                  <Text style={ui.eyebrow}>AMBASSADOR</Text>
-                  <Text style={styles.authTitle}>
-                    Confirm with <Text style={styles.authTitleAccent}>Passcode</Text>
-                  </Text>
-                  <Text style={styles.authLead}>
-                    Authorize this reward withdrawal with your 6-digit passcode
-                    {biometricAvailable && biometricsEnabled
-                      ? ` or ${biometricLabel === 'Face ID' ? 'face unlock' : 'fingerprint'}`
-                      : ''}.
-                  </Text>
-
-                  <View style={styles.authCard}>
-                    <View style={styles.authCardHeaderRow}>
-                      <Text style={ui.sectionEyebrow}>Approve</Text>
-                      <Text style={styles.authCardErrorText} numberOfLines={1}>{passcodeError || ' '}</Text>
-                    </View>
-                    <View style={styles.dotsRow}>
-                      {Array.from({ length: 6 }, (_, index) => (
-                        <View key={index} style={[styles.dot, passcodeDigits.length > index && styles.dotFilled]} />
-                      ))}
-                    </View>
-                  </View>
-
-                  <NumericKeypad
-                    onDigitPress={handlePasscodeDigitPress}
-                    onBackspacePress={handlePasscodeBackspace}
-                    leftSlot={
-                      biometricAvailable && biometricsEnabled ? (
-                        <TouchableOpacity activeOpacity={0.9} onPress={() => void handleApprove()}>
-                          <BioLoginIcon width={22} height={22} />
-                        </TouchableOpacity>
-                      ) : null
-                    }
-                    backspaceIcon={<BackspaceIcon width={22} height={22} />}
-                  />
-
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    style={styles.authCancelButton}
-                    onPress={() => {
-                      setPasscodeOpen(false);
-                      setPasscodeDigits('');
-                      setPasscodeError('');
-                    }}
-                    disabled={submitting}
-                  >
-                    <Text style={styles.authCancelButtonText}>CANCEL</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </SafeAreaView>
-        </Modal>
+          eyebrow="AMBASSADOR"
+          actionLabel={pendingApprovalMode === 'rent' ? 'Energy rental and reward withdrawal' : 'reward withdrawal'}
+          passcodeError={passcodeError}
+          digitsLength={passcodeDigits.length}
+          canUseBiometrics={canUseBiometrics}
+          biometricLabel={biometricLabel}
+          passcodeEntryOpen={passcodeEntryOpen}
+          submitting={submitting || energyRenting}
+          onRequestClose={closeApprovalAuth}
+          onOpenPasscode={openPasscodeEntry}
+          onClosePasscode={closePasscodeEntry}
+          onDigitPress={handlePasscodeDigitPress}
+          onBackspacePress={handlePasscodeBackspace}
+          onBiometricPress={() => void handleBiometricApproval()}
+        />
       </View>
     </SafeAreaView>
   );

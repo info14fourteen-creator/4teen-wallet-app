@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -27,7 +27,7 @@ import {
 } from '../src/services/ambassador';
 import { getCachedWalletPortfolio } from '../src/services/wallet/portfolio';
 import { listWallets, setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
-import { colors, radius } from '../src/theme/tokens';
+import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useWalletSession } from '../src/wallet/wallet-session';
 import {
@@ -36,7 +36,9 @@ import {
   ProductSection,
   ProductStatGrid,
 } from '../src/ui/product-shell';
-import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
+import SelectedWalletSwitcher, {
+  type WalletSwitcherOption,
+} from '../src/ui/selected-wallet-switcher';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 
@@ -55,17 +57,21 @@ type CabinetSectionId =
   | 'overview'
   | 'buyers'
   | 'purchases'
-  | 'pending'
-  | 'guide';
+  | 'pending';
 
 const DEFAULT_CABINET_SECTIONS: Record<CabinetSectionId, boolean> = {
-  identity: true,
-  overview: true,
+  identity: false,
+  overview: false,
   buyers: false,
   purchases: false,
   pending: false,
-  guide: true,
 };
+const AMBASSADOR_REGISTRATION_INFO_TITLE = 'Ambassador registration';
+const AMBASSADOR_REGISTRATION_INFO_TEXT =
+  'This route has two modes: registration first, then cabinet. If the selected wallet is not registered yet, choose a permanent slug and send one registration transaction to FourteenController.\n\nAfter that same wallet opens its ambassador cabinet here. The cabinet is where you inspect referral identity, buyer binding, tracked purchases, pending rows, and claimable rewards.\n\nWatch-only wallets cannot register, withdraw, or replay rows. Registration is one-time for the wallet and the slug is not meant to be edited later from the app.';
+const AMBASSADOR_CABINET_INFO_TITLE = 'Ambassador cabinet';
+const AMBASSADOR_CABINET_INFO_TEXT =
+  'This cabinet merges two sources: live FourteenController state on-chain and backend purchase attribution rows from the 4TEEN proxy.\n\nClaimable now is the only amount you can withdraw on-chain right now. Claimed total is historical volume already withdrawn. Pending means purchases are already attributed in backend accounting but not fully reflected in the latest contract-backed cabinet state yet.\n\nReplay pending only asks the backend to retry those pending rows. It does not send a wallet transaction by itself and does not spend your wallet funds directly.\n\nShare one canonical referral link from this cabinet so every buy resolves to the same ambassador slug and attribution stays consistent.';
 
 function shortenAddress(address: string) {
   if (!address) return '—';
@@ -150,7 +156,7 @@ export default function AmbassadorProgramScreen() {
   const [slug, setSlug] = useState('');
   const [errorText, setErrorText] = useState('');
   const [cabinetSections, setCabinetSections] = useState(DEFAULT_CABINET_SECTIONS);
-  const registerNoticeWalletIdRef = useRef<string | null>(null);
+  const [infoExpanded, setInfoExpanded] = useState(false);
 
   useChromeLoading((loading && !snapshot) || refreshing || Boolean(busyAction));
 
@@ -234,19 +240,16 @@ export default function AmbassadorProgramScreen() {
     normalizeAmbassadorSlug(slug).length >= 3;
   const canWithdraw = asCount(summary?.claimable_rewards_sun) > 0 && activeWallet?.kind !== 'watch-only';
   const hasPendingRows = (cabinet?.pendingTotal || cabinet?.pendingRows.length || 0) > 0;
-
-  useEffect(() => {
-    if (snapshot?.status !== 'register' || !snapshot.wallet?.id) {
-      return;
-    }
-
-    if (registerNoticeWalletIdRef.current === snapshot.wallet.id) {
-      return;
-    }
-
-    registerNoticeWalletIdRef.current = snapshot.wallet.id;
-    notice.showNeutralNotice('This wallet is not registered as ambassador yet.', 2200);
-  }, [notice, snapshot?.status, snapshot?.wallet?.id]);
+  const headerInfo =
+    snapshot?.status === 'cabinet'
+      ? {
+          title: AMBASSADOR_CABINET_INFO_TITLE,
+          text: AMBASSADOR_CABINET_INFO_TEXT,
+        }
+      : {
+          title: AMBASSADOR_REGISTRATION_INFO_TITLE,
+          text: AMBASSADOR_REGISTRATION_INFO_TEXT,
+        };
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -306,7 +309,7 @@ export default function AmbassadorProgramScreen() {
   }, [activeWallet?.id, notice, walletChoices]);
 
   const handleChooseWallet = useCallback(
-    async (wallet: WalletSwitcherItem) => {
+    async (wallet: WalletSwitcherOption) => {
       if (wallet.kind === 'watch-only') {
         notice.showNeutralNotice('Watch-only wallets are not available here.', 2400);
         return;
@@ -381,6 +384,11 @@ export default function AmbassadorProgramScreen() {
       keyboardAware={snapshot?.status === 'register'}
       keyboardExtraScrollHeight={96}
       loadingOverlayVisible={refreshing || Boolean(switchingWalletId) || Boolean(busyAction)}
+      headerInfo={{
+        ...headerInfo,
+        expanded: infoExpanded,
+        onToggle: () => setInfoExpanded((prev) => !prev),
+      }}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -404,7 +412,9 @@ export default function AmbassadorProgramScreen() {
           walletOptionsOpen={walletOptionsOpen}
           switchingWalletId={switchingWalletId}
           onToggle={handleToggleWalletOptions}
-          onChooseWallet={handleChooseWallet}
+          onChooseWallet={(wallet) => {
+            void handleChooseWallet(wallet);
+          }}
         />
       ) : (
         <ProductSection eyebrow="WALLET REQUIRED" title="No active wallet">
@@ -443,6 +453,7 @@ export default function AmbassadorProgramScreen() {
       {snapshot?.status === 'cabinet' && cabinet && summary && !isWatchOnlyWallet ? (
         <CabinetView
           cabinet={cabinet}
+          contentLoading={refreshing || Boolean(switchingWalletId) || Boolean(busyAction)}
           canWithdraw={canWithdraw}
           hasPendingRows={hasPendingRows}
           busyAction={busyAction}
@@ -472,6 +483,7 @@ export default function AmbassadorProgramScreen() {
 
 function CabinetView({
   cabinet,
+  contentLoading,
   canWithdraw,
   hasPendingRows,
   busyAction,
@@ -483,6 +495,7 @@ function CabinetView({
   onToggleSection,
 }: {
   cabinet: AmbassadorCabinetDashboard;
+  contentLoading: boolean;
   canWithdraw: boolean;
   hasPendingRows: boolean;
   busyAction: BusyAction;
@@ -532,65 +545,70 @@ function CabinetView({
       />
 
       <View style={styles.topCluster}>
-        <View style={styles.statusGrid}>
-          <RewardStatusCard
-            label="Claimable now"
-            value={`${formatTrxFromSun(claimableSun)} TRX`}
-            meta={`${claimableSun} SUN`}
-            tone={canWithdraw ? 'green' : 'default'}
-          />
-          <RewardStatusCard
-            label="Claimed total"
-            value={`${formatTrxFromSun(claimedTotalSun)} TRX`}
-            meta={`${claimedTotalSun} SUN already withdrawn`}
-            tone={asCount(claimedTotalSun) > 0 ? 'orange' : 'default'}
-          />
-          <RewardStatusCard
-            label="Pending reward"
-            value={`${formatTrxFromSun(pendingRewardSun)} TRX`}
-            meta={
-              pendingCount > 0
-                ? `${pendingRewardSun} SUN · ${pendingCount} row(s) can be replayed`
-                : 'No pending backend rows to replay'
-            }
-            tone={pendingCount > 0 ? 'amber' : 'default'}
-          />
-        </View>
+        {contentLoading ? (
+          <View style={styles.cabinetCardsLoading}>
+            <ActivityIndicator size="small" color={colors.accent} />
+            <Text style={styles.cabinetCardsLoadingText}>Refreshing ambassador cabinet...</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.statusGrid}>
+              <RewardStatusCard
+                label="Claimable now"
+                value={`${formatTrxFromSun(claimableSun)} TRX`}
+                meta={`${claimableSun} SUN`}
+                tone={canWithdraw ? 'green' : 'default'}
+              />
+              <RewardStatusCard
+                label="Claimed total"
+                value={`${formatTrxFromSun(claimedTotalSun)} TRX`}
+                meta={`${claimedTotalSun} SUN withdrawn`}
+                tone={asCount(claimedTotalSun) > 0 ? 'orange' : 'default'}
+              />
+              <RewardStatusCard
+                label="Pending"
+                value={`${formatTrxFromSun(pendingRewardSun)} TRX`}
+                meta={pendingCount > 0 ? `${pendingCount} row(s) waiting` : 'No replay rows'}
+                tone={pendingCount > 0 ? 'amber' : 'default'}
+              />
+            </View>
 
-        <View style={styles.actionGrid}>
-          <ActionPill
-            label="WITHDRAW"
-            icon="cash-fast"
-            disabled={!canWithdraw || busyAction === 'withdraw'}
-            busy={busyAction === 'withdraw'}
-            onPress={onWithdraw}
-          />
-          <ActionPill
-            label="REPLAY PENDING"
-            icon="reload"
-            variant="secondary"
-            disabled={!hasPendingRows || busyAction === 'replay'}
-            busy={busyAction === 'replay'}
-            onPress={onReplay}
-          />
-        </View>
+            <View style={styles.actionGrid}>
+              <ActionPill
+                label="WITHDRAW"
+                icon="cash-fast"
+                disabled={!canWithdraw || busyAction === 'withdraw'}
+                busy={busyAction === 'withdraw'}
+                onPress={onWithdraw}
+              />
+              <ActionPill
+                label="REPLAY PENDING"
+                icon="reload"
+                variant="secondary"
+                disabled={!hasPendingRows || busyAction === 'replay'}
+                busy={busyAction === 'replay'}
+                onPress={onReplay}
+              />
+            </View>
 
-        <View style={styles.actionGrid}>
-          <ActionPill
-            label="COPY LINK"
-            icon="content-copy"
-            variant="secondary"
-            disabled={!referralLink}
-            onPress={() => onCopy(referralLink, 'Referral link')}
-          />
-          <ActionPill
-            label="SHARE LINK"
-            icon="share-variant"
-            variant="secondary"
-            disabled={!referralLink}
-            onPress={() => onShare(referralLink, 'Referral link')}
-          />
-        </View>
+            <View style={styles.actionGrid}>
+              <ActionPill
+                label="COPY LINK"
+                icon="content-copy"
+                variant="secondary"
+                disabled={!referralLink}
+                onPress={() => onCopy(referralLink, 'Referral link')}
+              />
+              <ActionPill
+                label="SHARE LINK"
+                icon="share-variant"
+                variant="secondary"
+                disabled={!referralLink}
+                onPress={() => onShare(referralLink, 'Referral link')}
+              />
+            </View>
+          </>
+        )}
       </View>
 
       <CabinetAccordionSection
@@ -704,35 +722,6 @@ function CabinetView({
         }
       />
 
-      <CabinetAccordionSection
-        id="guide"
-        title="How this cabinet works"
-        open={sections.guide}
-        onToggle={onToggleSection}
-      >
-        <Text style={ui.body}>
-          This cabinet combines direct on-chain reads from FourteenController with
-          backend purchase rows served through the 4TEEN proxy.
-        </Text>
-        <Text style={ui.body}>
-          Claimable now is the only amount that can be withdrawn on-chain right now.
-          Claimed total is historical volume already withdrawn from the contract.
-        </Text>
-        <Text style={ui.body}>
-          Processed backend reward is accounting history, not a separate withdraw action.
-          Pending reward means purchases are already attributed in the backend but not
-          fully replayed into the latest cabinet state yet.
-        </Text>
-        <Text style={ui.body}>
-          Replay pending sends a backend replay request for rows still marked as pending.
-          It does not send a wallet transaction and does not spend TRX by itself.
-        </Text>
-        <Text style={ui.body}>
-          Referral sharing uses one canonical link only. The cabinet copies and shares the
-          same ambassador link, so attribution stays consistent and the backend receives the
-          same slug every time.
-        </Text>
-      </CabinetAccordionSection>
     </>
   );
 }
@@ -952,8 +941,12 @@ function RewardStatusCard({
       ]}
     >
       <Text style={styles.rewardStatusLabel}>{label}</Text>
-      <Text style={styles.rewardStatusValue}>{value}</Text>
-      <Text style={styles.rewardStatusMeta}>{meta}</Text>
+      <Text style={styles.rewardStatusValue} numberOfLines={2}>
+        {value}
+      </Text>
+      <Text style={styles.rewardStatusMeta} numberOfLines={1}>
+        {meta}
+      </Text>
     </View>
   );
 }
@@ -1101,6 +1094,25 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 16,
   },
+  cabinetCardsLoading: {
+    minHeight: 112,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  cabinetCardsLoadingText: {
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
+  },
   flatPanel: {
     borderTopWidth: 1,
     borderTopColor: colors.lineSoft,
@@ -1237,7 +1249,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   slugInput: {
-    minHeight: 54,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineStrong,
@@ -1282,16 +1294,21 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   statusGrid: {
-    gap: 12,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 10,
   },
   rewardStatusCard: {
+    flex: 1,
+    minHeight: 74,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,
     backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 2,
+    justifyContent: 'flex-start',
   },
   rewardStatusCardGreen: {
     borderColor: 'rgba(24,224,58,0.24)',
@@ -1307,22 +1324,26 @@ const styles = StyleSheet.create({
   },
   rewardStatusLabel: {
     color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 10,
+    lineHeight: 13,
+    minHeight: 13,
     fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.4,
+    letterSpacing: 0.35,
     textTransform: 'uppercase',
   },
   rewardStatusValue: {
     color: colors.white,
-    fontSize: 18,
-    lineHeight: 23,
+    fontSize: 17,
+    lineHeight: 20,
+    minHeight: 20,
     fontFamily: 'Sora_700Bold',
   },
   rewardStatusMeta: {
     color: colors.textDim,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 10,
+    lineHeight: 12,
+    minHeight: 12,
+    fontFamily: 'Sora_600SemiBold',
   },
   rowsList: {
     gap: 10,

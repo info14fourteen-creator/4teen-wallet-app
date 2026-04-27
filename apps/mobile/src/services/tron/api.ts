@@ -29,6 +29,7 @@ export const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 export const FOURTEEN_CONTRACT = 'TMLXiCW2ZAkvjmn79ZXa4vdHX5BE3n9x4A';
 
 const TOKEN_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+const WALLET_HISTORY_CACHE_STALE_TTL_MS = 24 * 60 * 60 * 1000;
 const TOKEN_HISTORY_CACHE_PREFIX = 'fourteen_token_history_cache_v10';
 const TOKEN_HISTORY_CACHE_PREFIX_ROOT = 'fourteen_token_history_cache_';
 const WALLET_HISTORY_CACHE_PREFIX = 'fourteen_wallet_history_cache_v4';
@@ -55,8 +56,15 @@ const TRONGRID_ACCOUNT_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_trongrid_accoun
 const ACCOUNT_RESOURCES_CACHE_STORAGE_KEY_PREFIX = 'fourteen_account_resources_cache_v1';
 const ACCOUNT_RESOURCES_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_account_resources_cache_';
 const CUSTOM_TOKEN_CATALOG_STORAGE_KEY_PREFIX = 'wallet.customTokenCatalog.v2';
+const TRONGRID_DETAIL_CACHE_TTL_MS = 10 * 60 * 1000;
+const TRONGRID_DETAIL_CACHE_STALE_TTL_MS = 24 * 60 * 60 * 1000;
+const TRONGRID_DETAIL_COOLDOWN_DEFAULT_MS = 60 * 1000;
+const MAX_TRONGRID_DETAIL_ENRICHMENTS_PER_PAGE = 4;
+const TRONSCAN_TOKEN_OVERVIEW_PARALLELISM = 3;
 let warnedTrongridEventsRateLimit = false;
 let warnedTrongridInternalRateLimit = false;
+let trongridEventsCooldownUntil = 0;
+let trongridInternalCooldownUntil = 0;
 
 function normalizeCustomTokenCatalogWalletId(walletId: string) {
   return String(walletId || '').trim().toLowerCase();
@@ -209,6 +217,22 @@ const tronscanTokenOverviewMemoryCache = new Map<
 const tronscanTokenOverviewInflight = new Map<string, Promise<TokenMetaFallback>>();
 const customTokenCatalogMemoryCache = new Map<string, CustomTokenCatalogItem[]>();
 const customTokenCatalogInflight = new Map<string, Promise<CustomTokenCatalogItem[]>>();
+const trongridTransactionEventsMemoryCache = new Map<
+  string,
+  {
+    savedAt: number;
+    data: TrongridTransactionEventItem[];
+  }
+>();
+const trongridInternalTransactionsMemoryCache = new Map<
+  string,
+  {
+    savedAt: number;
+    data: TrongridInternalTransactionItem[];
+  }
+>();
+const trongridTransactionEventsInflight = new Map<string, Promise<TrongridTransactionEventItem[]>>();
+const trongridInternalTransactionsInflight = new Map<string, Promise<TrongridInternalTransactionItem[]>>();
 
 function shouldLogCacheDebug() {
   return __DEV__ && (globalThis as any).__FOURTEEN_DEBUG_CACHE__ === true;
@@ -766,6 +790,27 @@ function isCmcInvalidKeyError(error: unknown) {
   );
 }
 
+function parseProviderCooldownMs(error: unknown, fallbackMs = TRONGRID_DETAIL_COOLDOWN_DEFAULT_MS) {
+  const text = error instanceof Error ? error.message : String(error || '');
+  const retryAfterMatch = text.match(/retry after\s+(\d+)\s*s/i);
+  if (retryAfterMatch) {
+    const seconds = Number(retryAfterMatch[1]);
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return seconds * 1000;
+    }
+  }
+
+  const suspendedMatch = text.match(/suspended for\s+(\d+)\s*s/i);
+  if (suspendedMatch) {
+    const seconds = Number(suspendedMatch[1]);
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return seconds * 1000;
+    }
+  }
+
+  return fallbackMs;
+}
+
 function buildFallbackPerformance(
   fallback24h?: number
 ): TokenPerformancePoint[] {
@@ -775,6 +820,30 @@ function buildFallbackPerformance(
     { label: '4h', changePercent: undefined },
     { label: '24h', changePercent: fallback24h },
   ];
+}
+
+async function mapWithConcurrencyLimit<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const safeLimit = Math.max(1, Math.floor(limit));
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < items.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(safeLimit, items.length) }, () => worker())
+  );
+
+  return results;
 }
 
 function mergeTokenMetaFallbacks(
@@ -1304,10 +1373,12 @@ async function getTronscanTokenOverviewMap(tokenIds: string[]): Promise<Record<s
     )
   );
 
-  const entries = await Promise.all(
-    uniqueTokenIds.map(async (tokenId) => {
+  const entries = await mapWithConcurrencyLimit(
+    uniqueTokenIds,
+    TRONSCAN_TOKEN_OVERVIEW_PARALLELISM,
+    async (tokenId) => {
       return [tokenId, await getTronscanTokenOverview(tokenId)] as const;
-    })
+    }
   );
 
   return Object.fromEntries(entries);
@@ -1514,12 +1585,14 @@ async function writeTokenHistoryCache(cacheKey: string, page: TokenHistoryPage):
 
 async function readWalletHistoryCache(
   cacheKey: string,
-  limit: number
+  limit: number,
+  options?: { allowStale?: boolean }
 ): Promise<WalletHistoryPage | null> {
   const now = Date.now();
   const memory = walletHistoryMemoryCache.get(cacheKey);
+  const maxAgeMs = options?.allowStale ? WALLET_HISTORY_CACHE_STALE_TTL_MS : TOKEN_HISTORY_CACHE_TTL_MS;
 
-  if (memory && memory.limit === limit && now - memory.savedAt < TOKEN_HISTORY_CACHE_TTL_MS) {
+  if (memory && memory.limit === limit && now - memory.savedAt < maxAgeMs) {
     return {
       items: memory.items,
       nextFingerprint: (memory as any).nextFingerprint,
@@ -1550,8 +1623,10 @@ async function readWalletHistoryCache(
       return null;
     }
 
-    if (now - parsed.savedAt >= TOKEN_HISTORY_CACHE_TTL_MS) {
-      await AsyncStorage.removeItem(cacheKey);
+    if (now - parsed.savedAt >= maxAgeMs) {
+      if (!options?.allowStale) {
+        await AsyncStorage.removeItem(cacheKey);
+      }
       return null;
     }
 
@@ -2702,23 +2777,63 @@ async function getTrongridTransactionEvents(txHash: string) {
   const safeTxHash = String(txHash || '').trim();
   if (!safeTxHash) return [];
 
-  try {
-    const response = await trongridFetch<TrongridTransactionEventsResponse>(
-      `/v1/transactions/${safeTxHash}/events`
-    );
-    return response.data ?? [];
-  } catch (error) {
-    if (isTrongridRateLimitError(error)) {
-      if (!warnedTrongridEventsRateLimit) {
-        warnedTrongridEventsRateLimit = true;
-        console.warn(
-          'Trongrid transaction events are rate-limited right now. Event details will be partially unavailable until the limit clears.'
-        );
+  const cached = trongridTransactionEventsMemoryCache.get(safeTxHash);
+  const now = Date.now();
+  if (cached && now - cached.savedAt < TRONGRID_DETAIL_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  if (trongridEventsCooldownUntil > now) {
+    if (cached && now - cached.savedAt < TRONGRID_DETAIL_CACHE_STALE_TTL_MS) {
+      return cached.data;
+    }
+    return [];
+  }
+
+  const inflight = trongridTransactionEventsInflight.get(safeTxHash);
+  if (inflight) {
+    return inflight;
+  }
+
+  const request = (async () => {
+    try {
+      const response = await trongridFetch<TrongridTransactionEventsResponse>(
+        `/v1/transactions/${safeTxHash}/events`
+      );
+      const data = response.data ?? [];
+      trongridTransactionEventsMemoryCache.set(safeTxHash, {
+        savedAt: Date.now(),
+        data,
+      });
+      return data;
+    } catch (error) {
+      if (isTrongridRateLimitError(error)) {
+        trongridEventsCooldownUntil = Date.now() + parseProviderCooldownMs(error);
+        if (!warnedTrongridEventsRateLimit) {
+          warnedTrongridEventsRateLimit = true;
+          console.warn(
+            'Trongrid transaction events are rate-limited right now. Event details will be partially unavailable until the limit clears.'
+          );
+        }
+        if (cached && Date.now() - cached.savedAt < TRONGRID_DETAIL_CACHE_STALE_TTL_MS) {
+          return cached.data;
+        }
+        return [];
+      }
+      console.warn('Failed to load Trongrid transaction events:', safeTxHash, error);
+      if (cached && Date.now() - cached.savedAt < TRONGRID_DETAIL_CACHE_STALE_TTL_MS) {
+        return cached.data;
       }
       return [];
     }
-    console.warn('Failed to load Trongrid transaction events:', safeTxHash, error);
-    return [];
+  })();
+
+  trongridTransactionEventsInflight.set(safeTxHash, request);
+
+  try {
+    return await request;
+  } finally {
+    trongridTransactionEventsInflight.delete(safeTxHash);
   }
 }
 
@@ -2726,23 +2841,63 @@ async function getTrongridInternalTransactions(txHash: string) {
   const safeTxHash = String(txHash || '').trim();
   if (!safeTxHash) return [];
 
-  try {
-    const response = await trongridFetch<TrongridInternalTransactionsResponse>(
-      `/v1/transactions/${safeTxHash}/internal-transactions`
-    );
-    return response.data ?? [];
-  } catch (error) {
-    if (isTrongridRateLimitError(error)) {
-      if (!warnedTrongridInternalRateLimit) {
-        warnedTrongridInternalRateLimit = true;
-        console.warn(
-          'Trongrid internal transactions are rate-limited right now. Internal transfer details will be partially unavailable until the limit clears.'
-        );
+  const cached = trongridInternalTransactionsMemoryCache.get(safeTxHash);
+  const now = Date.now();
+  if (cached && now - cached.savedAt < TRONGRID_DETAIL_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  if (trongridInternalCooldownUntil > now) {
+    if (cached && now - cached.savedAt < TRONGRID_DETAIL_CACHE_STALE_TTL_MS) {
+      return cached.data;
+    }
+    return [];
+  }
+
+  const inflight = trongridInternalTransactionsInflight.get(safeTxHash);
+  if (inflight) {
+    return inflight;
+  }
+
+  const request = (async () => {
+    try {
+      const response = await trongridFetch<TrongridInternalTransactionsResponse>(
+        `/v1/transactions/${safeTxHash}/internal-transactions`
+      );
+      const data = response.data ?? [];
+      trongridInternalTransactionsMemoryCache.set(safeTxHash, {
+        savedAt: Date.now(),
+        data,
+      });
+      return data;
+    } catch (error) {
+      if (isTrongridRateLimitError(error)) {
+        trongridInternalCooldownUntil = Date.now() + parseProviderCooldownMs(error);
+        if (!warnedTrongridInternalRateLimit) {
+          warnedTrongridInternalRateLimit = true;
+          console.warn(
+            'Trongrid internal transactions are rate-limited right now. Internal transfer details will be partially unavailable until the limit clears.'
+          );
+        }
+        if (cached && Date.now() - cached.savedAt < TRONGRID_DETAIL_CACHE_STALE_TTL_MS) {
+          return cached.data;
+        }
+        return [];
+      }
+      console.warn('Failed to load Trongrid internal transactions:', safeTxHash, error);
+      if (cached && Date.now() - cached.savedAt < TRONGRID_DETAIL_CACHE_STALE_TTL_MS) {
+        return cached.data;
       }
       return [];
     }
-    console.warn('Failed to load Trongrid internal transactions:', safeTxHash, error);
-    return [];
+  })();
+
+  trongridInternalTransactionsInflight.set(safeTxHash, request);
+
+  try {
+    return await request;
+  } finally {
+    trongridInternalTransactionsInflight.delete(safeTxHash);
   }
 }
 
@@ -3465,6 +3620,8 @@ export async function getWalletHistoryPage(
     let txExhausted = false;
     let trc20Exhausted = false;
     let attempts = 0;
+    let encounteredBaseFetchFailure = false;
+    let detailEnrichmentsRemaining = MAX_TRONGRID_DETAIL_ENRICHMENTS_PER_PAGE;
 
     while (buffer.length < limit && attempts < 8) {
       attempts += 1;
@@ -3479,7 +3636,7 @@ export async function getWalletHistoryPage(
               only_confirmed: true,
               ...(txFingerprint ? { fingerprint: txFingerprint } : {}),
             }
-          ).catch((): TrongridTransactionsResponse => ({}));
+          );
       const trc20PagePromise: Promise<TrongridTrc20TransactionsResponse> = trc20Exhausted
         ? Promise.resolve({})
         : trongridFetch<TrongridTrc20TransactionsResponse>(
@@ -3490,12 +3647,18 @@ export async function getWalletHistoryPage(
               only_confirmed: true,
               ...(trc20Fingerprint ? { fingerprint: trc20Fingerprint } : {}),
             }
-          ).catch((): TrongridTrc20TransactionsResponse => ({}));
+          );
 
-      const [response, trc20Response] = await Promise.all([
+      const [txResult, trc20Result] = await Promise.allSettled([
         txPagePromise,
         trc20PagePromise,
       ]);
+      const response = txResult.status === 'fulfilled' ? txResult.value : {};
+      const trc20Response = trc20Result.status === 'fulfilled' ? trc20Result.value : {};
+
+      if (txResult.status === 'rejected' || trc20Result.status === 'rejected') {
+        encounteredBaseFetchFailure = true;
+      }
 
       const txRows = response.data ?? [];
       const nextTxFingerprint =
@@ -3534,7 +3697,12 @@ export async function getWalletHistoryPage(
           );
 
           const isTriggerSmartContract = contractType === 'TriggerSmartContract';
-          const [events, internalTransactions] = isTriggerSmartContract
+          const shouldEnrichDetails =
+            isTriggerSmartContract && detailEnrichmentsRemaining > 0;
+          if (shouldEnrichDetails) {
+            detailEnrichmentsRemaining -= 1;
+          }
+          const [events, internalTransactions] = shouldEnrichDetails
             ? await Promise.all([
                 getTrongridTransactionEvents(tx.txID || ''),
                 getTrongridInternalTransactions(tx.txID || ''),
@@ -3635,13 +3803,17 @@ export async function getWalletHistoryPage(
       hasMore,
     };
 
-    if (!cursor.txFingerprint && !hasBufferedItems) {
+    if (!cursor.txFingerprint && !hasBufferedItems && !encounteredBaseFetchFailure) {
       await writeWalletHistoryCache(cacheKey, page, limit);
     }
 
     return page;
   } catch (error) {
     console.error('Failed to load wallet history:', walletAddress, error);
+    const fallback = await readWalletHistoryCache(cacheKey, limit, { allowStale: true });
+    if (fallback) {
+      return fallback;
+    }
     return {
       items: [],
       nextFingerprint: undefined,
@@ -4147,10 +4319,22 @@ type CustomTokenListCachePayload = {
   items: TronscanTokenListItem[];
 };
 
+let customTokenListMemoryCache: CustomTokenListCachePayload | null = null;
+let customTokenListInflight: Promise<TronscanTokenListItem[]> | null = null;
+
 export async function getTronscanTokenList(
   options?: { force?: boolean }
 ): Promise<TronscanTokenListItem[]> {
   const force = Boolean(options?.force);
+  const now = Date.now();
+
+  if (!force && customTokenListMemoryCache && now - customTokenListMemoryCache.savedAt < CUSTOM_TOKEN_LIST_CACHE_TTL_MS) {
+    return customTokenListMemoryCache.items;
+  }
+
+  if (!force && customTokenListInflight) {
+    return customTokenListInflight;
+  }
 
   if (!force) {
     try {
@@ -4165,6 +4349,7 @@ export async function getTronscanTokenList(
           Array.isArray(parsed.items) &&
           Date.now() - parsed.savedAt < CUSTOM_TOKEN_LIST_CACHE_TTL_MS
         ) {
+          customTokenListMemoryCache = parsed;
           return parsed.items;
         }
       }
@@ -4173,68 +4358,89 @@ export async function getTronscanTokenList(
     }
   }
 
-  try {
-    const response = await fetch(buildUrl(TRONSCAN_BASE_URL, '/getAssetWithPriceList'), {
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status}: ${text}`);
-    }
-
-    const payload = (await response.json()) as TronscanAssetWithPriceResponse;
-    const list = Array.isArray(payload?.data) ? payload.data : [];
-
-    const items = list
-      .map((item) => ({
-        id: String(item?.id || '').trim(),
-        name: String(item?.name || '').trim(),
-        abbr: String(item?.abbr || '').trim(),
-        logo: String(item?.logo || '').trim() || undefined,
-      }))
-      .filter((item) => item.id && item.name)
-      .sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, {
-          numeric: true,
-          sensitivity: 'base',
-        })
-      );
-
+  const request = (async (): Promise<TronscanTokenListItem[]> => {
     try {
-      await AsyncStorage.setItem(
-        CUSTOM_TOKEN_LIST_CACHE_KEY,
-        JSON.stringify({
-          savedAt: Date.now(),
-          items,
-        } satisfies CustomTokenListCachePayload)
-      );
-    } catch (error) {
-      console.error('Failed to write custom token list cache:', error);
-    }
+      const response = await fetch(buildUrl(TRONSCAN_BASE_URL, '/getAssetWithPriceList'), {
+        headers: {
+          Accept: 'application/json',
+        },
+      });
 
-    return items;
-  } catch (error) {
-    console.error('Failed to load Tronscan token list:', error);
-
-    if (!force) {
-      try {
-        const raw = await AsyncStorage.getItem(CUSTOM_TOKEN_LIST_CACHE_KEY);
-
-        if (raw) {
-          const parsed = JSON.parse(raw) as CustomTokenListCachePayload;
-          if (parsed && Array.isArray(parsed.items)) {
-            return parsed.items;
-          }
-        }
-      } catch (cacheError) {
-        console.error('Failed to read fallback custom token list cache:', cacheError);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
       }
-    }
 
-    return [];
+      const payload = (await response.json()) as TronscanAssetWithPriceResponse;
+      const list = Array.isArray(payload?.data) ? payload.data : [];
+
+      const items = list
+        .map((item) => ({
+          id: String(item?.id || '').trim(),
+          name: String(item?.name || '').trim(),
+          abbr: String(item?.abbr || '').trim(),
+          logo: String(item?.logo || '').trim() || undefined,
+        }))
+        .filter((item) => item.id && item.name)
+        .sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          })
+        );
+
+      const payloadToCache = {
+        savedAt: Date.now(),
+        items,
+      } satisfies CustomTokenListCachePayload;
+
+      customTokenListMemoryCache = payloadToCache;
+
+      try {
+        await AsyncStorage.setItem(
+          CUSTOM_TOKEN_LIST_CACHE_KEY,
+          JSON.stringify(payloadToCache)
+        );
+      } catch (error) {
+        console.error('Failed to write custom token list cache:', error);
+      }
+
+      return items;
+    } catch (error) {
+      console.error('Failed to load Tronscan token list:', error);
+
+      if (customTokenListMemoryCache?.items?.length) {
+        return customTokenListMemoryCache.items;
+      }
+
+      if (!force) {
+        try {
+          const raw = await AsyncStorage.getItem(CUSTOM_TOKEN_LIST_CACHE_KEY);
+
+          if (raw) {
+            const parsed = JSON.parse(raw) as CustomTokenListCachePayload;
+            if (parsed && Array.isArray(parsed.items)) {
+              customTokenListMemoryCache = parsed;
+              return parsed.items;
+            }
+          }
+        } catch (cacheError) {
+          console.error('Failed to read fallback custom token list cache:', cacheError);
+        }
+      }
+
+      return [];
+    }
+  })();
+
+  customTokenListInflight = request;
+
+  try {
+    return await request;
+  } finally {
+    if (customTokenListInflight === request) {
+      customTokenListInflight = null;
+    }
   }
 }
 
@@ -4252,6 +4458,14 @@ export async function clearAllTronCaches(): Promise<void> {
   trongridAccountMemoryCache.clear();
   accountResourcesMemoryCache.clear();
   tronscanTokenOverviewMemoryCache.clear();
+  customTokenListMemoryCache = null;
+  customTokenListInflight = null;
+  warnedTrongridEventsRateLimit = false;
+  warnedTrongridInternalRateLimit = false;
+  trongridEventsCooldownUntil = 0;
+  trongridInternalCooldownUntil = 0;
+  trongridTransactionEventsMemoryCache.clear();
+  trongridInternalTransactionsMemoryCache.clear();
 
   accountInfoInflight.clear();
   accountTrc20AssetsInflight.clear();
@@ -4259,6 +4473,8 @@ export async function clearAllTronCaches(): Promise<void> {
   trongridAccountInflight.clear();
   accountResourcesInflight.clear();
   tronscanTokenOverviewInflight.clear();
+  trongridTransactionEventsInflight.clear();
+  trongridInternalTransactionsInflight.clear();
 
   customTokenCatalogMemoryCache.clear();
   customTokenCatalogInflight.clear();

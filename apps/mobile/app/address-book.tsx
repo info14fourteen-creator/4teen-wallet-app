@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
   },
 
   addressField: {
-    minHeight: 52,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,
@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
   },
 
   nameField: {
-    minHeight: 52,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,

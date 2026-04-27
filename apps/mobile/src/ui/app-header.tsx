@@ -11,6 +11,7 @@ import {
   APP_HEADER_DROP_OFFSET,
   APP_HEADER_SIDE_PADDING,
 } from './app-header.constants';
+import { goBackOrReplace } from './safe-back';
 import LottieIcon from './lottie-icon';
 import { shouldRenderSharedNavigation } from './navigation-routes';
 
@@ -83,7 +84,7 @@ export default function AppHeader({
     }
 
     if (pathname === '/scan') {
-      router.back();
+      goBackOrReplace(router, { pathname, fallback: '/wallet' });
       return;
     }
 

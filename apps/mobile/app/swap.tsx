@@ -1502,7 +1502,7 @@ const styles = StyleSheet.create({
   },
 
   swapInputShell: {
-    minHeight: 54,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     borderWidth: 1,
     flexDirection: 'row',
@@ -1518,7 +1518,7 @@ const styles = StyleSheet.create({
 
   swapAmountInput: {
     flex: 1,
-    minHeight: 52,
+    minHeight: layout.fieldHeight,
     color: colors.white,
     fontSize: 16,
     lineHeight: 20,
@@ -1812,9 +1812,10 @@ const styles = StyleSheet.create({
   },
 
   providerBadge: {
-    minHeight: 32,
+    minHeight: 30,
     paddingHorizontal: 12,
-    borderRadius: radius.pill,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1,
     borderColor: colors.lineSoft,

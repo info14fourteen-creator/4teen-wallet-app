@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -30,6 +30,7 @@ import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
+import { goBackOrReplace } from '../src/ui/safe-back';
 
 const scanGallerySource = require('../assets/icons/scan/scan_gallery.json');
 
@@ -88,6 +89,7 @@ function getPrimaryButtonLabel(kind: ScanKind | null, mode: ScanMode) {
 
 export default function ScanScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const isFocused = useIsFocused();
   const notice = useNotice();
   const params = useLocalSearchParams<{
@@ -194,8 +196,8 @@ export default function ScanScreen() {
 
   const safeBack = useCallback(() => {
     if (!mountedRef.current) return;
-    router.back();
-  }, [router]);
+    goBackOrReplace(router, { pathname, fallback: '/wallet' });
+  }, [pathname, router]);
 
   const scheduleBack = useCallback(
     (delayMs: number) => {

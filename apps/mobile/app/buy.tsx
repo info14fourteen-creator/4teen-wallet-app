@@ -16,11 +16,14 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image';
 
 import KeyboardView from '../src/ui/KeyboardView';
+import InfoToggleIcon from '../src/ui/info-toggle-icon';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import NumericKeypad from '../src/ui/numeric-keypad';
-import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
+import SelectedWalletSwitcher, {
+  type WalletSwitcherOption,
+} from '../src/ui/selected-wallet-switcher';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useSwipeDownDismiss } from '../src/ui/use-swipe-down-dismiss';
@@ -50,6 +53,10 @@ import {
 import { setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
 import { useWalletSession } from '../src/wallet/wallet-session';
 import { BackspaceIcon, CloseIcon } from '../src/ui/ui-icons';
+
+const BUY_INFO_TITLE = 'Direct buy preflight';
+const BUY_INFO_TEXT =
+  'This screen prepares a direct buy before the wallet signs anything. You choose the active signing wallet, enter the TRX amount, and see the estimated 4TEEN mint plus the protocol split used for this purchase.\n\nDirect buy is not a swap. FourteenToken mints 4TEEN by contract rules, then locks the purchased batch for 14 days. Incoming TRX is routed by fixed rules between liquidity, controller-side accounting, and the airdrop rail.\n\nContinue opens the on-chain confirmation flow. That next step builds the real transaction, checks resources, and only then asks for passcode or biometrics.';
 
 function resolveParam(value: string | string[] | undefined) {
   if (typeof value === 'string') return value;
@@ -162,6 +169,7 @@ export default function BuyScreen() {
   const [errorText, setErrorText] = useState('');
   const [amountKeyboardVisible, setAmountKeyboardVisible] = useState(false);
   const [amountSectionY, setAmountSectionY] = useState(0);
+  const [infoExpanded, setInfoExpanded] = useState(false);
 
   useChromeLoading(loading || refreshing);
 
@@ -195,7 +203,7 @@ export default function BuyScreen() {
           address: item.wallet.address,
           kind: item.wallet.kind,
           balanceDisplay:
-            item.portfolio.assets.find((asset) => asset.id === 'trx')?.amountDisplay || '0',
+            item.portfolio?.assets.find((asset) => asset.id === 'trx')?.amountDisplay || '0',
         }));
       setContext(nextContext);
       setWalletChoices(signingWalletChoices);
@@ -241,7 +249,7 @@ export default function BuyScreen() {
     setWalletOptionsOpen((prev) => !prev);
   }, [closeAmountKeyboard, notice, visibleWalletChoices.length]);
 
-  const handleChooseWallet = useCallback(async (wallet: WalletSwitcherItem) => {
+  const handleChooseWallet = useCallback(async (wallet: WalletSwitcherOption) => {
     try {
       setSwitchingWalletId(wallet.id);
       setWalletOptionsOpen(false);
@@ -386,7 +394,19 @@ export default function BuyScreen() {
             setWalletOptionsOpen(false);
           }}
         >
-          <ScreenBrow label="BUY" variant="back" />
+          <ScreenBrow
+            label="DIRECT BUY"
+            variant="back"
+            onLabelPress={() => setInfoExpanded((prev) => !prev)}
+            labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
+          />
+
+          {infoExpanded ? (
+            <View style={styles.infoPanel}>
+              <Text style={styles.infoTitle}>{BUY_INFO_TITLE}</Text>
+              <Text style={styles.infoText}>{BUY_INFO_TEXT}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.sectionBlock}>
             <SelectedWalletSwitcher
@@ -590,6 +610,26 @@ const styles = StyleSheet.create({
     gap: 0,
   },
 
+  infoPanel: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
+    marginBottom: 16,
+  },
+
+  infoTitle: {
+    ...ui.bodyStrong,
+  },
+
+  infoText: {
+    ...ui.body,
+    lineHeight: 25,
+  },
+
   sectionBlock: {
     marginBottom: 16,
   },
@@ -763,20 +803,19 @@ const styles = StyleSheet.create({
   },
 
   inputShell: {
-    minHeight: 66,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineStrong,
     backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 16,
-    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
 
   inputShellError: {
-    borderColor: colors.error,
+    borderColor: colors.red,
   },
 
   receiveShell: {

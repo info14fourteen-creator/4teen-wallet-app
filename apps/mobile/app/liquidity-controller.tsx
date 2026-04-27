@@ -37,7 +37,10 @@ import {
   FOOTER_NAV_RESERVED_SPACE,
 } from '../src/ui/footer-nav';
 import { useNavigationInsets } from '../src/ui/navigation';
-import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
+import SelectedWalletSwitcher, {
+  type WalletSwitcherOption,
+} from '../src/ui/selected-wallet-switcher';
+import InfoToggleIcon from '../src/ui/info-toggle-icon';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
@@ -139,7 +142,7 @@ export default function LiquidityControllerScreen() {
   }, [notice, walletChoices.length]);
 
   const handleChooseWallet = useCallback(
-    async (wallet: WalletSwitcherItem) => {
+    async (wallet: WalletSwitcherOption) => {
       try {
         setSwitchingWalletId(wallet.id);
         setWalletOptionsOpen(false);
@@ -250,7 +253,7 @@ export default function LiquidityControllerScreen() {
         <ScreenBrow
           label="LIQUIDITY CONTROLLER"
           variant="backLink"
-          labelChevron={infoExpanded ? 'up' : 'down'}
+          labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
           onLabelPress={() => setInfoExpanded((prev) => !prev)}
         />
 
@@ -574,8 +577,9 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceSoft,
-    padding: 14,
-    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
     marginBottom: 16,
   },
 
@@ -585,7 +589,7 @@ const styles = StyleSheet.create({
 
   infoText: {
     ...ui.body,
-    lineHeight: 24,
+    lineHeight: 25,
   },
 
   selectionBlock: {
@@ -1041,9 +1045,10 @@ const styles = StyleSheet.create({
   },
 
   statusPill: {
-    minHeight: 28,
-    paddingHorizontal: 11,
-    borderRadius: radius.pill,
+    minHeight: 30,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,

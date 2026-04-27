@@ -734,7 +734,7 @@ const styles = StyleSheet.create({
   },
 
   renameInlineRow: {
-    minHeight: 48,
+    minHeight: layout.fieldHeight,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -742,7 +742,7 @@ const styles = StyleSheet.create({
 
   renameInput: {
     flex: 1,
-    minHeight: 44,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     borderWidth: 0,
     backgroundColor: 'rgba(255,255,255,0.03)',

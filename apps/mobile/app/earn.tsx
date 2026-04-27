@@ -28,6 +28,9 @@ import { formatResourceAmount } from '../src/services/wallet/resources';
 
 const SMART_CONTRACTS_REPO_URL =
   'https://github.com/info14fourteen-creator/4teen-smart-contracts';
+const INFO_SCREEN_INFO_TITLE = 'Protocol map and live runtime checks';
+const INFO_SCREEN_INFO_TEXT =
+  'This screen is the compact architecture map for 4TEEN. It links the token, controller, liquidity module, executors, and vault contracts, then layers live runtime checks on top of that structure.\n\nUse it when you need to answer two questions fast: which contract or vault is responsible for a protocol job, and whether the current operator-side resources are ready for ambassador allocation replay.\n\nIt is not a transaction screen. The goal here is orientation and verification: contract roles, asset-wallet balances, and operational readiness across the protocol rails.';
 
 const CONTRACT_LINKS = [
   {
@@ -88,6 +91,7 @@ const CONTRACT_LINKS = [
 
 export default function EarnScreen() {
   const router = useRouter();
+  const [infoExpanded, setInfoExpanded] = useState(false);
   const [assetWallets, setAssetWallets] = useState<AssetWalletsSnapshot | null>(null);
   const [assetWalletsLoading, setAssetWalletsLoading] = useState(true);
   const [assetWalletsRefreshing, setAssetWalletsRefreshing] = useState(false);
@@ -186,8 +190,13 @@ export default function EarnScreen() {
 
   return (
     <ProductScreen
-      eyebrow="INFO"
-      browVariant="plain"
+      eyebrow="INFORMATION"
+      headerInfo={{
+        title: INFO_SCREEN_INFO_TITLE,
+        text: INFO_SCREEN_INFO_TEXT,
+        expanded: infoExpanded,
+        onToggle: () => setInfoExpanded((prev) => !prev),
+      }}
       refreshControl={
         <RefreshControl
           refreshing={assetWalletsRefreshing || (allocationHealthLoading && assetWallets !== null)}

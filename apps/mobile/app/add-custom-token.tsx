@@ -17,6 +17,7 @@ import { ProductScreen } from '../src/ui/product-shell';
 
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
+import { useWalletSession } from '../src/wallet/wallet-session';
 import {
   FOURTEEN_CONTRACT,
   TRX_TOKEN_ID,
@@ -57,6 +58,7 @@ function mapTokenListItemToCustomToken(token: TronscanTokenListItem): CustomToke
 
 export default function AddCustomTokenScreen() {
   const notice = useNotice();
+  const { triggerWalletDataRefresh } = useWalletSession();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -190,12 +192,13 @@ export default function AddCustomTokenScreen() {
 
         setHomeVisibleTokenIds(nextVisibleIds);
         setCustomTokenCatalogState(nextCustomCatalog);
+        triggerWalletDataRefresh();
       } catch (error) {
         console.error(error);
         notice.showErrorNotice('Custom token update failed.', 2200);
       }
     },
-    [customTokenCatalog, homeVisibleTokenIds, notice]
+    [customTokenCatalog, homeVisibleTokenIds, notice, triggerWalletDataRefresh]
   );
 
   const filteredTokens = useMemo(() => {
@@ -349,7 +352,7 @@ const styles = StyleSheet.create({
   },
 
   searchInput: {
-    minHeight: 52,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.lineSoft,

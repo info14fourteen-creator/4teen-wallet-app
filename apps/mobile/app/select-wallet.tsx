@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import {
   RefreshControl,
   StyleSheet,
@@ -10,6 +10,7 @@ import {
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { ProductScreen } from '../src/ui/product-shell';
+import { goBackOrReplace } from '../src/ui/safe-back';
 import { useWalletSession } from '../src/wallet/wallet-session';
 
 import { colors, layout, radius } from '../src/theme/tokens';
@@ -28,6 +29,8 @@ import {
 
 import { AddWalletIcon, OpenRightIcon } from '../src/ui/ui-icons';
 
+const BROW_SELECT_WALLET_CLOSE_SOURCE = require('../assets/icons/ui/brow_select_wallet_close.json');
+
 function formatWalletKind(kind: WalletMeta['kind']) {
   if (kind === 'mnemonic') return 'Seed Phrase';
   if (kind === 'private-key') return 'Private Key';
@@ -36,6 +39,7 @@ function formatWalletKind(kind: WalletMeta['kind']) {
 
 export default function SelectWalletScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const notice = useNotice();
   const { setPendingWalletSelectionId } = useWalletSession();
   const [activeWalletId, setActiveWalletIdState] = useState<string | null>(null);
@@ -114,7 +118,7 @@ export default function SelectWalletScreen() {
       setPendingWalletSelectionId(wallet.id);
       setActiveWalletIdState(wallet.id);
       notice.showSuccessNotice(`Active wallet: ${wallet.name}`, 2200);
-      router.back();
+      goBackOrReplace(router, { pathname, fallback: '/wallet' });
     } catch (error) {
       console.error(error);
       notice.showErrorNotice('Wallet selection failed.', 2600);
@@ -125,6 +129,14 @@ export default function SelectWalletScreen() {
     <ProductScreen
       eyebrow="SELECT WALLET"
       browVariant="backLink"
+      browLabelPress={() => goBackOrReplace(router, { pathname, fallback: '/wallet' })}
+      browLabelAccessoryAnimation={{
+        source: BROW_SELECT_WALLET_CLOSE_SOURCE,
+        frames: [0, 59],
+        staticFrame: 59,
+        size: 18,
+        speed: 1.35,
+      }}
       loadingOverlayVisible={refreshing}
       refreshControl={
         <RefreshControl
@@ -149,9 +161,7 @@ export default function SelectWalletScreen() {
             </Text>
           </View>
 
-          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>
-            Select Wallet
-          </Text>
+          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>Managed Wallets</Text>
 
           {wallets.length === 0 ? (
             <View style={styles.emptyState}>

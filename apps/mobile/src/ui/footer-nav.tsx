@@ -15,7 +15,7 @@ import { usePathname, useRouter } from 'expo-router';
 import Svg, { Defs, Line, LinearGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors } from '../theme/tokens';
+import { colors, radius } from '../theme/tokens';
 import { useNotice } from '../notice/notice-provider';
 import { useWalletSession } from '../wallet/wallet-session';
 import { ensureSigningWalletActive } from '../services/wallet/storage';
@@ -1138,15 +1138,15 @@ const styles = StyleSheet.create({
     top: -22,
     minWidth: 108,
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderRadius: 999,
+    borderRadius: radius.sm,
     zIndex: 4,
   },
 
   modeBadgeText: {
     fontSize: 9,
-    lineHeight: 11,
+    lineHeight: 12,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 1.2,
     textAlign: 'center',

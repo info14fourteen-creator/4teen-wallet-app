@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet } from 'react-native';
 
+import { colors } from '../theme/tokens';
 import ThinOrangeLoader from './thin-orange-loader';
 
 type ScreenLoadingOverlayProps = {
@@ -53,6 +54,6 @@ const styles = StyleSheet.create({
     zIndex: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.76)',
+    backgroundColor: colors.bg,
   },
 });

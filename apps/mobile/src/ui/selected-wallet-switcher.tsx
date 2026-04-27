@@ -23,10 +23,27 @@ type SelectedWalletSwitcherProps = {
   emptyBody?: string;
 };
 
-function formatWalletAccessLabel(kind: WalletMeta['kind']) {
-  if (kind === 'mnemonic') return 'SEED PHRASE';
-  if (kind === 'private-key') return 'PRIVATE KEY';
-  return 'WATCH ONLY';
+function WalletBalance({
+  value,
+  compact = false,
+}: {
+  value: string;
+  compact?: boolean;
+}) {
+  const safe = String(value || '—').trim() || '—';
+  const currency = safe.startsWith('$') ? '$' : '';
+  const amount = currency ? safe.slice(1).trim() || '0.00' : safe;
+
+  return (
+    <View style={styles.walletBalanceRow}>
+      {currency ? (
+        <Text style={compact ? styles.walletOptionBalanceCurrency : styles.walletBalanceCurrency}>
+          {currency}
+        </Text>
+      ) : null}
+      <Text style={compact ? styles.walletOptionBalance : styles.walletBalance}>{amount}</Text>
+    </View>
+  );
 }
 
 export default function SelectedWalletSwitcher({
@@ -41,7 +58,10 @@ export default function SelectedWalletSwitcher({
 }: SelectedWalletSwitcherProps) {
   return (
     <View style={styles.selectionBlock}>
-      <Text style={styles.selectionEyebrow}>SELECTED WALLET · TAP TO SWITCH</Text>
+      <View style={styles.selectionHead}>
+        <Text style={styles.selectionEyebrow}>ACTIVE WALLET</Text>
+        <Text style={styles.selectionHint}>tap to switch</Text>
+      </View>
 
       <TouchableOpacity
         activeOpacity={0.9}
@@ -51,15 +71,10 @@ export default function SelectedWalletSwitcher({
         <View style={styles.walletCardText}>
           <View style={styles.walletTitleRow}>
             <Text style={styles.walletName}>{wallet?.name || emptyTitle}</Text>
-            {wallet ? <Text style={styles.activeBadge}>SELECTED</Text> : null}
           </View>
 
-          <Text style={styles.walletBalance}>
-            Balance: {wallet?.balanceDisplay || '$0.00'}
-          </Text>
-          <Text style={styles.walletBalance}>
-            Access: {wallet ? formatWalletAccessLabel(wallet.kind) : 'NOT CONNECTED'}
-          </Text>
+          <WalletBalance value={wallet?.balanceDisplay || '$0.00'} />
+
           <Text style={styles.walletAddress} numberOfLines={1}>
             {wallet?.address || emptyBody}
           </Text>
@@ -86,11 +101,10 @@ export default function SelectedWalletSwitcher({
                 onPress={() => onChooseWallet(item)}
               >
                 <View style={styles.walletOptionText}>
-                  <Text style={styles.walletName}>{item.name}</Text>
-                  <Text style={styles.optionBalance}>Balance: {item.balanceDisplay || '$0.00'}</Text>
-                  <Text style={styles.optionBalance}>
-                    Access: {formatWalletAccessLabel(item.kind)}
-                  </Text>
+                  <View style={styles.walletTitleRow}>
+                    <Text style={styles.walletName}>{item.name}</Text>
+                  </View>
+                  <WalletBalance value={item.balanceDisplay || '$0.00'} compact />
                   <Text style={styles.optionAddress} numberOfLines={1}>
                     {item.address}
                   </Text>
@@ -114,42 +128,55 @@ const styles = StyleSheet.create({
   selectionBlock: {
     marginBottom: 16,
   },
+  selectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 8,
+  },
   selectionEyebrow: {
     color: colors.textDim,
     fontSize: 11,
     lineHeight: 14,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.4,
-    marginBottom: 8,
+  },
+  selectionHint: {
+    color: colors.textSoft,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_600SemiBold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   walletCard: {
-    minHeight: 86,
+    minHeight: 98,
     borderRadius: radius.sm,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
   },
   walletCardClosed: {
-    borderColor: 'rgba(24,224,58,0.22)',
-    backgroundColor: 'rgba(24,224,58,0.06)',
+    borderColor: 'rgba(24,224,58,0.24)',
+    backgroundColor: 'rgba(24,224,58,0.065)',
   },
   walletCardOpen: {
-    borderColor: 'rgba(24,224,58,0.22)',
-    backgroundColor: 'rgba(24,224,58,0.06)',
+    borderColor: 'rgba(24,224,58,0.28)',
+    backgroundColor: 'rgba(24,224,58,0.08)',
   },
   walletCardText: {
     flex: 1,
-    gap: 4,
+    gap: 6,
   },
   walletTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flexWrap: 'wrap',
   },
   walletName: {
     color: colors.white,
@@ -158,17 +185,21 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
   },
   walletBalance: {
-    color: colors.textDim,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-  },
-  activeBadge: {
-    color: colors.green,
-    fontSize: 11,
-    lineHeight: 14,
+    color: colors.white,
+    fontSize: 21,
+    lineHeight: 26,
     fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.4,
+  },
+  walletBalanceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  walletBalanceCurrency: {
+    color: colors.accent,
+    fontSize: 21,
+    lineHeight: 26,
+    fontFamily: 'Sora_700Bold',
   },
   walletAddress: {
     color: colors.textSoft,
@@ -177,17 +208,17 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
   walletOptionsList: {
-    gap: 10,
+    gap: 8,
     marginTop: 10,
   },
   walletOptionRow: {
-    minHeight: 86,
+    minHeight: 96,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: 'rgba(255,105,0,0.14)',
     backgroundColor: 'rgba(255,105,0,0.04)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -195,13 +226,19 @@ const styles = StyleSheet.create({
   },
   walletOptionText: {
     flex: 1,
-    gap: 4,
+    gap: 6,
   },
-  optionBalance: {
-    color: colors.textDim,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
+  walletOptionBalance: {
+    color: colors.white,
+    fontSize: 17,
+    lineHeight: 22,
+    fontFamily: 'Sora_700Bold',
+  },
+  walletOptionBalanceCurrency: {
+    color: colors.accent,
+    fontSize: 17,
+    lineHeight: 22,
+    fontFamily: 'Sora_700Bold',
   },
   optionAddress: {
     color: colors.textSoft,

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -36,10 +36,17 @@ import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import LottieIcon from '../src/ui/lottie-icon';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
 
 const APPROVAL_HISTORY_LIMIT = 100;
+const CONNECTIONS_INFO_ARROW_SOURCE = require('../assets/icons/ui/connections_info_arrow_down.json');
+const CONNECTIONS_INFO_CROSS_SOURCE = require('../assets/icons/ui/connections_info_cross.json');
+const CONNECTIONS_INFO_ARROW_FRAMES: [number, number] = [0, 59];
+const CONNECTIONS_INFO_CROSS_FRAMES: [number, number] = [0, 58];
+const CONNECTIONS_INFO_ARROW_STATIC_PROGRESS = 1;
+const CONNECTIONS_INFO_CROSS_STATIC_PROGRESS = 1;
 const CONNECTIONS_INFO_TITLE = 'Connected sites and token permissions';
 const CONNECTIONS_INFO_TEXT =
   'This page separates browser connections from on-chain token approvals. Connected sites should list domains that were granted wallet access inside the in-app browser. Approval cards show spender contracts that already received token spend permission from the active wallet.';
@@ -93,6 +100,8 @@ type ApprovalGroup = {
   failedCount: number;
   approvals: ApprovalItem[];
 };
+
+type InfoToggleIconState = 'closed-static' | 'opening' | 'open-static' | 'closing';
 
 function shortAddress(address: string) {
   const safe = String(address || '').trim();
@@ -195,6 +204,80 @@ function groupApprovals(items: ApprovalItem[]) {
       approvals: [...group.approvals].sort((left, right) => right.timestamp - left.timestamp),
     }))
     .sort((left, right) => right.latestTimestamp - left.latestTimestamp);
+}
+
+function ConnectionsInfoToggleIcon({ expanded }: { expanded: boolean }) {
+  const previousExpandedRef = useRef(expanded);
+  const [playToken, setPlayToken] = useState(0);
+  const [state, setState] = useState<InfoToggleIconState>(
+    expanded ? 'open-static' : 'closed-static'
+  );
+
+  useEffect(() => {
+    if (previousExpandedRef.current === expanded) {
+      return;
+    }
+
+    previousExpandedRef.current = expanded;
+    setState(expanded ? 'opening' : 'closing');
+    setPlayToken((value) => value + 1);
+  }, [expanded]);
+
+  if (state === 'opening') {
+    return (
+      <LottieIcon
+        key={`connections-info-opening-${playToken}`}
+        source={CONNECTIONS_INFO_ARROW_SOURCE}
+        size={16}
+        playToken={playToken}
+        frames={CONNECTIONS_INFO_ARROW_FRAMES}
+        speed={1.2}
+        onAnimationFinish={(isCancelled) => {
+          if (!isCancelled) {
+            setState((current) => (current === 'opening' ? 'open-static' : current));
+          }
+        }}
+      />
+    );
+  }
+
+  if (state === 'closing') {
+    return (
+      <LottieIcon
+        key={`connections-info-closing-${playToken}`}
+        source={CONNECTIONS_INFO_CROSS_SOURCE}
+        size={16}
+        playToken={playToken}
+        frames={CONNECTIONS_INFO_CROSS_FRAMES}
+        speed={1.2}
+        onAnimationFinish={(isCancelled) => {
+          if (!isCancelled) {
+            setState((current) => (current === 'closing' ? 'closed-static' : current));
+          }
+        }}
+      />
+    );
+  }
+
+  if (state === 'open-static') {
+    return (
+      <LottieIcon
+        key="connections-info-open-static"
+        source={CONNECTIONS_INFO_CROSS_SOURCE}
+        size={16}
+        progress={CONNECTIONS_INFO_CROSS_STATIC_PROGRESS}
+      />
+    );
+  }
+
+  return (
+    <LottieIcon
+      key="connections-info-closed-static"
+      source={CONNECTIONS_INFO_ARROW_SOURCE}
+      size={16}
+      progress={CONNECTIONS_INFO_ARROW_STATIC_PROGRESS}
+    />
+  );
 }
 
 export default function ConnectionsScreen() {
@@ -357,7 +440,7 @@ export default function ConnectionsScreen() {
         <ScreenBrow
           label="CONNECTIONS"
           variant="backLink"
-          labelChevron={infoExpanded ? 'up' : 'down'}
+          labelAccessory={<ConnectionsInfoToggleIcon expanded={infoExpanded} />}
           onLabelPress={() => setInfoExpanded((prev) => !prev)}
         />
 
@@ -419,31 +502,37 @@ export default function ConnectionsScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>CONNECTED SITES</Text>
+        <View style={styles.metricsStack}>
+          <View style={styles.metricCard}>
+            <View style={styles.metricCopy}>
+              <Text style={styles.summaryLabel}>CONNECTED SITES</Text>
+              <Text style={styles.summaryUnit}>No browser sessions are stored yet.</Text>
+            </View>
             <Text style={styles.summaryValue}>0</Text>
-            <Text style={styles.summaryUnit}>No browser sessions are stored yet.</Text>
           </View>
 
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>APPROVED CONTRACTS</Text>
+          <View style={styles.metricCard}>
+            <View style={styles.metricCopy}>
+              <Text style={styles.summaryLabel}>APPROVED CONTRACTS</Text>
+              <Text style={styles.summaryUnit}>Unique spender contracts in recent history.</Text>
+            </View>
             <Text style={styles.summaryValue}>{approvalGroups.length}</Text>
-            <Text style={styles.summaryUnit}>Unique spender contracts in recent history.</Text>
-          </View>
-        </View>
-
-        <View style={styles.detailGrid}>
-          <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>APPROVED TOKENS</Text>
-            <Text style={styles.detailValue}>{approvedTokenCount}</Text>
-            <Text style={styles.detailUnit}>Successful approve events</Text>
           </View>
 
-          <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>PENDING</Text>
-            <Text style={styles.detailValue}>{pendingApprovalCount}</Text>
-            <Text style={styles.detailUnit}>Approval tx waiting to finalize</Text>
+          <View style={styles.metricCard}>
+            <View style={styles.metricCopy}>
+              <Text style={styles.summaryLabel}>APPROVED TOKENS</Text>
+              <Text style={styles.summaryUnit}>Successful approve events</Text>
+            </View>
+            <Text style={styles.summaryValue}>{approvedTokenCount}</Text>
+          </View>
+
+          <View style={styles.metricCard}>
+            <View style={styles.metricCopy}>
+              <Text style={styles.summaryLabel}>PENDING</Text>
+              <Text style={styles.summaryUnit}>Approval tx waiting to finalize</Text>
+            </View>
+            <Text style={styles.summaryValue}>{pendingApprovalCount}</Text>
           </View>
         </View>
 
@@ -485,7 +574,8 @@ export default function ConnectionsScreen() {
                   <View style={styles.historyTitleWrap}>
                     <Text style={styles.historyAmount}>{group.spenderLabel}</Text>
                     <Text style={styles.historyTx}>
-                      {group.siteLabel ? `${group.siteLabel} • ` : ''}{shortAddress(group.spenderAddress)}
+                      {group.siteLabel ? `${group.siteLabel} • ` : ''}
+                      {shortAddress(group.spenderAddress)}
                     </Text>
                   </View>
 
@@ -496,31 +586,57 @@ export default function ConnectionsScreen() {
                   </View>
                 </View>
 
-                <View style={styles.historyMetrics}>
-                  <View style={styles.historyMetricCard}>
+                <View style={styles.historyMetaRow}>
+                  <View style={styles.historyMetaPrimary}>
                     <Text style={styles.historyMetricLabel}>LATEST</Text>
                     <Text style={styles.historyMetricPrimary}>{formatTime(group.latestTimestamp)}</Text>
-                    <Text style={styles.historyMetricSecondary}>
-                      {group.description || 'Most recent approval in wallet history'}
-                    </Text>
                   </View>
 
-                  <View style={styles.historyMetricCard}>
-                    <Text style={styles.historyMetricLabel}>STATS</Text>
-                    <Text style={styles.historyMetricPrimary}>
-                      {group.successfulCount} / {group.pendingCount} / {group.failedCount}
-                    </Text>
-                    <Text style={styles.historyMetricSecondary}>Success / pending / failed</Text>
+                  <View style={styles.historyStatsInline}>
+                    <View style={[styles.inlineStatPill, styles.inlineStatPillSuccess]}>
+                      <Text style={[styles.inlineStatValue, styles.inlineStatValueSuccess]}>
+                        {group.successfulCount}
+                      </Text>
+                      <Text style={styles.inlineStatLabel}>ok</Text>
+                    </View>
+                    <View style={[styles.inlineStatPill, styles.inlineStatPillPending]}>
+                      <Text style={[styles.inlineStatValue, styles.inlineStatValuePending]}>
+                        {group.pendingCount}
+                      </Text>
+                      <Text style={styles.inlineStatLabel}>wait</Text>
+                    </View>
+                    <View style={[styles.inlineStatPill, styles.inlineStatPillFailed]}>
+                      <Text style={[styles.inlineStatValue, styles.inlineStatValueFailed]}>
+                        {group.failedCount}
+                      </Text>
+                      <Text style={styles.inlineStatLabel}>fail</Text>
+                    </View>
                   </View>
                 </View>
+
+                <Text style={styles.historyDescription}>
+                  {group.description || 'Most recent approval in wallet history'}
+                </Text>
 
                 <View style={styles.approvalRows}>
                   {group.approvals.slice(0, 3).map((item) => (
                     <View key={`${item.txHash}-${item.tokenSymbol}`} style={styles.approvalRow}>
-                      <Text style={styles.approvalToken}>
-                        {item.tokenSymbol} • {item.amountFormatted}
+                      <View style={styles.approvalTokenWrap}>
+                        <Text style={styles.approvalToken}>{item.tokenSymbol}</Text>
+                        <Text style={styles.approvalAmount}>{item.amountFormatted}</Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.approvalMeta,
+                          item.status === 'success'
+                            ? styles.approvalMetaSuccess
+                            : item.status === 'pending'
+                              ? styles.approvalMetaPending
+                              : styles.approvalMetaFailed,
+                        ]}
+                      >
+                        {item.status.toUpperCase()}
                       </Text>
-                      <Text style={styles.approvalMeta}>{item.status.toUpperCase()}</Text>
                     </View>
                   ))}
                 </View>
@@ -593,8 +709,9 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceSoft,
-    padding: 14,
-    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
     marginBottom: 16,
   },
 
@@ -604,7 +721,7 @@ const styles = StyleSheet.create({
 
   infoText: {
     ...ui.body,
-    lineHeight: 24,
+    lineHeight: 25,
   },
 
   selectionBlock: {
@@ -668,20 +785,27 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
-  summaryRow: {
-    flexDirection: 'row',
+  metricsStack: {
     gap: 12,
     marginBottom: 16,
   },
 
-  summaryCard: {
-    flex: 1,
+  metricCard: {
+    minHeight: 84,
     borderWidth: 1,
     borderColor: colors.line,
     borderRadius: radius.md,
     backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 16,
     paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+
+  metricCopy: {
+    flex: 1,
     gap: 6,
   },
 
@@ -695,57 +819,19 @@ const styles = StyleSheet.create({
   },
 
   summaryValue: {
-    color: colors.white,
-    fontSize: 25,
-    lineHeight: 30,
+    minWidth: 32,
+    color: colors.accent,
+    fontSize: 34,
+    lineHeight: 34,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
 
   summaryUnit: {
     color: colors.textSoft,
     fontSize: 12,
     lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-  },
-
-  detailGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
-  },
-
-  detailCard: {
-    width: '48%',
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: radius.md,
-    backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 6,
-  },
-
-  detailLabel: {
-    color: colors.textDim,
-    fontSize: 10,
-    lineHeight: 13,
-    fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-
-  detailValue: {
-    color: colors.white,
-    fontSize: 16,
-    lineHeight: 20,
-    fontFamily: 'Sora_700Bold',
-  },
-
-  detailUnit: {
-    color: colors.textSoft,
-    fontSize: 11,
-    lineHeight: 15,
     fontFamily: 'Sora_600SemiBold',
   },
 
@@ -841,12 +927,15 @@ const styles = StyleSheet.create({
   },
 
   statusPill: {
-    borderRadius: radius.pill,
+    minHeight: 30,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: withAlpha(colors.accent, 0.28),
     backgroundColor: withAlpha(colors.accent, 0.12),
     paddingHorizontal: 10,
     paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   statusPillText: {
@@ -857,19 +946,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.35,
   },
 
-  historyMetrics: {
+  historyMetaRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     gap: 10,
   },
 
-  historyMetricCard: {
+  historyMetaPrimary: {
     flex: 1,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
     gap: 4,
   },
 
@@ -889,15 +974,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
   },
 
-  historyMetricSecondary: {
+  historyDescription: {
     color: colors.textDim,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 17,
     fontFamily: 'Sora_600SemiBold',
   },
 
   approvalRows: {
-    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
   },
 
   approvalRow: {
@@ -905,25 +991,109 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 12,
+    minHeight: 44,
     paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lineSoft,
+  },
+
+  approvalTokenWrap: {
+    flex: 1,
+    gap: 2,
   },
 
   approvalToken: {
-    ...ui.bodyStrong,
-    flex: 1,
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 17,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  approvalAmount: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
   },
 
   approvalMeta: {
-    color: colors.textDim,
     fontSize: 11,
     lineHeight: 15,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.35,
+  },
+
+  approvalMetaSuccess: {
+    color: colors.green,
+  },
+
+  approvalMetaPending: {
+    color: colors.accent,
+  },
+
+  approvalMetaFailed: {
+    color: colors.red,
+  },
+
+  historyStatsInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+
+  inlineStatPill: {
+    minHeight: 30,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+
+  inlineStatPillSuccess: {
+    borderColor: withAlpha(colors.green, 0.28),
+    backgroundColor: withAlpha(colors.green, 0.1),
+  },
+
+  inlineStatPillPending: {
+    borderColor: withAlpha(colors.accent, 0.28),
+    backgroundColor: withAlpha(colors.accent, 0.1),
+  },
+
+  inlineStatPillFailed: {
+    borderColor: withAlpha(colors.red, 0.24),
+    backgroundColor: withAlpha(colors.red, 0.1),
+  },
+
+  inlineStatValue: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  inlineStatValueSuccess: {
+    color: colors.green,
+  },
+
+  inlineStatValuePending: {
+    color: colors.accent,
+  },
+
+  inlineStatValueFailed: {
+    color: colors.red,
+  },
+
+  inlineStatLabel: {
+    color: colors.textDim,
+    fontSize: 10,
+    lineHeight: 12,
+    fontFamily: 'Sora_700Bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.28,
   },
 
   cardActions: {

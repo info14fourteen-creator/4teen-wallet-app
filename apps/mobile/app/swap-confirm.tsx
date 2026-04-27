@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,15 +14,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
 import ScreenBrow from '../src/ui/screen-brow';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
+import ApprovalAuthModal from '../src/ui/approval-auth-modal';
 import EnergyResaleCard from '../src/ui/energy-resale-card';
 import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
-import NumericKeypad from '../src/ui/numeric-keypad';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import { goBackOrReplace } from '../src/ui/safe-back';
 import { colors, layout, radius } from '../src/theme/tokens';
-import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import {
   TRX_TOKEN_ID,
@@ -55,8 +55,6 @@ import {
   getAvailableResource,
   normalizeResourceAmount,
 } from '../src/services/wallet/resources';
-
-import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 
 function decimalToRaw(amount: string, decimals: number) {
   const safe = String(amount || '').replace(',', '.').trim();
@@ -126,6 +124,7 @@ export default function SwapConfirmScreen() {
   const [review, setReview] = useState<FourteenSwapReview | null>(null);
   const [errorText, setErrorText] = useState('');
   const [passcodeOpen, setPasscodeOpen] = useState(false);
+  const [passcodeEntryOpen, setPasscodeEntryOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
@@ -137,6 +136,7 @@ export default function SwapConfirmScreen() {
   const [pendingApprovalMode, setPendingApprovalMode] = useState<'swap' | 'rent'>('swap');
   const routeChangedNoticeShownRef = useRef(false);
   const preserveNoticeOnExitRef = useRef(false);
+  const canUseBiometrics = biometricAvailable && biometricsEnabled;
 
   useChromeLoading(loading || refreshing);
 
@@ -429,6 +429,8 @@ export default function SwapConfirmScreen() {
         3000
       );
       router.replace('/wallet');
+      setPasscodeEntryOpen(false);
+      setPasscodeOpen(false);
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(error instanceof Error ? error.message : 'Swap failed.', 3200);
@@ -474,66 +476,24 @@ export default function SwapConfirmScreen() {
   const handleApprove = useCallback(async () => {
     if (!review || submitting) return;
     setPendingApprovalMode('swap');
-
-    if (biometricAvailable && biometricsEnabled) {
-      try {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Confirm Swap',
-          fallbackLabel: 'Use Passcode',
-          cancelLabel: 'Cancel',
-        });
-
-        if (result.success) {
-          await performSwap();
-          return;
-        }
-
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeEntryOpen(!canUseBiometrics);
     setPasscodeOpen(true);
-  }, [biometricAvailable, biometricsEnabled, performSwap, review, submitting]);
+  }, [canUseBiometrics, review, submitting]);
 
   const handleRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || submitting || energyRenting) return;
 
     setPendingApprovalMode('rent');
-
-    if (biometricAvailable && biometricsEnabled) {
-      try {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Confirm Energy Rental',
-          fallbackLabel: 'Use Passcode',
-          cancelLabel: 'Cancel',
-        });
-
-        if (result.success) {
-          const rented = await performRentEnergy();
-          if (rented) {
-            await performSwap();
-          }
-          return;
-        }
-
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeEntryOpen(!canUseBiometrics);
     setPasscodeOpen(true);
   }, [
-    biometricAvailable,
-    biometricsEnabled,
+    canUseBiometrics,
     energyQuote,
     energyRenting,
-    performRentEnergy,
-    performSwap,
     review,
     submitting,
   ]);
@@ -543,7 +503,7 @@ export default function SwapConfirmScreen() {
     preserveNoticeOnExitRef.current = true;
     await clearFourteenSwapDraft();
     notice.showNeutralNotice('Swap rejected by user.', 2200);
-    router.back();
+    goBackOrReplace(router, { fallback: '/swap' });
   }, [notice, router, submitting]);
 
   const handlePasscodeDigitPress = useCallback((digit: string) => {
@@ -558,6 +518,61 @@ export default function SwapConfirmScreen() {
     setPasscodeDigits((prev) => prev.slice(0, -1));
   }, [submitting]);
 
+  const closeApprovalAuth = useCallback(() => {
+    setPasscodeOpen(false);
+    setPasscodeEntryOpen(false);
+    setPasscodeDigits('');
+    setPasscodeError('');
+  }, []);
+
+  const openPasscodeEntry = useCallback(() => {
+    setPasscodeError('');
+    setPasscodeDigits('');
+    setPasscodeEntryOpen(true);
+  }, []);
+
+  const closePasscodeEntry = useCallback(() => {
+    if (canUseBiometrics) {
+      setPasscodeDigits('');
+      setPasscodeError('');
+      setPasscodeEntryOpen(false);
+      return;
+    }
+
+    closeApprovalAuth();
+  }, [canUseBiometrics, closeApprovalAuth]);
+
+  const handleBiometricApproval = useCallback(async () => {
+    if (!canUseBiometrics) {
+      openPasscodeEntry();
+      return;
+    }
+
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: pendingApprovalMode === 'rent' ? 'Confirm Energy Rental' : 'Confirm Swap',
+        fallbackLabel: 'Use Passcode',
+        cancelLabel: 'Cancel',
+      });
+
+      if (!result.success) {
+        return;
+      }
+
+      if (pendingApprovalMode === 'rent') {
+        const rented = await performRentEnergy();
+        if (rented) {
+          await performSwap();
+        }
+        return;
+      }
+
+      await performSwap();
+    } catch (error) {
+      console.error(error);
+    }
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performSwap]);
+
   if (loading && !review) {
     return <ScreenLoadingState label="Loading swap confirmation..." />;
   }
@@ -565,6 +580,7 @@ export default function SwapConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -775,83 +791,23 @@ export default function SwapConfirmScreen() {
           )}
         </ScrollView>
 
-        <Modal
+        <ApprovalAuthModal
           visible={passcodeOpen}
-          animationType="fade"
-          presentationStyle="fullScreen"
-          transparent={false}
-          onRequestClose={() => {
-            setPasscodeOpen(false);
-            setPasscodeDigits('');
-            setPasscodeError('');
-          }}
-          statusBarTranslucent
-        >
-          <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
-            <View style={styles.authOverlay}>
-              <View style={styles.authScreen}>
-                <View style={styles.authContent}>
-                  <Text style={ui.eyebrow}>SWAP</Text>
-
-                  <Text style={styles.authTitle}>
-                    Confirm with <Text style={styles.authTitleAccent}>Passcode</Text>
-                  </Text>
-
-                  <Text style={styles.authLead}>
-                    Authorize this swap with your 6-digit passcode
-                    {biometricAvailable && biometricsEnabled
-                      ? ` or ${biometricLabel === 'Face ID' ? 'face unlock' : 'fingerprint'}`
-                      : ''}.
-                  </Text>
-
-                  <View style={styles.authCard}>
-                    <View style={styles.authCardHeaderRow}>
-                      <Text style={ui.sectionEyebrow}>Approve</Text>
-                      <Text style={styles.authCardErrorText} numberOfLines={1}>
-                        {passcodeError || ' '}
-                      </Text>
-                    </View>
-
-                    <View style={styles.dotsRow}>
-                      {Array.from({ length: 6 }, (_, index) => (
-                        <View
-                          key={index}
-                          style={[styles.dot, passcodeDigits.length > index && styles.dotFilled]}
-                        />
-                      ))}
-                    </View>
-                  </View>
-
-                  <NumericKeypad
-                    onDigitPress={handlePasscodeDigitPress}
-                    onBackspacePress={handlePasscodeBackspace}
-                    leftSlot={
-                      biometricAvailable && biometricsEnabled ? (
-                        <TouchableOpacity activeOpacity={0.9} onPress={() => void handleApprove()}>
-                          <BioLoginIcon width={22} height={22} />
-                        </TouchableOpacity>
-                      ) : null
-                    }
-                    backspaceIcon={<BackspaceIcon width={22} height={22} />}
-                  />
-
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    style={styles.authCancelButton}
-                    onPress={() => {
-                      setPasscodeOpen(false);
-                      setPasscodeDigits('');
-                      setPasscodeError('');
-                    }}
-                    disabled={submitting}
-                  >
-                    <Text style={styles.authCancelButtonText}>CANCEL</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </SafeAreaView>
-        </Modal>
+          eyebrow="SWAP"
+          actionLabel={pendingApprovalMode === 'rent' ? 'Energy rental and swap' : 'swap'}
+          passcodeError={passcodeError}
+          digitsLength={passcodeDigits.length}
+          canUseBiometrics={canUseBiometrics}
+          biometricLabel={biometricLabel}
+          passcodeEntryOpen={passcodeEntryOpen}
+          submitting={submitting || energyRenting}
+          onRequestClose={closeApprovalAuth}
+          onOpenPasscode={openPasscodeEntry}
+          onClosePasscode={closePasscodeEntry}
+          onDigitPress={handlePasscodeDigitPress}
+          onBackspacePress={handlePasscodeBackspace}
+          onBiometricPress={() => void handleBiometricApproval()}
+        />
       </View>
     </SafeAreaView>
   );

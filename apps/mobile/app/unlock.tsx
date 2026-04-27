@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 
@@ -44,9 +44,11 @@ export default function UnlockScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    void loadBiometricsState();
-  }, [loadBiometricsState]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadBiometricsState();
+    }, [loadBiometricsState])
+  );
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || passcodeDigits.length !== 6) return;
@@ -145,6 +147,13 @@ export default function UnlockScreen() {
     setPasscodeError('');
   }, [submitting]);
 
+  const handleOpenPasscode = useCallback(() => {
+    if (submitting) return;
+    setPasscodeError('');
+    setPasscodeDigits('');
+    setPasscodeOpen(true);
+  }, [submitting]);
+
   const canUseBiometrics = biometricAvailable && biometricsEnabled;
 
   const biometricMethodText =
@@ -219,16 +228,36 @@ export default function UnlockScreen() {
               </TouchableOpacity>
             </>
           ) : (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={styles.unlockButton}
-              onPress={() => void requestBiometricUnlock(true)}
-              disabled={submitting}
-            >
-              <Text style={styles.unlockButtonText}>
-                {canUseBiometrics ? `USE ${biometricsLabel.toUpperCase()}` : 'ENTER PASSCODE'}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.actionStack}>
+              {canUseBiometrics ? (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.unlockButton}
+                  onPress={() => void requestBiometricUnlock(true)}
+                  disabled={submitting}
+                >
+                  <Text style={styles.unlockButtonText}>
+                    {`USE ${biometricsLabel.toUpperCase()}`}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={[styles.passcodeButton, !canUseBiometrics && styles.passcodeButtonPrimary]}
+                onPress={handleOpenPasscode}
+                disabled={submitting}
+              >
+                <Text
+                  style={[
+                    styles.passcodeButtonText,
+                    !canUseBiometrics && styles.passcodeButtonTextPrimary,
+                  ]}
+                >
+                  ENTER PASSCODE
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </View>
@@ -330,6 +359,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  actionStack: {
+    gap: 12,
+  },
+
   unlockButton: {
     minHeight: 54,
     borderRadius: radius.sm,
@@ -344,6 +377,33 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.4,
+  },
+
+  passcodeButton: {
+    minHeight: 54,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  passcodeButtonPrimary: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+
+  passcodeButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.4,
+  },
+
+  passcodeButtonTextPrimary: {
+    color: colors.white,
   },
 
   authCancelButton: {

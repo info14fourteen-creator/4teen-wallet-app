@@ -36,7 +36,7 @@ export const APP_SEARCH_ROUTES: SearchRouteEntry[] = [
   },
   {
     id: 'route-buy-4teen',
-    route: '/buy-4teen',
+    route: '/buy',
     title: 'Buy 4TEEN',
     subtitle: 'Open the direct buy flow',
     keywords: ['buy 4teen', 'buy', 'purchase', 'direct buy'],

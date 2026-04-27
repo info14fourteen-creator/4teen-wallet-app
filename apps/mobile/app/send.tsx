@@ -1498,7 +1498,7 @@ const styles = StyleSheet.create({
   },
 
   inputShell: {
-    minHeight: 54,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     borderWidth: 1,
     flexDirection: 'row',
@@ -1563,7 +1563,7 @@ const styles = StyleSheet.create({
 
   inputWithIcons: {
     flex: 1,
-    minHeight: 52,
+    minHeight: layout.fieldHeight,
     color: colors.white,
     fontFamily: 'Sora_600SemiBold',
     paddingRight: 12,

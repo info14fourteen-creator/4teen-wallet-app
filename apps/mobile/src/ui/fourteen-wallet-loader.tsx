@@ -165,6 +165,7 @@ export default function FourteenWalletLoader({
   size = 28,
 }: FourteenWalletLoaderProps) {
   const [mounted, setMounted] = useState(active);
+  const mountedRef = useRef(active);
   const stateRef = useRef(createLoaderState());
   const exitSnapshotRef = useRef<ExitSnapshot>({
     captured: false,
@@ -179,6 +180,10 @@ export default function FourteenWalletLoader({
   const lastNowRef = useRef(nowMs());
   const rafRef = useRef<number | null>(null);
   const [visual, setVisual] = useState<VisualState>(() => captureVisual(stateRef.current));
+
+  useEffect(() => {
+    mountedRef.current = mounted;
+  }, [mounted]);
 
   useEffect(() => {
     if (active) {
@@ -199,7 +204,7 @@ export default function FourteenWalletLoader({
       return;
     }
 
-    if (!mounted) return;
+    if (!mountedRef.current) return;
 
     exitSnapshotRef.current = {
       captured: true,
@@ -212,7 +217,7 @@ export default function FourteenWalletLoader({
     };
     phaseRef.current = { kind: 'exit', startAt: nowMs() };
     lastNowRef.current = nowMs();
-  }, [active, mounted]);
+  }, [active]);
 
   useEffect(() => {
     if (!mounted) return;

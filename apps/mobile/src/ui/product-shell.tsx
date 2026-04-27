@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, layout, radius } from '../theme/tokens';
 import { ui } from '../theme/ui';
+import InfoToggleIcon from './info-toggle-icon';
 import KeyboardView from './KeyboardView';
 import ScreenBrow from './screen-brow';
 import ScreenLoadingOverlay from './screen-loading-overlay';
@@ -28,6 +29,10 @@ export function ProductScreen({
   keyboardAware = false,
   keyboardExtraScrollHeight = 42,
   loadingOverlayVisible = false,
+  headerInfo,
+  browLabelPress,
+  browLabelAccessory,
+  browLabelAccessoryAnimation,
 }: {
   eyebrow: string;
   browVariant?: 'plain' | 'back' | 'backLink';
@@ -37,14 +42,34 @@ export function ProductScreen({
   keyboardAware?: boolean;
   keyboardExtraScrollHeight?: number;
   loadingOverlayVisible?: boolean;
+  headerInfo?: {
+    title: string;
+    text: string;
+    expanded: boolean;
+    onToggle: () => void;
+  };
+  browLabelPress?: () => void;
+  browLabelAccessory?: ReactNode;
+  browLabelAccessoryAnimation?: {
+    source: object | number;
+    frames: [number, number];
+    staticFrame?: number;
+    progress?: number;
+    size?: number;
+    speed?: number;
+    style?: object;
+    colorFilters?: { keypath: string; color: string }[];
+  };
 }) {
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset(bottomInsetExtra);
+  const refreshOverlayVisible = Boolean(refreshControl?.props?.refreshing);
+  const overlayVisible = loadingOverlayVisible || refreshOverlayVisible;
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={loadingOverlayVisible} />
+        <ScreenLoadingOverlay visible={overlayVisible} />
         {keyboardAware ? (
           <KeyboardView
             style={styles.scroll}
@@ -57,7 +82,22 @@ export function ProductScreen({
             bounces={Boolean(refreshControl)}
             alwaysBounceVertical={Boolean(refreshControl)}
           >
-            <ScreenBrow label={eyebrow} variant={browVariant} />
+            <ScreenBrow
+              label={eyebrow}
+              variant={browVariant}
+              onLabelPress={browLabelPress ?? headerInfo?.onToggle}
+              labelAccessory={
+                browLabelAccessory ??
+                (headerInfo ? <InfoToggleIcon expanded={headerInfo.expanded} /> : undefined)
+              }
+              labelAccessoryAnimation={browLabelAccessoryAnimation}
+            />
+            {headerInfo?.expanded ? (
+              <View style={styles.infoPanel}>
+                <Text style={styles.infoTitle}>{headerInfo.title}</Text>
+                <Text style={styles.infoText}>{headerInfo.text}</Text>
+              </View>
+            ) : null}
             {children}
           </KeyboardView>
         ) : (
@@ -74,7 +114,22 @@ export function ProductScreen({
             bounces={Boolean(refreshControl)}
             alwaysBounceVertical={Boolean(refreshControl)}
           >
-            <ScreenBrow label={eyebrow} variant={browVariant} />
+            <ScreenBrow
+              label={eyebrow}
+              variant={browVariant}
+              onLabelPress={browLabelPress ?? headerInfo?.onToggle}
+              labelAccessory={
+                browLabelAccessory ??
+                (headerInfo ? <InfoToggleIcon expanded={headerInfo.expanded} /> : undefined)
+              }
+              labelAccessoryAnimation={browLabelAccessoryAnimation}
+            />
+            {headerInfo?.expanded ? (
+              <View style={styles.infoPanel}>
+                <Text style={styles.infoTitle}>{headerInfo.title}</Text>
+                <Text style={styles.infoText}>{headerInfo.text}</Text>
+              </View>
+            ) : null}
             {children}
           </ScrollView>
         )}
@@ -288,6 +343,26 @@ const styles = StyleSheet.create({
 
   content: {
     gap: 0,
+  },
+
+  infoPanel: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
+    marginBottom: 16,
+  },
+
+  infoTitle: {
+    ...ui.bodyStrong,
+  },
+
+  infoText: {
+    ...ui.body,
+    lineHeight: 25,
   },
 
   heroCard: {

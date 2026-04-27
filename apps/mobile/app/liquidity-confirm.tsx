@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,15 +14,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
 import ScreenBrow from '../src/ui/screen-brow';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
+import ApprovalAuthModal from '../src/ui/approval-auth-modal';
 import EnergyResaleCard from '../src/ui/energy-resale-card';
 import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
-import NumericKeypad from '../src/ui/numeric-keypad';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import { goBackOrReplace } from '../src/ui/safe-back';
 import { colors, layout, radius } from '../src/theme/tokens';
-import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import { clearWalletRuntimeCaches, FOURTEEN_LOGO } from '../src/services/tron/api';
 import {
@@ -46,7 +46,6 @@ import {
   verifyPasscode,
 } from '../src/security/local-auth';
 import { useWalletSession } from '../src/wallet/wallet-session';
-import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 
 function shortAddress(address: string) {
   const safe = String(address || '').trim();
@@ -67,6 +66,7 @@ export default function LiquidityConfirmScreen() {
   const [review, setReview] = useState<LiquidityExecutionReview | null>(null);
   const [errorText, setErrorText] = useState('');
   const [passcodeOpen, setPasscodeOpen] = useState(false);
+  const [passcodeEntryOpen, setPasscodeEntryOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
@@ -77,6 +77,7 @@ export default function LiquidityConfirmScreen() {
   const [energyRenting, setEnergyRenting] = useState(false);
   const [pendingApprovalMode, setPendingApprovalMode] = useState<'execute' | 'rent'>('execute');
   const preserveNoticeOnExitRef = useRef(false);
+  const canUseBiometrics = biometricAvailable && biometricsEnabled;
   const burnWarningShownRef = useRef(false);
 
   useChromeLoading(loading || refreshing);
@@ -244,6 +245,7 @@ export default function LiquidityConfirmScreen() {
     } finally {
       setEnergyRenting(false);
       setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
       setPasscodeDigits('');
       setPasscodeError('');
     }
@@ -259,6 +261,7 @@ export default function LiquidityConfirmScreen() {
       });
 
       setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
       setPasscodeDigits('');
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
@@ -319,81 +322,27 @@ export default function LiquidityConfirmScreen() {
   const handleApprove = useCallback(async () => {
     if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
     setPendingApprovalMode('execute');
-
-    if (biometricAvailable && biometricsEnabled) {
-      try {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Confirm Liquidity',
-          fallbackLabel: 'Use Passcode',
-          cancelLabel: 'Cancel',
-        });
-
-        if (result.success) {
-          await performLiquidityExecution();
-          return;
-        }
-
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeEntryOpen(!canUseBiometrics);
     setPasscodeOpen(true);
-  }, [
-    biometricAvailable,
-    biometricsEnabled,
-    performLiquidityExecution,
-    review,
-    submitting,
-  ]);
+  }, [canUseBiometrics, review, submitting]);
 
   const handleRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || submitting || energyRenting) return;
 
     setPendingApprovalMode('rent');
-
-    if (biometricAvailable && biometricsEnabled) {
-      try {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Confirm Energy Rental',
-          fallbackLabel: 'Use Passcode',
-          cancelLabel: 'Cancel',
-        });
-
-        if (result.success) {
-          const rented = await performRentEnergy();
-          if (rented) {
-            await performLiquidityExecution();
-          }
-          return;
-        }
-
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeEntryOpen(!canUseBiometrics);
     setPasscodeOpen(true);
-  }, [
-    biometricAvailable,
-    biometricsEnabled,
-    energyQuote,
-    energyRenting,
-    performRentEnergy,
-    performLiquidityExecution,
-    review,
-    submitting,
-  ]);
+  }, [canUseBiometrics, energyQuote, energyRenting, review, submitting]);
 
   const handleReject = useCallback(() => {
     if (submitting) return;
     preserveNoticeOnExitRef.current = true;
     notice.showNeutralNotice('Liquidity execution rejected by user.', 2200);
-    router.back();
+    goBackOrReplace(router, { fallback: '/liquidity-controller' });
   }, [notice, router, submitting]);
 
   const handlePasscodeDigitPress = useCallback((digit: string) => {
@@ -408,6 +357,61 @@ export default function LiquidityConfirmScreen() {
     setPasscodeDigits((prev) => prev.slice(0, -1));
   }, [submitting]);
 
+  const closeApprovalAuth = useCallback(() => {
+    setPasscodeOpen(false);
+    setPasscodeEntryOpen(false);
+    setPasscodeDigits('');
+    setPasscodeError('');
+  }, []);
+
+  const openPasscodeEntry = useCallback(() => {
+    setPasscodeError('');
+    setPasscodeDigits('');
+    setPasscodeEntryOpen(true);
+  }, []);
+
+  const closePasscodeEntry = useCallback(() => {
+    if (canUseBiometrics) {
+      setPasscodeDigits('');
+      setPasscodeError('');
+      setPasscodeEntryOpen(false);
+      return;
+    }
+
+    closeApprovalAuth();
+  }, [canUseBiometrics, closeApprovalAuth]);
+
+  const handleBiometricApproval = useCallback(async () => {
+    if (!canUseBiometrics) {
+      openPasscodeEntry();
+      return;
+    }
+
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: pendingApprovalMode === 'rent' ? 'Confirm Energy Rental' : 'Confirm Liquidity',
+        fallbackLabel: 'Use Passcode',
+        cancelLabel: 'Cancel',
+      });
+
+      if (!result.success) {
+        return;
+      }
+
+      if (pendingApprovalMode === 'rent') {
+        const rented = await performRentEnergy();
+        if (rented) {
+          await performLiquidityExecution();
+        }
+        return;
+      }
+
+      await performLiquidityExecution();
+    } catch (error) {
+      console.error(error);
+    }
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performLiquidityExecution, performRentEnergy]);
+
   if (loading && !review) {
     return <ScreenLoadingState label="Building liquidity confirmation" />;
   }
@@ -415,6 +419,7 @@ export default function LiquidityConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -590,83 +595,23 @@ export default function LiquidityConfirmScreen() {
           )}
         </ScrollView>
 
-        <Modal
+        <ApprovalAuthModal
           visible={passcodeOpen}
-          animationType="fade"
-          presentationStyle="fullScreen"
-          transparent={false}
-          onRequestClose={() => {
-            setPasscodeOpen(false);
-            setPasscodeDigits('');
-            setPasscodeError('');
-          }}
-          statusBarTranslucent
-        >
-          <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
-            <View style={styles.authOverlay}>
-              <View style={styles.authScreen}>
-                <View style={styles.authContent}>
-                  <Text style={ui.eyebrow}>LIQUIDITY</Text>
-
-                  <Text style={styles.authTitle}>
-                    Confirm with <Text style={styles.authTitleAccent}>Passcode</Text>
-                  </Text>
-
-                  <Text style={styles.authLead}>
-                    Authorize this liquidity execution with your 6-digit passcode
-                    {biometricAvailable && biometricsEnabled
-                      ? ` or ${biometricLabel === 'Face ID' ? 'face unlock' : 'fingerprint'}`
-                      : ''}.
-                  </Text>
-
-                  <View style={styles.authCard}>
-                    <View style={styles.authCardHeaderRow}>
-                      <Text style={ui.sectionEyebrow}>Approve</Text>
-                      <Text style={styles.authCardErrorText} numberOfLines={1}>
-                        {passcodeError || ' '}
-                      </Text>
-                    </View>
-
-                    <View style={styles.dotsRow}>
-                      {Array.from({ length: 6 }, (_, index) => (
-                        <View
-                          key={index}
-                          style={[styles.dot, passcodeDigits.length > index && styles.dotFilled]}
-                        />
-                      ))}
-                    </View>
-                  </View>
-
-                  <NumericKeypad
-                    onDigitPress={handlePasscodeDigitPress}
-                    onBackspacePress={handlePasscodeBackspace}
-                    leftSlot={
-                      biometricAvailable && biometricsEnabled ? (
-                        <TouchableOpacity activeOpacity={0.9} onPress={() => void handleApprove()}>
-                          <BioLoginIcon width={22} height={22} />
-                        </TouchableOpacity>
-                      ) : null
-                    }
-                    backspaceIcon={<BackspaceIcon width={22} height={22} />}
-                  />
-
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    style={styles.authCancelButton}
-                    onPress={() => {
-                      setPasscodeOpen(false);
-                      setPasscodeDigits('');
-                      setPasscodeError('');
-                    }}
-                    disabled={submitting}
-                  >
-                    <Text style={styles.authCancelButtonText}>CANCEL</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </SafeAreaView>
-        </Modal>
+          eyebrow="LIQUIDITY"
+          actionLabel={pendingApprovalMode === 'rent' ? 'Energy rental and liquidity execution' : 'liquidity execution'}
+          passcodeError={passcodeError}
+          digitsLength={passcodeDigits.length}
+          canUseBiometrics={canUseBiometrics}
+          biometricLabel={biometricLabel}
+          passcodeEntryOpen={passcodeEntryOpen}
+          submitting={submitting || energyRenting}
+          onRequestClose={closeApprovalAuth}
+          onOpenPasscode={openPasscodeEntry}
+          onClosePasscode={closePasscodeEntry}
+          onDigitPress={handlePasscodeDigitPress}
+          onBackspacePress={handlePasscodeBackspace}
+          onBiometricPress={() => void handleBiometricApproval()}
+        />
       </View>
     </SafeAreaView>
   );

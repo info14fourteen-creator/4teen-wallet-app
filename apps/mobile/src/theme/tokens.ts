@@ -47,6 +47,7 @@ export const layout = {
   screenPaddingX: 20,
   topOffset: 18,
   bottomOffset: 18,
+  fieldHeight: 56,
   buttonGap: 12,
   buttonHeight: 56,
 };

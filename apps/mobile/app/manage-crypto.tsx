@@ -16,6 +16,7 @@ import { ProductScreen } from '../src/ui/product-shell';
 
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
+import { useWalletSession } from '../src/wallet/wallet-session';
 import {
   buildWalletHomeVisibleTokensStorageKey,
   getActiveWallet,
@@ -42,6 +43,7 @@ const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
   FOURTEEN_CONTRACT,
   USDT_CONTRACT,
 ] as const;
+const HISTORY_FALLBACK_TOKEN_DETAIL_PARALLELISM = 2;
 
 function mapCustomTokenToAsset(item: CustomTokenCatalogItem): PortfolioAsset {
   return {
@@ -78,6 +80,30 @@ function sortAssetsByName(items: PortfolioAsset[]) {
       sensitivity: 'base',
     })
   );
+}
+
+async function mapWithConcurrencyLimit<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const safeLimit = Math.max(1, Math.floor(limit));
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < items.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(safeLimit, items.length) }, () => worker())
+  );
+
+  return results;
 }
 
 async function buildManageFallbackAsset(
@@ -130,6 +156,7 @@ async function buildManageFallbackAsset(
 export default function ManageCryptoScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { triggerWalletDataRefresh } = useWalletSession();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -214,8 +241,10 @@ export default function ManageCryptoScreen() {
           (tokenId) => tokenId && !existingIds.has(tokenId)
         );
 
-        const historyAssets = await Promise.all(
-          missingHistoryIds.map(async (tokenId) => {
+        const historyAssets = await mapWithConcurrencyLimit(
+          missingHistoryIds,
+          HISTORY_FALLBACK_TOKEN_DETAIL_PARALLELISM,
+          async (tokenId) => {
             try {
               const details = await getTokenDetails(activeWallet.address, tokenId, force);
               return {
@@ -235,7 +264,7 @@ export default function ManageCryptoScreen() {
             } catch {
               return null;
             }
-          })
+          }
         );
 
         nextAssets.push(
@@ -336,12 +365,13 @@ export default function ManageCryptoScreen() {
           buildWalletHomeVisibleTokensStorageKey(activeWallet.id),
           JSON.stringify(nextIds)
         );
+        triggerWalletDataRefresh();
       } catch (error) {
         console.error(error);
         notice.showErrorNotice('Failed to update visible assets.', 2200);
       }
     },
-    [notice]
+    [notice, triggerWalletDataRefresh]
   );
 
   const allAssets = useMemo(() => {

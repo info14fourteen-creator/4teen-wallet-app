@@ -134,10 +134,6 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
     setNavigationIntroKey((current) => current + 1);
   }, []);
 
-  const triggerWalletDataRefresh = useCallback(() => {
-    setWalletDataRefreshKey((current) => current + 1);
-  }, []);
-
   const consumeNavigationIntro = useCallback(() => {
     return;
   }, []);
@@ -246,6 +242,11 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
       }
     }
   }, []);
+
+  const triggerWalletDataRefresh = useCallback(() => {
+    setWalletDataRefreshKey((current) => current + 1);
+    void syncWalletSession();
+  }, [syncWalletSession]);
 
   useEffect(() => {
     void syncWalletSession();

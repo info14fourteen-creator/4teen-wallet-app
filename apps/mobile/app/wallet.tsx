@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
+  Animated,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
@@ -26,6 +27,7 @@ import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import LottieIcon from '../src/ui/lottie-icon';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -71,26 +73,35 @@ import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
 
 import {
-  AddWalletIcon,
   AssetsIcon,
-  AzSortIcon,
   BrowserRefreshIcon,
   ConfirmIcon,
-  CopyIcon,
   DeclineIcon,
-  FullAccessIcon,
   HistoryIcon,
-  ManageFullIcon,
-  ManageNewIcon,
   MoreIcon,
   OpenRightIcon,
-  QrIcon,
   ReceiveIcon,
   SendIcon,
   ShareIcon,
-  ValueSortIcon,
   WatchOnlyIcon,
 } from '../src/ui/ui-icons';
+import AzSortButtonSvg from '../assets/icons/ui/az_sort_btn.svg';
+import CopyWalletSvg from '../assets/icons/ui/copy_btn.svg';
+import ValueSortButtonSvg from '../assets/icons/ui/value_sort_btn.svg';
+
+const BROW_WALLET_ASSET_VIEW_SOURCE = require('../assets/icons/ui/brow_wallet_asset_view.json');
+const BROW_WALLET_ACCESS_SOURCE = require('../assets/icons/ui/brow_wallet_access_wallet.json');
+const WALLET_RESOURCES_BATTERY_SOURCE = require('../assets/icons/ui/wallet_resources_battery.json');
+const WALLET_CARD_QR_SOURCE = require('../assets/icons/ui/wallet_card_qr.json');
+const WALLET_ACTION_RECEIVE_SOURCE = require('../assets/icons/ui/wallet_action_receive.json');
+const WALLET_ACTION_SEND_SOURCE = require('../assets/icons/ui/wallet_action_send.json');
+const WALLET_ACTION_HISTORY_TO_ASSETS_SOURCE = require('../assets/icons/ui/wallet_action_history_to_assets.json');
+const WALLET_ACTION_ASSETS_TO_HISTORY_SOURCE = require('../assets/icons/ui/wallet_action_assets_to_history.json');
+const WALLET_ACTION_MORE_TO_ASSETS_SOURCE = require('../assets/icons/ui/wallet_action_more_to_assets.json');
+const WALLET_ACTION_ASSETS_TO_MORE_SOURCE = require('../assets/icons/ui/wallet_action_assets_to_more.json');
+const WALLET_ACTION_MANAGE_CRYPTO_WHITE_SOURCE = require('../assets/icons/ui/wallet_action_manage_crypto_white.json');
+const WALLET_ACTION_MANAGE_CRYPTO_ORANGE_SOURCE = require('../assets/icons/ui/wallet_action_manage_crypto_orange.json');
+const WALLET_ACTION_ASSET_CROSS_SOURCE = require('../assets/icons/ui/wallet_action_asset_cross.json');
 
 const ASSET_SKELETON_ROWS = 4;
 const HISTORY_SKELETON_ROWS = 4;
@@ -521,6 +532,7 @@ export default function HomeScreen() {
   const currentCardIndexRef = useRef(0);
   const currentPagerIndexRef = useRef(0);
   const walletCardsRef = useRef<WalletPortfolioAggregate['items']>([]);
+  const walletCardsLengthRef = useRef(0);
   const activeWalletIdRef = useRef<string | null>(null);
   const consumedWalletRouteSelectionRef = useRef<string | null>(null);
   const programmaticWalletSelectionRef = useRef<string | null>(null);
@@ -528,6 +540,9 @@ export default function HomeScreen() {
   const walletCardDragActiveRef = useRef(false);
   const suppressNextWalletRefreshForIdRef = useRef<string | null>(null);
   const walletViewRequestIdRef = useRef(0);
+  const resourceLoadingWalletIdRef = useRef<string | null>(null);
+  const copyIconScale = useRef(new Animated.Value(1)).current;
+  const assetSortIconScale = useRef(new Animated.Value(1)).current;
 
   const [qrVisible, setQrVisible] = useState(false);
   const [qrWallet, setQrWallet] = useState<WalletMeta | null>(null);
@@ -546,6 +561,25 @@ export default function HomeScreen() {
   const [resourceExpandedWalletId, setResourceExpandedWalletId] = useState<string | null>(null);
   const [resourceLoadingWalletId, setResourceLoadingWalletId] = useState<string | null>(null);
   const [resourceCache, setResourceCache] = useState<Record<string, WalletAccountResources>>({});
+  const [resourceBatteryAnimatingWalletId, setResourceBatteryAnimatingWalletId] = useState<string | null>(null);
+  const [resourceBatteryPlayToken, setResourceBatteryPlayToken] = useState(0);
+  const [resourceBatteryFrames, setResourceBatteryFrames] = useState<[number, number]>([0, 89]);
+  const [qrAnimatingWalletId, setQrAnimatingWalletId] = useState<string | null>(null);
+  const [qrPlayToken, setQrPlayToken] = useState(0);
+  const [receiveAnimating, setReceiveAnimating] = useState(false);
+  const [receivePlayToken, setReceivePlayToken] = useState(0);
+  const [sendAnimating, setSendAnimating] = useState(false);
+  const [sendPlayToken, setSendPlayToken] = useState(0);
+  const [historyAnimating, setHistoryAnimating] = useState(false);
+  const [historyPlayToken, setHistoryPlayToken] = useState(0);
+  const [historyAnimationSource, setHistoryAnimationSource] = useState(WALLET_ACTION_HISTORY_TO_ASSETS_SOURCE);
+  const [historyAnimationFrames, setHistoryAnimationFrames] = useState<[number, number]>([0, 59]);
+  const [moreAnimating, setMoreAnimating] = useState(false);
+  const [morePlayToken, setMorePlayToken] = useState(0);
+  const [moreAnimationSource, setMoreAnimationSource] = useState(WALLET_ACTION_MORE_TO_ASSETS_SOURCE);
+  const [moreAnimationFrames, setMoreAnimationFrames] = useState<[number, number]>([0, 59]);
+  const [manageCryptoAnimating, setManageCryptoAnimating] = useState(false);
+  const [manageCryptoPlayToken, setManageCryptoPlayToken] = useState(0);
 
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
@@ -582,7 +616,6 @@ export default function HomeScreen() {
     >
   >({});
   const [pagerReady, setPagerReady] = useState(false);
-
   const cardWidth = Math.max(width - layout.screenPaddingX * 2, 1);
   const contentBottomInset = useBottomInset();
   const requestedWalletId = useMemo(() => {
@@ -599,11 +632,14 @@ export default function HomeScreen() {
   }, [requestedWalletId, requestedWalletNonce]);
 
   const walletCards = useMemo(() => aggregate?.items ?? [], [aggregate]);
+  useEffect(() => {
+    resourceLoadingWalletIdRef.current = resourceLoadingWalletId;
+  }, [resourceLoadingWalletId]);
+
   const walletCardIdsKey = useMemo(
     () => walletCards.map((item) => item.wallet.id).join('|'),
     [walletCards]
   );
-  const walletCardLoopOffset = walletCards.length > 1 ? walletCards.length : 0;
   const pagerCards = useMemo(() => {
     if (walletCards.length <= 1) {
       return walletCards.map((item, logicalIndex) => ({
@@ -623,14 +659,15 @@ export default function HomeScreen() {
   }, [walletCards]);
   const scrollPagerToCardIndex = useCallback(
     (index: number, animated = false) => {
-      const pagerIndex = walletCards.length > 1 ? walletCardLoopOffset + index : index;
+      const walletCardsLength = walletCardsLengthRef.current;
+      const pagerIndex = walletCardsLength > 1 ? walletCardsLength + index : index;
 
       pagerRef.current?.scrollTo({
         x: pagerIndex * cardWidth,
         animated,
       });
     },
-    [cardWidth, walletCardLoopOffset, walletCards.length]
+    [cardWidth]
   );
 
   const markProgrammaticWalletScroll = useCallback((walletId?: string | null) => {
@@ -660,6 +697,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     walletCardsRef.current = walletCards;
+    walletCardsLengthRef.current = walletCards.length;
   }, [walletCards]);
 
   useEffect(() => {
@@ -1115,6 +1153,10 @@ export default function HomeScreen() {
         return;
       }
 
+      const isClosing = resourceExpandedWalletId === wallet.id;
+      setResourceBatteryAnimatingWalletId(wallet.id);
+      setResourceBatteryPlayToken((current) => current + 1);
+      setResourceBatteryFrames(isClosing ? [89, 0] : [0, 89]);
       setResourceExpandedWalletId((current) => (current === wallet.id ? null : wallet.id));
 
       if (resourceCache[wallet.id] || resourceLoadingWalletId === wallet.id) {
@@ -1138,16 +1180,30 @@ export default function HomeScreen() {
         setResourceLoadingWalletId((current) => (current === wallet.id ? null : current));
       }
     },
-    [notice, resourceCache, resourceLoadingWalletId, showWatchOnlyNotice]
+    [notice, resourceCache, resourceExpandedWalletId, resourceLoadingWalletId, showWatchOnlyNotice]
   );
 
   const handleCopyAddress = useCallback(
     async (address?: string) => {
       if (!address) return;
+      copyIconScale.stopAnimation();
+      copyIconScale.setValue(0.92);
+      Animated.sequence([
+        Animated.timing(copyIconScale, {
+          toValue: 1.06,
+          duration: 140,
+          useNativeDriver: true,
+        }),
+        Animated.timing(copyIconScale, {
+          toValue: 1,
+          duration: 140,
+          useNativeDriver: true,
+        }),
+      ]).start();
       await Clipboard.setStringAsync(address);
       notice.showSuccessNotice('Wallet address copied.', 2200);
     },
-    [notice]
+    [copyIconScale, notice]
   );
 
   const openQrModal = useCallback(
@@ -1492,12 +1548,11 @@ export default function HomeScreen() {
           ? requestedWalletId
           : undefined);
 
-      void load(preferredWalletId);
+      void loadRef.current(preferredWalletId);
 
       return undefined;
     }, [
       consumePendingWalletSelectionId,
-      load,
       requestedWalletId,
       requestedWalletSelectionKey,
     ])
@@ -1549,6 +1604,13 @@ export default function HomeScreen() {
       });
 
       setHistoryHasMoreCache((prev) => {
+        if (!(walletId in prev)) return prev;
+        const next = { ...prev };
+        delete next[walletId];
+        return next;
+      });
+
+      setHomePreferencesCache((prev) => {
         if (!(walletId in prev)) return prev;
         const next = { ...prev };
         delete next[walletId];
@@ -2046,11 +2108,6 @@ export default function HomeScreen() {
 
   const handleHomeAction = useCallback(
     async (label: string) => {
-      if (label === 'Receive') {
-        openQrModal(activeWallet);
-        return;
-      }
-
       if (activeWallet?.kind === 'watch-only' && label === 'Send') {
         const signingWallet = await ensureSigningWalletActive();
 
@@ -2060,23 +2117,52 @@ export default function HomeScreen() {
         }
       }
 
-      if (label === 'History' || label === 'Assets') {
+      if (label === 'Receive') {
+        setReceiveAnimating(true);
+        setReceivePlayToken((current) => current + 1);
+        return;
+      }
+
+      if (label === 'History') {
+        setHistoryAnimating(true);
+        setHistoryPlayToken((current) => current + 1);
+        if (contentMode === 'history') {
+          setHistoryAnimationSource(WALLET_ACTION_ASSETS_TO_HISTORY_SOURCE);
+          setHistoryAnimationFrames([0, 59]);
+        } else {
+          setHistoryAnimationSource(WALLET_ACTION_HISTORY_TO_ASSETS_SOURCE);
+          setHistoryAnimationFrames([1, 59]);
+        }
+        return;
+      }
+
+      if (label === 'Assets') {
         await handleToggleHistoryMode();
         return;
       }
 
       if (label === 'More') {
-        handleToggleMoreMode();
+        setMoreAnimating(true);
+        setMorePlayToken((current) => current + 1);
+        if (contentMode === 'more') {
+          setMoreAnimationSource(WALLET_ACTION_ASSETS_TO_MORE_SOURCE);
+          setMoreAnimationFrames([0, 59]);
+        } else {
+          setMoreAnimationSource(WALLET_ACTION_MORE_TO_ASSETS_SOURCE);
+          setMoreAnimationFrames([1, 59]);
+        }
         return;
       }
 
       if (label === 'Send') {
-        router.push('/send');
+        setSendAnimating(true);
+        setSendPlayToken((current) => current + 1);
         return;
       }
 
       if (label === 'Manage Crypto') {
-        router.push('/manage-crypto');
+        setManageCryptoAnimating(true);
+        setManageCryptoPlayToken((current) => current + 1);
         return;
       }
 
@@ -2085,10 +2171,8 @@ export default function HomeScreen() {
     [
       activeWallet,
       handleToggleHistoryMode,
-      handleToggleMoreMode,
+      contentMode,
       notice,
-      openQrModal,
-      router,
       showWatchOnlyNotice,
     ]
   );
@@ -2118,6 +2202,20 @@ export default function HomeScreen() {
   );
 
   const handleToggleAssetSort = useCallback(() => {
+    assetSortIconScale.stopAnimation();
+    assetSortIconScale.setValue(0.92);
+    Animated.sequence([
+      Animated.timing(assetSortIconScale, {
+        toValue: 1.08,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(assetSortIconScale, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
     setAssetSortMode((prev) => {
       const next = prev === 'name' ? 'value' : 'name';
       notice.showNeutralNotice(
@@ -2126,7 +2224,7 @@ export default function HomeScreen() {
       );
       return next;
     });
-  }, [notice]);
+  }, [assetSortIconScale, notice]);
 
   const handleRefreshTransfers = useCallback(async () => {
     if (!activeWallet) return;
@@ -2173,7 +2271,6 @@ export default function HomeScreen() {
     Boolean(activeWallet?.id) && historyLoadingWalletId === activeWallet?.id;
   const isActiveHistoryLoadingMore =
     Boolean(activeWallet?.id) && historyLoadingMoreWalletId === activeWallet?.id;
-
   const knownManagedTokenIds = useMemo(() => {
     const ids = new Set<string>();
 
@@ -2231,7 +2328,20 @@ export default function HomeScreen() {
             label="WALLET ASSET"
             variant="linkIcon"
             onLabelPress={handleWalletAssetPress}
-            rightIcon={<AddWalletIcon width={16} height={16} />}
+            labelAccessoryAnimation={{
+              source: BROW_WALLET_ASSET_VIEW_SOURCE,
+              frames: [0, 59],
+              staticFrame: 59,
+              size: 18,
+              speed: 1.35,
+            }}
+            rightIconAnimation={{
+              source: BROW_WALLET_ACCESS_SOURCE,
+              frames: [0, 58],
+              staticFrame: 58,
+              size: 18,
+              speed: 1.35,
+            }}
             onRightPress={() => router.push('/wallet-access')}
           />
 
@@ -2245,6 +2355,9 @@ export default function HomeScreen() {
                 showsHorizontalScrollIndicator={false}
                 bounces={false}
                 overScrollMode="never"
+                onTouchStart={() => {
+                  walletCardDragActiveRef.current = true;
+                }}
                 onScrollBeginDrag={() => {
                   walletCardDragActiveRef.current = true;
                   clearProgrammaticWalletScroll();
@@ -2303,8 +2416,49 @@ export default function HomeScreen() {
                           >
                             {isWatchOnly ? (
                               <WatchOnlyIcon width={18} height={18} />
+                            ) : resourceBatteryAnimatingWalletId === wallet.id ? (
+                              <LottieIcon
+                                key={`wallet-resource-battery-${wallet.id}-${resourceBatteryPlayToken}`}
+                                source={WALLET_RESOURCES_BATTERY_SOURCE}
+                                size={18}
+                                playToken={resourceBatteryPlayToken}
+                                frames={resourceBatteryFrames}
+                                speed={1.2}
+                                style={styles.resourcesBatteryIcon}
+                                onAnimationFinish={(isCancelled) => {
+                                  if (isCancelled) {
+                                    return;
+                                  }
+
+                                  if (
+                                    resourceLoadingWalletIdRef.current === wallet.id &&
+                                    resourceBatteryFrames[0] < resourceBatteryFrames[1]
+                                  ) {
+                                    requestAnimationFrame(() => {
+                                      if (resourceLoadingWalletIdRef.current === wallet.id) {
+                                        setResourceBatteryPlayToken((current) => current + 1);
+                                        return;
+                                      }
+
+                                      setResourceBatteryAnimatingWalletId((current) =>
+                                        current === wallet.id ? null : current
+                                      );
+                                    });
+                                    return;
+                                  }
+
+                                  setResourceBatteryAnimatingWalletId((current) =>
+                                    current === wallet.id ? null : current
+                                  );
+                                }}
+                              />
                             ) : (
-                              <FullAccessIcon width={18} height={18} />
+                              <LottieIcon
+                                source={WALLET_RESOURCES_BATTERY_SOURCE}
+                                size={18}
+                                staticFrame={0}
+                                style={styles.resourcesBatteryIcon}
+                              />
                             )}
                           </TouchableOpacity>
                         </View>
@@ -2366,7 +2520,9 @@ export default function HomeScreen() {
                             onPress={() => void handleCopyAddress(wallet.address)}
                             style={styles.iconActionButton}
                           >
-                            <CopyIcon width={18} height={18} />
+                            <Animated.View style={{ transform: [{ scale: copyIconScale }] }}>
+                              <CopyWalletSvg width={18} height={18} />
+                            </Animated.View>
                           </TouchableOpacity>
 
                           <TouchableOpacity
@@ -2380,11 +2536,36 @@ export default function HomeScreen() {
                                 return;
                               }
 
-                              openQrModal(wallet);
+                              setQrAnimatingWalletId(wallet.id);
+                              setQrPlayToken((current) => current + 1);
                             }}
                             style={styles.iconActionButton}
                           >
-                            <QrIcon width={18} height={18} />
+                            {qrAnimatingWalletId === wallet.id ? (
+                              <LottieIcon
+                                key={`wallet-card-qr-${wallet.id}-${qrPlayToken}`}
+                                source={WALLET_CARD_QR_SOURCE}
+                                size={18}
+                                playToken={qrPlayToken}
+                                frames={[0, 269]}
+                                speed={4.5}
+                                onAnimationFinish={(isCancelled) => {
+                                  setQrAnimatingWalletId((current) =>
+                                    current === wallet.id ? null : current
+                                  );
+
+                                  if (!isCancelled) {
+                                    openQrModal(wallet);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <LottieIcon
+                                source={WALLET_CARD_QR_SOURCE}
+                                size={18}
+                                staticFrame={269}
+                              />
+                            )}
                           </TouchableOpacity>
                         </View>
 
@@ -2457,19 +2638,84 @@ export default function HomeScreen() {
 
           <View style={styles.actionsRow}>
             <View style={styles.actionEdgeSlot}>
-              <ActionButton icon="send" label="Send" onPress={() => void handleHomeAction('Send')} />
+              <ActionButton
+                icon="send"
+                label="Send"
+                onPress={() => void handleHomeAction('Send')}
+                animatedSource={WALLET_ACTION_SEND_SOURCE}
+                animatedFrames={[0, 59]}
+                staticFrame={59}
+                isAnimating={sendAnimating}
+                playToken={sendPlayToken}
+                onAnimationComplete={() => {
+                  setSendAnimating(false);
+                  router.push('/send');
+                }}
+              />
             </View>
 
             <View style={styles.actionMiddleSlot}>
-              <ActionButton icon="receive" label="Receive" onPress={() => void handleHomeAction('Receive')} />
+              <ActionButton
+                icon="receive"
+                label="Receive"
+                onPress={() => void handleHomeAction('Receive')}
+                animatedSource={WALLET_ACTION_RECEIVE_SOURCE}
+                animatedFrames={[0, 59]}
+                staticFrame={59}
+                isAnimating={receiveAnimating}
+                playToken={receivePlayToken}
+                onAnimationComplete={() => {
+                  setReceiveAnimating(false);
+                  if (activeWallet) {
+                    openQrModal(activeWallet);
+                  }
+                }}
+              />
             </View>
 
             <View style={styles.actionMiddleSlot}>
-              <ActionButton icon={contentMode === 'history' ? 'assets' : 'history'} label={historyButtonLabel} onPress={() => void handleHomeAction(historyButtonLabel)} />
+              <ActionButton
+                icon={contentMode === 'history' ? 'assets' : 'history'}
+                label={historyButtonLabel}
+                onPress={() => void handleHomeAction('History')}
+                animatedSource={historyAnimationSource}
+                animatedFrames={historyAnimationFrames}
+                staticSource={
+                  contentMode === 'history'
+                    ? WALLET_ACTION_ASSET_CROSS_SOURCE
+                    : WALLET_ACTION_HISTORY_TO_ASSETS_SOURCE
+                }
+                staticFrame={contentMode === 'history' ? 59 : 1}
+                isAnimating={historyAnimating}
+                playToken={historyPlayToken}
+                onAnimationComplete={() => {
+                  setHistoryAnimating(false);
+                  void handleToggleHistoryMode();
+                }}
+              />
             </View>
 
             <View style={styles.actionEdgeSlotRight}>
-              <ActionButton icon={contentMode === 'more' ? 'assets' : 'more'} label={moreButtonLabel} onPress={() => void handleHomeAction('More')} />
+              <ActionButton
+                icon={contentMode === 'more' ? 'assets' : 'more'}
+                label={moreButtonLabel}
+                onPress={() => void handleHomeAction('More')}
+                animatedSource={moreAnimationSource}
+                animatedFrames={moreAnimationFrames}
+                staticSource={
+                  contentMode === 'more'
+                    ? WALLET_ACTION_ASSET_CROSS_SOURCE
+                    : WALLET_ACTION_MORE_TO_ASSETS_SOURCE
+                }
+                staticFrame={contentMode === 'more' ? 59 : 1}
+                isAnimating={moreAnimating}
+                playToken={morePlayToken}
+                iconSize={30}
+                onAnimationComplete={() => {
+                  setMoreAnimating(false);
+                  handleToggleMoreMode();
+                }}
+              />
             </View>
           </View>
 
@@ -2485,11 +2731,17 @@ export default function HomeScreen() {
                     style={styles.assetsHeaderLeftButton}
                     onPress={handleToggleAssetSort}
                   >
-                    {assetSortMode === 'value' ? (
-                      <ValueSortIcon width={20} height={20} />
-                    ) : (
-                      <AzSortIcon width={20} height={20} />
-                    )}
+                    <Animated.View
+                      style={{
+                        transform: [{ scale: assetSortIconScale }],
+                      }}
+                    >
+                      {assetSortMode === 'value' ? (
+                        <ValueSortButtonSvg width={20} height={20} />
+                      ) : (
+                        <AzSortButtonSvg width={20} height={20} />
+                      )}
+                    </Animated.View>
                   </TouchableOpacity>
                 </View>
 
@@ -2499,10 +2751,35 @@ export default function HomeScreen() {
                     style={styles.assetsHeaderRightButton}
                     onPress={() => void handleHomeAction('Manage Crypto')}
                   >
-                    {hasHiddenManagedTokens ? (
-                      <ManageNewIcon width={20} height={20} />
+                    {manageCryptoAnimating ? (
+                      <LottieIcon
+                        key={`manage-crypto-${hasHiddenManagedTokens ? 'orange' : 'white'}-${manageCryptoPlayToken}`}
+                        source={
+                          hasHiddenManagedTokens
+                            ? WALLET_ACTION_MANAGE_CRYPTO_ORANGE_SOURCE
+                            : WALLET_ACTION_MANAGE_CRYPTO_WHITE_SOURCE
+                        }
+                        size={20}
+                        playToken={manageCryptoPlayToken}
+                        frames={[0, 59]}
+                        speed={1.2}
+                        onAnimationFinish={(isCancelled) => {
+                          setManageCryptoAnimating(false);
+                          if (!isCancelled) {
+                            router.push('/manage-crypto');
+                          }
+                        }}
+                      />
                     ) : (
-                      <ManageFullIcon width={20} height={20} />
+                      <LottieIcon
+                        source={
+                          hasHiddenManagedTokens
+                            ? WALLET_ACTION_MANAGE_CRYPTO_ORANGE_SOURCE
+                            : WALLET_ACTION_MANAGE_CRYPTO_WHITE_SOURCE
+                        }
+                        size={20}
+                        staticFrame={0}
+                      />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -2847,19 +3124,58 @@ function ActionButton({
   icon,
   label,
   onPress,
+  animatedSource,
+  animatedFrames,
+  staticSource,
+  staticFrame,
+  isAnimating = false,
+  playToken = 0,
+  onAnimationComplete,
+  iconSize = 28,
 }: {
   icon: 'send' | 'receive' | 'history' | 'assets' | 'more';
   label: string;
   onPress: () => void;
+  animatedSource?: object | number;
+  animatedFrames?: [number, number];
+  staticSource?: object | number;
+  staticFrame?: number;
+  isAnimating?: boolean;
+  playToken?: number;
+  onAnimationComplete?: () => void;
+  iconSize?: number;
 }) {
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.actionButton} onPress={onPress}>
       <View style={styles.actionIconWrap}>
-        {icon === 'send' ? <SendIcon width={28} height={28} /> : null}
-        {icon === 'receive' ? <ReceiveIcon width={28} height={28} /> : null}
-        {icon === 'history' ? <HistoryIcon width={28} height={28} /> : null}
-        {icon === 'assets' ? <AssetsIcon width={28} height={28} /> : null}
-        {icon === 'more' ? <MoreIcon width={28} height={28} /> : null}
+        {animatedSource && animatedFrames ? (
+          isAnimating ? (
+            <LottieIcon
+              key={`action-${label}-${playToken}`}
+              source={animatedSource}
+              size={iconSize}
+              playToken={playToken}
+              frames={animatedFrames}
+              speed={1.2}
+              onAnimationFinish={(isCancelled) => {
+                if (!isCancelled) {
+                  onAnimationComplete?.();
+                }
+              }}
+            />
+          ) : (
+            <LottieIcon
+              source={staticSource ?? animatedSource}
+              size={iconSize}
+              staticFrame={staticFrame}
+            />
+          )
+        ) : null}
+        {icon === 'send' && !animatedSource ? <SendIcon width={iconSize} height={iconSize} /> : null}
+        {icon === 'receive' && !animatedSource ? <ReceiveIcon width={iconSize} height={iconSize} /> : null}
+        {icon === 'history' && !animatedSource ? <HistoryIcon width={iconSize} height={iconSize} /> : null}
+        {icon === 'assets' && !animatedSource ? <AssetsIcon width={iconSize} height={iconSize} /> : null}
+        {icon === 'more' && !animatedSource ? <MoreIcon width={iconSize} height={iconSize} /> : null}
       </View>
       <Text style={styles.actionLabel}>{label}</Text>
     </TouchableOpacity>
@@ -3021,6 +3337,10 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  resourcesBatteryIcon: {
+    transform: [{ rotate: '-90deg' }],
   },
 
   addressRow: {
@@ -3506,7 +3826,7 @@ const styles = StyleSheet.create({
   },
 
   renameInlineRow: {
-    minHeight: 48,
+    minHeight: layout.fieldHeight,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -3514,7 +3834,7 @@ const styles = StyleSheet.create({
 
   renameInput: {
     flex: 1,
-    minHeight: 44,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     borderWidth: 0,
     backgroundColor: 'rgba(255,255,255,0.03)',

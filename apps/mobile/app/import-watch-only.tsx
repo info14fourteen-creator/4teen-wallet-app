@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
   },
 
   nameField: {
-    minHeight: 52,
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     backgroundColor: 'rgba(255,255,255,0.03)',
     paddingLeft: 14,
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
 
   nameInput: {
     flex: 1,
-    minHeight: 52,
+    minHeight: layout.fieldHeight,
     color: colors.white,
     fontFamily: 'Sora_600SemiBold',
     paddingVertical: 0,

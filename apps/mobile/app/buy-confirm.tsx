@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,13 +14,15 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ScreenBrow from '../src/ui/screen-brow';
+import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
+import ApprovalAuthModal from '../src/ui/approval-auth-modal';
 import EnergyResaleCard from '../src/ui/energy-resale-card';
 import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
-import NumericKeypad from '../src/ui/numeric-keypad';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import { goBackOrReplace } from '../src/ui/safe-back';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -41,7 +42,6 @@ import {
 import { getBiometricsEnabled, verifyPasscode } from '../src/security/local-auth';
 import { useWalletSession } from '../src/wallet/wallet-session';
 import { clearWalletRuntimeCaches, FOURTEEN_LOGO, TRX_LOGO } from '../src/services/tron/api';
-import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
 import { submitReferralAttribution } from '../src/services/referral';
 import { waitForBuyerAmbassadorBinding } from '../src/services/ambassador';
 import {
@@ -148,6 +148,7 @@ export default function BuyConfirmScreen() {
   } | null>(null);
   const [errorText, setErrorText] = useState('');
   const [passcodeOpen, setPasscodeOpen] = useState(false);
+  const [passcodeEntryOpen, setPasscodeEntryOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
@@ -176,6 +177,7 @@ export default function BuyConfirmScreen() {
     review &&
       (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
+  const canUseBiometrics = biometricAvailable && biometricsEnabled;
 
   const load = useCallback(async () => {
     try {
@@ -412,6 +414,7 @@ export default function BuyConfirmScreen() {
       notice.showSuccessNotice('Direct buy transaction sent.', 3200);
       setReceipt(nextReceipt);
       setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Direct buy failed.';
       setErrorText(message);
@@ -421,29 +424,64 @@ export default function BuyConfirmScreen() {
     }
   }, [notice, review, submitting, triggerWalletDataRefresh]);
 
-  const requestBiometricUnlock = useCallback(async () => {
+  const closeApprovalAuth = useCallback(() => {
+    setPasscodeOpen(false);
+    setPasscodeEntryOpen(false);
+    setPasscodeDigits('');
+    setPasscodeError('');
+  }, []);
+
+  const openApprovalAuth = useCallback((preferPasscode = false) => {
+    setPasscodeError('');
+    setPasscodeDigits('');
+    setPasscodeEntryOpen(preferPasscode || !canUseBiometrics);
+    setPasscodeOpen(true);
+  }, [canUseBiometrics]);
+
+  const openPasscodeEntry = useCallback(() => {
+    setPasscodeError('');
+    setPasscodeDigits('');
+    setPasscodeEntryOpen(true);
+  }, []);
+
+  const closePasscodeEntry = useCallback(() => {
+    if (canUseBiometrics) {
+      setPasscodeDigits('');
+      setPasscodeError('');
+      setPasscodeEntryOpen(false);
+      return;
+    }
+
+    closeApprovalAuth();
+  }, [canUseBiometrics, closeApprovalAuth]);
+
+  const handleBiometricApproval = useCallback(async () => {
+    if (!canUseBiometrics) {
+      openPasscodeEntry();
+      return;
+    }
+
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Approve direct buy',
+        promptMessage:
+          pendingApprovalMode === 'rent' ? 'Confirm Energy Rental' : 'Approve direct buy',
         cancelLabel: 'Cancel',
         fallbackLabel: 'Use Passcode',
       });
 
       if (result.success) {
-        setPendingApprovalMode('buy');
-        await performBuy();
-        return;
+        if (pendingApprovalMode === 'rent') {
+          const rented = await performRentEnergy();
+          if (rented) {
+            await performBuy();
+          }
+        } else {
+          await performBuy();
+        }
       }
-
-      setPasscodeError('');
-      setPasscodeDigits('');
-      setPasscodeOpen(true);
     } catch {
-      setPasscodeError('');
-      setPasscodeDigits('');
-      setPasscodeOpen(true);
     }
-  }, [performBuy]);
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performBuy, performRentEnergy]);
 
   const handleApprove = useCallback(async () => {
     if (!review || submitting) return;
@@ -458,52 +496,19 @@ export default function BuyConfirmScreen() {
       return;
     }
 
-    if (biometricsEnabled && biometricAvailable) {
-      await requestBiometricUnlock();
-      return;
-    }
-
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeOpen(true);
-  }, [biometricAvailable, biometricsEnabled, notice, requestBiometricUnlock, review, submitting]);
+    openApprovalAuth();
+  }, [notice, openApprovalAuth, review, submitting]);
 
   const handleRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || submitting || energyRenting) return;
 
     setPendingApprovalMode('rent');
 
-    if (biometricsEnabled && biometricAvailable) {
-      try {
-        const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: 'Confirm Energy Rental',
-          cancelLabel: 'Cancel',
-          fallbackLabel: 'Use Passcode',
-        });
-
-        if (result.success) {
-          const rented = await performRentEnergy();
-          if (rented) {
-            await performBuy();
-          }
-          return;
-        }
-
-      } catch {
-        // Fall through to passcode.
-      }
-    }
-
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeOpen(true);
+    openApprovalAuth();
   }, [
-    biometricAvailable,
-    biometricsEnabled,
     energyQuote,
     energyRenting,
-    performRentEnergy,
-    performBuy,
+    openApprovalAuth,
     review,
     submitting,
   ]);
@@ -562,6 +567,7 @@ export default function BuyConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
+        <ScreenLoadingOverlay visible={refreshing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -801,7 +807,7 @@ export default function BuyConfirmScreen() {
                 activeOpacity={0.9}
                 style={styles.rejectButton}
                 disabled={submitting}
-                onPress={() => router.back()}
+                onPress={() => goBackOrReplace(router, { fallback: '/buy' })}
               >
                 <Text style={styles.rejectButtonText}>REJECT</Text>
               </TouchableOpacity>
@@ -813,86 +819,23 @@ export default function BuyConfirmScreen() {
           )}
         </ScrollView>
 
-        <Modal
+        <ApprovalAuthModal
           visible={passcodeOpen}
-          animationType="fade"
-          presentationStyle="fullScreen"
-          transparent={false}
-          onRequestClose={() => {
-            setPasscodeOpen(false);
-            setPasscodeDigits('');
-            setPasscodeError('');
-          }}
-          statusBarTranslucent
-        >
-          <SafeAreaView style={styles.authModalSafe} edges={['top', 'bottom']}>
-            <View style={styles.authOverlay}>
-              <View style={styles.authScreen}>
-                <View style={styles.authContent}>
-                  <Text style={ui.eyebrow}>Transaction Approval</Text>
-
-                  <Text style={styles.authTitle}>
-                    Confirm with <Text style={styles.authTitleAccent}>Passcode</Text>
-                  </Text>
-
-                  <Text style={styles.authLead}>
-                    Authorize this direct buy with your 6-digit passcode
-                    {biometricAvailable && biometricsEnabled
-                      ? ` or ${biometricLabel === 'Face ID' ? 'face unlock' : 'fingerprint'}`
-                      : ''}.
-                  </Text>
-
-                  <View style={styles.authCard}>
-                    <View style={styles.authCardHeaderRow}>
-                      <Text style={ui.sectionEyebrow}>Approve</Text>
-                      <Text style={styles.authCardErrorText} numberOfLines={1}>
-                        {passcodeError || ' '}
-                      </Text>
-                    </View>
-
-                    <View style={styles.dotsRow}>
-                      {Array.from({ length: 6 }, (_, index) => (
-                        <View
-                          key={index}
-                          style={[styles.dot, passcodeDigits.length > index && styles.dotFilled]}
-                        />
-                      ))}
-                    </View>
-                  </View>
-
-                  <NumericKeypad
-                    onDigitPress={handlePasscodeDigit}
-                    onBackspacePress={handlePasscodeBackspace}
-                    leftSlot={
-                      biometricAvailable && biometricsEnabled ? (
-                        <TouchableOpacity
-                          activeOpacity={0.9}
-                          onPress={() => void requestBiometricUnlock()}
-                        >
-                          <BioLoginIcon width={22} height={22} />
-                        </TouchableOpacity>
-                      ) : null
-                    }
-                    backspaceIcon={<BackspaceIcon width={22} height={22} />}
-                  />
-
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    style={styles.authCancelButton}
-                    onPress={() => {
-                      setPasscodeOpen(false);
-                      setPasscodeDigits('');
-                      setPasscodeError('');
-                    }}
-                    disabled={submitting}
-                  >
-                    <Text style={styles.authCancelButtonText}>CANCEL</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </SafeAreaView>
-        </Modal>
+          eyebrow="Transaction Approval"
+          actionLabel={pendingApprovalMode === 'rent' ? 'Energy rental and direct buy' : 'direct buy'}
+          passcodeError={passcodeError}
+          digitsLength={passcodeDigits.length}
+          canUseBiometrics={canUseBiometrics}
+          biometricLabel={biometricLabel}
+          passcodeEntryOpen={passcodeEntryOpen}
+          submitting={submitting || energyRenting}
+          onRequestClose={closeApprovalAuth}
+          onOpenPasscode={openPasscodeEntry}
+          onClosePasscode={closePasscodeEntry}
+          onDigitPress={handlePasscodeDigit}
+          onBackspacePress={handlePasscodeBackspace}
+          onBiometricPress={() => void handleBiometricApproval()}
+        />
       </View>
     </SafeAreaView>
   );

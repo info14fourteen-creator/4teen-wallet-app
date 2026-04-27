@@ -30,6 +30,10 @@ import TelegramIcon from '../assets/icons/ui/socials/telegram_social.svg';
 import XIcon from '../assets/icons/ui/socials/x_social.svg';
 import YoutubeIcon from '../assets/icons/ui/socials/youtube_social.svg';
 
+const AIRDROP_INFO_TITLE = 'Social distribution state';
+const AIRDROP_INFO_TEXT =
+  'This page tracks social airdrop eligibility per wallet, not generic token transfers. Right now the live flow is Telegram: the app signs a wallet session, opens the bot, and then checks whether the reward is available, queued, blocked by a legacy claim, or already received.\n\nThe Telegram card merges three layers: local wallet state, current bot session state, and on-chain claim status. That is why the status may read available, verify now, session live, queued, or received.\n\nThe other social cards are placeholders for rollout state. They can show already-claimed on-chain rewards if any exist, but the live social claim flow is not open there yet.';
+
 type SocialCardTone = 'green' | 'orange' | 'red';
 
 type SocialCardItem = {
@@ -326,6 +330,7 @@ export default function AirdropScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [launching, setLaunching] = useState(false);
+  const [infoExpanded, setInfoExpanded] = useState(false);
   const statusNoticeKeyRef = useRef('');
   const statusNoticePrimedRef = useRef(false);
   const loadRequestIdRef = useRef(0);
@@ -578,6 +583,12 @@ export default function AirdropScreen() {
       eyebrow="AIRDROP"
       loadingOverlayVisible={refreshing || Boolean(switchingWalletId) || launching}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} />}
+      headerInfo={{
+        title: AIRDROP_INFO_TITLE,
+        text: AIRDROP_INFO_TEXT,
+        expanded: infoExpanded,
+        onToggle: () => setInfoExpanded((prev) => !prev),
+      }}
     >
       <SelectedWalletSwitcher
         wallet={
@@ -886,9 +897,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
   },
   socialStatusPill: {
-    minHeight: 28,
-    borderRadius: 999,
+    minHeight: 30,
+    borderRadius: radius.sm,
     paddingHorizontal: 10,
+    paddingVertical: 6,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
