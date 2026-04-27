@@ -1,13 +1,13 @@
 # 4teen-wallet-app — AI MAP
 
-Generated: 2026-04-27T14:14:58.580Z
+Generated: 2026-04-27T23:12:03.736Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 3ab84052ea378fba8709d58d91739155cfdff34f
-Short commit: 3ab8405
-Commit subject: Refresh incomplete ambassador health cache
+Last commit: 41cbdf096d8b3d4b7b3c36a0cc7c66c39e3809bb
+Short commit: 41cbdf0
+Commit subject: Polish mobile UI flows and wallet interactions
 Commit author: info14fourteen-creator
-Commit date: 2026-04-27T19:14:45+05:00
+Commit date: 2026-04-28T04:11:46+05:00
 
 ## Snapshot files
 
@@ -209,12 +209,6 @@ Commit date: 2026-04-27T19:14:45+05:00
         - ui/
           - socials/
             - discord_social.svg
-            - facebook_social.svg
-            - github_social.svg
-            - instagram_social.svg
-            - telegram_social.svg
-            - threads_social.svg
-            - tiktok_social.svg
           - add_contact_btn.svg
           - add_wallet_btn.svg
           - address_btn.svg
@@ -224,6 +218,10 @@ Commit date: 2026-04-27T19:14:45+05:00
           - az_sort_btn.svg
           - backspace_btn.svg
           - biologin_btn.svg
+          - brow_back_arrow_slide.json
+          - brow_select_wallet_close.json
+          - brow_wallet_access_wallet.json
+          - brow_wallet_asset_view.json
           - browser_back_btn.svg
           - browser_close_btn.svg
           - browser_copy_link_btn.svg
@@ -234,6 +232,8 @@ Commit date: 2026-04-27T19:14:45+05:00
           - buy_4teen_qp_btn.svg
           - close.svg
           - confirm_btn.svg
+          - connections_info_arrow_down.json
+          - connections_info_cross.json
           - copy_btn.svg
           - create_add_wallet_qp_btn.svg
           - decline_btn.svg
