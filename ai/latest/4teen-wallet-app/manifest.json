@@ -1,47 +1,33 @@
 {
-  "generatedAt": "2026-04-27T14:11:18.665Z",
+  "generatedAt": "2026-04-27T14:14:58.584Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "4bd0386ab689b2ee2bedada8ca3d39626d2ee350",
-    "shortHash": "4bd0386",
-    "subject": "Improve ambassador info runtime visibility",
+    "hash": "3ab84052ea378fba8709d58d91739155cfdff34f",
+    "shortHash": "3ab8405",
+    "subject": "Refresh incomplete ambassador health cache",
     "author": "info14fourteen-creator",
-    "date": "2026-04-27T19:10:54+05:00"
+    "date": "2026-04-27T19:14:45+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/src/routes/ambassador.js",
-    "M\tapps/api/src/services/gasstation/gasStation.js",
-    "M\tapps/mobile/app/earn.tsx",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/services/ambassador.ts",
-    "M\tapps/mobile/src/services/asset-wallets.ts",
-    "M\tapps/mobile/src/services/tron/api.ts"
+    "M\tapps/mobile/src/services/ambassador.ts"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 6
+      "count": 5
+    },
+    {
+      "file": "apps/mobile/src/services/ambassador.ts",
+      "count": 4
     },
     {
       "file": "apps/api/src/services/airdrop/telegramBot.js",
-      "count": 4
+      "count": 3
     },
     {
       "file": "apps/mobile/app/send.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/airdrop.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/ambassador-program.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/swap.tsx",
       "count": 3
     },
     {
@@ -57,10 +43,6 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/src/services/ambassador.ts",
-      "count": 3
-    },
-    {
       "file": "apps/api/clock.js",
       "count": 2
     },
@@ -73,19 +55,19 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/app/about.tsx",
-      "count": 2
-    },
-    {
       "file": "apps/mobile/app/add-custom-token.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/backup-private-key.tsx",
+      "file": "apps/mobile/app/airdrop.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/buy.tsx",
+      "file": "apps/mobile/app/ambassador-program.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/backup-private-key.tsx",
       "count": 2
     },
     {
@@ -98,10 +80,6 @@
     },
     {
       "file": "apps/mobile/app/export-mnemonic.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/liquidity-controller.tsx",
       "count": 2
     },
     {
@@ -125,11 +103,11 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/app/token-details.tsx",
+      "file": "apps/mobile/app/swap.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/unlock-timeline.tsx",
+      "file": "apps/mobile/app/token-details.tsx",
       "count": 2
     },
     {
@@ -138,6 +116,22 @@
     },
     {
       "file": "apps/mobile/src/services/swap/sunio.ts",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/src/services/tron/api.ts",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/src/services/wallet/send.ts",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/src/ui/product-shell.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/src/ui/screen-loading-overlay.tsx",
       "count": 2
     }
   ],
