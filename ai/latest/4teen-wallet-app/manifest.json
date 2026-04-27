@@ -1,56 +1,114 @@
 {
-  "generatedAt": "2026-04-26T23:26:31.932Z",
+  "generatedAt": "2026-04-27T12:16:26.164Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "73afe52826a59c5a61aecb2e0a3db60b05cfe35f",
-    "shortHash": "73afe52",
-    "subject": "Refine mobile shell animations and search chrome",
+    "hash": "35126bbf2bca745668084a89cd1c4a8c02d8e146",
+    "shortHash": "35126bb",
+    "subject": "Fully internalize ambassador backend flow",
     "author": "info14fourteen-creator",
-    "date": "2026-04-27T04:26:04+05:00"
+    "date": "2026-04-27T17:16:04+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/scan.tsx",
-    "A\tapps/mobile/assets/icons/footer/footer_airdrop_idle_v7.json",
-    "A\tapps/mobile/assets/icons/footer/footer_airdrop_press_v7.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle_v7.json",
-    "A\tapps/mobile/assets/icons/footer/footer_ambassador_press_v7.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v8.json",
-    "A\tapps/mobile/assets/icons/footer/footer_buy_press_v8.json",
-    "A\tapps/mobile/assets/icons/footer/footer_earn_green_v2.json",
-    "A\tapps/mobile/assets/icons/footer/footer_earn_orange_v2.json",
-    "A\tapps/mobile/assets/icons/footer/footer_home_orange.json",
-    "A\tapps/mobile/assets/icons/footer/footer_home_red.json",
-    "A\tapps/mobile/assets/icons/footer/footer_info.json",
-    "A\tapps/mobile/assets/icons/footer/footer_info_idle.json",
-    "A\tapps/mobile/assets/icons/footer/footer_liquidity.json",
-    "A\tapps/mobile/assets/icons/footer/footer_liquidity_idle.json",
-    "A\tapps/mobile/assets/icons/footer/footer_send.json",
-    "A\tapps/mobile/assets/icons/footer/footer_swap.json",
-    "A\tapps/mobile/assets/icons/footer/footer_unlock.json",
-    "A\tapps/mobile/assets/icons/footer/footer_unlock_idle.json",
-    "A\tapps/mobile/assets/icons/header/header_qr.json",
-    "A\tapps/mobile/assets/icons/scan/scan_gallery.json",
-    "A\tapps/mobile/assets/icons/search/search_close.json",
-    "A\tapps/mobile/assets/icons/search/search_magnifier.json",
+    "M\tapps/api/clock.js",
+    "M\tapps/api/src/config/env.js",
+    "A\tapps/api/src/db/queries/ambassadors.js",
+    "A\tapps/api/src/db/queries/buyerBindings.js",
+    "A\tapps/api/src/db/queries/buyers.js",
+    "A\tapps/api/src/db/queries/purchases.js",
+    "M\tapps/api/src/routes/ambassador.js",
+    "M\tapps/api/src/services/ambassador/controller.js",
+    "A\tapps/api/src/services/ambassador/reconcilePurchase.js",
+    "A\tapps/api/src/services/ambassador/replayPending.js",
+    "A\tapps/api/src/services/ambassador/replayQueue.js",
+    "A\tapps/api/src/services/ambassador/resourceGate.js",
+    "A\tapps/api/src/services/ambassador/sync.js",
+    "A\tapps/api/src/services/ambassador/token.js",
+    "M\tapps/mobile/app/about.tsx",
+    "M\tapps/mobile/app/add-custom-token.tsx",
+    "M\tapps/mobile/app/ambassador-program.tsx",
+    "M\tapps/mobile/app/authentication-method.tsx",
+    "M\tapps/mobile/app/backup-private-key.tsx",
+    "M\tapps/mobile/app/confirm-passcode.tsx",
+    "M\tapps/mobile/app/create-passcode.tsx",
+    "M\tapps/mobile/app/create-wallet.tsx",
+    "M\tapps/mobile/app/enable-biometrics.tsx",
+    "M\tapps/mobile/app/export-mnemonic.tsx",
+    "M\tapps/mobile/app/manage-crypto.tsx",
+    "M\tapps/mobile/app/select-wallet.tsx",
+    "M\tapps/mobile/app/send-confirm.tsx",
+    "M\tapps/mobile/app/send.tsx",
+    "M\tapps/mobile/app/settings.tsx",
+    "M\tapps/mobile/app/swap-confirm.tsx",
+    "M\tapps/mobile/app/swap.tsx",
+    "M\tapps/mobile/app/terms.tsx",
+    "M\tapps/mobile/app/token-details.tsx",
+    "M\tapps/mobile/app/unlock.tsx",
+    "M\tapps/mobile/app/wallet.tsx",
+    "M\tapps/mobile/app/wallets.tsx",
+    "M\tapps/mobile/app/whitepaper.tsx",
+    "A\tapps/mobile/assets/icons/footer/footer_airdrop.json",
+    "A\tapps/mobile/assets/icons/footer/footer_airdrop_idle.json",
+    "A\tapps/mobile/assets/icons/footer/footer_airdrop_idle_v4.json",
+    "A\tapps/mobile/assets/icons/footer/footer_airdrop_idle_v6.json",
+    "A\tapps/mobile/assets/icons/footer/footer_airdrop_press_v4.json",
+    "A\tapps/mobile/assets/icons/footer/footer_airdrop_press_v6.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle_v3.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle_v4.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle_v5.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_idle_v6.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_press_v4.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_press_v5.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_press_v6.json",
+    "A\tapps/mobile/assets/icons/footer/footer_ambassador_v2.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_idle.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v3.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v4.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v5.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v6.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_idle_v7.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_press_v4.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_press_v5.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_press_v6.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_press_v7.json",
+    "A\tapps/mobile/assets/icons/footer/footer_buy_v2.json",
+    "A\tapps/mobile/assets/icons/footer/footer_earn.json",
+    "A\tapps/mobile/assets/icons/footer/footer_earn_green.json",
+    "A\tapps/mobile/assets/icons/footer/footer_earn_orange.json",
+    "A\tapps/mobile/assets/icons/footer/footer_home.json",
+    "A\tapps/mobile/assets/icons/footer/footer_info_static.json",
+    "A\tapps/mobile/assets/icons/footer/footer_liquidity_static.json",
+    "A\tapps/mobile/assets/icons/footer/footer_unlock_static.json",
     "M\tapps/mobile/metro.config.js",
-    "M\tapps/mobile/package.json",
     "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/search/search-sheet.tsx",
-    "M\tapps/mobile/src/ui/app-header.tsx",
-    "M\tapps/mobile/src/ui/footer-nav.tsx",
-    "A\tapps/mobile/src/ui/lottie-icon.tsx",
-    "M\tapps/mobile/src/ui/menu-sheet.tsx",
-    "M\tpnpm-lock.yaml"
+    "M\tapps/mobile/src/security/local-auth.ts",
+    "M\tapps/mobile/src/services/ambassador.ts",
+    "M\tapps/mobile/src/services/referral.ts",
+    "M\tapps/mobile/src/services/swap/sunio.ts",
+    "M\tapps/mobile/src/services/tron/api.ts",
+    "M\tapps/mobile/src/services/wallet/send.ts",
+    "M\tapps/mobile/src/ui/product-shell.tsx",
+    "M\tapps/mobile/src/ui/screen-loading-overlay.tsx",
+    "M\tapps/mobile/src/ui/screen-loading-state.tsx",
+    "A\tapps/mobile/src/ui/settings-row.tsx",
+    "M\tapps/mobile/src/ui/stub-screen.tsx",
+    "M\tapps/mobile/src/ui/ui-icons.tsx"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 6
+      "count": 7
     },
     {
       "file": "apps/api/src/services/airdrop/telegramBot.js",
+      "count": 5
+    },
+    {
+      "file": "apps/mobile/app/ambassador-program.tsx",
       "count": 5
     },
     {
@@ -58,7 +116,31 @@
       "count": 4
     },
     {
-      "file": "apps/mobile/app/ambassador-program.tsx",
+      "file": "apps/mobile/app/export-mnemonic.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/send-confirm.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/send.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/swap-confirm.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/wallet.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/wallets.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/metro.config.js",
       "count": 4
     },
     {
@@ -66,8 +148,12 @@
       "count": 4
     },
     {
-      "file": "apps/api/src/services/gasstation/gasStation.js",
-      "count": 3
+      "file": "apps/mobile/src/services/ambassador.ts",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/src/ui/product-shell.tsx",
+      "count": 4
     },
     {
       "file": "apps/mobile/app/ambassador-confirm.tsx",
@@ -78,11 +164,11 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/buy-confirm.tsx",
+      "file": "apps/mobile/app/backup-private-key.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/export-mnemonic.tsx",
+      "file": "apps/mobile/app/buy-confirm.tsx",
       "count": 3
     },
     {
@@ -94,15 +180,7 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/send-confirm.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/send.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/swap-confirm.tsx",
+      "file": "apps/mobile/app/swap.tsx",
       "count": 3
     },
     {
@@ -110,59 +188,35 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/wallet.tsx",
+      "file": "apps/mobile/app/unlock.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/wallets.tsx",
+      "file": "apps/mobile/src/services/swap/sunio.ts",
       "count": 3
     },
     {
-      "file": "apps/mobile/metro.config.js",
+      "file": "apps/mobile/src/services/tron/api.ts",
       "count": 3
     },
     {
-      "file": "apps/mobile/src/services/ambassador.ts",
+      "file": "apps/mobile/src/services/wallet/send.ts",
       "count": 3
     },
     {
-      "file": "apps/mobile/src/ui/product-shell.tsx",
-      "count": 3
+      "file": "apps/api/clock.js",
+      "count": 2
     },
     {
       "file": "apps/api/src/config/env.js",
       "count": 2
     },
     {
+      "file": "apps/api/src/routes/ambassador.js",
+      "count": 2
+    },
+    {
       "file": "apps/api/src/services/airdrop/telegramClaims.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/services/gasstation/energyResale.js",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/about.tsx.bak_2026-04-16_232856",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/about.tsx.bak_2026-04-17_174704",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/backup-private-key.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/buy.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/scan.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/swap.tsx",
       "count": 2
     }
   ],
@@ -194,6 +248,10 @@
     "apps/api/src/config/env.js",
     "apps/api/src/db/pool.js",
     "apps/api/src/db/queries/ambassadorCabinet.js",
+    "apps/api/src/db/queries/ambassadors.js",
+    "apps/api/src/db/queries/buyerBindings.js",
+    "apps/api/src/db/queries/buyers.js",
+    "apps/api/src/db/queries/purchases.js",
     "apps/api/src/routes/airdrop.js",
     "apps/api/src/routes/ambassador.js",
     "apps/api/src/routes/gasstation.js",
@@ -204,6 +262,12 @@
     "apps/api/src/services/airdrop/telegramBot.js",
     "apps/api/src/services/airdrop/telegramClaims.js",
     "apps/api/src/services/ambassador/controller.js",
+    "apps/api/src/services/ambassador/reconcilePurchase.js",
+    "apps/api/src/services/ambassador/replayPending.js",
+    "apps/api/src/services/ambassador/replayQueue.js",
+    "apps/api/src/services/ambassador/resourceGate.js",
+    "apps/api/src/services/ambassador/sync.js",
+    "apps/api/src/services/ambassador/token.js",
     "apps/api/src/services/gasstation/energyResale.js",
     "apps/api/src/services/gasstation/gasStation.js",
     "apps/api/src/services/gasstation/notifications.js",
@@ -274,23 +338,58 @@
     "apps/mobile/assets/icons/footer/airdrop_footer.svg",
     "apps/mobile/assets/icons/footer/ambassador_footer.svg",
     "apps/mobile/assets/icons/footer/buy_footer.svg",
+    "apps/mobile/assets/icons/footer/footer_airdrop_idle_v4.json",
+    "apps/mobile/assets/icons/footer/footer_airdrop_idle_v6.json",
     "apps/mobile/assets/icons/footer/footer_airdrop_idle_v7.json",
+    "apps/mobile/assets/icons/footer/footer_airdrop_idle.json",
+    "apps/mobile/assets/icons/footer/footer_airdrop_press_v4.json",
+    "apps/mobile/assets/icons/footer/footer_airdrop_press_v6.json",
     "apps/mobile/assets/icons/footer/footer_airdrop_press_v7.json",
+    "apps/mobile/assets/icons/footer/footer_airdrop.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_idle_v3.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_idle_v4.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_idle_v5.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_idle_v6.json",
     "apps/mobile/assets/icons/footer/footer_ambassador_idle_v7.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_idle.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_press_v4.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_press_v5.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_press_v6.json",
     "apps/mobile/assets/icons/footer/footer_ambassador_press_v7.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador_v2.json",
+    "apps/mobile/assets/icons/footer/footer_ambassador.json",
+    "apps/mobile/assets/icons/footer/footer_buy_idle_v3.json",
+    "apps/mobile/assets/icons/footer/footer_buy_idle_v4.json",
+    "apps/mobile/assets/icons/footer/footer_buy_idle_v5.json",
+    "apps/mobile/assets/icons/footer/footer_buy_idle_v6.json",
+    "apps/mobile/assets/icons/footer/footer_buy_idle_v7.json",
     "apps/mobile/assets/icons/footer/footer_buy_idle_v8.json",
+    "apps/mobile/assets/icons/footer/footer_buy_idle.json",
+    "apps/mobile/assets/icons/footer/footer_buy_press_v4.json",
+    "apps/mobile/assets/icons/footer/footer_buy_press_v5.json",
+    "apps/mobile/assets/icons/footer/footer_buy_press_v6.json",
+    "apps/mobile/assets/icons/footer/footer_buy_press_v7.json",
     "apps/mobile/assets/icons/footer/footer_buy_press_v8.json",
+    "apps/mobile/assets/icons/footer/footer_buy_v2.json",
+    "apps/mobile/assets/icons/footer/footer_buy.json",
     "apps/mobile/assets/icons/footer/footer_earn_green_v2.json",
+    "apps/mobile/assets/icons/footer/footer_earn_green.json",
     "apps/mobile/assets/icons/footer/footer_earn_orange_v2.json",
+    "apps/mobile/assets/icons/footer/footer_earn_orange.json",
+    "apps/mobile/assets/icons/footer/footer_earn.json",
     "apps/mobile/assets/icons/footer/footer_home_orange.json",
     "apps/mobile/assets/icons/footer/footer_home_red.json",
+    "apps/mobile/assets/icons/footer/footer_home.json",
     "apps/mobile/assets/icons/footer/footer_info_idle.json",
+    "apps/mobile/assets/icons/footer/footer_info_static.json",
     "apps/mobile/assets/icons/footer/footer_info.json",
     "apps/mobile/assets/icons/footer/footer_liquidity_idle.json",
+    "apps/mobile/assets/icons/footer/footer_liquidity_static.json",
     "apps/mobile/assets/icons/footer/footer_liquidity.json",
     "apps/mobile/assets/icons/footer/footer_send.json",
     "apps/mobile/assets/icons/footer/footer_swap.json",
     "apps/mobile/assets/icons/footer/footer_unlock_idle.json",
+    "apps/mobile/assets/icons/footer/footer_unlock_static.json",
     "apps/mobile/assets/icons/footer/footer_unlock.json",
     "apps/mobile/assets/icons/footer/swap_footer.svg",
     "apps/mobile/assets/icons/header/header_qr.json",
@@ -355,52 +454,7 @@
     "apps/mobile/assets/icons/ui/socials/instagram_social.svg",
     "apps/mobile/assets/icons/ui/socials/telegram_social.svg",
     "apps/mobile/assets/icons/ui/socials/threads_social.svg",
-    "apps/mobile/assets/icons/ui/socials/tiktok_social.svg",
-    "apps/mobile/assets/icons/ui/socials/whatsapp_social.svg",
-    "apps/mobile/assets/icons/ui/socials/x_social.svg",
-    "apps/mobile/assets/icons/ui/socials/youtube_social.svg",
-    "apps/mobile/assets/icons/ui/swap_footer_menu_btn_onclick.svg",
-    "apps/mobile/assets/icons/ui/swap_footer_menu_btn.svg",
-    "apps/mobile/assets/icons/ui/swap_qp_btn.svg",
-    "apps/mobile/assets/icons/ui/toggle_off_btn.svg",
-    "apps/mobile/assets/icons/ui/toggle_on_btn.svg",
-    "apps/mobile/assets/icons/ui/unlock_qp_btn.svg",
-    "apps/mobile/assets/icons/ui/value_sort_btn.svg",
-    "apps/mobile/assets/icons/ui/wallet_btn.svg",
-    "apps/mobile/assets/icons/ui/watch_only_btn.svg",
-    "apps/mobile/components/external-link.tsx",
-    "apps/mobile/components/haptic-tab.tsx",
-    "apps/mobile/components/hello-wave.tsx",
-    "apps/mobile/components/parallax-scroll-view.tsx",
-    "apps/mobile/components/themed-text.tsx",
-    "apps/mobile/components/themed-view.tsx",
-    "apps/mobile/components/ui/collapsible.tsx",
-    "apps/mobile/components/ui/icon-symbol.ios.tsx",
-    "apps/mobile/components/ui/icon-symbol.tsx",
-    "apps/mobile/constants/theme.ts",
-    "apps/mobile/eslint.config.js",
-    "apps/mobile/hooks/use-color-scheme.ts",
-    "apps/mobile/hooks/use-color-scheme.web.ts",
-    "apps/mobile/hooks/use-theme-color.ts",
-    "apps/mobile/metro.config.js",
-    "apps/mobile/modules/install-referrer/expo-module.config.json",
-    "apps/mobile/modules/install-referrer/index.ts",
-    "apps/mobile/modules/install-referrer/package.json",
-    "apps/mobile/modules/install-referrer/src/InstallReferrerModule.ts",
-    "apps/mobile/package.json",
-    "apps/mobile/README.md",
-    "apps/mobile/scripts/create-stub-screen.mjs",
-    "apps/mobile/scripts/reset-project.js",
-    "apps/mobile/scripts/update-version.mjs",
-    "apps/mobile/src/config/app-version.ts",
-    "apps/mobile/src/config/tron.ts",
-    "apps/mobile/src/notice/notice-provider.tsx",
-    "apps/mobile/src/search/search-provider.tsx",
-    "apps/mobile/src/search/search-routes.ts",
-    "apps/mobile/src/search/search-sheet.tsx",
-    "apps/mobile/src/search/search-types.ts",
-    "apps/mobile/src/security/local-auth.ts",
-    "apps/mobile/src/services/address-book.ts"
+    "apps/mobile/assets/icons/ui/socials/tiktok_social.svg"
   ],
   "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
   "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"

@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-26T23:26:31.930Z
+Generated: 2026-04-27T12:16:26.162Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 73afe52826a59c5a61aecb2e0a3db60b05cfe35f
-Short commit: 73afe52
-Commit subject: Refine mobile shell animations and search chrome
+Last commit: 35126bbf2bca745668084a89cd1c4a8c02d8e146
+Short commit: 35126bb
+Commit subject: Fully internalize ambassador backend flow
 Commit author: info14fourteen-creator
-Commit date: 2026-04-27T04:26:04+05:00
+Commit date: 2026-04-27T17:16:04+05:00
 
 ## Curated project tree
 
@@ -24,6 +24,10 @@ Commit date: 2026-04-27T04:26:04+05:00
       - db/
         - queries/
           - ambassadorCabinet.js
+          - ambassadors.js
+          - buyerBindings.js
+          - buyers.js
+          - purchases.js
         - pool.js
       - routes/
         - airdrop.js
@@ -39,6 +43,12 @@ Commit date: 2026-04-27T04:26:04+05:00
           - telegramClaims.js
         - ambassador/
           - controller.js
+          - reconcilePurchase.js
+          - replayPending.js
+          - replayQueue.js
+          - resourceGate.js
+          - sync.js
+          - token.js
         - gasstation/
           - energyResale.js
           - gasStation.js
@@ -121,23 +131,58 @@ Commit date: 2026-04-27T04:26:04+05:00
           - airdrop_footer.svg
           - ambassador_footer.svg
           - buy_footer.svg
+          - footer_airdrop_idle_v4.json
+          - footer_airdrop_idle_v6.json
           - footer_airdrop_idle_v7.json
+          - footer_airdrop_idle.json
+          - footer_airdrop_press_v4.json
+          - footer_airdrop_press_v6.json
           - footer_airdrop_press_v7.json
+          - footer_airdrop.json
+          - footer_ambassador_idle_v3.json
+          - footer_ambassador_idle_v4.json
+          - footer_ambassador_idle_v5.json
+          - footer_ambassador_idle_v6.json
           - footer_ambassador_idle_v7.json
+          - footer_ambassador_idle.json
+          - footer_ambassador_press_v4.json
+          - footer_ambassador_press_v5.json
+          - footer_ambassador_press_v6.json
           - footer_ambassador_press_v7.json
+          - footer_ambassador_v2.json
+          - footer_ambassador.json
+          - footer_buy_idle_v3.json
+          - footer_buy_idle_v4.json
+          - footer_buy_idle_v5.json
+          - footer_buy_idle_v6.json
+          - footer_buy_idle_v7.json
           - footer_buy_idle_v8.json
+          - footer_buy_idle.json
+          - footer_buy_press_v4.json
+          - footer_buy_press_v5.json
+          - footer_buy_press_v6.json
+          - footer_buy_press_v7.json
           - footer_buy_press_v8.json
+          - footer_buy_v2.json
+          - footer_buy.json
           - footer_earn_green_v2.json
+          - footer_earn_green.json
           - footer_earn_orange_v2.json
+          - footer_earn_orange.json
+          - footer_earn.json
           - footer_home_orange.json
           - footer_home_red.json
+          - footer_home.json
           - footer_info_idle.json
+          - footer_info_static.json
           - footer_info.json
           - footer_liquidity_idle.json
+          - footer_liquidity_static.json
           - footer_liquidity.json
           - footer_send.json
           - footer_swap.json
           - footer_unlock_idle.json
+          - footer_unlock_static.json
           - footer_unlock.json
           - swap_footer.svg
         - header/
@@ -156,9 +201,6 @@ Commit date: 2026-04-27T04:26:04+05:00
             - telegram_social.svg
             - threads_social.svg
             - tiktok_social.svg
-            - whatsapp_social.svg
-            - x_social.svg
-            - youtube_social.svg
           - add_contact_btn.svg
           - add_wallet_btn.svg
           - address_btn.svg
@@ -211,63 +253,7 @@ Commit date: 2026-04-27T04:26:04+05:00
           - send_qp_btn.svg
           - setings_btn.svg
           - share_btn.svg
-          - swap_footer_menu_btn_onclick.svg
-          - swap_footer_menu_btn.svg
-          - swap_qp_btn.svg
-          - toggle_off_btn.svg
-          - toggle_on_btn.svg
-          - unlock_qp_btn.svg
-          - value_sort_btn.svg
-          - wallet_btn.svg
-          - watch_only_btn.svg
-    - components/
-      - ui/
-        - collapsible.tsx
-        - icon-symbol.ios.tsx
-        - icon-symbol.tsx
-      - external-link.tsx
-      - haptic-tab.tsx
-      - hello-wave.tsx
-      - parallax-scroll-view.tsx
-      - themed-text.tsx
-      - themed-view.tsx
-    - constants/
-      - theme.ts
-    - hooks/
-      - use-color-scheme.ts
-      - use-color-scheme.web.ts
-      - use-theme-color.ts
-    - modules/
-      - install-referrer/
-        - src/
-          - InstallReferrerModule.ts
-        - expo-module.config.json
-        - index.ts
-        - package.json
-    - scripts/
-      - create-stub-screen.mjs
-      - reset-project.js
-      - update-version.mjs
-    - src/
-      - config/
-        - app-version.ts
-        - tron.ts
-      - notice/
-        - notice-provider.tsx
-      - search/
-        - search-provider.tsx
-        - search-routes.ts
-        - search-sheet.tsx
-        - search-types.ts
-      - security/
-        - local-auth.ts
-      - services/
-        - address-book.ts
     - app.json
-    - eslint.config.js
-    - metro.config.js
-    - package.json
-    - README.md
 - docs/
   - ai-snapshots/
     - 2026-04-09-wallet-home-wired.md
