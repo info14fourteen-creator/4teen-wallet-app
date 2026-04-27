@@ -18,6 +18,7 @@ const {
   hasEnoughAmbassadorAllocationResources,
   replayPendingAmbassadorAllocationsByWallet
 } = require('../services/ambassador/replayQueue');
+const { getGasStationRuntimeState } = require('../services/gasstation/gasStation');
 const env = require('../config/env');
 
 const router = express.Router();
@@ -460,13 +461,21 @@ router.get('/allocation/health', async (_req, res) => {
   try {
     const resourceState = await hasEnoughAmbassadorAllocationResources().catch(() => null);
     const resources = await getAmbassadorAllocationWalletResources().catch(() => null);
+    const runtime = await getGasStationRuntimeState().catch(() => null);
 
     return res.json({
       ok: true,
       result: {
         operatorWallet: String(env.OPERATOR_WALLET || '').trim() || null,
         resources,
-        resourceState
+        resourceState,
+        runtime,
+        requirements: {
+          requiredEnergy: Number(env.AMBASSADOR_ALLOCATION_REQUIRED_ENERGY || 0),
+          requiredBandwidth: Number(env.AMBASSADOR_ALLOCATION_REQUIRED_BANDWIDTH || 0),
+          minEnergyFloor: Number(env.AMBASSADOR_ALLOCATION_MIN_ENERGY_FLOOR || 0),
+          minBandwidthFloor: Number(env.AMBASSADOR_ALLOCATION_MIN_BANDWIDTH_FLOOR || 0)
+        }
       }
     });
   } catch (error) {

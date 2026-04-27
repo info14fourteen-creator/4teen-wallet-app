@@ -11,14 +11,20 @@ import {
   ProductSection,
   ProductStatGrid,
 } from '../src/ui/product-shell';
+import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import { colors } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
+import {
+  loadAmbassadorAllocationHealth,
+  type AmbassadorAllocationHealth,
+} from '../src/services/ambassador';
 import {
   loadAssetWalletsSnapshot,
   type AssetWalletSnapshotItem,
   type AssetWalletsSnapshot,
 } from '../src/services/asset-wallets';
+import { formatResourceAmount } from '../src/services/wallet/resources';
 
 const SMART_CONTRACTS_REPO_URL =
   'https://github.com/info14fourteen-creator/4teen-smart-contracts';
@@ -86,6 +92,9 @@ export default function EarnScreen() {
   const [assetWalletsLoading, setAssetWalletsLoading] = useState(true);
   const [assetWalletsRefreshing, setAssetWalletsRefreshing] = useState(false);
   const [assetWalletsError, setAssetWalletsError] = useState('');
+  const [allocationHealth, setAllocationHealth] = useState<AmbassadorAllocationHealth | null>(null);
+  const [allocationHealthLoading, setAllocationHealthLoading] = useState(true);
+  const [allocationHealthError, setAllocationHealthError] = useState('');
 
   const refreshAssetWallets = useCallback(async (options?: { force?: boolean }) => {
     const force = options?.force === true;
@@ -110,21 +119,79 @@ export default function EarnScreen() {
     }
   }, []);
 
+  const refreshAllocationHealth = useCallback(async (options?: { force?: boolean }) => {
+    const force = options?.force === true;
+
+    if (force || !allocationHealth) {
+      setAllocationHealthLoading(true);
+    }
+
+    try {
+      const snapshot = await loadAmbassadorAllocationHealth({ force });
+      setAllocationHealth(snapshot);
+      setAllocationHealthError('');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Could not load ambassador allocation status.';
+      setAllocationHealth(null);
+      setAllocationHealthError(message);
+    } finally {
+      setAllocationHealthLoading(false);
+    }
+  }, [allocationHealth]);
+
   useFocusEffect(
     useCallback(() => {
-      void refreshAssetWallets();
-    }, [refreshAssetWallets])
+      void Promise.all([refreshAssetWallets(), refreshAllocationHealth()]);
+    }, [refreshAssetWallets, refreshAllocationHealth])
   );
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([
+      refreshAssetWallets({ force: true }),
+      refreshAllocationHealth({ force: true }),
+    ]);
+  }, [refreshAssetWallets, refreshAllocationHealth]);
+
+  const allocationRequirements = allocationHealth?.requirements;
+  const allocationResources = allocationHealth?.resources;
+  const allocationResourceState = allocationHealth?.resourceState;
+  const allocationRuntime = allocationHealth?.runtime;
+  const operatorRuntime = allocationRuntime?.operator ?? null;
+  const airdropControlRuntime = allocationRuntime?.airdropControl ?? null;
+  const gasStationRuntime = allocationRuntime?.gasStation ?? null;
+  const allocationNeedEnergy = Math.max(
+    0,
+    Number(allocationRequirements?.requiredEnergy || 0) +
+      Number(allocationRequirements?.minEnergyFloor || 0)
+  );
+  const allocationNeedBandwidth = Math.max(
+    0,
+    Number(allocationRequirements?.requiredBandwidth || 0) +
+      Number(allocationRequirements?.minBandwidthFloor || 0)
+  );
+  const allocationAvailableEnergy = Math.max(0, Number(allocationResources?.energyAvailable || 0));
+  const allocationAvailableBandwidth = Math.max(0, Number(allocationResources?.bandwidthAvailable || 0));
+  const allocationEnergyShortfall = Math.max(0, allocationNeedEnergy - allocationAvailableEnergy);
+  const allocationBandwidthShortfall = Math.max(
+    0,
+    allocationNeedBandwidth - allocationAvailableBandwidth
+  );
+  const allocationReadyLabel = allocationResourceState?.hasEnough
+    ? 'Ready now'
+    : 'Waiting for resource top-up';
+  const allocationReadyBody = allocationResourceState?.hasEnough
+    ? 'The operator wallet is above the safe floor. New ambassador rewards can be pushed into FourteenController without waiting for a replay cycle.'
+    : 'If the operator wallet falls below the safe floor, the backend keeps pending rows in queue, tries to rent resources, and the hourly replay checks again until the reward lands on-chain.';
 
   return (
     <ProductScreen
       eyebrow="INFO"
       browVariant="plain"
-      bottomInsetExtra={56}
       refreshControl={
         <RefreshControl
-          refreshing={assetWalletsRefreshing}
-          onRefresh={() => void refreshAssetWallets({ force: true })}
+          refreshing={assetWalletsRefreshing || (allocationHealthLoading && assetWallets !== null)}
+          onRefresh={() => void handleRefresh()}
           tintColor={colors.accent}
           colors={[colors.accent]}
         />
@@ -216,6 +283,113 @@ export default function EarnScreen() {
         </View>
       </ProductSection>
 
+      <ProductSection eyebrow="AMBASSADOR ENGINE" title="Referral rewards clear in two stages">
+        <ProductBulletList
+          items={[
+            'A buy can be attributed immediately in backend accounting even if the controller-side reward is not on-chain yet.',
+            'The operator wallet is the wallet that finalizes allocation into FourteenController, so claimable rewards appear only after that contract write succeeds.',
+            'If resources are low, the backend keeps the purchase in queue, attempts automatic resource rental, and the hourly replay checks again until the allocation lands.',
+          ]}
+        />
+
+        <View style={styles.allocationMetaCard}>
+          <View style={styles.allocationMetaRow}>
+            <Text style={styles.allocationMetaLabel}>Operator wallet</Text>
+            <Text style={styles.allocationMetaValue}>
+              {allocationHealth?.operatorWallet
+                ? shortenAddress(allocationHealth.operatorWallet)
+                : allocationHealthLoading
+                  ? 'Loading...'
+                  : '--'}
+            </Text>
+          </View>
+
+          <View style={styles.allocationMetaRow}>
+            <Text style={styles.allocationMetaLabel}>Queue state</Text>
+            <Text
+              style={[
+                styles.allocationMetaValue,
+                allocationResourceState?.hasEnough ? styles.allocationMetaValuePositive : styles.allocationMetaValueRisk,
+              ]}
+            >
+              {allocationReadyLabel}
+            </Text>
+          </View>
+
+          <View style={styles.allocationMetaRowLast}>
+            <Text style={styles.allocationMetaLabel}>Safe floor target</Text>
+            <Text style={styles.allocationMetaValue}>
+              {[
+                `${formatResourceAmount(allocationNeedEnergy)} energy`,
+                `${formatResourceAmount(allocationNeedBandwidth)} bandwidth`,
+              ].join(' · ')}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.runtimeWalletCard}>
+          <RuntimeWalletRow
+            label="Operator wallet"
+            address={operatorRuntime?.wallet || allocationHealth?.operatorWallet || null}
+            trxBalance={operatorRuntime?.balanceTrx || '--'}
+            energy={operatorRuntime ? formatResourceAmount(operatorRuntime.availableEnergy) : '--'}
+            bandwidth={operatorRuntime ? formatResourceAmount(operatorRuntime.availableBandwidth) : '--'}
+            note="Writes ambassador rewards into FourteenController."
+          />
+          <RuntimeWalletRow
+            label="Airdrop control"
+            address={airdropControlRuntime?.wallet || null}
+            trxBalance={airdropControlRuntime?.balanceTrx || '--'}
+            energy={airdropControlRuntime ? formatResourceAmount(airdropControlRuntime.availableEnergy) : '--'}
+            bandwidth={airdropControlRuntime ? formatResourceAmount(airdropControlRuntime.availableBandwidth) : '--'}
+            note="Fallback funding wallet that can top up the operator if rental needs extra TRX."
+          />
+          <RuntimeWalletRow
+            label="Gas Station deposit"
+            address={gasStationRuntime?.depositAddress || null}
+            trxBalance={gasStationRuntime?.balanceTrx || '--'}
+            energy={null}
+            bandwidth={null}
+            details={
+              gasStationRuntime?.account
+                ? `provider ${gasStationRuntime.account} · automatic rental pool`
+                : 'Automatic rental pool'
+            }
+            isLast
+          />
+        </View>
+
+        {allocationHealthLoading && !allocationHealth ? (
+          <View style={styles.assetWalletPlaceholder}>
+            <Text style={styles.assetWalletPlaceholderText}>
+              Loading live allocation readiness for the ambassador engine...
+            </Text>
+          </View>
+        ) : allocationHealth ? (
+          <ConfirmNetworkLoadCard
+            estimatedEnergy={allocationNeedEnergy}
+            estimatedBandwidth={allocationNeedBandwidth}
+            availableEnergy={allocationAvailableEnergy}
+            availableBandwidth={allocationAvailableBandwidth}
+            energyShortfall={allocationEnergyShortfall}
+            bandwidthShortfall={allocationBandwidthShortfall}
+            message={allocationReadyBody}
+            messageRisk={!allocationResourceState?.hasEnough}
+          />
+        ) : (
+          <View style={styles.assetWalletPlaceholder}>
+            <Text style={styles.assetWalletPlaceholderText}>
+              {allocationHealthError || 'Ambassador allocation status is temporarily unavailable.'}
+            </Text>
+          </View>
+        )}
+
+        <Text style={styles.assetWalletNote}>
+          Normal screen opens use cached runtime data. Pull down only when you want to force a live
+          read from the backend and chain.
+        </Text>
+      </ProductSection>
+
       <ProductSection eyebrow="LIQUIDITY MODULE" title="Execution is split into three layers">
         <ProductBulletList
           items={[
@@ -275,8 +449,10 @@ export default function EarnScreen() {
             <Text style={styles.assetWalletError}>{assetWalletsError}</Text>
           ) : (
             <Text style={styles.assetWalletNote}>
-              Balances are read from 4TEEN balanceOf(). Deposit time is the latest incoming
-              4TEEN transfer found for the vault address.
+              Balances are read from 4TEEN balanceOf(). Latest incoming activity uses the newest
+              direct 4TEEN transfer found for the vault address. AirdropVault refills are routed
+              in TRX from direct buys, so that refill timing does not always appear in the same
+              token-transfer list.
             </Text>
           )}
         </View>
@@ -355,6 +531,8 @@ function AssetWalletCard({
   onOpenWallet: () => void;
   onOpenDeposit: () => void;
 }) {
+  const isAirdropVault = wallet.id === 'airdrop-vault';
+
   return (
     <TouchableOpacity activeOpacity={0.9} style={styles.assetWalletCard} onPress={onOpenWallet}>
       <View style={styles.assetWalletTopRow}>
@@ -379,17 +557,25 @@ function AssetWalletCard({
         disabled={!wallet.lastDeposit}
       >
         <View style={styles.assetDepositCopy}>
-          <Text style={styles.assetDepositLabel}>LATEST 4TEEN DEPOSIT</Text>
+          <Text style={styles.assetDepositLabel}>
+            {isAirdropVault ? 'LATEST 4TEEN INCOMING' : 'LATEST 4TEEN DEPOSIT'}
+          </Text>
           <Text style={styles.assetDepositValue}>
             {wallet.lastDeposit
               ? `${formatCompactAmount(wallet.lastDeposit.amount)} 4TEEN · ${formatUtc(wallet.lastDeposit.timestamp)}`
               : wallet.status === 'unavailable'
                 ? 'Temporarily unavailable'
-                : 'No recent incoming transfer found'}
+                : isAirdropVault
+                  ? 'No direct 4TEEN incoming transfer found'
+                  : 'No recent incoming transfer found'}
           </Text>
           {wallet.lastDeposit?.fromAddress ? (
             <Text style={styles.assetDepositFrom}>
               from {shortenAddress(wallet.lastDeposit.fromAddress)}
+            </Text>
+          ) : isAirdropVault ? (
+            <Text style={styles.assetDepositFrom}>
+              Direct-buy funding reaches this vault as routed TRX, not only as visible 4TEEN transfers.
             </Text>
           ) : null}
         </View>
@@ -401,6 +587,47 @@ function AssetWalletCard({
 
       {wallet.message ? <Text style={styles.assetWalletWarning}>{wallet.message}</Text> : null}
     </TouchableOpacity>
+  );
+}
+
+function RuntimeWalletRow({
+  label,
+  address,
+  trxBalance,
+  energy,
+  bandwidth,
+  note,
+  details,
+  isLast = false,
+}: {
+  label: string;
+  address: string | null;
+  trxBalance: string;
+  energy: string | null;
+  bandwidth: string | null;
+  note?: string;
+  details?: string;
+  isLast?: boolean;
+}) {
+  return (
+    <View style={[styles.runtimeWalletRow, isLast && styles.runtimeWalletRowLast]}>
+      <View style={styles.runtimeWalletCopy}>
+        <Text style={styles.runtimeWalletLabel}>{label}</Text>
+        <Text style={styles.runtimeWalletAddress}>
+          {address ? shortenAddress(address) : 'Unavailable'}
+        </Text>
+        {note ? <Text style={styles.runtimeWalletNote}>{note}</Text> : null}
+      </View>
+
+      <View style={styles.runtimeWalletMetrics}>
+        <Text style={styles.runtimeWalletMetric}>{trxBalance} TRX</Text>
+        <Text style={styles.runtimeWalletMetricSub}>
+          {details || (energy !== null && bandwidth !== null
+            ? `${energy} energy · ${bandwidth} bandwidth`
+            : '—')}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -474,6 +701,136 @@ function shortenAddress(address: string) {
 }
 
 const styles = StyleSheet.create({
+  allocationMetaCard: {
+    marginTop: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    overflow: 'hidden',
+  },
+
+  allocationMetaRow: {
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lineSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+
+  allocationMetaRowLast: {
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+
+  allocationMetaLabel: {
+    color: colors.textDim,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_600SemiBold',
+    flexShrink: 0,
+  },
+
+  allocationMetaValue: {
+    flex: 1,
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+    textAlign: 'right',
+  },
+
+  allocationMetaValuePositive: {
+    color: colors.green,
+  },
+
+  allocationMetaValueRisk: {
+    color: colors.accent,
+  },
+
+  runtimeWalletCard: {
+    marginTop: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surfaceSoft,
+    overflow: 'hidden',
+  },
+
+  runtimeWalletRow: {
+    minHeight: 64,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.lineSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+
+  runtimeWalletRowLast: {
+    borderBottomWidth: 0,
+  },
+
+  runtimeWalletCopy: {
+    flex: 1,
+    gap: 4,
+  },
+
+  runtimeWalletLabel: {
+    color: colors.textDim,
+    fontSize: 10,
+    lineHeight: 13,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.45,
+    textTransform: 'uppercase',
+  },
+
+  runtimeWalletAddress: {
+    color: colors.white,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Sora_700Bold',
+  },
+
+  runtimeWalletNote: {
+    color: colors.textSoft,
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: 'Sora_600SemiBold',
+  },
+
+  runtimeWalletMetrics: {
+    alignItems: 'flex-end',
+    gap: 3,
+  },
+
+  runtimeWalletMetric: {
+    color: colors.white,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: 'Sora_700Bold',
+    textAlign: 'right',
+  },
+
+  runtimeWalletMetricSub: {
+    color: colors.textDim,
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'right',
+  },
+
   flatStack: {
     gap: 0,
   },

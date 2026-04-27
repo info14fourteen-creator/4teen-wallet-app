@@ -29,6 +29,7 @@ const TRON_DERIVATION_PATH = "m/44'/195'/0'/0/0";
 const SLUG_MAX_LENGTH = 24;
 const AMBASSADOR_CACHE_TTL_MS = 45_000;
 const AMBASSADOR_POSITIVE_IDENTITY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const AMBASSADOR_ALLOCATION_HEALTH_CACHE_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_REGISTER_FEE_LIMIT_SUN = 180_000_000;
 const DEFAULT_REGISTER_EXECUTION_FEE_LIMIT_SUN = 180_000_000;
 const DEFAULT_REGISTER_ESTIMATED_ENERGY = 98_297;
@@ -85,6 +86,11 @@ type FourteenControllerContract = {
 type WalletApiCabinetPayload = {
   ok?: boolean;
   result?: AmbassadorCabinetDashboard;
+};
+
+type WalletApiAllocationHealthPayload = {
+  ok?: boolean;
+  result?: AmbassadorAllocationHealth;
 };
 
 export type AmbassadorProfile = {
@@ -157,6 +163,52 @@ export type AmbassadorScreenSnapshot = {
   cabinet: AmbassadorCabinetDashboard | null;
   status: 'no-wallet' | 'watch-only' | 'register' | 'cabinet' | 'unavailable';
   message: string;
+};
+
+export type AmbassadorAllocationHealth = {
+  operatorWallet: string | null;
+  resources: {
+    walletAddress: string;
+    energyAvailable: number;
+    bandwidthAvailable: number;
+  } | null;
+  resourceState: {
+    walletAddress: string;
+    energyAvailable: number;
+    bandwidthAvailable: number;
+    energyAfter: number;
+    bandwidthAfter: number;
+    hasEnough: boolean;
+  } | null;
+  requirements: {
+    requiredEnergy: number;
+    requiredBandwidth: number;
+    minEnergyFloor: number;
+    minBandwidthFloor: number;
+  } | null;
+  runtime?: {
+    enabled: boolean;
+    operator: {
+      wallet: string;
+      balanceSun: number;
+      balanceTrx: string;
+      availableEnergy: number;
+      availableBandwidth: number;
+    } | null;
+    airdropControl: {
+      wallet: string;
+      balanceSun: number;
+      balanceTrx: string;
+      availableEnergy: number;
+      availableBandwidth: number;
+    } | null;
+    gasStation: {
+      account: string;
+      depositAddress: string | null;
+      balanceSun: number;
+      balanceTrx: string;
+    } | null;
+  } | null;
 };
 
 export type AmbassadorRegistrationReceipt = {
@@ -243,6 +295,13 @@ type AmbassadorIdentityCache = {
 
 const ambassadorMemoryCache = new Map<string, AmbassadorCacheEntry>();
 const ambassadorInflight = new Map<string, Promise<AmbassadorScreenSnapshot>>();
+let ambassadorAllocationHealthCache:
+  | {
+      savedAt: number;
+      result: AmbassadorAllocationHealth | null;
+    }
+  | null = null;
+let ambassadorAllocationHealthInflight: Promise<AmbassadorAllocationHealth | null> | null = null;
 
 function getSnapshotMemoryCacheTtl(snapshot: AmbassadorScreenSnapshot) {
   if (snapshot.status === 'cabinet') return AMBASSADOR_CACHE_TTL_MS;
@@ -1456,6 +1515,46 @@ export async function replayAmbassadorPendingRewards(walletAddress: string) {
 
   ambassadorMemoryCache.delete(wallet);
   return payload?.result || payload;
+}
+
+export async function loadAmbassadorAllocationHealth(options?: {
+  force?: boolean;
+}): Promise<AmbassadorAllocationHealth | null> {
+  if (
+    !options?.force &&
+    ambassadorAllocationHealthCache &&
+    Date.now() - ambassadorAllocationHealthCache.savedAt < AMBASSADOR_ALLOCATION_HEALTH_CACHE_TTL_MS
+  ) {
+    return ambassadorAllocationHealthCache.result;
+  }
+
+  if (!options?.force && ambassadorAllocationHealthInflight) {
+    return ambassadorAllocationHealthInflight;
+  }
+
+  const task = fetchJsonOrThrow<WalletApiAllocationHealthPayload>(
+    buildWalletApiUrl('/ambassador/allocation/health'),
+    {
+      headers: {
+        Accept: 'application/json',
+      },
+    }
+  )
+    .then((payload) => payload?.result || null)
+    .catch(() => null)
+    .then((result) => {
+      ambassadorAllocationHealthCache = {
+        savedAt: Date.now(),
+        result,
+      };
+      return result;
+    })
+    .finally(() => {
+      ambassadorAllocationHealthInflight = null;
+    });
+
+  ambassadorAllocationHealthInflight = task;
+  return task;
 }
 
 async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<AmbassadorScreenSnapshot> {

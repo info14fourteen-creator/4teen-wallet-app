@@ -603,6 +603,16 @@ async function getOperatorState() {
   return getWalletState(env.OPERATOR_WALLET);
 }
 
+async function getAirdropControlState() {
+  const wallet = String(env.AIRDROP_CONTROL_WALLET || '').trim();
+
+  if (!wallet) {
+    return null;
+  }
+
+  return getWalletState(wallet);
+}
+
 function getOperatorPrivateKey() {
   return assertNonEmpty(
     env.OPERATOR_WALLET_PRIVATE_KEY ||
@@ -1270,9 +1280,41 @@ async function rentResourcesForWallet({
   });
 }
 
+async function getGasStationRuntimeState() {
+  if (!String(env.GASSTATION_ENABLED).toLowerCase().includes('true')) {
+    return {
+      enabled: false,
+      operator: await getOperatorState().catch(() => null),
+      airdropControl: await getAirdropControlState().catch(() => null),
+      gasStation: null
+    };
+  }
+
+  return withGasStationClientPool(async (client) => {
+    const [operator, airdropControl, gasBalance] = await Promise.all([
+      getOperatorState().catch(() => null),
+      getAirdropControlState().catch(() => null),
+      client.getBalance().catch(() => null)
+    ]);
+
+    return {
+      enabled: true,
+      operator,
+      airdropControl,
+      gasStation: {
+        account: client.label,
+        depositAddress: String(gasBalance?.deposit_address || env.GASSTATION_DEPOSIT_ADDRESS || '').trim() || null,
+        balanceSun: toSun(gasBalance?.balance || 0),
+        balanceTrx: fromSun(toSun(gasBalance?.balance || 0))
+      }
+    };
+  });
+}
+
 module.exports = {
   getGasStationCredentials,
   ensureOperatorResources,
+  getGasStationRuntimeState,
   quoteEnergyRental,
   quoteResourceRental,
   rentEnergyForWallet,

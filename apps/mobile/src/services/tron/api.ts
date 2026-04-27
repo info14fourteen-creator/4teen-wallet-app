@@ -921,6 +921,25 @@ async function readStoredRuntimeCache<T>(storageKey: string, ttlMs: number): Pro
   }
 }
 
+async function readStoredRuntimeCacheStale<T>(storageKey: string): Promise<T | null> {
+  try {
+    const raw = await AsyncStorage.getItem(storageKey);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as { savedAt?: number; data?: T };
+
+    if (!parsed || typeof parsed.savedAt !== 'number' || !('data' in parsed)) {
+      return null;
+    }
+
+    return parsed.data as T;
+  } catch {
+    return null;
+  }
+}
+
 async function writeStoredRuntimeCache<T>(storageKey: string, data: T): Promise<void> {
   try {
     await AsyncStorage.setItem(
@@ -2210,6 +2229,7 @@ async function getCachedTrongridAccount(
 ): Promise<TrongridAccountItem | null> {
   const cacheKey = buildAccountInfoRuntimeCacheKey(address);
   const storageKey = buildTrongridAccountStorageKey(address);
+  const staleRuntime = trongridAccountMemoryCache.get(cacheKey)?.data ?? null;
 
   if (!options?.force) {
     const cached = readFreshRuntimeCache(
@@ -2241,10 +2261,26 @@ async function getCachedTrongridAccount(
   }
 
   const request = (async () => {
-    const item = await getTrongridAccount(address);
-    writeRuntimeCache(trongridAccountMemoryCache, cacheKey, item);
-    void writeStoredRuntimeCache(storageKey, item);
-    return item;
+    try {
+      const item = await getTrongridAccount(address);
+      writeRuntimeCache(trongridAccountMemoryCache, cacheKey, item);
+      void writeStoredRuntimeCache(storageKey, item);
+      return item;
+    } catch (error) {
+      if (isProviderRateLimitError(error as ProviderRequestError)) {
+        if (staleRuntime !== null) {
+          return staleRuntime;
+        }
+
+        const staleStored = await readStoredRuntimeCacheStale<TrongridAccountItem | null>(storageKey);
+        if (staleStored !== null) {
+          writeRuntimeCache(trongridAccountMemoryCache, cacheKey, staleStored);
+          return staleStored;
+        }
+      }
+
+      throw error;
+    }
   })();
 
   trongridAccountInflight.set(cacheKey, request);
@@ -3696,6 +3732,7 @@ export async function getAccountResources(
 ): Promise<WalletAccountResources> {
   const cacheKey = buildAccountResourcesRuntimeCacheKey(address);
   const storageKey = buildAccountResourcesStorageKey(address);
+  const staleRuntime = accountResourcesMemoryCache.get(cacheKey)?.data ?? null;
 
   if (!options?.force) {
     const cached = readFreshRuntimeCache(
@@ -3726,27 +3763,43 @@ export async function getAccountResources(
   }
 
   const request = (async (): Promise<WalletAccountResources> => {
-    const payload = await trongridPost<TronAccountResourcesResponse>('/wallet/getaccountresource', {
-      address,
-      visible: true,
-    });
+    try {
+      const payload = await trongridPost<TronAccountResourcesResponse>('/wallet/getaccountresource', {
+        address,
+        visible: true,
+      });
 
-    const freeNetUsed = parsePositiveCount(payload?.freeNetUsed) ?? 0;
-    const freeNetLimit = parsePositiveCount(payload?.freeNetLimit) ?? 0;
-    const netUsed = parsePositiveCount(payload?.NetUsed) ?? 0;
-    const netLimit = parsePositiveCount(payload?.NetLimit) ?? 0;
+      const freeNetUsed = parsePositiveCount(payload?.freeNetUsed) ?? 0;
+      const freeNetLimit = parsePositiveCount(payload?.freeNetLimit) ?? 0;
+      const netUsed = parsePositiveCount(payload?.NetUsed) ?? 0;
+      const netLimit = parsePositiveCount(payload?.NetLimit) ?? 0;
 
-    const result: WalletAccountResources = {
-      address,
-      energyUsed: parsePositiveCount(payload?.EnergyUsed) ?? 0,
-      energyLimit: parsePositiveCount(payload?.EnergyLimit) ?? 0,
-      bandwidthUsed: freeNetUsed + netUsed,
-      bandwidthLimit: freeNetLimit + netLimit,
-    };
+      const result: WalletAccountResources = {
+        address,
+        energyUsed: parsePositiveCount(payload?.EnergyUsed) ?? 0,
+        energyLimit: parsePositiveCount(payload?.EnergyLimit) ?? 0,
+        bandwidthUsed: freeNetUsed + netUsed,
+        bandwidthLimit: freeNetLimit + netLimit,
+      };
 
-    writeRuntimeCache(accountResourcesMemoryCache, cacheKey, result);
-    void writeStoredRuntimeCache(storageKey, result);
-    return result;
+      writeRuntimeCache(accountResourcesMemoryCache, cacheKey, result);
+      void writeStoredRuntimeCache(storageKey, result);
+      return result;
+    } catch (error) {
+      if (isProviderRateLimitError(error as ProviderRequestError)) {
+        if (staleRuntime) {
+          return staleRuntime;
+        }
+
+        const staleStored = await readStoredRuntimeCacheStale<WalletAccountResources>(storageKey);
+        if (staleStored) {
+          writeRuntimeCache(accountResourcesMemoryCache, cacheKey, staleStored);
+          return staleStored;
+        }
+      }
+
+      throw error;
+    }
   })();
 
   accountResourcesInflight.set(cacheKey, request);
@@ -3989,11 +4042,31 @@ export async function getWalletSnapshot(
     ]);
 
     if (accountResult.status === 'rejected') {
-      console.warn('Failed to load TRX account balance, using 0 TRX fallback:', address, accountResult.reason);
+      if (!isProviderRateLimitError(accountResult.reason as ProviderRequestError)) {
+        console.warn(
+          'Failed to load TRX account balance, using 0 TRX fallback:',
+          address,
+          accountResult.reason
+        );
+      }
     }
 
     if (trc20AssetsResult.status === 'rejected') {
-      console.warn('Failed to load TRC20 balances, using empty token fallback:', address, trc20AssetsResult.reason);
+      const reasonText =
+        trc20AssetsResult.reason instanceof Error
+          ? trc20AssetsResult.reason.message
+          : String(trc20AssetsResult.reason || '');
+      const isRateLimit =
+        isProviderRateLimitError(trc20AssetsResult.reason as ProviderRequestError) ||
+        reasonText.toLowerCase().includes('rate limit');
+
+      if (!isRateLimit) {
+        console.warn(
+          'Failed to load TRC20 balances, using empty token fallback:',
+          address,
+          trc20AssetsResult.reason
+        );
+      }
     }
 
     if (trxPriceResult.status === 'rejected') {

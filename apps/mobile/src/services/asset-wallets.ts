@@ -4,8 +4,8 @@ import { buildTrongridHeaders, TRONGRID_BASE_URL } from '../config/tron';
 import { FOURTEEN_CONTRACT, tronscanFetch } from './tron/api';
 
 const TOKEN_DECIMALS = 6;
-const ASSET_WALLETS_CACHE_TTL_MS = 2 * 60 * 1000;
-const TRANSFER_LOOKUP_LIMIT = 20;
+const ASSET_WALLETS_CACHE_TTL_MS = 30 * 60 * 1000;
+const TRANSFER_LOOKUP_LIMIT = 200;
 
 export const ASSET_WALLET_DEFINITIONS = [
   {
@@ -195,25 +195,49 @@ async function readTokenBalance(walletAddress: string) {
 }
 
 async function readLastIncomingDeposit(walletAddress: string): Promise<AssetWalletDeposit | null> {
-  const response = await tronscanFetch<TronscanTrc20TransferResponse>(
-    '/token_trc20/transfers',
-    {
-      relatedAddress: walletAddress,
+  const findIncoming = (rows: TronscanTrc20TransferItem[]) =>
+    rows.find((row) => {
+      return (
+        String(row.to_address || '') === walletAddress &&
+        Number(row.quant || 0) > 0 &&
+        isSuccessfulTransfer(row)
+      );
+    });
+
+  const response = await tronscanFetch<TronscanTrc20TransferResponse>('/token_trc20/transfers', {
+    relatedAddress: walletAddress,
+    contract_address: FOURTEEN_CONTRACT,
+    start: 0,
+    limit: TRANSFER_LOOKUP_LIMIT,
+    reverse: true,
+  });
+
+  const primaryRows = response.token_transfers ?? [];
+  let incoming = findIncoming(primaryRows);
+
+  if (!incoming) {
+    const targeted = await tronscanFetch<TronscanTrc20TransferResponse>('/token_trc20/transfers', {
+      toAddress: walletAddress,
       contract_address: FOURTEEN_CONTRACT,
       start: 0,
       limit: TRANSFER_LOOKUP_LIMIT,
       reverse: true,
-    }
-  );
+    }).catch(() => null);
 
-  const rows = response.token_transfers ?? [];
-  const incoming = rows.find((row) => {
-    return (
-      String(row.to_address || '') === walletAddress &&
-      Number(row.quant || 0) > 0 &&
-      isSuccessfulTransfer(row)
-    );
-  });
+    incoming = findIncoming(targeted?.token_transfers ?? []);
+  }
+
+  if (!incoming) {
+    const targetedAlt = await tronscanFetch<TronscanTrc20TransferResponse>('/token_trc20/transfers', {
+      to_address: walletAddress,
+      contract_address: FOURTEEN_CONTRACT,
+      start: 0,
+      limit: TRANSFER_LOOKUP_LIMIT,
+      reverse: true,
+    }).catch(() => null);
+
+    incoming = findIncoming(targetedAlt?.token_transfers ?? []);
+  }
 
   if (!incoming) {
     return null;
