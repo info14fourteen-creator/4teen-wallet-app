@@ -303,6 +303,18 @@ let ambassadorAllocationHealthCache:
   | null = null;
 let ambassadorAllocationHealthInflight: Promise<AmbassadorAllocationHealth | null> | null = null;
 
+function isCompleteAmbassadorAllocationHealth(
+  value: AmbassadorAllocationHealth | null | undefined
+): value is AmbassadorAllocationHealth {
+  return Boolean(
+    value &&
+      value.resources &&
+      value.resourceState &&
+      value.runtime &&
+      value.requirements
+  );
+}
+
 function getSnapshotMemoryCacheTtl(snapshot: AmbassadorScreenSnapshot) {
   if (snapshot.status === 'cabinet') return AMBASSADOR_CACHE_TTL_MS;
   if (snapshot.status === 'no-wallet') return 5_000;
@@ -1523,7 +1535,8 @@ export async function loadAmbassadorAllocationHealth(options?: {
   if (
     !options?.force &&
     ambassadorAllocationHealthCache &&
-    Date.now() - ambassadorAllocationHealthCache.savedAt < AMBASSADOR_ALLOCATION_HEALTH_CACHE_TTL_MS
+    Date.now() - ambassadorAllocationHealthCache.savedAt < AMBASSADOR_ALLOCATION_HEALTH_CACHE_TTL_MS &&
+    isCompleteAmbassadorAllocationHealth(ambassadorAllocationHealthCache.result)
   ) {
     return ambassadorAllocationHealthCache.result;
   }
@@ -1545,9 +1558,9 @@ export async function loadAmbassadorAllocationHealth(options?: {
     .then((result) => {
       ambassadorAllocationHealthCache = {
         savedAt: Date.now(),
-        result,
+        result: isCompleteAmbassadorAllocationHealth(result) ? result : null,
       };
-      return result;
+      return isCompleteAmbassadorAllocationHealth(result) ? result : null;
     })
     .finally(() => {
       ambassadorAllocationHealthInflight = null;
