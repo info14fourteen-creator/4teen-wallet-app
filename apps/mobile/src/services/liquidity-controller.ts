@@ -42,9 +42,9 @@ export const LIQUIDITY_JUSTMONEY_EXECUTOR_CONTRACT_URL =
   'https://tronscan.org/#/contract/TWrz68MRTf1m9vv8xpcdMD4z9kjBxiHw7F';
 export const LIQUIDITY_SUN_V3_EXECUTOR_CONTRACT_URL =
   'https://tronscan.org/#/contract/TU8EwEWg4K594zwThvhTZxqzEuEYuR46xh';
-export const LIQUIDITY_INFO_TITLE = 'Automated liquidity routing';
+export const LIQUIDITY_INFO_TITLE = 'How liquidity routing works';
 export const LIQUIDITY_INFO_TEXT =
-  'Direct 4TEEN buys send 90% of purchase TRX into the FourteenLiquidityController. That controller holds the liquidity-side TRX and enforces the release rules on-chain.\n\nLiquidity can execute once per UTC day when the controller balance is at least 100 TRX. The released amount is 6.43% of the controller balance, split 50/50 between the JustMoney executor and the Sun.io V3 executor.\n\nThe LiquidityBootstrapper prepares executor token balances from FourteenVault before calling the controller. External automation may trigger this flow, but the schedule, threshold, percentage, and split are enforced by contracts.';
+  'Direct 4TEEN buys send 90% of purchase TRX into the FourteenLiquidityController. That controller holds the liquidity-side TRX and enforces the release rules on-chain.\n\nLiquidity can execute once per UTC day when the controller balance is at least 100 TRX. The released amount is 6.43% of the controller balance, split 50/50 between the JustMoney executor and the Sun.io V3 executor.\n\nThe LiquidityBootstrapper prepares executor token balances from FourteenVault before calling the controller. Automation may trigger the flow, but the schedule, threshold, percentage, and split are enforced by contracts.';
 
 type LiquidityContract = {
   bootstrapAndExecute: () => {

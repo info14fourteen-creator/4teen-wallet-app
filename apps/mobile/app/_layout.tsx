@@ -1,21 +1,23 @@
-import { Stack, usePathname, useSegments } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as Linking from 'expo-linking';
 import { useFonts } from 'expo-font';
 import { Sora_600SemiBold, Sora_700Bold } from '@expo-google-fonts/sora';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AppState } from 'react-native';
 import 'react-native-reanimated';
 import { Buffer } from 'buffer';
 import process from 'process';
 
 import { NoticeProvider } from '../src/notice/notice-provider';
-import { WalletSessionProvider } from '../src/wallet/wallet-session';
+import { useWalletSession, WalletSessionProvider } from '../src/wallet/wallet-session';
 import { SearchProvider } from '../src/search/search-provider';
 import { NavigationChrome } from '../src/ui/navigation';
 import { shouldRenderSharedNavigation } from '../src/ui/navigation-routes';
 import { captureDeferredReferral, captureReferralFromUrl } from '../src/services/referral';
+import { getAutoLockDelayMs, getAutoLockMode, hasPasscode } from '../src/security/local-auth';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -28,11 +30,14 @@ if (!(globalThis as any).process) {
 }
 
 function LayoutContent() {
+  const router = useRouter();
   const pathname = usePathname();
   const segments = useSegments();
   const rootSegment = segments[0];
+  const { hasWallet } = useWalletSession();
   const [menuOpen, setMenuOpen] = useState(false);
-  const showSharedNavigation = shouldRenderSharedNavigation(pathname, rootSegment);
+  const showSharedNavigation = shouldRenderSharedNavigation(pathname, rootSegment, { hasWallet });
+  const backgroundedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -63,6 +68,53 @@ function LayoutContent() {
       subscription.remove();
     };
   }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        const backgroundedAt = backgroundedAtRef.current;
+        backgroundedAtRef.current = null;
+
+        if (!backgroundedAt) {
+          return;
+        }
+
+        void (async () => {
+          const protectedApp = await hasPasscode().catch(() => false);
+
+          if (!protectedApp) {
+            return;
+          }
+
+          const autoLockMode = await getAutoLockMode().catch(() => '1m' as const);
+          const autoLockDelayMs = getAutoLockDelayMs(autoLockMode);
+
+          if (autoLockDelayMs === null) {
+            return;
+          }
+
+          const elapsed = Date.now() - backgroundedAt;
+          const isUnlockRoute = pathname === '/unlock';
+          const isPasscodeSetupRoute = pathname === '/create-passcode' || pathname === '/confirm-passcode';
+          const isScanRoute = pathname === '/scan';
+
+          if (!isUnlockRoute && !isPasscodeSetupRoute && !isScanRoute && elapsed >= autoLockDelayMs) {
+            router.replace('/unlock');
+          }
+        })();
+
+        return;
+      }
+
+      if (nextState === 'background') {
+        backgroundedAtRef.current = Date.now();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [pathname, router]);
 
   return (
     <>

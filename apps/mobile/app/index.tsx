@@ -3,6 +3,7 @@ import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, fontFamilies, spacing, typography } from '../src/theme/tokens';
 import { hasPasscode } from '../src/security/local-auth';
+import { getActiveWallet } from '../src/services/wallet/storage';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -51,7 +52,8 @@ export default function BootScreen() {
         return;
       }
 
-      router.replace('/wallet-access');
+      const activeWallet = await getActiveWallet().catch(() => null);
+      router.replace(activeWallet ? '/wallet' : '/wallet-access');
     };
 
     void run();

@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import KeyboardView from '../src/ui/KeyboardView';
+import InfoToggleIcon from '../src/ui/info-toggle-icon';
 import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenBrow from '../src/ui/screen-brow';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
@@ -24,7 +25,9 @@ import {
 import { ConfirmIcon, PasteIcon, ScanIcon } from '../src/ui/ui-icons';
 
 const MAX_WALLET_NAME_LENGTH = 18;
-const ADDRESS_BOX_HEIGHT = 92;
+const IMPORT_INFO_TITLE = 'How watch-only works';
+const IMPORT_INFO_TEXT =
+  'Paste or scan a TRON address to add this wallet in view-only mode. The address is validated locally on this device before the wallet is saved.\n\nA watch-only wallet can show balances, tokens, and activity, but it cannot sign transactions or expose private-key actions.\n\nThe wallet name is just a local label for this app. It helps you recognize the wallet and does not change anything on-chain.';
 
 export default function ImportWatchOnlyScreen() {
   const router = useRouter();
@@ -37,12 +40,14 @@ export default function ImportWatchOnlyScreen() {
   const [address, setAddress] = useState('');
   const [walletName, setWalletName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [infoExpanded, setInfoExpanded] = useState(false);
 
   const walletNameRef = useRef<TextInput | null>(null);
 
   const normalizedAddress = address.trim();
   const walletNameTrimmed = walletName.trim();
   const addressValid = useMemo(() => isValidTronAddress(normalizedAddress), [normalizedAddress]);
+  const showInvalidAddressHint = normalizedAddress.length > 0 && !addressValid;
   const addressFontSize = useMemo(() => {
     if (normalizedAddress.length > 32) return 11;
     if (normalizedAddress.length > 26) return 12;
@@ -125,82 +130,69 @@ export default function ImportWatchOnlyScreen() {
           ]}
           extraScrollHeight={56}
         >
-          <ScreenBrow label="WATCH-ONLY WALLET" variant="back" />
+          <ScreenBrow
+            label="WATCH-ONLY WALLET"
+            variant="backLink"
+            onLabelPress={() => setInfoExpanded((prev) => !prev)}
+            labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
+          />
+
+          {infoExpanded ? (
+            <View style={styles.infoPanel}>
+              <Text style={styles.infoTitle}>{IMPORT_INFO_TITLE}</Text>
+              <Text style={styles.infoText}>{IMPORT_INFO_TEXT}</Text>
+            </View>
+          ) : null}
 
           <Text style={styles.title}>
             Add a <Text style={styles.titleAccent}>watch-only</Text> wallet
           </Text>
 
-          <Text style={styles.lead}>
-            Track balances, tokens and wallet activity without signing rights. The TRON address is
-            validated locally and saved as a read-only wallet.
-          </Text>
-
-          <View style={styles.switchRow}>
-            <TouchableOpacity
-              activeOpacity={0.9}
-              style={styles.switchButton}
-              onPress={handlePaste}
-            >
-              <Text style={styles.switchTextActive}>Paste Address</Text>
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.helperTextCentered}>
-            {address.length === 0
-              ? 'Waiting for TRON address input.'
-              : addressValid
-                ? 'Valid TRON address detected.'
-                : 'Invalid TRON address.'}
-          </Text>
+          <Text style={styles.noticeLine}>This wallet can view activity, but it cannot sign.</Text>
 
           <Text style={styles.blockEyebrow}>TRON Address</Text>
 
-          <View style={[styles.addressBox, normalizedAddress.length > 0 && styles.addressBoxActive]}>
-            <View style={styles.addressContentArea}>
-              <TextInput
-                value={address}
-                onChangeText={(value) => setAddress(value.replace(/\s+/g, ''))}
-                placeholder="T..."
-                placeholderTextColor={colors.textDim}
-                style={[
-                  styles.addressInput,
-                  { fontSize: addressFontSize, lineHeight: addressFontSize + 4 },
-                ]}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="off"
-                keyboardAppearance="dark"
-                selectionColor={colors.accent}
-                returnKeyType="next"
-                onSubmitEditing={() => walletNameRef.current?.focus()}
-              />
-            </View>
+          <View style={[styles.addressField, normalizedAddress.length > 0 && styles.addressFieldActive]}>
+            <TextInput
+              value={address}
+              onChangeText={(value) => setAddress(value.replace(/\s+/g, ''))}
+              placeholder="T..."
+              placeholderTextColor={colors.textDim}
+              style={[
+                styles.addressInput,
+                { fontSize: addressFontSize, lineHeight: addressFontSize + 4 },
+              ]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              keyboardAppearance="dark"
+              selectionColor={colors.accent}
+              returnKeyType="next"
+              onSubmitEditing={() => walletNameRef.current?.focus()}
+            />
 
-            <View style={styles.addressUtilityRow}>
-              <Text style={styles.addressUtilityText}>
-                {address.length === 0 ? 'TRON address not set' : normalizedAddress}
-              </Text>
+            <View style={styles.addressActions}>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.inlineUtilityButton}
+                onPress={handleScanAddress}
+              >
+                <ScanIcon width={16} height={16} />
+              </TouchableOpacity>
 
-              <View style={styles.addressActions}>
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.inlineUtilityButton}
-                  onPress={handleScanAddress}
-                >
-                  <ScanIcon width={16} height={16} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.inlineUtilityButton}
-                  onPress={handlePaste}
-                >
-                  <PasteIcon width={16} height={16} />
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.inlineUtilityButton}
+                onPress={handlePaste}
+              >
+                <PasteIcon width={16} height={16} />
+              </TouchableOpacity>
             </View>
           </View>
+
+          {showInvalidAddressHint ? (
+            <Text style={styles.invalidAddressHint}>Enter a valid TRON address.</Text>
+          ) : null}
 
           <Text style={styles.walletNameEyebrow}>Wallet Name</Text>
 
@@ -225,10 +217,6 @@ export default function ImportWatchOnlyScreen() {
               <ConfirmIcon width={18} height={18} />
             </TouchableOpacity>
           </View>
-
-          <Text style={styles.modeHint}>
-            View-only mode: this wallet should not sign, send, or expose private-key actions.
-          </Text>
 
           <TouchableOpacity
             activeOpacity={0.9}
@@ -276,46 +264,39 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
   },
 
-  lead: {
-    ...ui.lead,
-    marginTop: 14,
-    marginBottom: 22,
+  infoPanel: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
+    marginBottom: 16,
   },
 
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
+  infoTitle: {
+    ...ui.bodyStrong,
   },
 
-  switchButton: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: radius.sm,
-    
-    
-    backgroundColor: colors.bg,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  infoText: {
+    ...ui.body,
+    lineHeight: 25,
   },
 
-  switchTextActive: {
-    color: colors.accent,
-    fontSize: 13,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
-    textAlign: 'center',
-  },
-
-  helperTextCentered: {
+  noticeLine: {
+    ...ui.body,
+    marginTop: 12,
+    marginBottom: 18,
     color: colors.textDim,
+  },
+
+  invalidAddressHint: {
+    color: colors.red,
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
-    textAlign: 'center',
-    marginTop: 14,
+    marginTop: 8,
     marginBottom: 16,
   },
 
@@ -324,25 +305,24 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  addressBox: {
-    height: ADDRESS_BOX_HEIGHT,
+  addressField: {
+    minHeight: layout.fieldHeight,
     borderRadius: radius.sm,
     backgroundColor: 'rgba(255,255,255,0.03)',
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingLeft: 14,
+    paddingRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
 
-  addressBoxActive: {
+  addressFieldActive: {
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
 
-  addressContentArea: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-
   addressInput: {
+    flex: 1,
+    minHeight: layout.fieldHeight,
     color: colors.white,
     fontSize: 14,
     lineHeight: 18,
@@ -350,28 +330,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
 
-  addressUtilityRow: {
-    minHeight: 28,
-    marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-
   addressActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     flexShrink: 0,
-  },
-
-  addressUtilityText: {
-    flex: 1,
-    color: colors.white,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_600SemiBold',
   },
 
   inlineUtilityButton: {
@@ -423,12 +386,6 @@ const styles = StyleSheet.create({
 
   nameConfirmButtonDisabled: {
     opacity: 0.35,
-  },
-
-  modeHint: {
-    ...ui.body,
-    color: colors.textDim,
-    marginTop: spacing[4],
   },
 
   primaryButton: {

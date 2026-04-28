@@ -15,7 +15,6 @@ import {
   colors,
   layout,
   radius,
-  spacing,
   typography,
 } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
@@ -102,7 +101,7 @@ export default function UiLab() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [, setCarouselIndex] = useState(1);
 
-  const bottomInset = useBottomInset(0);
+  const bottomInset = useBottomInset(14);
 
   const screenTier = useMemo(() => {
     if (height <= 740) return 'compact';
@@ -321,7 +320,7 @@ export default function UiLab() {
             </ScrollView>
           </View>
 
-          <View style={styles.dots}>
+          <View style={[styles.dots, { marginTop: 6, marginBottom: 6 }]}>
             {slides.map((slide, index) => (
               <TouchableOpacity
                 key={slide.title}
@@ -342,7 +341,7 @@ export default function UiLab() {
             styles.bottom,
             {
               paddingTop: dynamic.bottomTopPadding,
-              paddingBottom: bottomInset + dynamic.bottomBottomPadding - spacing[4],
+              paddingBottom: bottomInset + dynamic.bottomBottomPadding,
             },
           ]}
         >

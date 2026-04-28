@@ -30,7 +30,7 @@ export const FOURTEEN_CONTRACT = 'TMLXiCW2ZAkvjmn79ZXa4vdHX5BE3n9x4A';
 
 const TOKEN_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
 const WALLET_HISTORY_CACHE_STALE_TTL_MS = 24 * 60 * 60 * 1000;
-const TOKEN_HISTORY_CACHE_PREFIX = 'fourteen_token_history_cache_v10';
+const TOKEN_HISTORY_CACHE_PREFIX = 'fourteen_token_history_cache_v11';
 const TOKEN_HISTORY_CACHE_PREFIX_ROOT = 'fourteen_token_history_cache_';
 const WALLET_HISTORY_CACHE_PREFIX = 'fourteen_wallet_history_cache_v4';
 const WALLET_HISTORY_CACHE_PREFIX_ROOT = 'fourteen_wallet_history_cache_';
@@ -649,35 +649,6 @@ type CmcDexTokenResponse = {
       };
     }[];
   };
-};
-
-type TronscanTransferItem = {
-  contractRet?: string;
-  contractType?: string | number;
-  finalResult?: string;
-  result?: string;
-  event_type?: string;
-  amount?: string | number;
-  transactionHash?: string;
-  tokenInfo?: {
-    tokenId?: string;
-    tokenAbbr?: string;
-    tokenName?: string;
-    tokenDecimal?: number | string;
-    tokenType?: string;
-    tokenLogo?: string;
-  };
-  transferFromAddress?: string;
-  transferToAddress?: string;
-  block?: number;
-  timestamp?: number;
-  confirmed?: boolean;
-};
-
-type TronscanTransferResponse = {
-  total?: number;
-  rangeTotal?: number;
-  data?: TronscanTransferItem[];
 };
 
 type TronscanTrc20TransferItem = {
@@ -2660,71 +2631,6 @@ function buildTrc20TransferHistoryItems(
   );
 }
 
-function buildTrxTransferHistoryItems(
-  walletAddress: string,
-  rows: TronscanTransferItem[],
-  addressBook: Record<string, string>
-): TokenHistoryItem[] {
-  return dedupeHistoryItems(
-    rows
-      .map((item, index): TokenHistoryItem | null => {
-        const tokenAbbr = String(item.tokenInfo?.tokenAbbr || '').trim().toLowerCase();
-        const tokenName = String(item.tokenInfo?.tokenName || '').trim().toLowerCase();
-        const tokenId = String(item.tokenInfo?.tokenId || '').trim();
-        const decimals = Number(item.tokenInfo?.tokenDecimal ?? 6) || 6;
-
-        if (!(tokenAbbr === 'trx' || tokenName === 'trx' || tokenId === '_')) {
-          return null;
-        }
-
-        const txHash = String(item.transactionHash || `trx-${index}`);
-        const amountRaw = String(item.amount ?? '0');
-        const fromAddress = String(item.transferFromAddress || '').trim();
-        const toAddress = String(item.transferToAddress || '').trim();
-        const baseType = normalizeHistoryType(walletAddress, fromAddress, toAddress);
-
-        if (baseType === 'SELF') {
-          return null;
-        }
-
-        const displayType: TokenHistoryDisplayType = baseType === 'IN' ? 'RECEIVE' : 'SEND';
-        const counterpartyAddress = getCounterpartyAddress(
-          walletAddress,
-          baseType,
-          fromAddress,
-          toAddress
-        );
-        const counterpartyKey = normalizeAddressKey(counterpartyAddress);
-        const contactName = counterpartyKey ? addressBook[counterpartyKey] : undefined;
-
-        return {
-          id: txHash,
-          txHash,
-          type: baseType,
-          displayType,
-          amountRaw,
-          amountFormatted: formatHistoryAmount(amountRaw, decimals, displayType),
-          timestamp: Number(item.timestamp || 0),
-          from: fromAddress,
-          to: toAddress,
-          counterpartyAddress,
-          counterpartyLabel: contactName || shortenAddress(counterpartyAddress),
-          isKnownContact: Boolean(contactName),
-          tronscanUrl: buildTronscanTxUrl(txHash),
-          transactionStatus: resolveHistoryTransactionStatus({
-            confirmed: item.confirmed,
-            contractRet: item.contractRet,
-            finalResult: item.finalResult,
-            result: item.result,
-          }),
-          contractType: normalizeHistoryContractType(item.contractType),
-          eventType: normalizeHistoryEventType(item.event_type),
-        };
-      })
-      .filter(isTokenHistoryItem)
-  );
-}
-
 function dedupeWalletHistoryItems<T extends WalletHistoryItem>(items: T[]) {
   const seen = new Set<string>();
 
@@ -3478,41 +3384,46 @@ export async function getTokenHistoryPage(
   decimals: number,
   fingerprint?: string
 ): Promise<TokenHistoryPage> {
-  const start = Math.max(0, Number.parseInt(String(fingerprint || '0'), 10) || 0);
   const limit = 10;
 
   try {
     const addressBook = await getAddressBookMap().catch(() => ({} as Record<string, string>));
 
     if (tokenId === TRX_TOKEN_ID) {
-      const response = await tronscanFetch<TronscanTransferResponse>('/transfer', {
-        sort: '-timestamp',
-        count: true,
-        limit,
-        start,
-        address: walletAddress,
-        token: '_',
-        filterTokenValue: 1,
-      });
+      const items: TokenHistoryItem[] = [];
+      let nextWalletFingerprint = fingerprint;
+      let hasMore = false;
+      let attempts = 0;
 
-      const rows = response.data ?? [];
-      const items = buildTrxTransferHistoryItems(walletAddress, rows, addressBook);
-      const total = parsePositiveCount(response.rangeTotal) ?? parsePositiveCount(response.total);
-      const nextStart = start + limit;
-      const hasMore = resolveHasMore({
-        total,
-        start,
-        rowsLength: rows.length,
-        limit,
-      });
+      while (items.length < limit && attempts < 8) {
+        attempts += 1;
+
+        const walletPage = await getWalletHistoryPage(walletAddress, {
+          limit: Math.max(limit * 2, DEFAULT_WALLET_HISTORY_LIMIT),
+          fingerprint: nextWalletFingerprint,
+        });
+
+        const trxItems = walletPage.items
+          .filter((item) => item.tokenId === TRX_TOKEN_ID)
+          .map(({ tokenId: _tokenId, tokenName: _tokenName, tokenSymbol: _tokenSymbol, tokenLogo: _tokenLogo, ...item }) => item);
+
+        items.push(...trxItems);
+        nextWalletFingerprint = walletPage.nextFingerprint;
+        hasMore = walletPage.hasMore;
+
+        if (!walletPage.hasMore || !walletPage.nextFingerprint) {
+          break;
+        }
+      }
 
       return {
-        items,
-        nextFingerprint: hasMore ? String(nextStart) : undefined,
+        items: dedupeHistoryItems(items).slice(0, limit),
+        nextFingerprint: hasMore ? nextWalletFingerprint : undefined,
         hasMore,
       };
     }
 
+    const start = Math.max(0, Number.parseInt(String(fingerprint || '0'), 10) || 0);
     const response = await tronscanFetch<TronscanTrc20TransferResponse>(
       '/token_trc20/transfers',
       {

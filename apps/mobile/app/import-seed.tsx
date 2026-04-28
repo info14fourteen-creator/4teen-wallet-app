@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import KeyboardView from '../src/ui/KeyboardView';
+import InfoToggleIcon from '../src/ui/info-toggle-icon';
 import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenBrow from '../src/ui/screen-brow';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
@@ -25,6 +26,9 @@ import {
 import { ConfirmIcon } from '../src/ui/ui-icons';
 
 const MAX_WALLET_NAME_LENGTH = 18;
+const IMPORT_INFO_TITLE = 'How this import works';
+const IMPORT_INFO_TEXT =
+  'Enter the recovery phrase exactly as it was issued. You can paste the full phrase at once, even with numbering, separators, or line breaks, and the app maps the words into the correct slots locally on this device.\n\nChoose whether the backup has 12 or 24 words, fill every slot, and then name the wallet for local use inside this app.\n\nImport starts only after the phrase passes local validation. We never store your seed phrase on our servers.';
 
 function buildWords(count: number) {
   return Array.from({ length: count }, () => '');
@@ -47,6 +51,7 @@ export default function ImportSeedScreen() {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [walletName, setWalletName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [infoExpanded, setInfoExpanded] = useState(false);
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const walletNameRef = useRef<TextInput | null>(null);
@@ -298,17 +303,25 @@ export default function ImportSeedScreen() {
           ]}
           extraScrollHeight={56}
         >
-          <ScreenBrow label="IMPORT SEED PHRASE" variant="back" />
+          <ScreenBrow
+            label="IMPORT SEED PHRASE"
+            variant="backLink"
+            onLabelPress={() => setInfoExpanded((prev) => !prev)}
+            labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
+          />
+
+          {infoExpanded ? (
+            <View style={styles.infoPanel}>
+              <Text style={styles.infoTitle}>{IMPORT_INFO_TITLE}</Text>
+              <Text style={styles.infoText}>{IMPORT_INFO_TEXT}</Text>
+            </View>
+          ) : null}
 
           <Text style={styles.title}>
             Restore from <Text style={styles.titleAccent}>seed phrase</Text>
           </Text>
 
-          <Text style={styles.lead}>
-            Enter the recovery phrase exactly as it was issued. You can paste the full phrase at
-            once, even with numbering, separators, or line breaks. Input is cleaned locally on
-            device and mapped into the correct recovery slots.
-          </Text>
+          <Text style={styles.noticeLine}>We never store your seed phrase on our servers.</Text>
 
           <View style={styles.switchRow}>
             <TouchableOpacity
@@ -470,10 +483,31 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
   },
 
-  lead: {
-    ...ui.lead,
-    marginTop: 14,
-    marginBottom: 22,
+  infoPanel: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
+    marginBottom: 16,
+  },
+
+  infoTitle: {
+    ...ui.bodyStrong,
+  },
+
+  infoText: {
+    ...ui.body,
+    lineHeight: 25,
+  },
+
+  noticeLine: {
+    ...ui.body,
+    marginTop: 12,
+    marginBottom: 18,
+    color: colors.textDim,
   },
 
   switchRow: {

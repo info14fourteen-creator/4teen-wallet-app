@@ -383,7 +383,9 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
     });
   }, [footerMode, modeTransition, showLastAnimation]);
 
-  if (!forceVisible && (HIDDEN_ROUTES.has(pathname) || shouldHideFooterByRoute(pathname))) return null;
+  if (!forceVisible && (HIDDEN_ROUTES.has(pathname) || shouldHideFooterByRoute(pathname, { hasWallet }))) {
+    return null;
+  }
 
   const goHome = () => router.replace('/unlock-timeline' as any);
   const goHomeFromFooter = () => {

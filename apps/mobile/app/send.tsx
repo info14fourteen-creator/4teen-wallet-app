@@ -19,6 +19,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Image } from 'expo-image';
 
 import KeyboardView from '../src/ui/KeyboardView';
+import InfoToggleIcon from '../src/ui/info-toggle-icon';
 import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
@@ -28,6 +29,7 @@ import useChromeLoading from '../src/ui/use-chrome-loading';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useSwipeDownDismiss } from '../src/ui/use-swipe-down-dismiss';
 import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
 import { listSavedContacts, type SavedContact } from '../src/services/address-book';
 import {
@@ -54,6 +56,10 @@ import {
   ScanIcon,
   SwapQuickIcon,
 } from '../src/ui/ui-icons';
+
+const SEND_INFO_TITLE = 'How send works';
+const SEND_INFO_TEXT =
+  'Choose the active signing wallet, select the asset, enter the recipient address, and set the amount you want to send. You can paste an address, scan a QR code, or pick from recent recipients and saved contacts.\n\nThis screen prepares the transfer only. Review, network checks, and the final signature happen on the confirmation step.\n\nMAX uses the spendable balance for the selected asset. Protected assets may keep a required dust reserve instead of allowing a full zero-out.';
 
 type SendDraft = Awaited<ReturnType<typeof getSendAssetDraft>>;
 
@@ -162,6 +168,7 @@ export default function SendScreen() {
   const [amountInputMode, setAmountInputMode] = useState<'token' | 'usd'>('token');
   const [amountKeyboardVisible, setAmountKeyboardVisible] = useState(false);
   const [systemKeyboardVisible, setSystemKeyboardVisible] = useState(false);
+  const [infoExpanded, setInfoExpanded] = useState(false);
   const scrollRef = useRef<any>(null);
   const [amountSectionY, setAmountSectionY] = useState(0);
 
@@ -811,7 +818,18 @@ export default function SendScreen() {
             />
           }
         >
-          <ScreenBrow label="SEND" variant="back" />
+          <ScreenBrow
+            label="SEND"
+            variant="backLink"
+            onLabelPress={() => setInfoExpanded((prev) => !prev)}
+            labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
+          />
+          {infoExpanded ? (
+            <View style={styles.infoPanel}>
+              <Text style={styles.infoTitle}>{SEND_INFO_TITLE}</Text>
+              <Text style={styles.infoText}>{SEND_INFO_TEXT}</Text>
+            </View>
+          ) : null}
           {loading ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator color={colors.accent} />
@@ -1219,6 +1237,26 @@ const styles = StyleSheet.create({
 
   content: {
     gap: 0,
+  },
+
+  infoPanel: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
+    marginBottom: 16,
+  },
+
+  infoTitle: {
+    ...ui.bodyStrong,
+  },
+
+  infoText: {
+    ...ui.body,
+    lineHeight: 25,
   },
 
   loadingWrap: {

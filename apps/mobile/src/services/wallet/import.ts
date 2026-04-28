@@ -1,6 +1,10 @@
 import { validateMnemonic, wordlists } from 'bip39';
 import { TronWeb } from 'tronweb';
-import { saveWallet, type WalletMeta } from './storage';
+import {
+  saveWallet,
+  type WalletMeta,
+  type WalletMnemonicSource,
+} from './storage';
 
 const TRON_DERIVATION_PATH = "m/44'/195'/0'/0/0";
 
@@ -35,9 +39,10 @@ export function isValidTronAddress(value: string): boolean {
   return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(value.trim());
 }
 
-export async function importWalletFromMnemonic(input: {
+async function saveMnemonicWallet(input: {
   name: string;
   mnemonic: string;
+  mnemonicSource: WalletMnemonicSource;
 }): Promise<WalletMeta> {
   const words = normalizeMnemonicInput(input.mnemonic);
   const normalizedMnemonic = words.join(' ');
@@ -86,11 +91,33 @@ export async function importWalletFromMnemonic(input: {
     name: input.name,
     address: account.address,
     kind: 'mnemonic',
-    mnemonicSource: 'imported-seed',
+    mnemonicSource: input.mnemonicSource,
     secret: {
       mnemonic: normalizedMnemonic,
       privateKey: account.privateKey,
     },
+  });
+}
+
+export async function importWalletFromMnemonic(input: {
+  name: string;
+  mnemonic: string;
+}): Promise<WalletMeta> {
+  return saveMnemonicWallet({
+    name: input.name,
+    mnemonic: input.mnemonic,
+    mnemonicSource: 'imported-seed',
+  });
+}
+
+export async function createWalletFromGeneratedMnemonic(input: {
+  name: string;
+  mnemonic: string;
+}): Promise<WalletMeta> {
+  return saveMnemonicWallet({
+    name: input.name,
+    mnemonic: input.mnemonic,
+    mnemonicSource: 'created-in-app',
   });
 }
 

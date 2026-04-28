@@ -14,6 +14,7 @@ import {
 import { goBackOrReplace } from './safe-back';
 import LottieIcon from './lottie-icon';
 import { shouldRenderSharedNavigation } from './navigation-routes';
+import { useWalletSession } from '../wallet/wallet-session';
 
 const headerQrSource = require('../../assets/icons/header/header_qr.json');
 const headerSearchSource = require('../../assets/icons/search/search_magnifier.json');
@@ -46,6 +47,7 @@ export default function AppHeader({
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { openSearch } = useGlobalSearch();
+  const { hasWallet } = useWalletSession();
   const [qrPlayToken, setQrPlayToken] = useState(0);
   const [searchPlayToken, setSearchPlayToken] = useState(0);
   const burgerProgress = useRef(new Animated.Value(showClose ? 1 : 0)).current;
@@ -59,7 +61,7 @@ export default function AppHeader({
     }).start();
   }, [burgerProgress, showClose]);
 
-  if (!forceVisible && shouldRenderSharedNavigation(pathname)) {
+  if (!forceVisible && shouldRenderSharedNavigation(pathname, undefined, { hasWallet })) {
     return null;
   }
 

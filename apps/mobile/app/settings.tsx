@@ -15,7 +15,12 @@ import { useNotice } from '../src/notice/notice-provider';
 import { clearAllAppCaches } from '../src/services/app-cache';
 import { ProductScreen } from '../src/ui/product-shell';
 import { useWalletSession } from '../src/wallet/wallet-session';
-import { getBiometricsEnabled, hasPasscode } from '../src/security/local-auth';
+import {
+  getAutoLockMode,
+  getAutoLockModeLabel,
+  getBiometricsEnabled,
+  hasPasscode,
+} from '../src/security/local-auth';
 import SettingsRow from '../src/ui/settings-row';
 
 const CLEAR_HOLD_MS = 3500;
@@ -61,19 +66,23 @@ export default function SettingsScreen() {
       let cancelled = false;
 
       const loadAuthValue = async () => {
-        const [passcodeEnabled, biometricsEnabled] = await Promise.all([
+        const [passcodeEnabled, biometricsEnabled, autoLockMode] = await Promise.all([
           hasPasscode(),
           getBiometricsEnabled(),
+          getAutoLockMode(),
         ]);
 
         if (cancelled) return;
 
         if (!passcodeEnabled) {
-          setAuthValue('Not set');
+          setAuthValue('Off');
           return;
         }
 
-        setAuthValue(biometricsEnabled ? 'Passcode + Biometrics' : 'Passcode');
+        const lockLabel = getAutoLockModeLabel(autoLockMode);
+        setAuthValue(
+          biometricsEnabled ? `Passcode + Biometrics • ${lockLabel}` : `Passcode • ${lockLabel}`
+        );
       };
 
       void loadAuthValue();

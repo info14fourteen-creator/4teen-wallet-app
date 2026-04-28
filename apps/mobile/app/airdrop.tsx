@@ -30,9 +30,9 @@ import TelegramIcon from '../assets/icons/ui/socials/telegram_social.svg';
 import XIcon from '../assets/icons/ui/socials/x_social.svg';
 import YoutubeIcon from '../assets/icons/ui/socials/youtube_social.svg';
 
-const AIRDROP_INFO_TITLE = 'Social distribution state';
+const AIRDROP_INFO_TITLE = 'How social airdrop works';
 const AIRDROP_INFO_TEXT =
-  'This page tracks social airdrop eligibility per wallet, not generic token transfers. Right now the live flow is Telegram: the app signs a wallet session, opens the bot, and then checks whether the reward is available, queued, blocked by a legacy claim, or already received.\n\nThe Telegram card merges three layers: local wallet state, current bot session state, and on-chain claim status. That is why the status may read available, verify now, session live, queued, or received.\n\nThe other social cards are placeholders for rollout state. They can show already-claimed on-chain rewards if any exist, but the live social claim flow is not open there yet.';
+  'This screen shows social airdrop status for the selected wallet. It is not a generic transfer history. Right now the live claim flow is Telegram: the app starts a wallet session, opens the bot, and then tracks whether the reward is available, queued, blocked by a legacy claim, or already received.\n\nThe Telegram card combines three checks at once: local wallet state, current bot session state, and on-chain claim state. That is why its label can move between available, verify now, session live, queued, or received.\n\nThe other social cards are rollout placeholders for now. They may still show already-claimed on-chain rewards, but the live claim flow is not open there yet.';
 
 type SocialCardTone = 'green' | 'orange' | 'red';
 

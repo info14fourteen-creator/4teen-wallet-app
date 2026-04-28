@@ -74,7 +74,6 @@ import { useWalletSession } from '../src/wallet/wallet-session';
 
 import {
   AssetsIcon,
-  BrowserRefreshIcon,
   ConfirmIcon,
   DeclineIcon,
   HistoryIcon,
@@ -95,6 +94,7 @@ const WALLET_RESOURCES_BATTERY_SOURCE = require('../assets/icons/ui/wallet_resou
 const WALLET_CARD_QR_SOURCE = require('../assets/icons/ui/wallet_card_qr.json');
 const WALLET_ACTION_RECEIVE_SOURCE = require('../assets/icons/ui/wallet_action_receive.json');
 const WALLET_ACTION_SEND_SOURCE = require('../assets/icons/ui/wallet_action_send.json');
+const WALLET_ACTION_HISTORY_LOOP_SOURCE = require('../assets/icons/ui/wallet_action_history_loop.json');
 const WALLET_ACTION_HISTORY_TO_ASSETS_SOURCE = require('../assets/icons/ui/wallet_action_history_to_assets.json');
 const WALLET_ACTION_ASSETS_TO_HISTORY_SOURCE = require('../assets/icons/ui/wallet_action_assets_to_history.json');
 const WALLET_ACTION_MORE_TO_ASSETS_SOURCE = require('../assets/icons/ui/wallet_action_more_to_assets.json');
@@ -573,7 +573,9 @@ export default function HomeScreen() {
   const [historyAnimating, setHistoryAnimating] = useState(false);
   const [historyPlayToken, setHistoryPlayToken] = useState(0);
   const [historyAnimationSource, setHistoryAnimationSource] = useState(WALLET_ACTION_HISTORY_TO_ASSETS_SOURCE);
-  const [historyAnimationFrames, setHistoryAnimationFrames] = useState<[number, number]>([0, 59]);
+  const [historyAnimationFrames, setHistoryAnimationFrames] = useState<[number, number]>([1, 59]);
+  const [historyRefreshAnimating, setHistoryRefreshAnimating] = useState(false);
+  const [historyRefreshPlayToken, setHistoryRefreshPlayToken] = useState(0);
   const [moreAnimating, setMoreAnimating] = useState(false);
   const [morePlayToken, setMorePlayToken] = useState(0);
   const [moreAnimationSource, setMoreAnimationSource] = useState(WALLET_ACTION_MORE_TO_ASSETS_SOURCE);
@@ -2230,6 +2232,8 @@ export default function HomeScreen() {
     if (!activeWallet) return;
 
     try {
+      setHistoryRefreshAnimating(true);
+      setHistoryRefreshPlayToken((current) => current + 1);
       setHistoryCache((prev) => {
         const next = { ...prev };
         delete next[activeWallet.id];
@@ -2876,9 +2880,29 @@ export default function HomeScreen() {
                   disabled={isActiveHistoryLoading}
                 >
                   {isActiveHistoryLoading ? (
-                    <ActivityIndicator color={colors.accent} size="small" />
+                    <LottieIcon
+                      source={WALLET_ACTION_HISTORY_LOOP_SOURCE}
+                      size={18}
+                      loop
+                      playToken={1}
+                    />
+                  ) : historyRefreshAnimating ? (
+                    <LottieIcon
+                      key={`history-refresh-${historyRefreshPlayToken}`}
+                      source={WALLET_ACTION_HISTORY_LOOP_SOURCE}
+                      size={18}
+                      playToken={historyRefreshPlayToken}
+                      frames={[0, 59]}
+                      onAnimationFinish={() => {
+                        setHistoryRefreshAnimating(false);
+                      }}
+                    />
                   ) : (
-                    <BrowserRefreshIcon width={18} height={18} />
+                    <LottieIcon
+                      source={WALLET_ACTION_HISTORY_LOOP_SOURCE}
+                      size={18}
+                      staticFrame={0}
+                    />
                   )}
                 </TouchableOpacity>
               </View>

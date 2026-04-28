@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,7 @@ import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import LottieIcon from '../src/ui/lottie-icon';
 
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
@@ -37,12 +39,13 @@ import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
 
 import {
-  BrowserRefreshIcon,
-  CopyIcon,
-  OpenDownIcon,
-  OpenRightIcon,
   ShareIcon,
 } from '../src/ui/ui-icons';
+import CopyWalletSvg from '../assets/icons/ui/copy_btn.svg';
+
+const TOKEN_DETAILS_HISTORY_REFRESH_SOURCE = require('../assets/icons/ui/wallet_action_history_loop.json');
+const TOKEN_DETAILS_MARKET_TOGGLE_SOURCE = require('../assets/icons/ui/token_details_market_toggle.json');
+const TOKEN_DETAILS_SHARE_SOURCE = require('../assets/icons/ui/token_details_share.json');
 
 function formatUsd(value?: number, maximumFractionDigits = 2) {
   const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -166,9 +169,20 @@ export default function TokenDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyRefreshAnimating, setHistoryRefreshAnimating] = useState(false);
+  const [historyRefreshPlayToken, setHistoryRefreshPlayToken] = useState(0);
   const [poolsOpen, setPoolsOpen] = useState(false);
   const [marketInfoOpen, setMarketInfoOpen] = useState(false);
+  const [marketToggleAnimating, setMarketToggleAnimating] = useState(false);
+  const [marketTogglePlayToken, setMarketTogglePlayToken] = useState(0);
+  const [marketToggleFrames, setMarketToggleFrames] = useState<[number, number]>([0, 29]);
+  const [poolsToggleAnimating, setPoolsToggleAnimating] = useState(false);
+  const [poolsTogglePlayToken, setPoolsTogglePlayToken] = useState(0);
+  const [poolsToggleFrames, setPoolsToggleFrames] = useState<[number, number]>([0, 29]);
+  const [shareAnimating, setShareAnimating] = useState(false);
+  const [sharePlayToken, setSharePlayToken] = useState(0);
   const [details, setDetails] = useState<TokenDetails | null>(null);
+  const copyIconScale = useRef(new Animated.Value(1)).current;
   const [errorText, setErrorText] = useState('');
   useChromeLoading((loading && !details) || refreshing);
 
@@ -251,11 +265,25 @@ export default function TokenDetailsScreen() {
     void load();
   }, [load, tokenId, walletDataRefreshKey]);
 
-  const handleCopyAddress = async () => {
+  const handleCopyAddress = useCallback(async () => {
     if (!details?.address) return;
+    copyIconScale.stopAnimation();
+    copyIconScale.setValue(0.92);
+    Animated.sequence([
+      Animated.timing(copyIconScale, {
+        toValue: 1.06,
+        duration: 140,
+        useNativeDriver: true,
+      }),
+      Animated.timing(copyIconScale, {
+        toValue: 1,
+        duration: 140,
+        useNativeDriver: true,
+      }),
+    ]).start();
     await Clipboard.setStringAsync(details.address);
     notice.showSuccessNotice('Token contract copied.', 2200);
-  };
+  }, [copyIconScale, details?.address, notice]);
 
   const handleOpenTokenContract = useCallback(async () => {
     if (!details?.address) return;
@@ -277,7 +305,7 @@ export default function TokenDetailsScreen() {
     }
   };
 
-  const handleReloadHistory = useCallback(async () => {
+  const reloadHistory = useCallback(async () => {
     if (!tokenId || !details) return;
 
     try {
@@ -306,6 +334,32 @@ export default function TokenDetailsScreen() {
       setHistoryLoading(false);
     }
   }, [details, notice, tokenId]);
+
+  const handleReloadHistory = useCallback(() => {
+    if (!tokenId || !details || historyLoading || historyRefreshAnimating) return;
+    setHistoryRefreshAnimating(true);
+    setHistoryRefreshPlayToken((current) => current + 1);
+  }, [details, historyLoading, historyRefreshAnimating, tokenId]);
+
+  const handleToggleMarketInfo = useCallback(() => {
+    setMarketToggleAnimating(true);
+    setMarketTogglePlayToken((current) => current + 1);
+    setMarketToggleFrames(marketInfoOpen ? [29, 0] : [0, 29]);
+    setMarketInfoOpen((prev) => !prev);
+  }, [marketInfoOpen]);
+
+  const handleTogglePools = useCallback(() => {
+    setPoolsToggleAnimating(true);
+    setPoolsTogglePlayToken((current) => current + 1);
+    setPoolsToggleFrames(poolsOpen ? [29, 0] : [0, 29]);
+    setPoolsOpen((prev) => !prev);
+  }, [poolsOpen]);
+
+  const handleAnimateOpenTokenContract = useCallback(() => {
+    if (!details?.address || shareAnimating) return;
+    setShareAnimating(true);
+    setSharePlayToken((current) => current + 1);
+  }, [details?.address, shareAnimating]);
 
   const handleLoadMoreHistory = async () => {
     if (!details?.historyHasMore || !details.historyNextFingerprint || historyLoadingMore) {
@@ -386,6 +440,14 @@ export default function TokenDetailsScreen() {
           ) : details ? (
             <>
               <View style={styles.mainCard}>
+                {details.logo ? (
+                  <Image
+                    source={{ uri: details.logo }}
+                    style={styles.mainCardLogoBackdrop}
+                    contentFit="contain"
+                  />
+                ) : null}
+
                 <View style={styles.cardHeaderRow}>
                   <View style={styles.cardHeaderText}>
                     <Text style={styles.tokenName}>{details.name}</Text>
@@ -415,12 +477,25 @@ export default function TokenDetailsScreen() {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.marketToggleButton}
-                    onPress={() => setMarketInfoOpen((prev) => !prev)}
+                    onPress={handleToggleMarketInfo}
                   >
-                    {marketInfoOpen ? (
-                      <OpenDownIcon width={18} height={18} />
+                    {marketToggleAnimating ? (
+                      <LottieIcon
+                        key={`market-toggle-${marketTogglePlayToken}`}
+                        source={TOKEN_DETAILS_MARKET_TOGGLE_SOURCE}
+                        size={18}
+                        playToken={marketTogglePlayToken}
+                        frames={marketToggleFrames}
+                        onAnimationFinish={() => {
+                          setMarketToggleAnimating(false);
+                        }}
+                      />
                     ) : (
-                      <OpenRightIcon width={16} height={16} />
+                      <LottieIcon
+                        source={TOKEN_DETAILS_MARKET_TOGGLE_SOURCE}
+                        size={18}
+                        staticFrame={marketInfoOpen ? 29 : 0}
+                      />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -437,15 +512,37 @@ export default function TokenDetailsScreen() {
                         onPress={handleCopyAddress}
                         style={styles.copyButton}
                       >
-                        <CopyIcon width={18} height={18} />
+                        <Animated.View style={{ transform: [{ scale: copyIconScale }] }}>
+                          <CopyWalletSvg width={18} height={18} />
+                        </Animated.View>
                       </TouchableOpacity>
 
                       <TouchableOpacity
                         activeOpacity={0.85}
-                        onPress={() => void handleOpenTokenContract()}
+                        onPress={handleAnimateOpenTokenContract}
                         style={styles.copyButton}
                       >
-                        <ShareIcon width={18} height={18} />
+                        {shareAnimating ? (
+                          <LottieIcon
+                            key={`token-details-share-${sharePlayToken}`}
+                            source={TOKEN_DETAILS_SHARE_SOURCE}
+                            size={18}
+                            playToken={sharePlayToken}
+                            frames={[0, 88]}
+                            onAnimationFinish={(isCancelled) => {
+                              setShareAnimating(false);
+                              if (!isCancelled) {
+                                void handleOpenTokenContract();
+                              }
+                            }}
+                          />
+                        ) : (
+                          <LottieIcon
+                            source={TOKEN_DETAILS_SHARE_SOURCE}
+                            size={18}
+                            staticFrame={0}
+                          />
+                        )}
                       </TouchableOpacity>
                     </View>
 
@@ -467,7 +564,7 @@ export default function TokenDetailsScreen() {
                       <TouchableOpacity
                         activeOpacity={0.9}
                         style={styles.statCard}
-                        onPress={() => setPoolsOpen((prev) => !prev)}
+                        onPress={handleTogglePools}
                       >
                         <View style={styles.statButtonRow}>
                           <View style={styles.statButtonText}>
@@ -477,10 +574,23 @@ export default function TokenDetailsScreen() {
                             </Text>
                           </View>
 
-                          {poolsOpen ? (
-                            <OpenDownIcon width={18} height={18} />
+                          {poolsToggleAnimating ? (
+                            <LottieIcon
+                              key={`pools-toggle-${poolsTogglePlayToken}`}
+                              source={TOKEN_DETAILS_MARKET_TOGGLE_SOURCE}
+                              size={18}
+                              playToken={poolsTogglePlayToken}
+                              frames={poolsToggleFrames}
+                              onAnimationFinish={() => {
+                                setPoolsToggleAnimating(false);
+                              }}
+                            />
                           ) : (
-                            <OpenRightIcon width={16} height={16} />
+                            <LottieIcon
+                              source={TOKEN_DETAILS_MARKET_TOGGLE_SOURCE}
+                              size={18}
+                              staticFrame={poolsOpen ? 29 : 0}
+                            />
                           )}
                         </View>
                       </TouchableOpacity>
@@ -614,12 +724,35 @@ export default function TokenDetailsScreen() {
                   activeOpacity={0.9}
                   style={styles.historyRefreshButton}
                   onPress={() => void handleReloadHistory()}
-                  disabled={historyLoading}
+                  disabled={historyLoading || historyRefreshAnimating}
                 >
                   {historyLoading ? (
-                    <ActivityIndicator color={colors.accent} size="small" />
+                    <LottieIcon
+                      source={TOKEN_DETAILS_HISTORY_REFRESH_SOURCE}
+                      size={18}
+                      loop
+                      playToken={1}
+                    />
+                  ) : historyRefreshAnimating ? (
+                    <LottieIcon
+                      key={`token-history-refresh-${historyRefreshPlayToken}`}
+                      source={TOKEN_DETAILS_HISTORY_REFRESH_SOURCE}
+                      size={18}
+                      playToken={historyRefreshPlayToken}
+                      frames={[0, 59]}
+                      onAnimationFinish={(isCancelled) => {
+                        setHistoryRefreshAnimating(false);
+                        if (!isCancelled) {
+                          void reloadHistory();
+                        }
+                      }}
+                    />
                   ) : (
-                    <BrowserRefreshIcon width={18} height={18} />
+                    <LottieIcon
+                      source={TOKEN_DETAILS_HISTORY_REFRESH_SOURCE}
+                      size={18}
+                      staticFrame={0}
+                    />
                   )}
                 </TouchableOpacity>
               </View>
@@ -771,6 +904,8 @@ const styles = StyleSheet.create({
   },
 
   mainCard: {
+    position: 'relative',
+    overflow: 'hidden',
     backgroundColor: 'rgba(255,105,0,0.06)',
     borderWidth: 1,
     borderColor: colors.lineStrong,
@@ -780,9 +915,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
+  mainCardLogoBackdrop: {
+    position: 'absolute',
+    top: 10,
+    right: -6,
+    width: 158,
+    height: 158,
+    opacity: 0.085,
+  },
+
   cardHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
   },
@@ -808,19 +952,21 @@ const styles = StyleSheet.create({
   },
 
   tokenLogo: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.04)',
+    marginTop: 0,
   },
 
   tokenFallbackLogo: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.06)',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 0,
   },
 
   tokenFallbackText: {

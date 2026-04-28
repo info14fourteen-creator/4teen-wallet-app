@@ -15,6 +15,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ScreenBrow from '../src/ui/screen-brow';
+import InfoToggleIcon from '../src/ui/info-toggle-icon';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -44,6 +45,9 @@ type ExportState = {
 
 const REVEAL_TIMEOUT_MS = 60_000;
 const SCREEN_CAPTURE_GUARD_KEY = 'export-private-key-revealed';
+const EXPORT_INFO_TITLE = 'How private key export works';
+const EXPORT_INFO_TEXT =
+  'This screen reveals the signing key stored locally for this wallet. The key is never sent to 4TEEN servers during export.\n\nBefore the key is shown, the app requires passcode or biometrics. While it is visible, screenshots are blocked and the key hides automatically after one minute or when the app leaves the foreground.\n\nAnyone with this private key can sign transactions from the wallet. Copy it only if you are storing it offline and securely.';
 
 function resolveBiometricPromptLabel(label: string) {
   if (label === 'Face ID') return 'face unlock';
@@ -76,6 +80,7 @@ export default function ExportPrivateKeyScreen() {
   const [passcodeOpen, setPasscodeOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
+  const [infoExpanded, setInfoExpanded] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
 
@@ -350,16 +355,19 @@ export default function ExportPrivateKeyScreen() {
             showsVerticalScrollIndicator={false}
             bounces
           >
-            <ScreenBrow label="EXPORT PRIVATE KEY" variant="back" />
+            <ScreenBrow
+              label="EXPORT PRIVATE KEY"
+              variant="backLink"
+              onLabelPress={() => setInfoExpanded((prev) => !prev)}
+              labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
+            />
 
-            <Text style={styles.pageTitle}>
-              Export <Text style={styles.pageTitleAccent}>private key</Text>
-            </Text>
-
-            <Text style={styles.pageLead}>
-              Reveal this key only when you are alone. Screenshots are blocked while it is visible,
-              and the key hides automatically after one minute.
-            </Text>
+            {infoExpanded ? (
+              <View style={styles.infoPanel}>
+                <Text style={styles.infoTitle}>{EXPORT_INFO_TITLE}</Text>
+                <Text style={styles.infoText}>{EXPORT_INFO_TEXT}</Text>
+              </View>
+            ) : null}
 
             {errorText ? (
               <View style={styles.errorCard}>
@@ -535,24 +543,24 @@ const styles = StyleSheet.create({
     gap: 0,
   },
 
-  pageTitle: {
-    marginTop: 8,
-    color: colors.white,
-    fontSize: 34,
-    lineHeight: 40,
-    fontFamily: 'Sora_700Bold',
-    maxWidth: '96%',
+  infoPanel: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
+    marginBottom: 16,
   },
 
-  pageTitleAccent: {
-    color: colors.accent,
-    fontFamily: 'Sora_700Bold',
+  infoTitle: {
+    ...ui.bodyStrong,
   },
 
-  pageLead: {
-    ...ui.lead,
-    marginTop: 14,
-    marginBottom: 22,
+  infoText: {
+    ...ui.body,
+    lineHeight: 25,
   },
 
   errorCard: {

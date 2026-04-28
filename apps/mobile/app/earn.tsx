@@ -28,9 +28,9 @@ import { formatResourceAmount } from '../src/services/wallet/resources';
 
 const SMART_CONTRACTS_REPO_URL =
   'https://github.com/info14fourteen-creator/4teen-smart-contracts';
-const INFO_SCREEN_INFO_TITLE = 'Protocol map and live runtime checks';
+const INFO_SCREEN_INFO_TITLE = 'How the protocol is wired';
 const INFO_SCREEN_INFO_TEXT =
-  'This screen is the compact architecture map for 4TEEN. It links the token, controller, liquidity module, executors, and vault contracts, then layers live runtime checks on top of that structure.\n\nUse it when you need to answer two questions fast: which contract or vault is responsible for a protocol job, and whether the current operator-side resources are ready for ambassador allocation replay.\n\nIt is not a transaction screen. The goal here is orientation and verification: contract roles, asset-wallet balances, and operational readiness across the protocol rails.';
+  'This screen is the compact map of the 4TEEN system. It shows which contracts and vaults handle token minting, controller logic, liquidity execution, community distribution, and operator-side runtime checks.\n\nUse it when you need two answers fast: which on-chain component is responsible for a protocol job, and whether the current runtime state is ready for ambassador allocation replay.\n\nThis is not a transaction screen. Its job is orientation and verification: contract roles, asset-wallet balances, and operational readiness across the main protocol rails.';
 
 const CONTRACT_LINKS = [
   {

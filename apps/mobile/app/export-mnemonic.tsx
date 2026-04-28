@@ -15,6 +15,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ScreenBrow from '../src/ui/screen-brow';
+import InfoToggleIcon from '../src/ui/info-toggle-icon';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -44,6 +45,9 @@ type ExportState = {
 
 const REVEAL_TIMEOUT_MS = 60_000;
 const SCREEN_CAPTURE_GUARD_KEY = 'export-mnemonic-revealed';
+const EXPORT_INFO_TITLE = 'How seed phrase export works';
+const EXPORT_INFO_TEXT =
+  'This screen reveals the recovery phrase stored locally for this wallet. The phrase is never sent to 4TEEN servers during export.\n\nBefore the words are shown, the app requires passcode or biometrics. While the phrase is visible, screenshots are blocked and it hides automatically after one minute or when the app leaves the foreground.\n\nAnyone with these words can control the wallet. Copy them only if you are storing the phrase offline and securely.';
 
 function canExportMnemonic(wallet: WalletMeta, mnemonic: string) {
   if (!canWalletExposeMnemonic(wallet)) return false;
@@ -73,6 +77,7 @@ export default function ExportMnemonicScreen() {
   const [passcodeOpen, setPasscodeOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
+  const [infoExpanded, setInfoExpanded] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
 
@@ -346,16 +351,19 @@ export default function ExportMnemonicScreen() {
             showsVerticalScrollIndicator={false}
             bounces
           >
-            <ScreenBrow label="EXPORT SEED PHRASE" variant="back" />
+            <ScreenBrow
+              label="EXPORT SEED PHRASE"
+              variant="backLink"
+              onLabelPress={() => setInfoExpanded((prev) => !prev)}
+              labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
+            />
 
-            <Text style={styles.pageTitle}>
-              Export <Text style={styles.pageTitleAccent}>recovery phrase</Text>
-            </Text>
-
-            <Text style={styles.pageLead}>
-              Reveal the seed phrase only when you are alone. Screenshots are blocked while it is
-              visible, and the phrase hides automatically after one minute.
-            </Text>
+            {infoExpanded ? (
+              <View style={styles.infoPanel}>
+                <Text style={styles.infoTitle}>{EXPORT_INFO_TITLE}</Text>
+                <Text style={styles.infoText}>{EXPORT_INFO_TEXT}</Text>
+              </View>
+            ) : null}
 
             {errorText ? (
               <View style={styles.errorCard}>
@@ -539,24 +547,24 @@ const styles = StyleSheet.create({
     gap: 0,
   },
 
-  pageTitle: {
-    marginTop: 8,
-    color: colors.white,
-    fontSize: 34,
-    lineHeight: 40,
-    fontFamily: 'Sora_700Bold',
-    maxWidth: '96%',
+  infoPanel: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
+    marginBottom: 16,
   },
 
-  pageTitleAccent: {
-    color: colors.accent,
-    fontFamily: 'Sora_700Bold',
+  infoTitle: {
+    ...ui.bodyStrong,
   },
 
-  pageLead: {
-    ...ui.lead,
-    marginTop: 14,
-    marginBottom: 22,
+  infoText: {
+    ...ui.body,
+    lineHeight: 25,
   },
 
   errorCard: {

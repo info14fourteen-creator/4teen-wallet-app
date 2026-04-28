@@ -435,7 +435,10 @@ export default function WalletsScreen() {
 
                             <TouchableOpacity
                               activeOpacity={0.85}
-                              style={styles.renameIconButton}
+                              style={[
+                                styles.renameIconButton,
+                                !draftName.trim() && styles.renameIconButtonDisabled,
+                              ]}
                               onPress={() => void handleRenameSave(wallet.id)}
                             >
                               <ConfirmIcon width={18} height={18} />
@@ -735,6 +738,10 @@ const styles = StyleSheet.create({
 
   renameInlineRow: {
     minHeight: layout.fieldHeight,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    paddingLeft: 14,
+    paddingRight: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -743,10 +750,7 @@ const styles = StyleSheet.create({
   renameInput: {
     flex: 1,
     minHeight: layout.fieldHeight,
-    borderRadius: radius.sm,
-    borderWidth: 0,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    paddingHorizontal: 14,
+    paddingVertical: 0,
     color: colors.white,
     fontFamily: 'Sora_600SemiBold',
   },
@@ -756,6 +760,10 @@ const styles = StyleSheet.create({
     height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  renameIconButtonDisabled: {
+    opacity: 0.35,
   },
 
   removeHoldRow: {

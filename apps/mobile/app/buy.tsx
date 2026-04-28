@@ -54,9 +54,9 @@ import { setActiveWalletId, type WalletMeta } from '../src/services/wallet/stora
 import { useWalletSession } from '../src/wallet/wallet-session';
 import { BackspaceIcon, CloseIcon } from '../src/ui/ui-icons';
 
-const BUY_INFO_TITLE = 'Direct buy preflight';
+const BUY_INFO_TITLE = 'How direct buy works';
 const BUY_INFO_TEXT =
-  'This screen prepares a direct buy before the wallet signs anything. You choose the active signing wallet, enter the TRX amount, and see the estimated 4TEEN mint plus the protocol split used for this purchase.\n\nDirect buy is not a swap. FourteenToken mints 4TEEN by contract rules, then locks the purchased batch for 14 days. Incoming TRX is routed by fixed rules between liquidity, controller-side accounting, and the airdrop rail.\n\nContinue opens the on-chain confirmation flow. That next step builds the real transaction, checks resources, and only then asks for passcode or biometrics.';
+  'Use this screen to prepare a direct 4TEEN purchase with the selected signing wallet. Enter the TRX amount and the app shows the estimated 4TEEN you will receive before anything is signed.\n\nDirect buy is not a swap. FourteenToken mints 4TEEN by contract rules, locks the purchased batch for 14 days, and routes the incoming TRX across liquidity, controller-side accounting, and the airdrop rail.\n\nContinue opens the confirmation step. That is where the app builds the real transaction, checks resources, and only then asks for passcode or biometrics.';
 
 function resolveParam(value: string | string[] | undefined) {
   if (typeof value === 'string') return value;

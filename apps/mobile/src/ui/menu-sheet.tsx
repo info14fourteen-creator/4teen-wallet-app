@@ -14,6 +14,7 @@ import ExpandChevron from './expand-chevron';
 import { FOOTER_NAV_HEIGHT, FOOTER_NAV_BOTTOM_OFFSET } from './footer-nav';
 import { shouldRenderSharedNavigation } from './navigation-routes';
 import ScreenBrow from './screen-brow';
+import { useWalletSession } from '../wallet/wallet-session';
 
 import { AddressIcon, InfoIcon, PreferencesIcon as SettingsIcon, WalletIcon } from './ui-icons';
 
@@ -27,7 +28,8 @@ export default function MenuSheet({ open, onClose, forceVisible = false }: MenuS
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const shouldHide = !forceVisible && shouldRenderSharedNavigation(pathname);
+  const { hasWallet } = useWalletSession();
+  const shouldHide = !forceVisible && shouldRenderSharedNavigation(pathname, undefined, { hasWallet });
   const [mounted, setMounted] = useState(open);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(-28)).current;

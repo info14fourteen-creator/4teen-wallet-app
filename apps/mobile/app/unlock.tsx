@@ -46,6 +46,11 @@ export default function UnlockScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      initialUnlockRequestedRef.current = false;
+      setPasscodeDigits('');
+      setPasscodeError('');
+      setPasscodeOpen(false);
+      setBiometricsLoaded(false);
       void loadBiometricsState();
     }, [loadBiometricsState])
   );
@@ -119,8 +124,13 @@ export default function UnlockScreen() {
     if (!biometricsLoaded || initialUnlockRequestedRef.current) return;
 
     initialUnlockRequestedRef.current = true;
-    void requestBiometricUnlock(false);
-  }, [biometricsLoaded, requestBiometricUnlock]);
+    if (biometricAvailable && biometricsEnabled) {
+      void requestBiometricUnlock(true);
+      return;
+    }
+
+    setPasscodeOpen(true);
+  }, [biometricAvailable, biometricsEnabled, biometricsLoaded, requestBiometricUnlock]);
 
   const handleDigitPress = useCallback(
     (digit: string) => {
@@ -218,16 +228,18 @@ export default function UnlockScreen() {
                 backspaceIcon={backspaceIcon}
               />
 
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.authCancelButton}
-                onPress={handlePasscodeCancel}
-                disabled={submitting}
-              >
-                <Text style={styles.authCancelButtonText}>CANCEL</Text>
-              </TouchableOpacity>
+              {canUseBiometrics ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.authCancelButton}
+                  onPress={handlePasscodeCancel}
+                  disabled={submitting}
+                >
+                  <Text style={styles.authCancelButtonText}>CANCEL</Text>
+                </TouchableOpacity>
+              ) : null}
             </>
-          ) : (
+          ) : biometricsLoaded ? (
             <View style={styles.actionStack}>
               {canUseBiometrics ? (
                 <TouchableOpacity
@@ -258,7 +270,7 @@ export default function UnlockScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-          )}
+          ) : null}
         </View>
       </View>
     </SafeAreaView>

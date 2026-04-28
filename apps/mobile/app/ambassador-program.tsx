@@ -66,12 +66,12 @@ const DEFAULT_CABINET_SECTIONS: Record<CabinetSectionId, boolean> = {
   purchases: false,
   pending: false,
 };
-const AMBASSADOR_REGISTRATION_INFO_TITLE = 'Ambassador registration';
+const AMBASSADOR_REGISTRATION_INFO_TITLE = 'How ambassador registration works';
 const AMBASSADOR_REGISTRATION_INFO_TEXT =
-  'This route has two modes: registration first, then cabinet. If the selected wallet is not registered yet, choose a permanent slug and send one registration transaction to FourteenController.\n\nAfter that same wallet opens its ambassador cabinet here. The cabinet is where you inspect referral identity, buyer binding, tracked purchases, pending rows, and claimable rewards.\n\nWatch-only wallets cannot register, withdraw, or replay rows. Registration is one-time for the wallet and the slug is not meant to be edited later from the app.';
-const AMBASSADOR_CABINET_INFO_TITLE = 'Ambassador cabinet';
+  'This route starts with registration and then becomes the ambassador cabinet for the same wallet. If the selected wallet is not registered yet, choose its permanent slug and send one registration transaction to FourteenController.\n\nAfter registration, this same screen becomes the cabinet where you manage the referral identity, buyer binding, tracked purchases, pending rows, and rewards.\n\nWatch-only wallets cannot register, withdraw, or replay rows. Registration is one-time for the wallet, and the slug is treated as permanent inside the app.';
+const AMBASSADOR_CABINET_INFO_TITLE = 'How ambassador cabinet works';
 const AMBASSADOR_CABINET_INFO_TEXT =
-  'This cabinet merges two sources: live FourteenController state on-chain and backend purchase attribution rows from the 4TEEN proxy.\n\nClaimable now is the only amount you can withdraw on-chain right now. Claimed total is historical volume already withdrawn. Pending means purchases are already attributed in backend accounting but not fully reflected in the latest contract-backed cabinet state yet.\n\nReplay pending only asks the backend to retry those pending rows. It does not send a wallet transaction by itself and does not spend your wallet funds directly.\n\nShare one canonical referral link from this cabinet so every buy resolves to the same ambassador slug and attribution stays consistent.';
+  'This cabinet combines two sources: live FourteenController state on-chain and backend purchase attribution rows from the 4TEEN buy flow.\n\nClaimable now is the only amount you can withdraw on-chain right now. Claimed total is already-withdrawn history. Pending means purchases are already attributed in backend accounting but not fully reflected in the latest contract-backed state yet.\n\nReplay pending only asks the backend to retry those pending rows. It does not send a wallet transaction by itself and does not spend your wallet funds directly.\n\nShare one canonical referral link from this cabinet so every buy resolves to the same ambassador slug and attribution stays consistent.';
 
 function shortenAddress(address: string) {
   if (!address) return '—';

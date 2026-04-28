@@ -15,9 +15,9 @@ const DEFAULT_UNLOCK_DAYS = 14;
 const LOCK_DURATION_MS = DEFAULT_UNLOCK_DAYS * 24 * 60 * 60 * 1000;
 const UNLOCK_TIMELINE_CACHE_TTL_MS = 60 * 1000;
 
-export const UNLOCK_TIMELINE_INFO_TITLE = 'Direct-buy lock map';
+export const UNLOCK_TIMELINE_INFO_TITLE = 'How unlock timeline works';
 export const UNLOCK_TIMELINE_INFO_TEXT =
-  'Every direct 4TEEN buy mints tokens immediately, then locks that batch for 14 days. This view tracks only direct buys tied to the selected wallet, not generic swap history.\n\nEach row shows the amount, UTC unlock time, live countdown, current lock state, and the Tronscan transaction behind the event. You can verify the buyer, amount, block time, and event path on-chain.\n\nWhen the countdown hits zero, the batch moves to Unlocked automatically and becomes free to move or swap. Use this as your release map: what is locked, what is liquid, and what unlocks next.';
+  'Every direct 4TEEN buy mints tokens immediately and then locks that batch for 14 days. This view tracks only direct buys tied to the selected wallet, not generic swap history.\n\nEach row shows the amount, UTC unlock time, live countdown, current lock state, and the Tronscan transaction behind the event. You can verify the buyer, amount, block time, and event path on-chain.\n\nWhen the countdown hits zero, the batch moves to Unlocked automatically and becomes free to move or swap. Use this as your release map: what is locked, what becomes liquid next, and when.';
 
 export type UnlockTimelineEvent = {
   txId: string;

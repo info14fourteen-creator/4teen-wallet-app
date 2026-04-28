@@ -21,6 +21,7 @@ import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import KeyboardView from '../src/ui/KeyboardView';
+import InfoToggleIcon from '../src/ui/info-toggle-icon';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
 import { useNavigationInsets } from '../src/ui/navigation';
@@ -30,6 +31,7 @@ import useChromeLoading from '../src/ui/use-chrome-loading';
 import { FOOTER_NAV_BOTTOM_OFFSET, FOOTER_NAV_RESERVED_SPACE } from '../src/ui/footer-nav';
 import { useNotice } from '../src/notice/notice-provider';
 import { colors, layout, radius } from '../src/theme/tokens';
+import { ui } from '../src/theme/ui';
 import {
   FOURTEEN_CONTRACT,
   TRX_CONTRACT,
@@ -62,6 +64,10 @@ import {
   type WalletMeta,
 } from '../src/services/wallet/storage';
 import { useWalletSession } from '../src/wallet/wallet-session';
+
+const SWAP_INFO_TITLE = 'How swap works';
+const SWAP_INFO_TEXT =
+  'Choose the active signing wallet, select the input asset, enter the amount, and review the available routes. This screen builds quotes and routing options only.\n\nSlippage protects the minimum amount you receive. A route can be visible here and still be marked as not executable until the current quote and route checks pass.\n\nThe real resource check, protected minimum, and final signature happen on the confirmation step before any swap is sent.';
 
 function resolveParam(value: string | string[] | undefined) {
   if (typeof value === 'string') return value;
@@ -256,6 +262,7 @@ export default function SwapScreen() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [infoExpanded, setInfoExpanded] = useState(false);
   const [walletChoices, setWalletChoices] = useState<WalletSwitcherItem[]>([]);
   const [tokenChoices, setTokenChoices] = useState<SwapAssetChoice[]>([]);
   const [walletOptionsOpen, setWalletOptionsOpen] = useState(false);
@@ -818,7 +825,19 @@ export default function SwapScreen() {
               closeInlinePickers();
             }}
           >
-            <ScreenBrow label="SWAP" variant="back" />
+            <ScreenBrow
+              label="SWAP"
+              variant="backLink"
+              onLabelPress={() => setInfoExpanded((prev) => !prev)}
+              labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
+            />
+
+            {infoExpanded ? (
+              <View style={styles.infoPanel}>
+                <Text style={styles.infoTitle}>{SWAP_INFO_TITLE}</Text>
+                <Text style={styles.infoText}>{SWAP_INFO_TEXT}</Text>
+              </View>
+            ) : null}
 
             <View style={styles.swapSelectionBlock}>
               <SelectedWalletSwitcher
@@ -1475,6 +1494,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontFamily: 'Sora_700Bold',
+  },
+
+  infoPanel: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 10,
+    marginBottom: 16,
+  },
+
+  infoTitle: {
+    ...ui.bodyStrong,
+  },
+
+  infoText: {
+    ...ui.body,
+    lineHeight: 25,
   },
 
   swapFieldHeaderRow: {

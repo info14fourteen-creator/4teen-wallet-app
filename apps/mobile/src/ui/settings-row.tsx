@@ -11,6 +11,7 @@ type SettingsRowProps = {
   hint?: string;
   onPress: () => void;
   icon?: ReactNode;
+  expanded?: boolean;
 };
 
 export default function SettingsRow({
@@ -19,6 +20,7 @@ export default function SettingsRow({
   hint,
   onPress,
   icon,
+  expanded = false,
 }: SettingsRowProps) {
   const hasMeta = Boolean(value || hint);
 
@@ -38,7 +40,7 @@ export default function SettingsRow({
         </View>
       </View>
 
-      <ExpandChevron open={false} />
+      <ExpandChevron open={expanded} />
     </TouchableOpacity>
   );
 }
