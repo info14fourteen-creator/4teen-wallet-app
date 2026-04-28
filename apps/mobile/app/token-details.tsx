@@ -20,6 +20,7 @@ import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import { translateNow, useI18n } from '../src/i18n';
 import LottieIcon from '../src/ui/lottie-icon';
 
 import { colors, layout, radius } from '../src/theme/tokens';
@@ -73,7 +74,7 @@ function formatPerformanceValue(point?: TokenPerformancePoint) {
 }
 
 function formatHistoryTime(timestamp: number) {
-  if (!timestamp) return 'Unknown time';
+  if (!timestamp) return translateNow('Unknown time');
 
   return new Date(timestamp).toLocaleString('en-US', {
     month: 'short',
@@ -96,9 +97,9 @@ function historyTone(item: TokenHistoryItem) {
 }
 
 function historyTypeLabel(item: TokenHistoryItem) {
-  if (item.displayType === 'RECEIVE') return 'RECEIVE';
-  if (item.displayType === 'SEND') return 'SEND';
-  return 'TRANSFER';
+  if (item.displayType === 'RECEIVE') return translateNow('RECEIVE');
+  if (item.displayType === 'SEND') return translateNow('SEND');
+  return translateNow('TRANSFER');
 }
 
 function formatHistoryAmount(item: TokenHistoryItem) {
@@ -122,7 +123,7 @@ function getTokenHistoryBadgeLabel(details: TokenDetails | null) {
   const safeName = String(details?.name || '').trim();
   if (safeName) return safeName.split(/\s+/)[0];
 
-  return 'TOKEN';
+  return translateNow('TOKEN');
 }
 
 function dedupeHistory(items: TokenHistoryItem[]) {
@@ -139,6 +140,7 @@ function dedupeHistory(items: TokenHistoryItem[]) {
 }
 
 export default function TokenDetailsScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const notice = useNotice();
   const { walletDataRefreshKey } = useWalletSession();
@@ -196,11 +198,11 @@ export default function TokenDetailsScreen() {
         const wallet = await getActiveWallet();
 
         if (!wallet) {
-          throw new Error('No active wallet selected.');
+          throw new Error(t('No active wallet selected.'));
         }
 
         if (!tokenId) {
-          throw new Error('Token id is missing.');
+          throw new Error(t('Token id is missing.'));
         }
 
         if (options?.forceHistoryRefresh) {
@@ -216,13 +218,13 @@ export default function TokenDetailsScreen() {
       } catch (error) {
         console.error(error);
         setDetails(null);
-        setErrorText('Failed to load token details.');
-        notice.showErrorNotice('Token details failed to load.', 2600);
+        setErrorText(t('Failed to load token details.'));
+        notice.showErrorNotice(t('Token details failed to load.'), 2600);
       } finally {
         setLoading(false);
       }
     },
-    [notice, tokenId]
+    [notice, t, tokenId]
   );
 
   const handleRefresh = useCallback(async () => {
@@ -387,7 +389,7 @@ export default function TokenDetailsScreen() {
   }, [priceChangePoint]);
 
   if (loading && !details) {
-    return <ScreenLoadingState label="Loading token details..." />;
+    return <ScreenLoadingState label={t('Loading token details...')} />;
   }
 
   return (
@@ -411,7 +413,7 @@ export default function TokenDetailsScreen() {
             />
           }
         >
-          <ScreenBrow label="TOKEN DETAILS" variant="back" />
+          <ScreenBrow label={t('TOKEN DETAILS')} variant="back" />
 
           {loading ? (
             <View style={styles.loadingState}>
@@ -535,7 +537,7 @@ export default function TokenDetailsScreen() {
 
                     <View style={styles.statsGrid}>
                       <View style={styles.statCard}>
-                        <Text style={styles.statLabel}>Price</Text>
+                        <Text style={styles.statLabel}>{t('Price')}</Text>
                         <Text
                           style={[styles.statValue, priceToneStyle]}
                           numberOfLines={1}
@@ -547,7 +549,7 @@ export default function TokenDetailsScreen() {
                       </View>
 
                       <View style={styles.statCard}>
-                        <Text style={styles.statLabel}>MCap</Text>
+                        <Text style={styles.statLabel}>{t('MCap')}</Text>
                         <Text
                           style={styles.statValueCompact}
                           numberOfLines={1}
@@ -565,7 +567,7 @@ export default function TokenDetailsScreen() {
                       >
                         <View style={styles.statButtonRow}>
                           <View style={styles.statButtonText}>
-                            <Text style={styles.statLabel}>Liquidity</Text>
+                            <Text style={styles.statLabel}>{t('Liquidity')}</Text>
                             <Text
                               style={styles.statValueCompact}
                               numberOfLines={1}
@@ -598,7 +600,7 @@ export default function TokenDetailsScreen() {
                       </TouchableOpacity>
 
                       <View style={styles.statCard}>
-                        <Text style={styles.statLabel}>Supply</Text>
+                        <Text style={styles.statLabel}>{t('Supply')}</Text>
                         <Text
                           style={styles.statValueCompact}
                           numberOfLines={1}
@@ -635,14 +637,14 @@ export default function TokenDetailsScreen() {
                                   adjustsFontSizeToFit
                                   minimumFontScale={0.72}
                                 >
-                                  24h {formatCompactDisplayCurrency(pool.volume24h)}
+                                  {t('24h')} {formatCompactDisplayCurrency(pool.volume24h)}
                                 </Text>
                               </View>
                             </View>
                           ))
                         ) : (
                           <View style={styles.poolEmpty}>
-                            <Text style={styles.poolEmptyText}>No pool data.</Text>
+                            <Text style={styles.poolEmptyText}>{t('No pool data.')}</Text>
                           </View>
                         )}
                       </View>
@@ -683,7 +685,7 @@ export default function TokenDetailsScreen() {
                       const signingWallet = await ensureSigningWalletActive();
                       if (!signingWallet) {
                         notice.showNeutralNotice(
-                          'Send requires a signing wallet. Import or switch to a full-access wallet first.',
+                          t('Send requires a signing wallet. Import or switch to a full-access wallet first.'),
                           3200
                         );
                         return;
@@ -696,7 +698,7 @@ export default function TokenDetailsScreen() {
                     } as any);
                   })()}
                 >
-                  <Text style={styles.tokenPrimaryButtonText}>Send</Text>
+                  <Text style={styles.tokenPrimaryButtonText}>{t('Send')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -710,7 +712,7 @@ export default function TokenDetailsScreen() {
                       const signingWallet = await ensureSigningWalletActive();
                       if (!signingWallet) {
                         notice.showNeutralNotice(
-                          'Swap requires a signing wallet. Import or switch to a full-access wallet first.',
+                          t('Swap requires a signing wallet. Import or switch to a full-access wallet first.'),
                           3200
                         );
                         return;
@@ -730,12 +732,12 @@ export default function TokenDetailsScreen() {
                     } as any);
                   })()}
                 >
-                  <Text style={styles.tokenSecondaryButtonText}>Swap</Text>
+                  <Text style={styles.tokenSecondaryButtonText}>{t('Swap')}</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.historyHeaderBar}>
-                <Text style={[ui.sectionEyebrow, styles.historyEyebrowBar]}>Transfers</Text>
+                <Text style={[ui.sectionEyebrow, styles.historyEyebrowBar]}>{t('Transfers')}</Text>
 
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -814,7 +816,7 @@ export default function TokenDetailsScreen() {
                             numberOfLines={1}
                             ellipsizeMode="middle"
                           >
-                            {item.counterpartyLabel || 'Unknown'}
+                            {item.counterpartyLabel || t('Unknown')}
                           </Text>
 
                           <View style={styles.historyTokenRow}>
@@ -850,7 +852,7 @@ export default function TokenDetailsScreen() {
                   </View>
                 ) : (
                   <View style={styles.historyEmpty}>
-                    <Text style={styles.historyEmptyText}>No transfers yet.</Text>
+                    <Text style={styles.historyEmptyText}>{t('No transfers yet.')}</Text>
                   </View>
                 )}
 
@@ -864,7 +866,7 @@ export default function TokenDetailsScreen() {
                     {historyLoadingMore ? (
                       <ActivityIndicator color={colors.accent} size="small" />
                     ) : (
-                      <Text style={styles.loadMoreButtonText}>Load More</Text>
+                      <Text style={styles.loadMoreButtonText}>{t('Load More')}</Text>
                     )}
                   </TouchableOpacity>
                 ) : null}
@@ -872,7 +874,7 @@ export default function TokenDetailsScreen() {
             </>
           ) : (
             <View style={styles.errorState}>
-              <Text style={styles.errorText}>{errorText || 'Unable to load token details.'}</Text>
+              <Text style={styles.errorText}>{errorText || t('Unable to load token details.')}</Text>
             </View>
           )}
         </ScrollView>

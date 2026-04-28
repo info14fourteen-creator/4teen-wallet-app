@@ -3,6 +3,7 @@ import { Animated, Easing, Pressable, StyleSheet, Text, TouchableOpacity, View }
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useI18n } from '../i18n';
 import { colors, radius } from '../theme/tokens';
 import { useGlobalSearch } from '../search/search-provider';
 import {
@@ -48,6 +49,7 @@ export default function AppHeader({
   const insets = useSafeAreaInsets();
   const { openSearch } = useGlobalSearch();
   const { hasWallet } = useWalletSession();
+  const { t } = useI18n();
   const [qrPlayToken, setQrPlayToken] = useState(0);
   const [searchPlayToken, setSearchPlayToken] = useState(0);
   const burgerProgress = useRef(new Animated.Value(showClose ? 1 : 0)).current;
@@ -231,7 +233,7 @@ export default function AppHeader({
                 frames={[0, 119]}
                 speed={1.8}
               />
-              <Text style={styles.searchText}>crypto, address, dapp...</Text>
+              <Text style={styles.searchText}>{t('crypto, address, dapp...')}</Text>
             </View>
           </Pressable>
 

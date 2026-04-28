@@ -12,6 +12,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, fontFamilies, radius } from '../theme/tokens';
+import { useI18n } from '../i18n';
 
 type AddressQrModalProps = {
   visible: boolean;
@@ -28,6 +29,7 @@ function AddressQrModal({
   onClose,
   onCopy,
 }: AddressQrModalProps) {
+  const { t } = useI18n();
   const safeAddress = String(address || '').trim();
   const canRender = safeAddress.length > 0;
   const [copied, setCopied] = useState(false);
@@ -66,14 +68,14 @@ function AddressQrModal({
               <Ionicons name="close" size={18} color={colors.white} />
             </TouchableOpacity>
 
-            <Text style={styles.eyebrow}>RECEIVE</Text>
+            <Text style={styles.eyebrow}>{t('RECEIVE')}</Text>
 
             <Text style={styles.title} numberOfLines={1}>
-              {walletName || 'Wallet Address'}
+              {walletName || t('Wallet Address')}
             </Text>
 
             <Text style={styles.subtitle}>
-              Scan this QR code to send assets to this wallet.
+              {t('Scan this QR code to send assets to this wallet.')}
             </Text>
 
             <View style={styles.qrShell}>
@@ -88,26 +90,25 @@ function AddressQrModal({
                   />
                 ) : (
                   <View style={styles.qrFallback}>
-                    <Text style={styles.qrFallbackText}>No address</Text>
+                    <Text style={styles.qrFallbackText}>{t('No address')}</Text>
                   </View>
                 )}
               </View>
             </View>
 
             <View style={styles.addressBox}>
-              <Text style={styles.addressLabel}>TRON ADDRESS</Text>
+              <Text style={styles.addressLabel}>{t('TRON ADDRESS')}</Text>
               <Text style={styles.addressText} selectable>
-                {safeAddress || 'Address unavailable'}
+                {safeAddress || t('Address unavailable')}
               </Text>
               <Text style={styles.addressWarning}>
-                You can only transfer TRON-based tokens (e.g. TRX or TRC10/20/721 tokens) to this
-                account. Other tokens may get lost during transfer.
+                {t('You can only transfer TRON-based tokens (e.g. TRX or TRC10/20/721 tokens) to this account. Other tokens may get lost during transfer.')}
               </Text>
             </View>
 
             <View style={styles.actionsRow}>
               <TouchableOpacity activeOpacity={0.9} style={styles.secondaryButton} onPress={onClose}>
-                <Text style={styles.secondaryButtonText}>Close</Text>
+                <Text style={styles.secondaryButtonText}>{t('Close')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -116,7 +117,7 @@ function AddressQrModal({
                 onPress={handleCopy}
                 disabled={!canRender}
               >
-                <Text style={styles.primaryButtonText}>{copied ? 'Copied' : 'Copy Address'}</Text>
+                <Text style={styles.primaryButtonText}>{copied ? t('Copied') : t('Copy Address')}</Text>
               </TouchableOpacity>
             </View>
           </View>

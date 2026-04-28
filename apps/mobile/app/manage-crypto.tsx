@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { ProductScreen } from '../src/ui/product-shell';
+import { useI18n } from '../src/i18n';
 
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
@@ -155,6 +156,7 @@ async function buildManageFallbackAsset(
 }
 
 export default function ManageCryptoScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const notice = useNotice();
   const { triggerWalletDataRefresh } = useWalletSession();
@@ -175,7 +177,7 @@ export default function ManageCryptoScreen() {
 
       const activeWallet = await getActiveWallet();
       if (!activeWallet) {
-        throw new Error('No active wallet selected.');
+        throw new Error(t('No active wallet selected.'));
       }
 
       const visibleStorageKey = buildWalletHomeVisibleTokensStorageKey(activeWallet.id);
@@ -315,12 +317,12 @@ export default function ManageCryptoScreen() {
     } catch (error) {
       console.error(error);
       setPortfolio(null);
-      setErrorText('Failed to load assets.');
-      notice.showErrorNotice('Failed to load assets.', 2400);
+      setErrorText(t('Failed to load assets.'));
+      notice.showErrorNotice(t('Failed to load assets.'), 2400);
     } finally {
       setLoading(false);
     }
-  }, [notice]);
+  }, [notice, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -359,7 +361,7 @@ export default function ManageCryptoScreen() {
 
         const activeWallet = await getActiveWallet();
         if (!activeWallet) {
-          throw new Error('No active wallet selected.');
+          throw new Error(t('No active wallet selected.'));
         }
 
         await AsyncStorage.setItem(
@@ -369,10 +371,10 @@ export default function ManageCryptoScreen() {
         triggerWalletDataRefresh();
       } catch (error) {
         console.error(error);
-        notice.showErrorNotice('Failed to update visible assets.', 2200);
+        notice.showErrorNotice(t('Failed to update visible assets.'), 2200);
       }
     },
-    [notice, triggerWalletDataRefresh]
+    [notice, t, triggerWalletDataRefresh]
   );
 
   const allAssets = useMemo(() => {
@@ -380,12 +382,12 @@ export default function ManageCryptoScreen() {
   }, [portfolio?.assets]);
 
   if (loading && !portfolio) {
-    return <ScreenLoadingState label="Loading manage crypto..." />;
+    return <ScreenLoadingState label={t('Loading manage crypto...')} />;
   }
 
   return (
     <ProductScreen
-      eyebrow="MANAGE CRYPTO"
+      eyebrow={t('MANAGE CRYPTO')}
       browVariant="back"
       loadingOverlayVisible={refreshing}
       refreshControl={
@@ -445,7 +447,7 @@ export default function ManageCryptoScreen() {
           })
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>No assets found.</Text>
+            <Text style={styles.emptyText}>{t('No assets found.')}</Text>
           </View>
         )}
       </View>
@@ -455,7 +457,7 @@ export default function ManageCryptoScreen() {
         style={styles.addCustomTokenButton}
         onPress={() => router.push('/add-custom-token')}
       >
-        <Text style={styles.addCustomTokenText}>Add custom token</Text>
+        <Text style={styles.addCustomTokenText}>{t('Add custom token')}</Text>
       </TouchableOpacity>
     </ProductScreen>
   );

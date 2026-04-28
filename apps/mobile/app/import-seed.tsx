@@ -10,6 +10,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useI18n } from '../src/i18n';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import KeyboardView from '../src/ui/KeyboardView';
 import InfoToggleIcon from '../src/ui/info-toggle-icon';
@@ -45,6 +46,7 @@ export default function ImportSeedScreen() {
   const navInsets = useNavigationInsets({ topExtra: 14 });
 
   const notice = useNotice();
+  const { t } = useI18n();
   const contentBottomInset = useBottomInset();
   const [wordCount, setWordCount] = useState<12 | 24>(12);
   const [words, setWords] = useState<string[]>(buildWords(12));
@@ -173,14 +175,14 @@ export default function ImportSeedScreen() {
     }
 
     notice.showAckNotice(
-      `Word ${activeIndex + 1} suggestions`,
+      t('Word {{index}} suggestions', { index: activeIndex + 1 }),
       suggestions.slice(0, 6).map((word) => ({
         label: word,
         onPress: () => applySuggestion(word),
       })),
       'neutral'
     );
-  }, [activeIndex, activeValue, applySuggestion, notice, suggestions]);
+  }, [activeIndex, activeValue, applySuggestion, notice, suggestions, t]);
 
   const updateWord = useCallback(
     (index: number, value: string) => {
@@ -226,34 +228,31 @@ export default function ImportSeedScreen() {
       setWordCount(count);
       setWords(nextWords);
       setActiveIndex(null);
-      notice.showSuccessNotice(`Detected ${count} recovery words.`, 2200);
+      notice.showSuccessNotice(t('Detected {{count}} recovery words.', { count }), 2200);
       focusWalletName();
       return;
     }
 
     if (parsed.length > 1) {
       spreadParsedWords(parsed, 0);
-      notice.showSuccessNotice(`Pasted ${parsed.length} recovery words.`, 2200);
+      notice.showSuccessNotice(t('Pasted {{count}} recovery words.', { count: parsed.length }), 2200);
     }
-  }, [focusWalletName, notice, spreadParsedWords]);
+  }, [focusWalletName, notice, spreadParsedWords, t]);
 
   const handleImport = useCallback(async () => {
     if (!allFilled) {
-      notice.showErrorNotice(`Fill all recovery words: ${filledCount}/${wordCount}.`, 2600);
+      notice.showErrorNotice(t('Fill all recovery words: {{filled}}/{{total}}.', { filled: filledCount, total: wordCount }), 2600);
       return;
     }
 
     if (!walletNameTrimmed.length) {
-      notice.showErrorNotice('Wallet name is required.', 2600);
+      notice.showErrorNotice(t('Wallet name is required.'), 2600);
       focusWalletName();
       return;
     }
 
     if (walletNameTrimmed.length > MAX_WALLET_NAME_LENGTH) {
-      notice.showErrorNotice(
-        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
-        2600
-      );
+      notice.showErrorNotice(t('Wallet name must be {{count}} characters or less.', { count: MAX_WALLET_NAME_LENGTH }), 2600);
       focusWalletName();
       return;
     }
@@ -272,11 +271,11 @@ export default function ImportSeedScreen() {
         mnemonic,
       });
 
-      notice.showSuccessNotice('Seed wallet imported.', 2400);
+      notice.showSuccessNotice(t('Wallet imported from seed phrase.'), 2400);
       router.replace('/wallet');
     } catch (error) {
       console.error('IMPORT FAILED', error);
-      const message = error instanceof Error ? error.message : 'Failed to import wallet.';
+      const message = error instanceof Error ? error.message : t('Failed to import wallet.');
       notice.showErrorNotice(message, 3200);
     } finally {
       setSubmitting(false);
@@ -288,6 +287,7 @@ export default function ImportSeedScreen() {
     notice,
     router,
     submitting,
+    t,
     walletNameTrimmed,
     wordCount,
     words,
@@ -304,7 +304,7 @@ export default function ImportSeedScreen() {
           extraScrollHeight={56}
         >
           <ScreenBrow
-            label="IMPORT SEED PHRASE"
+            label={t('IMPORT BY SEED PHRASE')}
             variant="backLink"
             onLabelPress={() => setInfoExpanded((prev) => !prev)}
             labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
@@ -312,16 +312,16 @@ export default function ImportSeedScreen() {
 
           {infoExpanded ? (
             <View style={styles.infoPanel}>
-              <Text style={styles.infoTitle}>{IMPORT_INFO_TITLE}</Text>
-              <Text style={styles.infoText}>{IMPORT_INFO_TEXT}</Text>
+              <Text style={styles.infoTitle}>{t(IMPORT_INFO_TITLE)}</Text>
+              <Text style={styles.infoText}>{t(IMPORT_INFO_TEXT)}</Text>
             </View>
           ) : null}
 
           <Text style={styles.title}>
-            Restore from <Text style={styles.titleAccent}>seed phrase</Text>
+            {t('Restore from')} <Text style={styles.titleAccent}>{t('seed phrase')}</Text>
           </Text>
 
-          <Text style={styles.noticeLine}>We never store your seed phrase on our servers.</Text>
+          <Text style={styles.noticeLine}>{t('We never store your seed phrase on our servers.')}</Text>
 
           <View style={styles.switchRow}>
             <TouchableOpacity
@@ -330,7 +330,7 @@ export default function ImportSeedScreen() {
               onPress={() => handleSwitch(12)}
             >
               <Text style={[styles.switchText, wordCount === 12 && styles.switchTextActive]}>
-                12 Words
+                {t('12 Words')}
               </Text>
             </TouchableOpacity>
 
@@ -340,7 +340,7 @@ export default function ImportSeedScreen() {
               onPress={() => handleSwitch(24)}
             >
               <Text style={[styles.switchText, wordCount === 24 && styles.switchTextActive]}>
-                24 Words
+                {t('24 Words')}
               </Text>
             </TouchableOpacity>
 
@@ -349,15 +349,15 @@ export default function ImportSeedScreen() {
               style={styles.switchButton}
               onPress={() => void handlePastePhrase()}
             >
-              <Text style={styles.switchTextActive}>Paste Phrase</Text>
+              <Text style={styles.switchTextActive}>{t('Paste Phrase')}</Text>
             </TouchableOpacity>
           </View>
 
           <Text style={styles.helperTextCentered}>
-            Filled: {filledCount}/{wordCount}
+            {t('Filled: {{filled}}/{{total}}', { filled: filledCount, total: wordCount })}
           </Text>
 
-          <Text style={styles.blockEyebrow}>Seed Phrase</Text>
+          <Text style={styles.blockEyebrow}>{t('Seed Phrase')}</Text>
 
           <View style={styles.grid}>
             {words.map((value, index) => {
@@ -414,14 +414,14 @@ export default function ImportSeedScreen() {
             })}
           </View>
 
-          <Text style={styles.walletNameEyebrow}>Wallet Name</Text>
+          <Text style={styles.walletNameEyebrow}>{t('Wallet Name')}</Text>
 
           <View style={styles.nameField}>
             <TextInput
               ref={walletNameRef}
               value={walletName}
               onChangeText={(value) => setWalletName(value.slice(0, MAX_WALLET_NAME_LENGTH))}
-              placeholder="Imported wallet"
+              placeholder={t('Imported wallet')}
               placeholderTextColor={colors.textDim}
               style={styles.nameInput}
               maxLength={MAX_WALLET_NAME_LENGTH}
@@ -444,7 +444,7 @@ export default function ImportSeedScreen() {
             onPress={() => void handleImport()}
           >
             <Text style={[ui.buttonLabel, !canContinue && styles.primaryButtonTextDisabled]}>
-              {submitting ? 'Importing...' : 'Import Wallet'}
+              {submitting ? t('Importing...') : t('Import Wallet')}
             </Text>
           </TouchableOpacity>
         </KeyboardView>

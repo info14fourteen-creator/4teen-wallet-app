@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useI18n } from '../i18n';
 import { colors, radius } from '../theme/tokens';
 import {
   clampResourcePercent,
@@ -54,6 +55,7 @@ export default function ConfirmNetworkLoadCard({
   message: string;
   messageRisk?: boolean;
 }) {
+  const { t } = useI18n();
   const normalizedEstimatedEnergy = normalizeResourceAmount(estimatedEnergy);
   const normalizedEstimatedBandwidth = normalizeResourceAmount(estimatedBandwidth);
   const normalizedAvailableEnergy = normalizeResourceAmount(availableEnergy);
@@ -72,37 +74,37 @@ export default function ConfirmNetworkLoadCard({
       : (Math.min(normalizedAvailableBandwidth, normalizedEstimatedBandwidth) / normalizedEstimatedBandwidth) * 100
   );
   const needLabel = [
-    `${formatResourceAmount(normalizedEstimatedEnergy)} energy`,
-    `${formatResourceAmount(normalizedEstimatedBandwidth)} bandwidth`,
+    `${formatResourceAmount(normalizedEstimatedEnergy)} ${t('energy')}`,
+    `${formatResourceAmount(normalizedEstimatedBandwidth)} ${t('bandwidth')}`,
   ].join(' · ');
   const availableLabel = [
-    `${formatResourceAmount(normalizedAvailableEnergy)} energy`,
-    `${formatResourceAmount(normalizedAvailableBandwidth)} bandwidth`,
+    `${formatResourceAmount(normalizedAvailableEnergy)} ${t('energy')}`,
+    `${formatResourceAmount(normalizedAvailableBandwidth)} ${t('bandwidth')}`,
   ].join(' · ');
   const missingLabel = hasShortfall
     ? [
-        `${formatResourceAmount(normalizedEnergyShortfall)} energy`,
-        `${formatResourceAmount(normalizedBandwidthShortfall)} bandwidth`,
+        `${formatResourceAmount(normalizedEnergyShortfall)} ${t('energy')}`,
+        `${formatResourceAmount(normalizedBandwidthShortfall)} ${t('bandwidth')}`,
       ].join(' · ')
-    : 'Nothing';
+    : t('Nothing');
 
   return (
     <View style={styles.sectionBlock}>
-      <Text style={styles.sectionEyebrow}>NETWORK RESOURCES</Text>
+      <Text style={styles.sectionEyebrow}>{t('NETWORK RESOURCES')}</Text>
 
       <View style={styles.detailCard}>
         <View style={styles.detailRowFirst}>
-          <Text style={styles.detailLabel}>Need now</Text>
+          <Text style={styles.detailLabel}>{t('Need now')}</Text>
           <Text style={styles.detailValue}>{needLabel}</Text>
         </View>
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Available now</Text>
+          <Text style={styles.detailLabel}>{t('Available now')}</Text>
           <Text style={styles.detailValue}>{availableLabel}</Text>
         </View>
 
         <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Missing</Text>
+          <Text style={styles.detailLabel}>{t('Missing')}</Text>
           <Text style={[styles.detailValue, hasShortfall ? styles.detailValueRisk : null]}>
             {missingLabel}
           </Text>
@@ -110,14 +112,14 @@ export default function ConfirmNetworkLoadCard({
 
         <View style={styles.resourcesInlineRow}>
           <ResourceBar
-            label="Energy coverage"
+            label={t('Energy coverage')}
             risk={normalizedEnergyShortfall > 0}
             percent={energyCoveragePercent}
             value={`${Math.round(energyCoveragePercent)}%`}
           />
 
           <ResourceBar
-            label="Bandwidth coverage"
+            label={t('Bandwidth coverage')}
             risk={normalizedBandwidthShortfall > 0}
             percent={bandwidthCoveragePercent}
             value={`${Math.round(bandwidthCoveragePercent)}%`}

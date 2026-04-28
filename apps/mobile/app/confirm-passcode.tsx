@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useI18n } from '../src/i18n';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
@@ -15,6 +16,7 @@ import { useBottomInset } from '../src/ui/use-bottom-inset';
 
 export default function ConfirmPasscodeScreen() {
   const router = useRouter();
+  const { t } = useI18n();
   const params = useLocalSearchParams<{ next?: string; flow?: string }>();
   const nextPath = typeof params.next === 'string' ? params.next : '/import-wallet';
   const flow = typeof params.flow === 'string' ? params.flow : 'create-passcode';
@@ -51,12 +53,12 @@ export default function ConfirmPasscodeScreen() {
     const original = getPasscodeDraft();
 
     if (!original || original.length !== 6) {
-      setError('Passcode draft is missing. Start again.');
+      setError(t('Passcode draft is missing. Start again.'));
       return;
     }
 
     if (original !== digits) {
-      setError('Passcodes do not match.');
+      setError(t('Passcodes do not match.'));
       setDigits('');
       return;
     }
@@ -65,7 +67,7 @@ export default function ConfirmPasscodeScreen() {
     clearPasscodeDraft();
 
     if (flow === 'change-passcode') {
-      notice.showSuccessNotice('Passcode updated.', 2200);
+      notice.showSuccessNotice(t('Passcode updated.'), 2200);
       router.replace(nextPath as any);
       return;
     }
@@ -84,21 +86,21 @@ export default function ConfirmPasscodeScreen() {
       <Stack.Screen options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <View style={styles.screen}>
         <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
-          <ScreenBrow label={isChangeFlow ? 'CHANGE PASSCODE' : 'CONFIRM PASSCODE'} />
+          <ScreenBrow label={isChangeFlow ? t('CHANGE PASSCODE') : t('CONFIRM PASSCODE')} />
           <Text style={styles.title}>
-            Confirm your {isChangeFlow ? 'new ' : ''}
-            <Text style={styles.titleAccent}>passcode</Text>
+            {isChangeFlow ? t('Confirm your new ') : t('Confirm your ')}
+            <Text style={styles.titleAccent}>{t('passcode')}</Text>
           </Text>
 
           <Text style={styles.lead}>
             {isChangeFlow
-              ? 'Enter the same new 6 digits again. If they do not match, the confirm step resets.'
-              : 'Enter the same 6 digits again. If they do not match, we reset the confirm step.'}
+              ? t('Enter the same new 6 digits again. If they do not match, the confirm step resets.')
+              : t('Enter the same 6 digits again. If they do not match, we reset the confirm step.')}
           </Text>
 
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
-              <Text style={ui.sectionEyebrow}>Confirm</Text>
+              <Text style={ui.sectionEyebrow}>{t('Confirm')}</Text>
               <Text style={styles.cardHeaderErrorText} numberOfLines={1}>
                 {error || ' '}
               </Text>
@@ -119,7 +121,7 @@ export default function ConfirmPasscodeScreen() {
             onBackspacePress={digits.length === 0 ? handleCancel : handleBackspace}
             backspaceIcon={
               digits.length === 0 ? (
-                <Text style={styles.cancelKeyText}>CANCEL</Text>
+                <Text style={styles.cancelKeyText}>{t('CANCEL')}</Text>
               ) : (
                 <BackspaceIcon width={22} height={22} />
               )
@@ -133,7 +135,7 @@ export default function ConfirmPasscodeScreen() {
             onPress={handleContinue}
           >
             <Text style={[ui.buttonLabel, !canContinue && styles.primaryButtonTextDisabled]}>
-              {isChangeFlow ? 'Save Passcode' : 'Save Passcode'}
+              {t('Save Passcode')}
             </Text>
           </TouchableOpacity>
         </View>

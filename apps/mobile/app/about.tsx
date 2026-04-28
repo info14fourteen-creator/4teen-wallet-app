@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ProductScreen } from '../src/ui/product-shell';
 
 import ExpandChevron from '../src/ui/expand-chevron';
+import { useI18n } from '../src/i18n';
 import { colors, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import {
@@ -47,20 +48,21 @@ const socials = [
 export default function AboutScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { t } = useI18n();
 
   const isLatestVersion = true;
 
   const handleVersionUpdate = () => {
     if (isLatestVersion) {
-      notice.showUpdateNotice('You are using the latest internal alpha build.', 5000);
+      notice.showUpdateNotice(t('You are using the latest internal alpha build.'), 5000);
       return;
     }
 
     notice.showAckNotice(
-      'A newer build is available.',
+      t('A newer build is available.'),
       [
         {
-          label: 'Open Website',
+          label: t('Open Website'),
           onPress: () => void openInAppBrowser(router, 'https://4teen.me'),
         },
       ],
@@ -70,19 +72,19 @@ export default function AboutScreen() {
 
   const handleRateUs = () => {
     notice.showAckNotice(
-      'How do you like 4TEEN Wallet?',
+      t('How do you like 4TEEN Wallet?'),
       [
         {
-          label: 'I Like It',
-          onPress: () => notice.showSuccessNotice('Nice. At least somebody is happy.', 3500),
+          label: t('I Like It'),
+          onPress: () => notice.showSuccessNotice(t('Nice. At least somebody is happy.'), 3500),
         },
         {
-          label: 'I Wanna Feedback',
-          onPress: () => notice.showNeutralNotice('Feedback flow is not connected yet.', 3500),
+          label: t('I Wanna Feedback'),
+          onPress: () => notice.showNeutralNotice(t('Feedback flow is not connected yet.'), 3500),
         },
         {
-          label: 'Not This Time',
-          onPress: () => notice.showNeutralNotice('Fair enough.', 2500),
+          label: t('Not This Time'),
+          onPress: () => notice.showNeutralNotice(t('Fair enough.'), 2500),
         },
       ],
       'neutral'
@@ -90,7 +92,7 @@ export default function AboutScreen() {
   };
 
   return (
-    <ProductScreen eyebrow="ABOUT US">
+    <ProductScreen eyebrow={t('ABOUT US')}>
       <View style={styles.logoWrap}>
         <LogoWhite width={92} height={92} />
       </View>
@@ -105,14 +107,14 @@ export default function AboutScreen() {
       </View>
 
       <View style={styles.card}>
-        <ActionRow label="Version Update" onPress={handleVersionUpdate} />
-        <ActionRow label="Terms of Service" onPress={() => router.push('/terms' as any)} />
-        <ActionRow label="4TEEN Whitepaper" onPress={() => router.push('/whitepaper' as any)} />
-        <ActionRow label="Rate Us" icon="star" onPress={handleRateUs} />
-        <ActionRow label="Open 4TEEN Website" icon="external" onPress={() => void openInAppBrowser(router, 'https://4teen.me')} isLast />
+        <ActionRow label={t('Version Update')} onPress={handleVersionUpdate} />
+        <ActionRow label={t('Terms of Service')} onPress={() => router.push('/terms' as any)} />
+        <ActionRow label={t('4TEEN Whitepaper')} onPress={() => router.push('/whitepaper' as any)} />
+        <ActionRow label={t('Rate Us')} icon="star" onPress={handleRateUs} />
+        <ActionRow label={t('Open 4TEEN Website')} icon="external" onPress={() => void openInAppBrowser(router, 'https://4teen.me')} isLast />
       </View>
 
-      <Text style={ui.sectionEyebrow}>Official Channels</Text>
+      <Text style={ui.sectionEyebrow}>{t('Official Channels')}</Text>
 
       <View style={styles.socialCard}>
         <View style={styles.socialGrid}>

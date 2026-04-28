@@ -25,6 +25,7 @@ import { goBackOrReplace } from '../src/ui/safe-back';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import { getBiometricsEnabled, verifyPasscode } from '../src/security/local-auth';
 import { clearWalletRuntimeCaches, FOURTEEN_LOGO } from '../src/services/tron/api';
 import {
@@ -65,6 +66,7 @@ function shortenAddress(address: string) {
 export default function AmbassadorConfirmScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { t } = useI18n();
   const { setChromeHidden, triggerWalletDataRefresh } = useWalletSession();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
@@ -85,7 +87,7 @@ export default function AmbassadorConfirmScreen() {
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
-  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
+  const [biometricLabel, setBiometricLabel] = useState(t('Biometrics'));
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
@@ -119,7 +121,7 @@ export default function AmbassadorConfirmScreen() {
       setErrorText('');
 
       if (!isValidAmbassadorSlug(requestedSlug)) {
-        throw new Error('Ambassador slug is invalid. Go back and enter a valid slug.');
+        throw new Error(t('Ambassador slug is invalid. Go back and enter a valid slug.'));
       }
 
       const nextReview = await estimateAmbassadorRegistration(requestedSlug);
@@ -129,13 +131,13 @@ export default function AmbassadorConfirmScreen() {
       setReview(null);
       setEnergyQuote(null);
       setErrorText(
-        error instanceof Error ? error.message : 'Failed to build ambassador confirmation.'
+        error instanceof Error ? error.message : t('Failed to build ambassador confirmation.')
       );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [requestedSlug]);
+  }, [requestedSlug, t]);
 
   const loadBiometricsState = useCallback(async () => {
     try {
@@ -148,23 +150,23 @@ export default function AmbassadorConfirmScreen() {
       setBiometricAvailable(enabled && compatible && enrolled);
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        setBiometricLabel('Face ID');
+        setBiometricLabel(t('Face ID'));
         return;
       }
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-        setBiometricLabel('Fingerprint');
+        setBiometricLabel(t('Fingerprint'));
         return;
       }
 
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     } catch (error) {
       console.error(error);
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -186,9 +188,9 @@ export default function AmbassadorConfirmScreen() {
 
       burnWarningShownRef.current = true;
       notice.showErrorNotice(
-        `Not enough TRX for network burn. Top up at least ${formatTrxFromSunAmount(
-          review.trxCoverage.missingTrxSun
-        )} TRX first.`,
+        t('Not enough TRX for network burn. Top up at least {{amount}} TRX first.', {
+          amount: formatTrxFromSunAmount(review.trxCoverage.missingTrxSun),
+        }),
         3200
       );
       return;
@@ -196,7 +198,7 @@ export default function AmbassadorConfirmScreen() {
 
     burnWarningShownRef.current = false;
     notice.hideNotice();
-  }, [notice, review]);
+  }, [notice, review, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -252,16 +254,16 @@ export default function AmbassadorConfirmScreen() {
     if (submitting || energyRenting) return;
 
     preserveNoticeOnExitRef.current = true;
-    notice.showNeutralNotice('Ambassador registration rejected by user.', 2200);
+    notice.showNeutralNotice(t('Ambassador registration rejected by user.'), 2200);
     goBackOrReplace(router, { fallback: '/ambassador-program' });
-  }, [energyRenting, notice, router, submitting]);
+  }, [energyRenting, notice, router, submitting, t]);
 
   const performRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || energyRenting) return false;
 
     try {
       setEnergyRenting(true);
-      notice.showNeutralNotice('Sending Energy rental payment...', 2500);
+      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'ambassador_registration',
         wallet: review.wallet.address,
@@ -273,13 +275,13 @@ export default function AmbassadorConfirmScreen() {
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Energy is live. Sending ambassador registration...', 3000);
+      notice.showSuccessNotice(t('Energy is live. Sending ambassador registration...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Energy rental failed.',
+        error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
       );
       return false;
@@ -290,7 +292,7 @@ export default function AmbassadorConfirmScreen() {
       setPasscodeDigits('');
       setPasscodeError('');
     }
-  }, [energyQuote, energyRenting, load, notice, requestedSlug, review]);
+  }, [energyQuote, energyRenting, load, notice, requestedSlug, review, t]);
 
   const performRegistration = useCallback(async () => {
     if (!review || submitting) return;
@@ -308,18 +310,18 @@ export default function AmbassadorConfirmScreen() {
       setPasscodeError('');
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice(`Ambassador registered: ${receipt.slug}`, 3000);
+      notice.showSuccessNotice(t('Ambassador registered: {{slug}}', { slug: receipt.slug }), 3000);
       router.replace('/ambassador-program');
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Ambassador registration failed.',
+        error instanceof Error ? error.message : t('Ambassador registration failed.'),
         3400
       );
     } finally {
       setSubmitting(false);
     }
-  }, [notice, requestedSlug, review, router, submitting, triggerWalletDataRefresh]);
+  }, [notice, requestedSlug, review, router, submitting, t, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -328,7 +330,7 @@ export default function AmbassadorConfirmScreen() {
       const ok = await verifyPasscode(passcodeDigits);
 
       if (!ok) {
-        setPasscodeError('Wrong passcode.');
+        setPasscodeError(t('Wrong passcode.'));
         setPasscodeDigits('');
         return;
       }
@@ -344,7 +346,7 @@ export default function AmbassadorConfirmScreen() {
       await performRegistration();
     } catch (error) {
       console.error(error);
-      setPasscodeError('Failed to verify passcode.');
+      setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
   }, [
@@ -354,6 +356,7 @@ export default function AmbassadorConfirmScreen() {
     performRegistration,
     performRentEnergy,
     submitting,
+    t,
   ]);
 
   useEffect(() => {
@@ -437,9 +440,11 @@ export default function AmbassadorConfirmScreen() {
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage:
-          pendingApprovalMode === 'rent' ? 'Confirm Energy Rental' : 'Confirm Ambassador Registration',
-        fallbackLabel: 'Use Passcode',
-        cancelLabel: 'Cancel',
+          pendingApprovalMode === 'rent'
+            ? t('Confirm Energy Rental')
+            : t('Confirm Ambassador Registration'),
+        fallbackLabel: t('Use Passcode'),
+        cancelLabel: t('Cancel'),
       });
 
       if (!result.success) {
@@ -458,10 +463,10 @@ export default function AmbassadorConfirmScreen() {
     } catch (error) {
       console.error(error);
     }
-  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRegistration, performRentEnergy]);
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRegistration, performRentEnergy, t]);
 
   if (loading && !review && !errorText) {
-    return <ScreenLoadingState label="Building ambassador confirmation" />;
+    return <ScreenLoadingState label={t('Building ambassador confirmation')} />;
   }
 
   return (
@@ -485,12 +490,12 @@ export default function AmbassadorConfirmScreen() {
             />
           }
         >
-          <ScreenBrow label="AMBASSADOR" variant="back" />
+          <ScreenBrow label={t('AMBASSADOR')} variant="back" />
 
           {errorText || !review ? (
             <View style={styles.errorCard}>
               <Text style={styles.errorText}>
-                {errorText || 'Ambassador confirmation is unavailable.'}
+                {errorText || t('Ambassador confirmation is unavailable.')}
               </Text>
             </View>
           ) : (
@@ -524,7 +529,7 @@ export default function AmbassadorConfirmScreen() {
                   <ActivityIndicator color={colors.white} />
                 ) : (
                   <Text style={styles.primaryButtonText}>
-                    {hasTrxForBurn ? 'APPROVE & REGISTER' : 'TOP UP TRX'}
+                    {hasTrxForBurn ? t('APPROVE & REGISTER') : t('TOP UP TRX')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -535,29 +540,29 @@ export default function AmbassadorConfirmScreen() {
                 processing={energyRenting}
                 disabled={submitting || energyRenting}
                 showUnavailable={canRentResources}
-                actionLabel="REGISTER"
+                actionLabel={t('REGISTER')}
                 estimatedBurnSun={review.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
 
               <View style={styles.sectionBlock}>
-                <Text style={styles.sectionEyebrow}>REGISTRATION REVIEW</Text>
+                <Text style={styles.sectionEyebrow}>{t('REGISTRATION REVIEW')}</Text>
                 <View style={styles.detailCard}>
-                  <DetailRow label="Wallet" value={review.wallet.name} first />
-                  <DetailRow label="Slug" value={requestedSlug} />
+                  <DetailRow label={t('Wallet')} value={review.wallet.name} first />
+                  <DetailRow label={t('Slug')} value={requestedSlug} />
                   <TouchableOpacity
                     activeOpacity={0.9}
                     style={styles.linkRow}
                     onPress={() => void openInAppBrowser(router, controllerUrl)}
                   >
-                    <Text style={styles.detailLabel}>Controller</Text>
+                    <Text style={styles.detailLabel}>{t('Controller')}</Text>
                     <View style={styles.linkRowValueWrap}>
                       <Text style={styles.linkRowValue}>{shortenAddress(review.controllerAddress)}</Text>
                       <SendIcon width={16} height={16} color={colors.textSoft} />
                     </View>
                   </TouchableOpacity>
-                  <DetailRow label="Fee Cap" value={`${formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX`} />
-                  <DetailRow label="TRX Available" value={review.trxCoverage.trxBalanceDisplay} />
+                  <DetailRow label={t('Fee Cap')} value={`${formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX`} />
+                  <DetailRow label={t('TRX Available')} value={review.trxCoverage.trxBalanceDisplay} />
                 </View>
               </View>
 
@@ -570,19 +575,17 @@ export default function AmbassadorConfirmScreen() {
                 bandwidthShortfall={review.resources.bandwidthShortfall}
                 message={
                   !review.trxCoverage.canCoverBurn
-                    ? 'Not enough TRX to cover the estimated burn.'
+                    ? t('Not enough TRX to cover the estimated burn.')
                     : hasResourceShortfall
-                      ? 'You are short on resources. The burn estimate above already includes this gap.'
-                      : 'You have enough resources for this action. Extra burn is unlikely.'
+                      ? t('You are short on resources. The burn estimate above already includes this gap.')
+                      : t('You have enough resources for this action. Extra burn is unlikely.')
                 }
                 messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
               />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>
-                  This sends your ambassador registration to FourteenController. After the
-                  transaction is accepted, the backend completes slug mapping for the same wallet
-                  and referral link.
+                  {t('This sends your ambassador registration to FourteenController. After the transaction is accepted, the backend completes slug mapping for the same wallet and referral link.')}
                 </Text>
               </View>
 
@@ -592,7 +595,7 @@ export default function AmbassadorConfirmScreen() {
                 onPress={handleReject}
                 disabled={submitting || energyRenting}
               >
-                <Text style={styles.secondaryButtonText}>REJECT</Text>
+                <Text style={styles.secondaryButtonText}>{t('REJECT')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -600,8 +603,12 @@ export default function AmbassadorConfirmScreen() {
 
         <ApprovalAuthModal
           visible={passcodeOpen}
-          eyebrow="AMBASSADOR"
-          actionLabel={pendingApprovalMode === 'rent' ? 'Energy rental and ambassador registration' : 'ambassador registration'}
+          eyebrow={t('AMBASSADOR')}
+          actionLabel={
+            pendingApprovalMode === 'rent'
+              ? t('Energy rental and ambassador registration')
+              : t('ambassador registration')
+          }
           passcodeError={passcodeError}
           digitsLength={passcodeDigits.length}
           canUseBiometrics={canUseBiometrics}

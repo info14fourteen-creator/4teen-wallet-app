@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
+import { useI18n } from '../src/i18n';
 import { ProductScreen } from '../src/ui/product-shell';
 import {
   type AutoLockMode,
@@ -49,6 +50,7 @@ const AUTO_LOCK_OPTIONS: { mode: AutoLockMode; title: string; body: string }[] =
 
 export default function AuthenticationMethodScreen() {
   const router = useRouter();
+  const { t } = useI18n();
   const [infoExpanded, setInfoExpanded] = useState(false);
   const [autoLockExpanded, setAutoLockExpanded] = useState(false);
   const [disableExpanded, setDisableExpanded] = useState(false);
@@ -85,11 +87,11 @@ export default function AuthenticationMethodScreen() {
 
   const authSummary = useMemo(() => {
     if (!status.passcodeEnabled) {
-      return 'Off';
+      return t('Off');
     }
 
-    return status.biometricsEnabled ? 'Passcode + Biometrics' : 'Passcode';
-  }, [status.biometricsEnabled, status.passcodeEnabled]);
+    return status.biometricsEnabled ? t('Passcode + Biometrics') : t('Passcode');
+  }, [status.biometricsEnabled, status.passcodeEnabled, t]);
 
   const handleDisableProtection = useCallback(async () => {
     if (disablingProtection) return;
@@ -109,10 +111,10 @@ export default function AuthenticationMethodScreen() {
 
   return (
     <ProductScreen
-      eyebrow="AUTHENTICATION METHOD"
+      eyebrow={t('AUTHENTICATION METHOD')}
       browVariant="back"
       headerInfo={{
-        title: 'How wallet protection works',
+        title: t('How wallet protection works'),
         text:
           'Wallet protection has three layers. Passcode is the hard gate. Biometrics are only a faster approval method on top of that passcode. Auto-lock decides when the app should ask again after you leave it. Use a short timer for stricter security, use Never if you want fewer prompts during the same open session, or turn protection off completely if you explicitly do not want unlock checks at all.',
         expanded: infoExpanded,
@@ -121,7 +123,7 @@ export default function AuthenticationMethodScreen() {
     >
       <View style={styles.list}>
         <SettingsRow
-          label="Wallet Lock"
+          label={t('Wallet Lock')}
           value={authSummary}
           hint={
             status.passcodeEnabled
@@ -205,7 +207,7 @@ export default function AuthenticationMethodScreen() {
         />
 
         <SettingsRow
-          label="Auto-Lock"
+          label={t('Auto-Lock')}
           value={getAutoLockModeLabel(status.autoLockMode)}
           hint={
             status.passcodeEnabled

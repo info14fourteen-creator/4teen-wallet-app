@@ -17,6 +17,7 @@ import { useWalletSession } from '../src/wallet/wallet-session';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import {
   canWalletExposeMnemonic,
   canWalletExposePrivateKey,
@@ -55,6 +56,7 @@ const REMOVE_HOLD_MS = 7000;
 const REMOVE_DISPLAY_MAX = 114;
 
 export default function WalletsScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const notice = useNotice();
   const { setPendingWalletSelectionId } = useWalletSession();
@@ -108,11 +110,11 @@ export default function WalletsScreen() {
       setAggregate(nextAggregate);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Wallet manager failed to load.', 2600);
+      notice.showErrorNotice(t('Wallet manager failed to load.'), 2600);
     } finally {
       setLoading(false);
     }
-  }, [aggregate, notice]);
+  }, [aggregate, notice, t]);
 
   const handleRefresh = useCallback(async () => {
     try {
@@ -160,11 +162,11 @@ export default function WalletsScreen() {
       await setActiveWalletId(wallet.id);
       setPendingWalletSelectionId(wallet.id);
       setActiveWalletIdState(wallet.id);
-      notice.showSuccessNotice(`Active wallet: ${wallet.name}`, 2200);
+      notice.showSuccessNotice(t('Active wallet: {{name}}', { name: wallet.name }), 2200);
       router.replace('/wallet');
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Wallet selection failed.', 2600);
+      notice.showErrorNotice(t('Wallet selection failed.'), 2600);
     }
   };
 
@@ -184,19 +186,19 @@ export default function WalletsScreen() {
 
         resetRemovalState();
         await load();
-        notice.showSuccessNotice('Wallet removed from this device.', 2400);
+        notice.showSuccessNotice(t('Wallet removed from this device.'), 2400);
       } catch (error) {
         console.error(error);
         resetRemovalState();
-        notice.showErrorNotice('Wallet removal failed.', 2600);
+        notice.showErrorNotice(t('Wallet removal failed.'), 2600);
       }
     },
-    [editingWalletId, expandedWalletId, load, notice, resetRemovalState]
+    [editingWalletId, expandedWalletId, load, notice, resetRemovalState, t]
   );
 
   const handleRemovePress = useCallback(() => {
-    notice.showNeutralNotice('Press and hold to remove this wallet.', 2200);
-  }, [notice]);
+    notice.showNeutralNotice(t('Press and hold to remove this wallet.'), 2200);
+  }, [notice, t]);
 
   const handleRemovePressIn = useCallback(
     (wallet: WalletMeta) => {
@@ -250,13 +252,13 @@ export default function WalletsScreen() {
     const nextName = draftName.trim();
 
     if (!nextName) {
-      notice.showErrorNotice('Wallet name is required.', 2200);
+      notice.showErrorNotice(t('Wallet name is required.'), 2200);
       return;
     }
 
     if (nextName.length > MAX_WALLET_NAME_LENGTH) {
       notice.showErrorNotice(
-        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
+        t('Wallet name must be {{count}} characters or less.', { count: MAX_WALLET_NAME_LENGTH }),
         2600
       );
       return;
@@ -267,16 +269,16 @@ export default function WalletsScreen() {
       setEditingWalletId(null);
       setDraftName('');
       await load();
-      notice.showSuccessNotice(`Wallet renamed to ${updated.name}.`, 2400);
+      notice.showSuccessNotice(t('Wallet renamed to {{name}}.', { name: updated.name }), 2400);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Wallet rename failed.', 2600);
+      notice.showErrorNotice(t('Wallet rename failed.'), 2600);
     }
   };
 
   const handleOpenMnemonicExport = async (wallet: WalletMeta) => {
     if (!canWalletExposeMnemonic(wallet)) {
-      notice.showErrorNotice('This wallet has no seed phrase to export.', 2400);
+      notice.showErrorNotice(t('This wallet has no seed phrase to export.'), 2400);
       return;
     }
 
@@ -290,13 +292,13 @@ export default function WalletsScreen() {
       });
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Seed phrase export failed to open.', 2400);
+      notice.showErrorNotice(t('Seed phrase export failed to open.'), 2400);
     }
   };
 
   const handleOpenPrivateKeyExport = async (wallet: WalletMeta) => {
     if (!canWalletExposePrivateKey(wallet)) {
-      notice.showErrorNotice('This wallet has no private key to export.', 2400);
+      notice.showErrorNotice(t('This wallet has no private key to export.'), 2400);
       return;
     }
 
@@ -310,17 +312,17 @@ export default function WalletsScreen() {
       });
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Private key export failed to open.', 2400);
+      notice.showErrorNotice(t('Private key export failed to open.'), 2400);
     }
   };
 
   if (loading && !aggregate) {
-    return <ScreenLoadingState label="Loading wallets..." />;
+    return <ScreenLoadingState label={t('Loading wallets...')} />;
   }
 
   return (
     <ProductScreen
-      eyebrow="WALLET MANAGEMENT"
+      eyebrow={t('WALLET MANAGEMENT')}
       browVariant="back"
       loadingOverlayVisible={refreshing}
       refreshControl={
@@ -334,7 +336,7 @@ export default function WalletsScreen() {
       }
     >
           <View style={styles.summaryCard}>
-            <Text style={ui.eyebrow}>Total Assets</Text>
+            <Text style={ui.eyebrow}>{t('Total Assets')}</Text>
             <Text
               style={styles.summaryValue}
               numberOfLines={1}
@@ -353,15 +355,15 @@ export default function WalletsScreen() {
                 `${formatAdaptiveSignedDisplayCurrency(0)} (0.00%)`}
             </Text>
             <Text style={styles.summaryHint}>
-              Watch-only wallets are excluded from total balance.
+              {t('Watch-only wallets are excluded from total balance.')}
             </Text>
           </View>
 
-          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>Managed Wallets</Text>
+          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>{t('Managed Wallets')}</Text>
 
           {wallets.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No wallets added</Text>
+              <Text style={styles.emptyTitle}>{t('No wallets added')}</Text>
               <Text style={styles.emptyText}>
                 Import or create a wallet to start managing it here.
               </Text>
@@ -397,7 +399,7 @@ export default function WalletsScreen() {
                       <View style={styles.walletText}>
                         <View style={styles.walletTitleRow}>
                           <Text style={ui.actionLabel}>{wallet.name}</Text>
-                          {active ? <Text style={styles.activeBadge}>SELECTED</Text> : null}
+                          {active ? <Text style={styles.activeBadge}>{t('SELECTED')}</Text> : null}
                         </View>
 
                           <Text
@@ -428,7 +430,7 @@ export default function WalletsScreen() {
                     {expanded ? (
                       <View style={styles.moreBlock}>
                         <StubRow
-                          label="Open Wallet"
+                          label={t('Open Wallet')}
                           onPress={() => void handleSelectWallet(wallet)}
                         />
 
@@ -439,7 +441,7 @@ export default function WalletsScreen() {
                               onChangeText={(value) =>
                                 setDraftName(value.slice(0, MAX_WALLET_NAME_LENGTH))
                               }
-                              placeholder="Wallet name"
+                              placeholder={t('Wallet name')}
                               placeholderTextColor={colors.textDim}
                               style={styles.renameInput}
                               autoFocus
@@ -469,32 +471,32 @@ export default function WalletsScreen() {
                           </View>
                         ) : (
                           <StubRow
-                            label="Rename Wallet"
+                            label={t('Rename Wallet')}
                             onPress={() => handleRenameStart(wallet)}
                           />
                         )}
 
                         {canWalletExposeMnemonic(wallet) ? (
                           <StubRow
-                            label="Export Mnemonic"
+                            label={t('Export Mnemonic')}
                             onPress={() => void handleOpenMnemonicExport(wallet)}
                           />
                         ) : null}
 
                         {canWalletExposePrivateKey(wallet) ? (
                           <StubRow
-                            label="Export Private Key"
+                            label={t('Export Private Key')}
                             onPress={() => void handleOpenPrivateKeyExport(wallet)}
                           />
                         ) : null}
 
                         <StubRow
-                          label="Multisig Transactions"
+                          label={t('Multisig Transactions')}
                           onPress={() => router.push('/multisig-transactions')}
                         />
 
                         <StubRow
-                          label="Connections"
+                          label={t('Connections')}
                           onPress={() => router.push('/connections')}
                         />
 
@@ -520,7 +522,7 @@ export default function WalletsScreen() {
             style={styles.addWalletRow}
             onPress={() => router.push('/wallet-access')}
           >
-            <Text style={ui.actionLabel}>Add Wallet</Text>
+            <Text style={ui.actionLabel}>{t('Add Wallet')}</Text>
             <AddWalletIcon width={20} height={20} />
           </TouchableOpacity>
     </ProductScreen>

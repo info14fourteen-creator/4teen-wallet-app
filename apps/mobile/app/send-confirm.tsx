@@ -26,6 +26,7 @@ import { goBackOrReplace } from '../src/ui/safe-back';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import {
   clearWalletRuntimeCaches,
   prependTokenHistoryCacheItem,
@@ -62,6 +63,7 @@ function resolveParam(value: string | string[] | undefined) {
 export default function SendConfirmScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { t } = useI18n();
   const { setChromeHidden, triggerWalletDataRefresh } = useWalletSession();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
@@ -105,7 +107,9 @@ export default function SendConfirmScreen() {
       setErrorText('');
 
       if (!tokenId || !address || !amount) {
-        throw new Error('Send request is incomplete. Go back and enter address and amount again.');
+        throw new Error(
+          t('Send request is incomplete. Go back and enter address and amount again.')
+        );
       }
 
       const nextEstimate = await estimateAssetTransfer({
@@ -118,11 +122,11 @@ export default function SendConfirmScreen() {
     } catch (error) {
       console.error(error);
       setEstimate(null);
-      setErrorText(error instanceof Error ? error.message : 'Failed to build send confirmation.');
+      setErrorText(error instanceof Error ? error.message : t('Failed to build send confirmation.'));
     } finally {
       setLoading(false);
     }
-  }, [address, amount, tokenId]);
+  }, [address, amount, t, tokenId]);
 
   const loadBiometricsState = useCallback(async () => {
     try {
@@ -135,23 +139,23 @@ export default function SendConfirmScreen() {
       setBiometricAvailable(enabled && compatible && enrolled);
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        setBiometricLabel('Face ID');
+        setBiometricLabel(t('Face ID'));
         return;
       }
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-        setBiometricLabel('Fingerprint');
+        setBiometricLabel(t('Fingerprint'));
         return;
       }
 
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     } catch (error) {
       console.error(error);
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -169,9 +173,9 @@ export default function SendConfirmScreen() {
 
       burnWarningShownRef.current = true;
       notice.showErrorNotice(
-        `Not enough TRX for network burn. Top up at least ${formatTrxFromSunAmount(
-          estimate.trxCoverage.missingTrxSun
-        )} TRX first.`,
+        t('Not enough TRX for network burn. Top up at least {{amount}} TRX first.', {
+          amount: formatTrxFromSunAmount(estimate.trxCoverage.missingTrxSun),
+        }),
         3200
       );
       return;
@@ -179,7 +183,7 @@ export default function SendConfirmScreen() {
 
     burnWarningShownRef.current = false;
     notice.hideNotice();
-  }, [estimate, notice]);
+  }, [estimate, notice, t]);
 
   useEffect(() => {
     return () => {
@@ -245,16 +249,16 @@ export default function SendConfirmScreen() {
   const handleReject = useCallback(() => {
     if (sending) return;
     preserveNoticeOnExitRef.current = true;
-    notice.showNeutralNotice('Transfer rejected by user.', 2200);
+    notice.showNeutralNotice(t('Transfer rejected by user.'), 2200);
     goBackOrReplace(router, { fallback: '/send' });
-  }, [notice, router, sending]);
+  }, [notice, router, sending, t]);
 
   const performRentEnergy = useCallback(async () => {
     if (!estimate || !energyQuote || energyRenting) return false;
 
     try {
       setEnergyRenting(true);
-      notice.showNeutralNotice('Sending Energy rental payment...', 2500);
+      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'send_transfer',
         wallet: estimate.wallet.address,
@@ -263,13 +267,13 @@ export default function SendConfirmScreen() {
       });
       clearWalletRuntimeCaches(estimate.wallet.address);
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Energy is live. Sending transfer...', 3000);
+      notice.showSuccessNotice(t('Energy is live. Sending transfer...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Energy rental failed.',
+        error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
       );
       return false;
@@ -279,7 +283,7 @@ export default function SendConfirmScreen() {
       setPasscodeDigits('');
       setPasscodeError('');
     }
-  }, [energyQuote, energyRenting, estimate, load, notice]);
+  }, [energyQuote, energyRenting, estimate, load, notice, t]);
 
   const performSend = useCallback(async () => {
     if (!estimate || sending) return;
@@ -288,7 +292,9 @@ export default function SendConfirmScreen() {
       setSending(true);
 
       if (estimate.requestedTokenId !== estimate.token.tokenId) {
-        throw new Error('Selected token changed before approval. Go back and rebuild the transfer.');
+        throw new Error(
+          t('Selected token changed before approval. Go back and rebuild the transfer.')
+        );
       }
 
       const result = await sendAssetTransfer({
@@ -352,7 +358,9 @@ export default function SendConfirmScreen() {
       clearWalletRuntimeCaches(estimate.wallet.address);
       triggerWalletDataRefresh();
       notice.showSuccessNotice(
-        `${estimate.token.symbol} sent. It will appear in history shortly.`,
+        t('{{token}} sent. It will appear in history shortly.', {
+          token: estimate.token.symbol,
+        }),
         2800
       );
       preserveNoticeOnExitRef.current = true;
@@ -361,13 +369,13 @@ export default function SendConfirmScreen() {
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Transaction broadcast failed.',
+        error instanceof Error ? error.message : t('Transaction broadcast failed.'),
         3200
       );
     } finally {
       setSending(false);
     }
-  }, [contactName, estimate, notice, router, sending, triggerWalletDataRefresh]);
+  }, [contactName, estimate, notice, router, sending, t, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if ((sending || energyRenting) || passcodeDigits.length !== 6) return;
@@ -376,7 +384,7 @@ export default function SendConfirmScreen() {
       const ok = await verifyPasscode(passcodeDigits);
 
       if (!ok) {
-        setPasscodeError('Wrong passcode.');
+        setPasscodeError(t('Wrong passcode.'));
         setPasscodeDigits('');
         return;
       }
@@ -392,10 +400,10 @@ export default function SendConfirmScreen() {
       await performSend();
     } catch (error) {
       console.error(error);
-      setPasscodeError('Failed to verify passcode.');
+      setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
-  }, [energyRenting, passcodeDigits, pendingApprovalMode, performRentEnergy, performSend, sending]);
+  }, [energyRenting, passcodeDigits, pendingApprovalMode, performRentEnergy, performSend, sending, t]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -476,9 +484,12 @@ export default function SendConfirmScreen() {
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: pendingApprovalMode === 'rent' ? 'Confirm Energy Rental' : 'Confirm Transaction',
-        fallbackLabel: 'Use Passcode',
-        cancelLabel: 'Cancel',
+        promptMessage:
+          pendingApprovalMode === 'rent'
+            ? t('Confirm Energy Rental')
+            : t('Confirm Transaction'),
+        fallbackLabel: t('Use Passcode'),
+        cancelLabel: t('Cancel'),
       });
 
       if (!result.success) {
@@ -497,7 +508,7 @@ export default function SendConfirmScreen() {
     } catch (error) {
       console.error(error);
     }
-  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performSend]);
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performSend, t]);
 
   const handleRefresh = useCallback(async () => {
     if (sending) return;
@@ -511,7 +522,7 @@ export default function SendConfirmScreen() {
   }, [load, sending]);
 
   if (loading && !estimate) {
-    return <ScreenLoadingState label="Loading send confirmation..." />;
+    return <ScreenLoadingState label={t('Loading send confirmation...')} />;
   }
 
   return (
@@ -535,11 +546,11 @@ export default function SendConfirmScreen() {
             />
           }
         >
-          <ScreenBrow label="CONFIRM" variant="back" />
+          <ScreenBrow label={t('CONFIRM')} variant="back" />
 
           {errorText || !estimate ? (
             <View style={styles.errorWrap}>
-              <Text style={styles.errorText}>{errorText || 'Unable to build confirmation.'}</Text>
+              <Text style={styles.errorText}>{errorText || t('Unable to build confirmation.')}</Text>
             </View>
           ) : (
             <>
@@ -600,7 +611,7 @@ export default function SendConfirmScreen() {
                   <ActivityIndicator color={colors.white} />
                 ) : (
                   <Text style={styles.primaryButtonText}>
-                    {hasTrxForBurn ? 'APPROVE & SEND' : 'TOP UP TRX'}
+                    {hasTrxForBurn ? t('APPROVE & SEND') : t('TOP UP TRX')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -611,7 +622,7 @@ export default function SendConfirmScreen() {
                 processing={energyRenting}
                 disabled={sending}
                 showUnavailable={canRentEnergyForSend}
-                actionLabel="SEND"
+                actionLabel={t('SEND')}
                 estimatedBurnSun={estimate.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
@@ -661,9 +672,9 @@ export default function SendConfirmScreen() {
                 bandwidthShortfall={estimate.resources.bandwidthShortfall}
                 message={
                   hasResourceShortfall
-                    ? 'You are short on resources. The burn estimate above already includes this gap.'
-                    : 'You have enough resources for this action. Extra burn is unlikely.'
-                }
+                    ? t('You are short on resources. The burn estimate above already includes this gap.')
+                    : t('You have enough resources for this action. Extra burn is unlikely.')
+                  }
                 messageRisk={hasResourceShortfall}
               />
 
@@ -680,8 +691,12 @@ export default function SendConfirmScreen() {
         </ScrollView>
         <ApprovalAuthModal
           visible={passcodeOpen}
-          eyebrow="Transaction Approval"
-          actionLabel={pendingApprovalMode === 'rent' ? 'Energy rental and transfer' : 'transfer'}
+          eyebrow={t('Transaction Approval')}
+          actionLabel={
+            pendingApprovalMode === 'rent'
+              ? t('Energy rental and transfer')
+              : t('transfer')
+          }
           passcodeError={passcodeError}
           digitsLength={passcodeDigits.length}
           canUseBiometrics={canUseBiometrics}

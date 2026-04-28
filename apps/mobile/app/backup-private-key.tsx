@@ -23,6 +23,7 @@ import { useNavigationInsets } from '../src/ui/navigation';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import { ui } from '../src/theme/ui';
 import {
   getBiometricsEnabled,
@@ -65,6 +66,7 @@ function maskPrivateKey(value: string) {
 }
 
 export default function ExportPrivateKeyScreen() {
+  const { t } = useI18n();
   const notice = useNotice();
   const params = useLocalSearchParams<{ walletId?: string }>();
   const navInsets = useNavigationInsets({ topExtra: 14 });
@@ -295,7 +297,7 @@ export default function ExportPrivateKeyScreen() {
     try {
       const ok = await verifyPasscode(passcodeDigits);
       if (!ok) {
-        setPasscodeError('Wrong passcode.');
+        setPasscodeError(t('Wrong passcode.'));
         setPasscodeDigits('');
         return;
       }
@@ -306,10 +308,10 @@ export default function ExportPrivateKeyScreen() {
       await revealPrivateKeySecurely();
     } catch (error) {
       console.error(error);
-      setPasscodeError('Failed to verify passcode.');
+      setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
-  }, [passcodeDigits, revealPrivateKeySecurely]);
+  }, [passcodeDigits, revealPrivateKeySecurely, t]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -320,15 +322,15 @@ export default function ExportPrivateKeyScreen() {
   const handleCopy = useCallback(async () => {
     if (!state || !revealed) return;
     await Clipboard.setStringAsync(state.privateKey);
-    notice.showSuccessNotice('Private key copied. Keep it offline.', 2200);
-  }, [notice, revealed, state]);
+    notice.showSuccessNotice(t('Private key copied. Keep it offline.'), 2200);
+  }, [notice, revealed, state, t]);
 
   const handleHide = useCallback(() => {
     setRevealed(false);
-    notice.showNeutralNotice('Private key hidden.', 1800);
-  }, [notice]);
+    notice.showNeutralNotice(t('Private key hidden.'), 1800);
+  }, [notice, t]);
 
-  const walletLabel = state?.wallet.name || 'Private Key';
+  const walletLabel = state?.wallet.name || t('Private Key');
   const privateKeyText = state
     ? revealed
       ? formatPrivateKey(state.privateKey)
@@ -336,7 +338,7 @@ export default function ExportPrivateKeyScreen() {
     : '';
 
   if (loading) {
-    return <ScreenLoadingState label="Loading private key..." />;
+    return <ScreenLoadingState label={t('Loading private key...')} />;
   }
 
   return (
@@ -356,7 +358,7 @@ export default function ExportPrivateKeyScreen() {
             bounces
           >
             <ScreenBrow
-              label="EXPORT PRIVATE KEY"
+              label={t('EXPORT PRIVATE KEY')}
               variant="backLink"
               onLabelPress={() => setInfoExpanded((prev) => !prev)}
               labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
@@ -364,14 +366,14 @@ export default function ExportPrivateKeyScreen() {
 
             {infoExpanded ? (
               <View style={styles.infoPanel}>
-                <Text style={styles.infoTitle}>{EXPORT_INFO_TITLE}</Text>
-                <Text style={styles.infoText}>{EXPORT_INFO_TEXT}</Text>
+                <Text style={styles.infoTitle}>{t(EXPORT_INFO_TITLE)}</Text>
+                <Text style={styles.infoText}>{t(EXPORT_INFO_TEXT)}</Text>
               </View>
             ) : null}
 
             {errorText ? (
               <View style={styles.errorCard}>
-                <Text style={styles.errorTitle}>Unavailable</Text>
+                <Text style={styles.errorTitle}>{t('Unavailable')}</Text>
                 <Text style={styles.errorBody}>{errorText}</Text>
               </View>
             ) : null}
@@ -379,21 +381,20 @@ export default function ExportPrivateKeyScreen() {
             {state ? (
               <>
                 <View style={styles.warningCard}>
-                  <Text style={ui.sectionEyebrow}>Before you reveal</Text>
+                  <Text style={ui.sectionEyebrow}>{t('Before you reveal')}</Text>
                   <Text style={styles.warningBody}>
-                    Anyone with this private key can sign transactions from this wallet. 4TEEN will
-                    never ask for it. Store it offline, then hide it.
+                    {t('Anyone with this private key can sign transactions from this wallet. 4TEEN will never ask for it. Store it offline, then hide it.')}
                   </Text>
                 </View>
 
                 <View style={styles.keyCard}>
                   <View style={styles.keyHeader}>
-                    <Text style={ui.sectionEyebrow}>Private Key</Text>
-                    <Text style={styles.keyCount}>64 hex</Text>
+                    <Text style={ui.sectionEyebrow}>{t('Private Key')}</Text>
+                    <Text style={styles.keyCount}>{t('64 hex')}</Text>
                   </View>
 
                   <View style={styles.walletRow}>
-                    <Text style={styles.walletLabel}>Wallet</Text>
+                    <Text style={styles.walletLabel}>{t('Wallet')}</Text>
                     <Text style={styles.walletValue}>{walletLabel}</Text>
                   </View>
 
@@ -409,7 +410,7 @@ export default function ExportPrivateKeyScreen() {
                       style={[styles.primaryButton, styles.actionButtonFlex]}
                       onPress={handleCopy}
                     >
-                      <Text style={styles.primaryButtonText}>COPY KEY</Text>
+                      <Text style={styles.primaryButtonText}>{t('COPY KEY')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -417,12 +418,12 @@ export default function ExportPrivateKeyScreen() {
                       style={[styles.secondaryButton, styles.actionButtonFlex]}
                       onPress={handleHide}
                     >
-                      <Text style={styles.secondaryButtonText}>HIDE</Text>
+                      <Text style={styles.secondaryButtonText}>{t('HIDE')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton} onPress={() => void handleReveal()}>
-                    <Text style={styles.primaryButtonText}>REVEAL KEY</Text>
+                    <Text style={styles.primaryButtonText}>{t('REVEAL KEY')}</Text>
                   </TouchableOpacity>
                 )}
               </>
@@ -447,23 +448,23 @@ export default function ExportPrivateKeyScreen() {
           <View style={styles.authOverlay}>
             <View style={styles.authScreen}>
               <View style={styles.authContent}>
-                <Text style={ui.eyebrow}>Private Key Export</Text>
+                <Text style={ui.eyebrow}>{t('Private Key Export')}</Text>
 
                 <Text style={styles.authTitle}>
-                  Confirm with <Text style={styles.authTitleAccent}>Passcode</Text>
+                  {t('Confirm with ')}<Text style={styles.authTitleAccent}>{t('Passcode')}</Text>
                 </Text>
 
                 <Text style={styles.authLead}>
-                  This unlocks the wallet signing key locally. Confirm with your 6-digit passcode
+                  {t('This unlocks the wallet signing key locally. Confirm with your 6-digit passcode')}
                   {biometricAvailable
-                    ? ` or ${resolveBiometricPromptLabel(biometricLabel)}`
+                    ? ` ${t('or')} ${resolveBiometricPromptLabel(biometricLabel)}`
                     : ''}
-                  ; nothing is sent to 4TEEN servers.
+                  {t('; nothing is sent to 4TEEN servers.')}
                 </Text>
 
                 <View style={styles.authPasscodeCard}>
                   <View style={styles.authCardHeaderRow}>
-                    <Text style={ui.sectionEyebrow}>Reveal Private Key</Text>
+                    <Text style={ui.sectionEyebrow}>{t('Reveal Private Key')}</Text>
                     <Text style={styles.authCardErrorText} numberOfLines={1}>
                       {passcodeError || ' '}
                     </Text>
@@ -511,7 +512,7 @@ export default function ExportPrivateKeyScreen() {
                     setPasscodeError('');
                   }}
                 >
-                  <Text style={styles.cancelButtonText}>CANCEL</Text>
+                  <Text style={styles.cancelButtonText}>{t('CANCEL')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

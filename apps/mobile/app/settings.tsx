@@ -9,6 +9,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import ExpandChevron from '../src/ui/expand-chevron';
+import { getCachedLanguageLabel, useI18n } from '../src/i18n';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -31,12 +32,14 @@ export default function SettingsScreen() {
   const router = useRouter();
   const notice = useNotice();
   const { triggerWalletDataRefresh } = useWalletSession();
+  const { t } = useI18n();
 
   const [clearingCache, setClearingCache] = useState(false);
   const [clearActive, setClearActive] = useState(false);
   const [clearProgress, setClearProgress] = useState(0);
   const [authValue, setAuthValue] = useState('Not set');
   const [currencyValue, setCurrencyValue] = useState(getCachedDisplayCurrency());
+  const [languageValue, setLanguageValue] = useState(getCachedLanguageLabel());
 
   const clearStartedAtRef = useRef<number | null>(null);
   const clearTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -68,25 +71,29 @@ export default function SettingsScreen() {
       let cancelled = false;
 
       const loadAuthValue = async () => {
-        const [passcodeEnabled, biometricsEnabled, autoLockMode, displayCurrency] = await Promise.all([
+        const [passcodeEnabled, biometricsEnabled, autoLockMode, displayCurrency, languageLabel] = await Promise.all([
           hasPasscode(),
           getBiometricsEnabled(),
           getAutoLockMode(),
           getDisplayCurrency(),
+          Promise.resolve(getCachedLanguageLabel()),
         ]);
 
         if (cancelled) return;
 
         setCurrencyValue(displayCurrency);
+        setLanguageValue(languageLabel);
 
         if (!passcodeEnabled) {
-          setAuthValue('Off');
+          setAuthValue(t('Off'));
           return;
         }
 
         const lockLabel = getAutoLockModeLabel(autoLockMode);
         setAuthValue(
-          biometricsEnabled ? `Passcode + Biometrics • ${lockLabel}` : `Passcode • ${lockLabel}`
+          biometricsEnabled
+            ? `${t('Passcode + Biometrics')} • ${lockLabel}`
+            : `${t('Passcode')} • ${lockLabel}`
         );
       };
 
@@ -95,7 +102,7 @@ export default function SettingsScreen() {
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, [t])
   );
 
   const handleClearCacheConfirmed = useCallback(async () => {
@@ -108,20 +115,20 @@ export default function SettingsScreen() {
       setClearingCache(true);
       await clearAllAppCaches();
       triggerWalletDataRefresh();
-      notice.showSuccessNotice('All temporary cache cleared.', 2400);
+      notice.showSuccessNotice(t('All temporary cache cleared.'), 2400);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Cache clear failed.', 2200);
+      notice.showErrorNotice(t('Cache clear failed.'), 2200);
     } finally {
       setClearingCache(false);
       resetClearState();
     }
-  }, [clearingCache, notice, resetClearState, triggerWalletDataRefresh]);
+  }, [clearingCache, notice, resetClearState, t, triggerWalletDataRefresh]);
 
   const handleClearPress = useCallback(() => {
     if (clearingCache) return;
-    notice.showNeutralNotice('Press and hold to clear cache.', 2200);
-  }, [clearingCache, notice]);
+    notice.showNeutralNotice(t('Press and hold to clear cache.'), 2200);
+  }, [clearingCache, notice, t]);
 
   const handleClearPressIn = useCallback(() => {
     if (clearingCache) return;
@@ -161,18 +168,18 @@ export default function SettingsScreen() {
   const clearFillWidth = `${Math.min(100, (clearProgress / CLEAR_DISPLAY_MAX) * 100)}%`;
 
   return (
-    <ProductScreen eyebrow="SETTINGS" browVariant="back">
+    <ProductScreen eyebrow={t('SETTINGS')} browVariant="back">
           <View style={styles.list}>
-            <SettingsRow label="Language" value="English" onPress={() => router.push('/language')} />
-            <SettingsRow label="Currency" value={currencyValue} onPress={() => router.push('/currency')} />
+            <SettingsRow label={t('Language')} value={languageValue} onPress={() => router.push('/language')} />
+            <SettingsRow label={t('Currency')} value={currencyValue} onPress={() => router.push('/currency')} />
             <SettingsRow
-              label="Authentication Method"
+              label={t('Authentication Method')}
               value={authValue}
               onPress={() => router.push('/authentication-method')}
             />
             <SettingsRow
-              label="Appearance"
-              value="Dark Side Only"
+              label={t('Appearance')}
+              value={t('Dark Side Only')}
               onPress={() => router.push('/appearance')}
             />
 
@@ -207,6 +214,8 @@ function ClearCacheHoldRow({
   onPressIn: () => void;
   onPressOut: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <Pressable
       style={styles.clearCacheRow}
@@ -222,11 +231,11 @@ function ClearCacheHoldRow({
 
         <View style={styles.clearCacheRowTop}>
           <View style={styles.clearCacheText}>
-            <Text style={ui.actionLabel}>Clear cache</Text>
+            <Text style={ui.actionLabel}>{t('Clear cache')}</Text>
             <Text style={styles.helperText}>
-              Clears market, portfolio, history, ambassador, unlock, liquidity, asset wallet,
-              direct-buy, and resource-pricing cache. Wallets, passcode, address book, drafts,
-              referrals, and token settings stay untouched.
+              {t(
+                'Clears market, portfolio, history, ambassador, unlock, liquidity, asset wallet, direct-buy, and resource-pricing cache. Wallets, passcode, address book, drafts, referrals, and token settings stay untouched.'
+              )}
             </Text>
           </View>
 

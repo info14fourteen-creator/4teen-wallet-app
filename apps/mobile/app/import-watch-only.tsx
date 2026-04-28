@@ -18,6 +18,7 @@ import ScreenBrow from '../src/ui/screen-brow';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import {
   importWalletFromWatchOnly,
   isValidTronAddress,
@@ -30,6 +31,7 @@ const IMPORT_INFO_TEXT =
   'Paste or scan a TRON address to add this wallet in view-only mode. The address is validated locally on this device before the wallet is saved.\n\nA watch-only wallet can show balances, tokens, and activity, but it cannot sign transactions or expose private-key actions.\n\nThe wallet name is just a local label for this app. It helps you recognize the wallet and does not change anything on-chain.';
 
 export default function ImportWatchOnlyScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const params = useLocalSearchParams<{ backTo?: string; address?: string | string[] }>();
@@ -79,19 +81,19 @@ export default function ImportWatchOnlyScreen() {
 
   const handleSave = async () => {
     if (!addressValid) {
-      notice.showErrorNotice('Enter a valid TRON address.', 2600);
+      notice.showErrorNotice(t('Enter a valid TRON address.'), 2600);
       return;
     }
 
     if (!walletNameTrimmed.length) {
-      notice.showErrorNotice('Wallet name is required.', 2600);
+      notice.showErrorNotice(t('Wallet name is required.'), 2600);
       walletNameRef.current?.focus();
       return;
     }
 
     if (walletNameTrimmed.length > MAX_WALLET_NAME_LENGTH) {
       notice.showErrorNotice(
-        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
+        t('Wallet name must be {{count}} characters or less.', { count: MAX_WALLET_NAME_LENGTH }),
         2600
       );
       walletNameRef.current?.focus();
@@ -109,11 +111,11 @@ export default function ImportWatchOnlyScreen() {
         address: normalizedAddress,
       });
 
-      notice.showSuccessNotice('Watch-only wallet added.', 2400);
+      notice.showSuccessNotice(t('Watch-only wallet added.'), 2400);
       router.replace('/wallet');
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to save watch-only wallet.';
+        error instanceof Error ? error.message : t('Failed to save watch-only wallet.');
       notice.showErrorNotice(message, 3000);
     } finally {
       setSubmitting(false);
@@ -131,7 +133,7 @@ export default function ImportWatchOnlyScreen() {
           extraScrollHeight={56}
         >
           <ScreenBrow
-            label="WATCH-ONLY WALLET"
+            label={t('WATCH-ONLY WALLET')}
             variant="backLink"
             onLabelPress={() => setInfoExpanded((prev) => !prev)}
             labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
@@ -139,24 +141,24 @@ export default function ImportWatchOnlyScreen() {
 
           {infoExpanded ? (
             <View style={styles.infoPanel}>
-              <Text style={styles.infoTitle}>{IMPORT_INFO_TITLE}</Text>
-              <Text style={styles.infoText}>{IMPORT_INFO_TEXT}</Text>
+              <Text style={styles.infoTitle}>{t(IMPORT_INFO_TITLE)}</Text>
+              <Text style={styles.infoText}>{t(IMPORT_INFO_TEXT)}</Text>
             </View>
           ) : null}
 
           <Text style={styles.title}>
-            Add a <Text style={styles.titleAccent}>watch-only</Text> wallet
+            {t('Add a')} <Text style={styles.titleAccent}>{t('watch-only')}</Text> {t('wallet')}
           </Text>
 
-          <Text style={styles.noticeLine}>This wallet can view activity, but it cannot sign.</Text>
+          <Text style={styles.noticeLine}>{t('This wallet can view activity, but it cannot sign.')}</Text>
 
-          <Text style={styles.blockEyebrow}>TRON Address</Text>
+          <Text style={styles.blockEyebrow}>{t('TRON Address')}</Text>
 
           <View style={[styles.addressField, normalizedAddress.length > 0 && styles.addressFieldActive]}>
             <TextInput
               value={address}
               onChangeText={(value) => setAddress(value.replace(/\s+/g, ''))}
-              placeholder="T..."
+              placeholder={t('T...')}
               placeholderTextColor={colors.textDim}
               style={[
                 styles.addressInput,
@@ -191,17 +193,17 @@ export default function ImportWatchOnlyScreen() {
           </View>
 
           {showInvalidAddressHint ? (
-            <Text style={styles.invalidAddressHint}>Enter a valid TRON address.</Text>
+            <Text style={styles.invalidAddressHint}>{t('Enter a valid TRON address.')}</Text>
           ) : null}
 
-          <Text style={styles.walletNameEyebrow}>Wallet Name</Text>
+          <Text style={styles.walletNameEyebrow}>{t('Wallet Name')}</Text>
 
           <View style={styles.nameField}>
             <TextInput
               ref={walletNameRef}
               value={walletName}
               onChangeText={(value) => setWalletName(value.slice(0, MAX_WALLET_NAME_LENGTH))}
-              placeholder="Watch wallet"
+              placeholder={t('Watch wallet')}
               placeholderTextColor={colors.textDim}
               style={styles.nameInput}
               maxLength={MAX_WALLET_NAME_LENGTH}
@@ -225,7 +227,7 @@ export default function ImportWatchOnlyScreen() {
             onPress={() => void handleSave()}
           >
             <Text style={[ui.buttonLabel, !canSave && styles.primaryButtonTextDisabled]}>
-              {submitting ? 'Saving...' : 'Save Watch-Only Wallet'}
+              {submitting ? t('Saving...') : t('Save Watch-Only Wallet')}
             </Text>
           </TouchableOpacity>
         </KeyboardView>

@@ -19,6 +19,7 @@ import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ApprovalAuthModal from '../src/ui/approval-auth-modal';
 import EnergyResaleCard from '../src/ui/energy-resale-card';
 import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
+import { useI18n } from '../src/i18n';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import useChromeLoading from '../src/ui/use-chrome-loading';
@@ -56,6 +57,7 @@ function shortAddress(address: string) {
 export default function LiquidityConfirmScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { t } = useI18n();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
   const { setChromeHidden, triggerWalletDataRefresh } = useWalletSession();
@@ -69,7 +71,7 @@ export default function LiquidityConfirmScreen() {
   const [passcodeEntryOpen, setPasscodeEntryOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
-  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
+  const [biometricLabel, setBiometricLabel] = useState(t('Biometrics'));
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
@@ -134,13 +136,13 @@ export default function LiquidityConfirmScreen() {
       console.error(error);
       setReview(null);
       setErrorText(
-        error instanceof Error ? error.message : 'Failed to build liquidity confirmation.'
+        error instanceof Error ? error.message : t('Failed to build liquidity confirmation.')
       );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   const loadBiometricsState = useCallback(async () => {
     try {
@@ -153,23 +155,23 @@ export default function LiquidityConfirmScreen() {
       setBiometricAvailable(enabled && compatible && enrolled);
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        setBiometricLabel('Face ID');
+        setBiometricLabel(t('Face ID'));
         return;
       }
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-        setBiometricLabel('Fingerprint');
+        setBiometricLabel(t('Fingerprint'));
         return;
       }
 
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     } catch (error) {
       console.error(error);
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -190,9 +192,9 @@ export default function LiquidityConfirmScreen() {
       if (burnWarningShownRef.current) return;
       burnWarningShownRef.current = true;
       notice.showErrorNotice(
-        `Not enough TRX for network burn. Top up at least ${formatTrxFromSunAmount(
-          review.trxCoverage.missingTrxSun
-        )} TRX first.`,
+        t('Not enough TRX for network burn. Top up at least {{amount}} TRX first.', {
+          amount: formatTrxFromSunAmount(review.trxCoverage.missingTrxSun),
+        }),
         3200
       );
       return;
@@ -200,7 +202,7 @@ export default function LiquidityConfirmScreen() {
 
     burnWarningShownRef.current = false;
     notice.hideNotice();
-  }, [notice, review]);
+  }, [notice, review, t]);
 
   useEffect(() => {
     return () => {
@@ -223,7 +225,7 @@ export default function LiquidityConfirmScreen() {
 
     try {
       setEnergyRenting(true);
-      notice.showNeutralNotice('Sending Energy rental payment...', 2500);
+      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'liquidity_execute',
         wallet: review.wallet.address,
@@ -232,13 +234,13 @@ export default function LiquidityConfirmScreen() {
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Energy is live. Triggering liquidity...', 3000);
+      notice.showSuccessNotice(t('Energy is live. Triggering liquidity...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Energy rental failed.',
+        error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
       );
       return false;
@@ -249,7 +251,7 @@ export default function LiquidityConfirmScreen() {
       setPasscodeDigits('');
       setPasscodeError('');
     }
-  }, [energyQuote, energyRenting, load, notice, review]);
+  }, [energyQuote, energyRenting, load, notice, review, t]);
 
   const performLiquidityExecution = useCallback(async () => {
     if (!review || submitting) return;
@@ -265,18 +267,21 @@ export default function LiquidityConfirmScreen() {
       setPasscodeDigits('');
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice(`Liquidity trigger sent: ${shortLiquidityTx(receipt.txId)}`, 3000);
+      notice.showSuccessNotice(
+        t('Liquidity trigger sent: {{tx}}', { tx: shortLiquidityTx(receipt.txId) }),
+        3000
+      );
       router.replace('/liquidity-controller');
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Liquidity execution failed.',
+        error instanceof Error ? error.message : t('Liquidity execution failed.'),
         3200
       );
     } finally {
       setSubmitting(false);
     }
-  }, [notice, review, router, submitting, triggerWalletDataRefresh]);
+  }, [notice, review, router, submitting, triggerWalletDataRefresh, t]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -285,7 +290,7 @@ export default function LiquidityConfirmScreen() {
       const ok = await verifyPasscode(passcodeDigits);
 
       if (!ok) {
-        setPasscodeError('Wrong passcode.');
+        setPasscodeError(t('Wrong passcode.'));
         setPasscodeDigits('');
         return;
       }
@@ -301,7 +306,7 @@ export default function LiquidityConfirmScreen() {
       await performLiquidityExecution();
     } catch (error) {
       console.error(error);
-      setPasscodeError('Failed to verify passcode.');
+      setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
   }, [
@@ -311,6 +316,7 @@ export default function LiquidityConfirmScreen() {
     performLiquidityExecution,
     performRentEnergy,
     submitting,
+    t,
   ]);
 
   useEffect(() => {
@@ -341,9 +347,9 @@ export default function LiquidityConfirmScreen() {
   const handleReject = useCallback(() => {
     if (submitting) return;
     preserveNoticeOnExitRef.current = true;
-    notice.showNeutralNotice('Liquidity execution rejected by user.', 2200);
+    notice.showNeutralNotice(t('Liquidity execution rejected by user.'), 2200);
     goBackOrReplace(router, { fallback: '/liquidity-controller' });
-  }, [notice, router, submitting]);
+  }, [notice, router, submitting, t]);
 
   const handlePasscodeDigitPress = useCallback((digit: string) => {
     if (submitting) return;
@@ -389,9 +395,10 @@ export default function LiquidityConfirmScreen() {
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: pendingApprovalMode === 'rent' ? 'Confirm Energy Rental' : 'Confirm Liquidity',
-        fallbackLabel: 'Use Passcode',
-        cancelLabel: 'Cancel',
+        promptMessage:
+          pendingApprovalMode === 'rent' ? t('Confirm Energy Rental') : t('Confirm Liquidity'),
+        fallbackLabel: t('Use Passcode'),
+        cancelLabel: t('Cancel'),
       });
 
       if (!result.success) {
@@ -410,10 +417,10 @@ export default function LiquidityConfirmScreen() {
     } catch (error) {
       console.error(error);
     }
-  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performLiquidityExecution, performRentEnergy]);
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performLiquidityExecution, performRentEnergy, t]);
 
   if (loading && !review) {
-    return <ScreenLoadingState label="Building liquidity confirmation" />;
+    return <ScreenLoadingState label={t('Building liquidity confirmation')} />;
   }
 
   return (
@@ -437,12 +444,12 @@ export default function LiquidityConfirmScreen() {
             />
           }
         >
-          <ScreenBrow label="LIQUIDITY" variant="back" />
+          <ScreenBrow label={t('LIQUIDITY')} variant="back" />
 
           {errorText || !review ? (
             <View style={styles.errorWrap}>
               <Text style={styles.errorText}>
-                {errorText || 'Unable to build liquidity confirmation.'}
+                {errorText || t('Unable to build liquidity confirmation.')}
               </Text>
             </View>
           ) : (
@@ -515,7 +522,7 @@ export default function LiquidityConfirmScreen() {
                 processing={energyRenting}
                 disabled={submitting}
                 showUnavailable={canRentResources}
-                actionLabel="EXECUTE"
+                actionLabel={t('EXECUTE')}
                 estimatedBurnSun={review.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
@@ -597,8 +604,12 @@ export default function LiquidityConfirmScreen() {
 
         <ApprovalAuthModal
           visible={passcodeOpen}
-          eyebrow="LIQUIDITY"
-          actionLabel={pendingApprovalMode === 'rent' ? 'Energy rental and liquidity execution' : 'liquidity execution'}
+          eyebrow={t('LIQUIDITY')}
+          actionLabel={
+            pendingApprovalMode === 'rent'
+              ? t('Energy rental and liquidity execution')
+              : t('liquidity execution')
+          }
           passcodeError={passcodeError}
           digitsLength={passcodeDigits.length}
           canUseBiometrics={canUseBiometrics}

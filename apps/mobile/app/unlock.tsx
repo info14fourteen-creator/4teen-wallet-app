@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 
+import { useI18n } from '../src/i18n';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import {
@@ -17,6 +18,7 @@ import NumericKeypad from '../src/ui/numeric-keypad';
 export default function UnlockScreen() {
   const router = useRouter();
   const { triggerNavigationIntro } = useWalletSession();
+  const { t } = useI18n();
   const initialUnlockRequestedRef = useRef(false);
 
   const [passcodeOpen, setPasscodeOpen] = useState(false);
@@ -63,7 +65,7 @@ export default function UnlockScreen() {
       const ok = await verifyPasscode(passcodeDigits);
 
       if (!ok) {
-        setPasscodeError('Wrong passcode.');
+        setPasscodeError(t('Wrong passcode.'));
         setPasscodeDigits('');
         return;
       }
@@ -72,12 +74,12 @@ export default function UnlockScreen() {
       router.replace('/wallet');
     } catch (error) {
       console.error(error);
-      setPasscodeError('Failed to verify passcode.');
+      setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     } finally {
       setSubmitting(false);
     }
-  }, [passcodeDigits, router, submitting, triggerNavigationIntro]);
+  }, [passcodeDigits, router, submitting, t, triggerNavigationIntro]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -99,9 +101,9 @@ export default function UnlockScreen() {
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock Wallet',
-        fallbackLabel: 'Use Passcode',
-        cancelLabel: 'Cancel',
+        promptMessage: t('Unlock Wallet'),
+        fallbackLabel: t('Use Passcode'),
+        cancelLabel: t('Cancel'),
       });
 
       if (result.success) {
@@ -118,7 +120,7 @@ export default function UnlockScreen() {
       setPasscodeDigits('');
       setPasscodeOpen(true);
     }
-  }, [biometricAvailable, biometricsEnabled, router, submitting, triggerNavigationIntro]);
+  }, [biometricAvailable, biometricsEnabled, router, submitting, t, triggerNavigationIntro]);
 
   useEffect(() => {
     if (!biometricsLoaded || initialUnlockRequestedRef.current) return;
@@ -195,7 +197,7 @@ export default function UnlockScreen() {
   const renderPasscodeCard = (
     <View style={styles.authCard}>
       <View style={styles.authCardHeaderRow}>
-        <Text style={ui.sectionEyebrow}>Unlock</Text>
+        <Text style={ui.sectionEyebrow}>{t('Unlock')}</Text>
         <Text style={styles.authCardErrorText} numberOfLines={1}>
           {passcodeError || ' '}
         </Text>
@@ -209,10 +211,10 @@ export default function UnlockScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.screen}>
         <View style={styles.content}>
-          <Text style={ui.eyebrow}>Wallet Approval</Text>
+          <Text style={ui.eyebrow}>{t('Wallet Approval')}</Text>
 
           <Text style={styles.title}>
-            Confirm with <Text style={styles.titleAccent}>Passcode</Text>
+            {t('Confirm with')} <Text style={styles.titleAccent}>{t('Passcode')}</Text>
           </Text>
 
           <Text style={styles.lead}>{leadText}</Text>

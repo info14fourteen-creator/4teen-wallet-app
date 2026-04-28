@@ -18,6 +18,7 @@ import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import {
   AddContactIcon,
   ConfirmIcon,
@@ -45,6 +46,7 @@ function isValidTronAddress(value: string) {
 }
 
 export default function AddressBookScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const params = useLocalSearchParams<{
     openAdd?: string | string[];
@@ -159,20 +161,20 @@ export default function AddressBookScreen() {
     } catch (error) {
       console.error('Failed to load address book', error);
       setContacts(defaultContacts);
-      notice.showErrorNotice('Address book failed to load.', 2600);
+      notice.showErrorNotice(t('Address book failed to load.'), 2600);
     } finally {
       setLoaded(true);
     }
-  }, [notice]);
+  }, [notice, t]);
 
   const persistContacts = useCallback(async (nextContacts: ContactItem[]) => {
     try {
       await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(nextContacts));
     } catch (error) {
       console.error('Failed to save address book', error);
-      notice.showErrorNotice('Address book update failed.', 2600);
+      notice.showErrorNotice(t('Address book update failed.'), 2600);
     }
-  }, [notice]);
+  }, [notice, t]);
 
   const handlePaste = async () => {
     const text = await Clipboard.getStringAsync();
@@ -188,9 +190,9 @@ export default function AddressBookScreen() {
   const handleCopy = useCallback(
     async (value: string) => {
       await Clipboard.setStringAsync(value);
-      notice.showSuccessNotice('TRON address copied.', 2200);
+      notice.showSuccessNotice(t('TRON address copied.'), 2200);
     },
-    [notice]
+    [notice, t]
   );
 
   const handleSave = useCallback(() => {
@@ -198,20 +200,20 @@ export default function AddressBookScreen() {
     const trimmedAddress = address.trim();
 
     if (!trimmedName) {
-      notice.showErrorNotice('Enter a contact label first.', 2200);
+      notice.showErrorNotice(t('Enter a contact label first.'), 2200);
       return;
     }
 
     if (trimmedName.length > MAX_CONTACT_NAME_LENGTH) {
       notice.showErrorNotice(
-        `Contact name must be ${MAX_CONTACT_NAME_LENGTH} characters or less.`,
+        t('Contact name must be {{count}} characters or less.', { count: MAX_CONTACT_NAME_LENGTH }),
         2600
       );
       return;
     }
 
     if (!isValidTronAddress(trimmedAddress)) {
-      notice.showErrorNotice('Enter a valid TRON address.', 2200);
+      notice.showErrorNotice(t('Enter a valid TRON address.'), 2200);
       return;
     }
 
@@ -220,7 +222,7 @@ export default function AddressBookScreen() {
     );
 
     if (exists) {
-      notice.showErrorNotice('This TRON address is already in your address book.', 2400);
+      notice.showErrorNotice(t('This TRON address is already in your address book.'), 2400);
       return;
     }
 
@@ -234,21 +236,21 @@ export default function AddressBookScreen() {
     setName('');
     setAddress('');
     setAddOpen(false);
-    notice.showSuccessNotice('Address book entry saved.', 2200);
-  }, [address, contacts, name, notice]);
+    notice.showSuccessNotice(t('Address book entry saved.'), 2200);
+  }, [address, contacts, name, notice, t]);
 
   const handleDeleteConfirmed = useCallback(
     (id: string) => {
       setContacts((prev) => prev.filter((item) => item.id !== id));
       resetRemovalState();
-      notice.showSuccessNotice('Address book entry removed.', 2200);
+      notice.showSuccessNotice(t('Address book entry removed.'), 2200);
     },
-    [notice, resetRemovalState]
+    [notice, resetRemovalState, t]
   );
 
   const handleDeletePress = useCallback(() => {
-    notice.showNeutralNotice('Press and hold to remove this entry.', 2200);
-  }, [notice]);
+    notice.showNeutralNotice(t('Press and hold to remove this entry.'), 2200);
+  }, [notice, t]);
 
   const handleDeletePressIn = useCallback(
     (contactId: string) => {
@@ -319,14 +321,14 @@ export default function AddressBookScreen() {
           keyboardShouldPersistTaps="handled"
           extraScrollHeight={56}
         >
-          <ScreenBrow label="ADDRESS BOOK" variant="back" />
+          <ScreenBrow label={t('ADDRESS BOOK')} variant="back" />
           <View style={styles.addRowWrap}>
             <TouchableOpacity
               activeOpacity={0.9}
               style={styles.addRow}
               onPress={() => setAddOpen((prev) => !prev)}
             >
-              <Text style={ui.actionLabel}>Add Contact</Text>
+              <Text style={ui.actionLabel}>{t('Add Contact')}</Text>
 
               {addOpen ? (
                 <OpenDownIcon width={20} height={20} />
@@ -340,11 +342,11 @@ export default function AddressBookScreen() {
             <View style={styles.form}>
               <View style={styles.inputWrap}>
                 <View style={styles.fieldHeaderRow}>
-                  <Text style={ui.sectionEyebrow}>TRON Address</Text>
+                  <Text style={ui.sectionEyebrow}>{t('TRON Address')}</Text>
 
                   {address.length > 0 ? (
                     <Text style={[styles.headerValidation, addressValidationTone]}>
-                      {addressValid ? 'VALID' : 'INVALID'}
+                      {addressValid ? t('VALID') : t('INVALID')}
                     </Text>
                   ) : null}
                 </View>
@@ -358,7 +360,7 @@ export default function AddressBookScreen() {
                   <TextInput
                     value={address}
                     onChangeText={(value) => setAddress(value.replace(/\s+/g, ''))}
-                    placeholder="T..."
+                    placeholder={t('T...')}
                     placeholderTextColor={colors.textDim}
                     style={[
                       styles.addressInput,
@@ -392,14 +394,14 @@ export default function AddressBookScreen() {
               </View>
 
               <View style={styles.inputWrap}>
-                <Text style={ui.sectionEyebrow}>Name</Text>
+                <Text style={ui.sectionEyebrow}>{t('Name')}</Text>
 
                 <View style={styles.nameField}>
                   <TextInput
                     ref={nameInputRef}
                     value={name}
                     onChangeText={(value) => setName(value.slice(0, MAX_CONTACT_NAME_LENGTH))}
-                    placeholder="Contact name"
+                    placeholder={t('Contact name')}
                     placeholderTextColor={colors.textDim}
                     style={styles.nameInput}
                     maxLength={MAX_CONTACT_NAME_LENGTH}
@@ -471,7 +473,7 @@ export default function AddressBookScreen() {
                       onPress={() => void handleCopy(contact.address)}
                       style={styles.actionSlot}
                     >
-                      <Text style={styles.copyAction}>Copy Address</Text>
+                      <Text style={styles.copyAction}>{t('Copy Address')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -479,7 +481,7 @@ export default function AddressBookScreen() {
                       onPress={() => handleSend(contact)}
                       style={styles.actionSlot}
                     >
-                      <Text style={styles.sendAction}>Send Crypto</Text>
+                      <Text style={styles.sendAction}>{t('Send Crypto')}</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -494,7 +496,7 @@ export default function AddressBookScreen() {
 
             {contacts.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyText}>No saved contacts yet.</Text>
+                <Text style={styles.emptyText}>{t('No saved contacts yet.')}</Text>
               </View>
             ) : null}
           </View>

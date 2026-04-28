@@ -30,6 +30,7 @@ import { useSwipeDownDismiss } from '../src/ui/use-swipe-down-dismiss';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { FOOTER_NAV_BOTTOM_OFFSET, FOOTER_NAV_RESERVED_SPACE } from '../src/ui/footer-nav';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import {
@@ -236,6 +237,7 @@ function buildCatalogSwapAssetChoices(
 }
 
 export default function SwapScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const params = useLocalSearchParams<{ tokenId?: string | string[]; walletId?: string | string[] }>();
   const insets = useSafeAreaInsets();
@@ -317,7 +319,7 @@ export default function SwapScreen() {
 
       if (!resolvedWallet) {
         notice.showNeutralNotice(
-          'Swap requires a signing wallet. Import or switch to a full-access wallet first.',
+          t('Swap requires a signing wallet. Import or switch to a full-access wallet first.'),
           3200
         );
         router.replace('/wallet');
@@ -446,11 +448,11 @@ export default function SwapScreen() {
       setTokenChoices([]);
       setSourceTokenId('');
       setTargetTokenId('');
-      setErrorText(error instanceof Error ? error.message : 'Failed to load swap.');
+      setErrorText(error instanceof Error ? error.message : t('Failed to load swap.'));
     } finally {
       setLoading(false);
     }
-  }, [notice, refreshing, requestedTokenId, requestedWalletId, router, setPendingWalletSelectionId]);
+  }, [notice, refreshing, requestedTokenId, requestedWalletId, router, setPendingWalletSelectionId, t]);
 
   const refreshSwapContext = useCallback(async () => {
     try {
@@ -519,17 +521,18 @@ export default function SwapScreen() {
           setRoutes(nextRoutes);
           setStatusText(
             nextRoutes[0]
-              ? `Best route: ${nextRoutes[0].providerName} · ${formatTokenAmount(
-                  nextRoutes[0].expectedOut
-                )} ${nextRoutes[0].toTokenSymbol}`
-              : 'No routes available right now.'
+              ? t('Best route: {{provider}} · {{amount}}', {
+                  provider: nextRoutes[0].providerName,
+                  amount: `${formatTokenAmount(nextRoutes[0].expectedOut)} ${nextRoutes[0].toTokenSymbol}`,
+                })
+              : t('No routes available right now.')
           );
         })
         .catch((error) => {
           if (quotesRequestRef.current !== requestId) return;
           console.error(error);
           setRoutes([]);
-          setStatusText(error instanceof Error ? error.message : 'Failed to load swap routes.');
+          setStatusText(error instanceof Error ? error.message : t('Failed to load swap routes.'));
         })
         .finally(() => {
           if (quotesRequestRef.current === requestId) {
@@ -539,7 +542,7 @@ export default function SwapScreen() {
     }, 260);
 
     return () => clearTimeout(timeoutId);
-  }, [amount, selectedSourceToken, selectedTargetToken]);
+  }, [amount, selectedSourceToken, selectedTargetToken, t]);
 
   const bestRoute = routes[0] || null;
   const spendableInputBalance = getProtectedSpendableSwapBalance(selectedSourceToken);
@@ -609,29 +612,31 @@ export default function SwapScreen() {
 
       if (activeWallet?.kind === 'watch-only') {
         notice.showErrorNotice(
-          'Watch-only wallet cannot sign swap. Switch to a full-access wallet first.',
+          t('Watch-only wallet cannot sign swap. Switch to a full-access wallet first.'),
           2800
         );
         return;
       }
 
       if (!enteredAmount || enteredAmount <= 0) {
-        notice.showErrorNotice('Enter amount first.', 2200);
+        notice.showErrorNotice(t('Enter amount first.'), 2200);
         return;
       }
 
       if (enteredAmount > spendableInputBalance) {
         notice.showErrorNotice(
           selectedSourceToken?.tokenId === FOURTEEN_CONTRACT
-            ? 'You must keep at least 0.000001 4TEEN in the wallet.'
-            : `Not enough ${selectedSourceToken?.symbol || 'token'} balance for this swap.`,
+            ? t('You must keep at least 0.000001 4TEEN in the wallet.')
+            : t('Not enough {{token}} balance for this swap.', {
+                token: selectedSourceToken?.symbol || t('token'),
+              }),
           2600
         );
         return;
       }
 
       if (!route.isExecutable) {
-        notice.showErrorNotice('This quote is visible, but this route cannot be executed yet.', 2800);
+        notice.showErrorNotice(t('This quote is visible, but this route cannot be executed yet.'), 2800);
         return;
       }
 
@@ -651,7 +656,7 @@ export default function SwapScreen() {
       } catch (error) {
         console.error(error);
         notice.showErrorNotice(
-          error instanceof Error ? error.message : 'Failed to open swap review.',
+          error instanceof Error ? error.message : t('Failed to open swap review.'),
           3200
         );
       } finally {
@@ -671,19 +676,20 @@ export default function SwapScreen() {
       selectedSourceToken,
       selectedTargetToken,
       closeAmountKeyboard,
+      t,
     ]
   );
 
   const handleToggleWalletOptions = useCallback(() => {
     if (visibleWalletChoices.length <= 0) {
-      notice.showNeutralNotice('No other wallets available.', 2200);
+      notice.showNeutralNotice(t('No other wallets available.'), 2200);
       return;
     }
     closeAmountKeyboard();
     setSourceTokenOptionsOpen(false);
     setTargetTokenOptionsOpen(false);
     setWalletOptionsOpen((prev) => !prev);
-  }, [closeAmountKeyboard, notice, visibleWalletChoices.length]);
+  }, [closeAmountKeyboard, notice, t, visibleWalletChoices.length]);
 
   const handleChooseWallet = useCallback(async (wallet: WalletSwitcherItem) => {
     try {
@@ -696,15 +702,15 @@ export default function SwapScreen() {
       await loadSwapContext();
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Failed to switch swap wallet.', 2400);
+      notice.showErrorNotice(t('Failed to switch swap wallet.'), 2400);
     } finally {
       setSwitchingWalletId(null);
     }
-  }, [closeAmountKeyboard, closeInlinePickers, loadSwapContext, notice, setPendingWalletSelectionId]);
+  }, [closeAmountKeyboard, closeInlinePickers, loadSwapContext, notice, setPendingWalletSelectionId, t]);
 
   const handleToggleSourceTokenOptions = useCallback(() => {
     if (visibleSourceTokenChoices.length <= 0) {
-      notice.showNeutralNotice('No other funded assets in this wallet.', 2200);
+      notice.showNeutralNotice(t('No other funded assets in this wallet.'), 2200);
       return;
     }
     closeAmountKeyboard();
@@ -712,7 +718,7 @@ export default function SwapScreen() {
     setTargetTokenOptionsOpen(false);
     setTargetTokenSearch('');
     setSourceTokenOptionsOpen((prev) => !prev);
-  }, [closeAmountKeyboard, notice, visibleSourceTokenChoices.length]);
+  }, [closeAmountKeyboard, notice, t, visibleSourceTokenChoices.length]);
 
   const handleChooseSourceToken = useCallback((asset: SwapAssetChoice) => {
     setAmount('');
@@ -730,7 +736,7 @@ export default function SwapScreen() {
 
   const handleToggleTargetTokenOptions = useCallback(() => {
     if (visibleTargetTokenChoices.length <= 0) {
-      notice.showNeutralNotice('No target assets available for this wallet yet.', 2200);
+      notice.showNeutralNotice(t('No target assets available for this wallet yet.'), 2200);
       return;
     }
     closeAmountKeyboard();
@@ -738,7 +744,7 @@ export default function SwapScreen() {
     setSourceTokenOptionsOpen(false);
     setSourceTokenSearch('');
     setTargetTokenOptionsOpen((prev) => !prev);
-  }, [closeAmountKeyboard, notice, visibleTargetTokenChoices.length]);
+  }, [closeAmountKeyboard, notice, t, visibleTargetTokenChoices.length]);
 
   const handleChooseTargetToken = useCallback(
     async (asset: SwapAssetChoice) => {
@@ -773,10 +779,10 @@ export default function SwapScreen() {
         setTargetTokenId(asset.tokenId);
       } catch (error) {
         console.error(error);
-        notice.showErrorNotice('Failed to load target token.', 2400);
+        notice.showErrorNotice(t('Failed to load target token.'), 2400);
       }
     },
-    [activeWallet, closeAmountKeyboard, notice]
+    [activeWallet, closeAmountKeyboard, notice, t]
   );
 
   const slippageOptions = ['0.50', '1.00', '3.00'];
@@ -786,7 +792,7 @@ export default function SwapScreen() {
       <View style={styles.screen}>
         <ScreenLoadingOverlay visible={refreshing || Boolean(switchingWalletId)} />
         {loading ? (
-          <ScreenLoadingState label="Loading swap..." />
+          <ScreenLoadingState label={t('Loading swap...')} />
         ) : (
           <>
           <KeyboardView
@@ -815,8 +821,8 @@ export default function SwapScreen() {
               closeInlinePickers();
             }}
           >
-            <ScreenBrow
-              label="SWAP"
+          <ScreenBrow
+              label={t('SWAP')}
               variant="backLink"
               onLabelPress={() => setInfoExpanded((prev) => !prev)}
               labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
@@ -824,8 +830,8 @@ export default function SwapScreen() {
 
             {infoExpanded ? (
               <View style={styles.infoPanel}>
-                <Text style={styles.infoTitle}>{SWAP_INFO_TITLE}</Text>
-                <Text style={styles.infoText}>{SWAP_INFO_TEXT}</Text>
+                <Text style={styles.infoTitle}>{t(SWAP_INFO_TITLE)}</Text>
+                <Text style={styles.infoText}>{t(SWAP_INFO_TEXT)}</Text>
               </View>
             ) : null}
 
@@ -849,13 +855,13 @@ export default function SwapScreen() {
                 onChooseWallet={(wallet) => {
                   void handleChooseWallet(wallet);
                 }}
-                emptyTitle="No wallet selected"
-                emptyBody="Create or import a full-access wallet first."
+                emptyTitle={t('No wallet selected')}
+                emptyBody={t('Create or import a full-access wallet first.')}
               />
             </View>
 
             <View style={styles.swapSelectionBlock}>
-              <Text style={styles.swapSelectionEyebrow}>SELECTED ASSET · TAP TO SWITCH</Text>
+              <Text style={styles.swapSelectionEyebrow}>{t('SELECTED ASSET · TAP TO SWITCH')}</Text>
 
               <TouchableOpacity
                 activeOpacity={0.9}
@@ -871,9 +877,9 @@ export default function SwapScreen() {
 
                   <View style={styles.swapAssetMeta}>
                     <Text style={styles.swapAssetName}>
-                      {selectedSourceToken?.name || 'Select token'}
+                      {selectedSourceToken?.name || t('Select token')}
                     </Text>
-                    <Text style={styles.swapAssetAmount}>{selectedSourceToken?.symbol || 'TOKEN'}</Text>
+                    <Text style={styles.swapAssetAmount}>{selectedSourceToken?.symbol || t('TOKEN')}</Text>
                   </View>
                 </View>
 
@@ -895,7 +901,7 @@ export default function SwapScreen() {
                   <TextInput
                     value={sourceTokenSearch}
                     onChangeText={setSourceTokenSearch}
-                    placeholder="Filter assets"
+                    placeholder={t('Filter assets')}
                     placeholderTextColor={colors.textDim}
                     style={styles.swapTokenSearchInput}
                     autoCapitalize="none"
@@ -951,7 +957,7 @@ export default function SwapScreen() {
 
                 {visibleSourceTokenChoices.length === 0 ? (
                   <View style={styles.swapTokenEmptyState}>
-                    <Text style={styles.swapTokenEmptyText}>Nothing matched this filter.</Text>
+                    <Text style={styles.swapTokenEmptyText}>{t('Nothing matched this filter.')}</Text>
                   </View>
                 ) : null}
               </ScrollView>
@@ -959,14 +965,14 @@ export default function SwapScreen() {
 
             <View style={styles.swapSectionBlock} onLayout={handleAmountSectionLayout}>
               <View style={styles.swapFieldHeaderRow}>
-                <Text style={styles.swapSectionFieldTitle}>AMOUNT</Text>
+                <Text style={styles.swapSectionFieldTitle}>{t('AMOUNT')}</Text>
 
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={handleSelectMax}
                   style={styles.swapInputMaxButton}
                 >
-                  <Text style={styles.swapInputMaxButtonText}>MAX</Text>
+                  <Text style={styles.swapInputMaxButtonText}>{t('MAX')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -978,7 +984,7 @@ export default function SwapScreen() {
                 <TextInput
                   value={amount}
                   onChangeText={(value) => setAmount(normalizeAmountInput(value))}
-                  placeholder="0.00"
+                  placeholder={t('0.00')}
                   placeholderTextColor={colors.textDim}
                   style={styles.swapAmountInput}
                   autoCapitalize="none"
@@ -995,7 +1001,7 @@ export default function SwapScreen() {
                     contentFit="contain"
                   />
                   <Text style={styles.swapInputTokenLabel}>
-                    {selectedSourceToken?.symbol || 'TOKEN'}
+                    {selectedSourceToken?.symbol || t('TOKEN')}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -1020,12 +1026,12 @@ export default function SwapScreen() {
                             : 6,
                       }
                     )}`
-                  : 'Choose the amount you want to swap from the selected token.'}
+                  : t('Choose the amount you want to swap from the selected token.')}
               </Text>
             </View>
 
             <View style={styles.swapSectionBlock}>
-              <Text style={styles.swapSelectionEyebrow}>RECEIVE ASSET · TAP TO SWITCH</Text>
+              <Text style={styles.swapSelectionEyebrow}>{t('RECEIVE ASSET · TAP TO SWITCH')}</Text>
 
               <TouchableOpacity
                 activeOpacity={0.9}
@@ -1041,9 +1047,9 @@ export default function SwapScreen() {
 
                   <View style={styles.swapAssetMeta}>
                     <Text style={styles.swapAssetName}>
-                      {selectedTargetToken?.name || 'Select token'}
+                      {selectedTargetToken?.name || t('Select token')}
                     </Text>
-                    <Text style={styles.swapAssetAmount}>{selectedTargetToken?.symbol || 'TOKEN'}</Text>
+                    <Text style={styles.swapAssetAmount}>{selectedTargetToken?.symbol || t('TOKEN')}</Text>
                   </View>
                 </View>
 
@@ -1059,7 +1065,7 @@ export default function SwapScreen() {
                       : selectedTargetToken?.valueDisplay || formatDisplayCurrency(0)}
                   </Text>
                   <Text style={styles.swapAssetAction}>
-                    {bestRoute?.providerName || selectedTargetToken?.symbol || 'TOKEN'}
+                    {bestRoute?.providerName || selectedTargetToken?.symbol || t('TOKEN')}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -1069,7 +1075,7 @@ export default function SwapScreen() {
                   <TextInput
                     value={targetTokenSearch}
                     onChangeText={setTargetTokenSearch}
-                    placeholder="Filter assets"
+                    placeholder={t('Filter assets')}
                     placeholderTextColor={colors.textDim}
                     style={styles.swapTokenSearchInput}
                     autoCapitalize="none"
@@ -1125,7 +1131,7 @@ export default function SwapScreen() {
 
                 {visibleTargetTokenChoices.length === 0 ? (
                   <View style={styles.swapTokenEmptyState}>
-                    <Text style={styles.swapTokenEmptyText}>Nothing matched this filter.</Text>
+                    <Text style={styles.swapTokenEmptyText}>{t('Nothing matched this filter.')}</Text>
                   </View>
                 ) : null}
               </ScrollView>
@@ -1133,8 +1139,8 @@ export default function SwapScreen() {
 
             <View style={styles.swapSectionBlock}>
               <View style={styles.swapFieldHeaderRow}>
-                <Text style={styles.swapSectionFieldTitle}>PRICE TOLERANCE</Text>
-                <Text style={styles.swapInlineMeta}>Tap to change</Text>
+                <Text style={styles.swapSectionFieldTitle}>{t('PRICE TOLERANCE')}</Text>
+                <Text style={styles.swapInlineMeta}>{t('Tap to change')}</Text>
               </View>
 
               <View style={styles.slippageRow}>
@@ -1166,7 +1172,7 @@ export default function SwapScreen() {
             </View>
 
             <View style={styles.routesHeader}>
-              <Text style={styles.routesTitle}>ROUTES</Text>
+              <Text style={styles.routesTitle}>{t('ROUTES')}</Text>
               {quotesLoading ? <ActivityIndicator color={colors.accent} size="small" /> : null}
             </View>
 
@@ -1180,11 +1186,11 @@ export default function SwapScreen() {
 
             {!amount || enteredAmount <= 0 ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>Enter amount to preview swap routes.</Text>
+                <Text style={styles.emptyText}>{t('Enter amount to preview swap routes.')}</Text>
               </View>
             ) : routes.length === 0 && !quotesLoading ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No routes available right now.</Text>
+                <Text style={styles.emptyText}>{t('No routes available right now.')}</Text>
               </View>
             ) : (
               <View style={styles.routesList}>
@@ -1197,12 +1203,12 @@ export default function SwapScreen() {
                     <View key={route.id} style={styles.routeCard}>
                       <View style={styles.routeTopRow}>
                         <View>
-                          <Text style={styles.routeEyebrow}>ROUTE</Text>
+                          <Text style={styles.routeEyebrow}>{t('ROUTE')}</Text>
                           <Text style={styles.routeReceiveValue}>
                             {formatTokenAmount(route.expectedOut)} {route.toTokenSymbol}
                           </Text>
                           <Text style={styles.routeMinReceived}>
-                            Min protected by {slippage}% slippage
+                            {t('Min protected by {{slippage}}% slippage', { slippage })}
                           </Text>
                         </View>
 
@@ -1212,22 +1218,22 @@ export default function SwapScreen() {
                       </View>
 
                       <View style={styles.routeDetailRow}>
-                        <Text style={styles.routeDetailLabel}>ROUTE</Text>
+                        <Text style={styles.routeDetailLabel}>{t('ROUTE')}</Text>
                         <Text style={styles.routeDetailValue}>{buildRoutePathLabel(route)}</Text>
                       </View>
 
                       <View style={styles.routeDetailRow}>
-                        <Text style={styles.routeDetailLabel}>DEX</Text>
+                        <Text style={styles.routeDetailLabel}>{t('DEX')}</Text>
                         <Text style={styles.routeDetailValue}>{route.routeLabel}</Text>
                       </View>
 
                       <View style={styles.routeDetailRow}>
-                        <Text style={styles.routeDetailLabel}>STATUS</Text>
+                        <Text style={styles.routeDetailLabel}>{t('STATUS')}</Text>
                         <Text style={styles.routeDetailValue}>{route.executionLabel}</Text>
                       </View>
 
                       <View style={styles.routeDetailRow}>
-                        <Text style={styles.routeDetailLabel}>PRICE IMPACT</Text>
+                        <Text style={styles.routeDetailLabel}>{t('PRICE IMPACT')}</Text>
                         <Text style={styles.routeDetailValue}>{route.impactLabel}</Text>
                       </View>
 
@@ -1242,10 +1248,10 @@ export default function SwapScreen() {
                         ) : (
                           <Text style={styles.routeActionText}>
                             {activeWallet?.kind === 'watch-only'
-                              ? 'SIGNING WALLET REQUIRED'
+                              ? t('SIGNING WALLET REQUIRED')
                               : !route.isExecutable
-                                ? 'UNAVAILABLE'
-                                : 'CONTINUE'}
+                                ? t('UNAVAILABLE')
+                                : t('CONTINUE')}
                           </Text>
                         )}
                       </TouchableOpacity>

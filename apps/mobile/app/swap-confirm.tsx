@@ -25,6 +25,7 @@ import useChromeLoading from '../src/ui/use-chrome-loading';
 import { goBackOrReplace } from '../src/ui/safe-back';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
+import { translateNow, useI18n } from '../src/i18n';
 import {
   TRX_TOKEN_ID,
   clearWalletRuntimeCaches,
@@ -105,15 +106,16 @@ function getSwapConfirmErrorText(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || '');
 
   if (isRateLimitError(error)) {
-    return 'Rate limit reached while refreshing swap data. Pull to refresh in a few seconds.';
+    return translateNow('Rate limit reached while refreshing swap data. Pull to refresh in a few seconds.');
   }
 
-  return message || 'Failed to build swap confirmation.';
+  return message || translateNow('Failed to build swap confirmation.');
 }
 
 export default function SwapConfirmScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { t } = useI18n();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
   const { triggerWalletDataRefresh, setChromeHidden } = useWalletSession();
@@ -177,7 +179,7 @@ export default function SwapConfirmScreen() {
       const draft = await getFourteenSwapDraft();
 
       if (!draft) {
-        throw new Error('Swap request is missing. Go back and build the swap again.');
+        throw new Error(t('Swap request is missing. Go back and build the swap again.'));
       }
 
       const nextReview = await buildSwapReview(draft);
@@ -188,7 +190,7 @@ export default function SwapConfirmScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadBiometricsState = useCallback(async () => {
     try {
@@ -201,23 +203,23 @@ export default function SwapConfirmScreen() {
       setBiometricAvailable(enabled && compatible && enrolled);
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        setBiometricLabel('Face ID');
+        setBiometricLabel(t('Face ID'));
         return;
       }
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-        setBiometricLabel('Fingerprint');
+        setBiometricLabel(t('Fingerprint'));
         return;
       }
 
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     } catch (error) {
       console.error(error);
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -230,8 +232,8 @@ export default function SwapConfirmScreen() {
   useEffect(() => {
     if (!review?.routeChanged || routeChangedNoticeShownRef.current) return;
     routeChangedNoticeShownRef.current = true;
-    notice.showNeutralNotice('Route updated before approval. Review the latest quote.', 2600);
-  }, [notice, review?.routeChanged]);
+    notice.showNeutralNotice(t('Route updated before approval. Review the latest quote.'), 2600);
+  }, [notice, review?.routeChanged, t]);
 
   useEffect(() => {
     setChromeHidden(passcodeOpen);
@@ -295,7 +297,7 @@ export default function SwapConfirmScreen() {
 
     try {
       setEnergyRenting(true);
-      notice.showNeutralNotice('Sending Energy rental payment...', 2500);
+      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'swap',
         wallet: review.wallet.address,
@@ -304,13 +306,13 @@ export default function SwapConfirmScreen() {
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Energy is live. Starting swap...', 3000);
+      notice.showSuccessNotice(t('Energy is live. Starting swap...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Energy rental failed.',
+        error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
       );
       return false;
@@ -320,7 +322,7 @@ export default function SwapConfirmScreen() {
       setPasscodeDigits('');
       setPasscodeError('');
     }
-  }, [energyQuote, energyRenting, load, notice, review]);
+  }, [energyQuote, energyRenting, load, notice, review, t]);
 
   const performSwap = useCallback(async () => {
     if (!review || submitting) return;
@@ -425,7 +427,9 @@ export default function SwapConfirmScreen() {
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice(
-        `Swap confirmed. ${review.outputToken.symbol} will appear in your wallet shortly.`,
+        t('Swap confirmed. {{token}} will appear in your wallet shortly.', {
+          token: review.outputToken.symbol,
+        }),
         3000
       );
       router.replace('/wallet');
@@ -433,11 +437,11 @@ export default function SwapConfirmScreen() {
       setPasscodeOpen(false);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice(error instanceof Error ? error.message : 'Swap failed.', 3200);
+      notice.showErrorNotice(error instanceof Error ? error.message : t('Swap failed.'), 3200);
     } finally {
       setSubmitting(false);
     }
-  }, [notice, review, router, submitting, triggerWalletDataRefresh]);
+  }, [notice, review, router, submitting, t, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -446,7 +450,7 @@ export default function SwapConfirmScreen() {
       const ok = await verifyPasscode(passcodeDigits);
 
       if (!ok) {
-        setPasscodeError('Wrong passcode.');
+        setPasscodeError(t('Wrong passcode.'));
         setPasscodeDigits('');
         return;
       }
@@ -462,10 +466,10 @@ export default function SwapConfirmScreen() {
       await performSwap();
     } catch (error) {
       console.error(error);
-      setPasscodeError('Failed to verify passcode.');
+      setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
-  }, [energyRenting, passcodeDigits, pendingApprovalMode, performRentEnergy, performSwap, submitting]);
+  }, [energyRenting, passcodeDigits, pendingApprovalMode, performRentEnergy, performSwap, submitting, t]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -502,9 +506,9 @@ export default function SwapConfirmScreen() {
     if (submitting) return;
     preserveNoticeOnExitRef.current = true;
     await clearFourteenSwapDraft();
-    notice.showNeutralNotice('Swap rejected by user.', 2200);
+    notice.showNeutralNotice(t('Swap rejected by user.'), 2200);
     goBackOrReplace(router, { fallback: '/swap' });
-  }, [notice, router, submitting]);
+  }, [notice, router, submitting, t]);
 
   const handlePasscodeDigitPress = useCallback((digit: string) => {
     if (submitting) return;
@@ -550,9 +554,10 @@ export default function SwapConfirmScreen() {
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: pendingApprovalMode === 'rent' ? 'Confirm Energy Rental' : 'Confirm Swap',
-        fallbackLabel: 'Use Passcode',
-        cancelLabel: 'Cancel',
+        promptMessage:
+          pendingApprovalMode === 'rent' ? t('Confirm Energy Rental') : t('Confirm Swap'),
+        fallbackLabel: t('Use Passcode'),
+        cancelLabel: t('Cancel'),
       });
 
       if (!result.success) {
@@ -571,10 +576,10 @@ export default function SwapConfirmScreen() {
     } catch (error) {
       console.error(error);
     }
-  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performSwap]);
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performSwap, t]);
 
   if (loading && !review) {
-    return <ScreenLoadingState label="Loading swap confirmation..." />;
+    return <ScreenLoadingState label={t('Loading swap confirmation...')} />;
   }
 
   return (
@@ -598,11 +603,11 @@ export default function SwapConfirmScreen() {
             />
           }
         >
-          <ScreenBrow label="SWAP" variant="back" />
+          <ScreenBrow label={t('SWAP')} variant="back" />
 
           {errorText || !review ? (
             <View style={styles.errorWrap}>
-              <Text style={styles.errorText}>{errorText || 'Unable to build swap review.'}</Text>
+              <Text style={styles.errorText}>{errorText || t('Unable to build swap review.')}</Text>
             </View>
           ) : (
             <>
@@ -678,7 +683,7 @@ export default function SwapConfirmScreen() {
                 processing={energyRenting}
                 disabled={submitting}
                 showUnavailable={canRentResources}
-                actionLabel="SWAP"
+                actionLabel={t('SWAP')}
                 estimatedBurnSun={review.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
@@ -724,7 +729,7 @@ export default function SwapConfirmScreen() {
                         review.approvalRequired ? styles.detailValueAccent : null,
                       ]}
                     >
-                      {review.approvalRequired ? 'Required before swap' : 'Already approved'}
+                      {review.approvalRequired ? t('Required before swap') : t('Already approved')}
                     </Text>
                   </View>
 
@@ -757,9 +762,9 @@ export default function SwapConfirmScreen() {
                 bandwidthShortfall={resourceBandwidthShortfall}
                 message={
                   hasResourceShortfall
-                    ? 'You are short on resources. The burn estimate above already includes this gap.'
-                    : 'You have enough resources for this action. Extra burn is unlikely.'
-                }
+                    ? t('You are short on resources. The burn estimate above already includes this gap.')
+                    : t('You have enough resources for this action. Extra burn is unlikely.')
+                  }
                 messageRisk={hasResourceShortfall}
               />
 
@@ -793,8 +798,8 @@ export default function SwapConfirmScreen() {
 
         <ApprovalAuthModal
           visible={passcodeOpen}
-          eyebrow="SWAP"
-          actionLabel={pendingApprovalMode === 'rent' ? 'Energy rental and swap' : 'swap'}
+          eyebrow={t('SWAP')}
+          actionLabel={pendingApprovalMode === 'rent' ? t('Energy rental and swap') : t('swap')}
           passcodeError={passcodeError}
           digitsLength={passcodeDigits.length}
           canUseBiometrics={canUseBiometrics}

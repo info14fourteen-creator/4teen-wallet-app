@@ -23,6 +23,7 @@ import { colors, radius, spacing } from '../src/theme/tokens';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import { translateNow, useI18n } from '../src/i18n';
 
 import FacebookIcon from '../assets/icons/ui/socials/facebook_social.svg';
 import InstagramIcon from '../assets/icons/ui/socials/instagram_social.svg';
@@ -68,13 +69,13 @@ function formatSocialDate(value?: string | null) {
   const safe = String(value || '').trim();
 
   if (!safe) {
-    return 'Not received yet';
+    return translateNow('Not received yet');
   }
 
   const date = new Date(safe);
 
   if (!Number.isFinite(date.getTime())) {
-    return 'Not received yet';
+    return translateNow('Not received yet');
   }
 
   return date.toLocaleString();
@@ -123,9 +124,9 @@ function buildTelegramCard(
       title: 'Telegram',
       status: 'NEEDS WALLET',
       amount: '0',
-      when: 'Connect a wallet first',
+      when: translateNow('Connect a wallet first'),
       tone: 'orange',
-      actionLabel: 'OPEN WALLETS',
+      actionLabel: translateNow('OPEN WALLETS'),
       actionable: true,
       socialUrl: AIRDROP_SOCIAL_URLS.telegram,
       Icon: TelegramIcon,
@@ -138,9 +139,9 @@ function buildTelegramCard(
       title: 'Telegram',
       status: 'WATCH-ONLY',
       amount: '0',
-      when: 'Switch to a signing wallet',
+      when: translateNow('Switch to a signing wallet'),
       tone: 'orange',
-      actionLabel: 'SWITCH WALLET',
+      actionLabel: translateNow('SWITCH WALLET'),
       actionable: true,
       socialUrl: AIRDROP_SOCIAL_URLS.telegram,
       Icon: TelegramIcon,
@@ -151,7 +152,7 @@ function buildTelegramCard(
     return {
       key: 'telegram',
       title: 'Telegram',
-      status: 'RECEIVED',
+      status: translateNow('RECEIVED'),
       amount: formatCardAmount(telegramClaim.amountDisplay),
       when: telegramClaim.claimedAtLabel,
       tone: 'green',
@@ -171,7 +172,7 @@ function buildTelegramCard(
       amount: formatCardAmount(overview.claim.reward_amount || '0'),
       when: formatSocialDate(overview.claim.sent_at),
       tone: 'green',
-      actionLabel: overview.claim.txid ? 'VIEW TX' : 'OPEN TELEGRAM',
+      actionLabel: overview.claim.txid ? translateNow('VIEW TX') : translateNow('OPEN TELEGRAM'),
       actionable: true,
       explorerUrl: overview.claim.txid
         ? `https://tronscan.org/#/transaction/${overview.claim.txid}`
@@ -185,11 +186,11 @@ function buildTelegramCard(
     return {
       key: 'telegram',
       title: 'Telegram',
-      status: 'QUEUED',
+      status: translateNow('QUEUED'),
       amount: formatCardAmount(overview.claim.reward_amount || '0'),
       when: formatSocialDate(overview.claim.queued_at),
       tone: 'orange',
-      actionLabel: 'OPEN TELEGRAM',
+      actionLabel: translateNow('OPEN TELEGRAM'),
       actionable: true,
       socialUrl: AIRDROP_SOCIAL_URLS.telegram,
       Icon: TelegramIcon,
@@ -200,11 +201,11 @@ function buildTelegramCard(
     return {
       key: 'telegram',
       title: 'Telegram',
-      status: 'LEGACY USED',
+      status: translateNow('LEGACY USED'),
       amount: '0',
-      when: 'Already consumed in old bot flow',
+      when: translateNow('Already consumed in old bot flow'),
       tone: 'green',
-      actionLabel: 'OPEN TELEGRAM',
+      actionLabel: translateNow('OPEN TELEGRAM'),
       actionable: true,
       socialUrl: AIRDROP_SOCIAL_URLS.telegram,
       Icon: TelegramIcon,
@@ -215,11 +216,11 @@ function buildTelegramCard(
     return {
       key: 'telegram',
       title: 'Telegram',
-      status: 'SESSION LIVE',
+      status: translateNow('SESSION LIVE'),
       amount: '0',
-      when: 'Open Telegram, press Start, then Verify',
+      when: translateNow('Open Telegram, press Start, then Verify'),
       tone: 'orange',
-      actionLabel: 'OPEN TELEGRAM',
+      actionLabel: translateNow('OPEN TELEGRAM'),
       actionable: true,
       socialUrl: AIRDROP_SOCIAL_URLS.telegram,
       Icon: TelegramIcon,
@@ -230,11 +231,11 @@ function buildTelegramCard(
     return {
       key: 'telegram',
       title: 'Telegram',
-      status: 'VERIFY NOW',
+      status: translateNow('VERIFY NOW'),
       amount: '0',
-      when: 'Join group and channel, then press Verify',
+      when: translateNow('Join group and channel, then press Verify'),
       tone: 'orange',
-      actionLabel: 'OPEN TELEGRAM',
+      actionLabel: translateNow('OPEN TELEGRAM'),
       actionable: true,
       socialUrl: AIRDROP_SOCIAL_URLS.telegram,
       Icon: TelegramIcon,
@@ -244,11 +245,11 @@ function buildTelegramCard(
   return {
     key: 'telegram',
     title: 'Telegram',
-    status: 'AVAILABLE',
+    status: translateNow('AVAILABLE'),
     amount: '0',
-    when: 'Not received yet',
+    when: translateNow('Not received yet'),
     tone: 'orange',
-    actionLabel: 'CONNECT NOW',
+    actionLabel: translateNow('CONNECT NOW'),
     actionable: true,
     socialUrl: AIRDROP_SOCIAL_URLS.telegram,
     Icon: TelegramIcon,
@@ -271,11 +272,11 @@ function buildSocialCards(
       return {
         key,
         title,
-        status: 'RECEIVED',
+        status: translateNow('RECEIVED'),
         amount: formatCardAmount(claim.amountDisplay),
         when: claim.claimedAtLabel,
         tone: 'green',
-        actionLabel: claim.explorerUrl ? 'VIEW TX' : 'CLAIMED',
+        actionLabel: claim.explorerUrl ? translateNow('VIEW TX') : translateNow('CLAIMED'),
         actionable: Boolean(claim.explorerUrl),
         explorerUrl: claim.explorerUrl,
         socialUrl: AIRDROP_SOCIAL_URLS[key],
@@ -286,11 +287,11 @@ function buildSocialCards(
     return {
       key,
       title,
-      status: 'NOT LIVE',
+      status: translateNow('NOT LIVE'),
       amount: 'TBA',
-      when: 'Rollout pending',
+      when: translateNow('Rollout pending'),
       tone: 'red',
-      actionLabel: `OPEN ${title.toUpperCase()}`,
+      actionLabel: `${translateNow('OPEN')} ${title.toUpperCase()}`,
       actionable: true,
       socialUrl: AIRDROP_SOCIAL_URLS[key],
       Icon,
@@ -320,6 +321,7 @@ function buildSocialCards(
 export default function AirdropScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { t } = useI18n();
   const { setPendingWalletSelectionId } = useWalletSession();
   const [wallet, setWallet] = useState<WalletMeta | null>(null);
   const [overview, setOverview] = useState<TelegramAirdropOverview | null>(null);
@@ -420,8 +422,8 @@ export default function AirdropScreen() {
         error instanceof Error
           ? error.message
           : refresh
-            ? 'Failed to refresh Telegram airdrop.'
-            : 'Failed to load Telegram airdrop.',
+            ? t('Failed to refresh Telegram airdrop.')
+            : t('Failed to load Telegram airdrop.'),
         2600
       );
     } finally {
@@ -432,7 +434,7 @@ export default function AirdropScreen() {
         setRefreshing(false);
       }
     }
-  }, [notice, setPendingWalletSelectionId]);
+  }, [notice, setPendingWalletSelectionId, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -469,67 +471,69 @@ export default function AirdropScreen() {
     statusNoticeKeyRef.current = statusKey;
 
     if (overview.claim?.status === 'sent') {
-      notice.showSuccessNotice('Telegram airdrop was already received for this wallet.', 3200);
+      notice.showSuccessNotice(t('Telegram airdrop was already received for this wallet.'), 3200);
       return;
     }
 
     if (overview.claim?.status === 'queued') {
-      notice.showUpdateNotice('Telegram proof accepted. Claim is queued for send.', 3200);
+      notice.showUpdateNotice(t('Telegram proof accepted. Claim is queued for send.'), 3200);
       return;
     }
 
     if (overview.guard.walletBlockedByLegacyClaim || overview.guard.telegramBlockedByLegacyClaim) {
-      notice.showNeutralNotice('Telegram airdrop was already consumed in the legacy bot flow.', 3400);
+      notice.showNeutralNotice(t('Telegram airdrop was already consumed in the legacy bot flow.'), 3400);
       return;
     }
 
     if (overview.link?.telegram_user_id) {
-      notice.showUpdateNotice('Telegram account is linked to this wallet.', 2600);
+      notice.showUpdateNotice(t('Telegram account is linked to this wallet.'), 2600);
     }
-  }, [notice, overview]);
+  }, [notice, overview, t]);
 
   const openTelegram = useCallback(async () => {
     try {
       if (!wallet) {
-        notice.showNeutralNotice('Create or import a full-access wallet first.', 2400);
+        notice.showNeutralNotice(t('Create or import a full-access wallet first.'), 2400);
         router.push('/wallets');
         return;
       }
 
       if (wallet.kind === 'watch-only') {
-        notice.showNeutralNotice('Telegram airdrop requires a full-access wallet.', 2600);
+        notice.showNeutralNotice(t('Telegram airdrop requires a full-access wallet.'), 2600);
         router.push('/wallets');
         return;
       }
 
       setLaunching(true);
-      notice.showNeutralNotice('Preparing signed Telegram session...', 2200);
+      notice.showNeutralNotice(t('Preparing signed Telegram session...'), 2200);
 
       const result = await startTelegramAirdropFlow();
-      notice.showSuccessNotice('Wallet session signed. Opening Telegram...', 2400);
+      notice.showSuccessNotice(t('Wallet session signed. Opening Telegram...'), 2400);
 
       if (result.appUrl) {
         await Linking.openURL(result.appUrl);
       } else if (result.httpsUrl) {
         await Linking.openURL(result.httpsUrl);
       } else {
-        throw new Error('Telegram launch link is unavailable.');
+        throw new Error(t('Telegram launch link is unavailable.'));
       }
 
       notice.showUpdateNotice(
-        `Telegram opened for ${shortenAddress(result.wallet.address)}. Press Start, then Verify in the bot.`,
+        t('Telegram opened for {{address}}. Press Start, then Verify in the bot.', {
+          address: shortenAddress(result.wallet.address),
+        }),
         4200
       );
       await load(true);
     } catch (error) {
       console.error(error);
       const message =
-        error instanceof Error ? error.message : 'Failed to start Telegram airdrop flow.';
+        error instanceof Error ? error.message : t('Failed to start Telegram airdrop flow.');
       notice.showErrorNotice(message, 3000);
     } finally {
       setLaunching(false);
     }
-  }, [load, notice, router, wallet]);
+  }, [load, notice, router, t, wallet]);
 
   const socialCards = useMemo(() => buildSocialCards(wallet, overview, onChain), [onChain, overview, wallet]);
   const canOpenTelegram = Boolean(wallet && wallet.kind !== 'watch-only');
@@ -544,17 +548,17 @@ export default function AirdropScreen() {
 
   const handleToggleWalletOptions = useCallback(() => {
     if (!walletChoices.length) {
-      notice.showNeutralNotice('No full-access wallets available.', 2200);
+      notice.showNeutralNotice(t('No full-access wallets available.'), 2200);
       return;
     }
 
     if (visibleWalletChoices.length === 0) {
-      notice.showNeutralNotice('No other full-access wallets available.', 2200);
+      notice.showNeutralNotice(t('No other full-access wallets available.'), 2200);
       return;
     }
 
     setWalletOptionsOpen((value) => !value);
-  }, [notice, visibleWalletChoices.length, walletChoices.length]);
+  }, [notice, t, visibleWalletChoices.length, walletChoices.length]);
 
   const handleWalletSwitch = useCallback(
     async (walletId: string) => {
@@ -566,26 +570,26 @@ export default function AirdropScreen() {
         await load(true);
       } catch (error) {
         console.error(error);
-        notice.showErrorNotice('Failed to switch active wallet.', 2400);
+        notice.showErrorNotice(t('Failed to switch active wallet.'), 2400);
       } finally {
         setSwitchingWalletId(null);
       }
     },
-    [load, notice, setPendingWalletSelectionId]
+    [load, notice, setPendingWalletSelectionId, t]
   );
 
   if (loading && !walletChoices.length) {
-    return <ScreenLoadingState label="Loading airdrop..." />;
+    return <ScreenLoadingState label={t('Loading airdrop...')} />;
   }
 
   return (
     <ProductScreen
-      eyebrow="AIRDROP"
+      eyebrow={t('AIRDROP')}
       loadingOverlayVisible={refreshing || Boolean(switchingWalletId) || launching}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} />}
       headerInfo={{
-        title: AIRDROP_INFO_TITLE,
-        text: AIRDROP_INFO_TEXT,
+        title: t(AIRDROP_INFO_TITLE),
+        text: t(AIRDROP_INFO_TEXT),
         expanded: infoExpanded,
         onToggle: () => setInfoExpanded((prev) => !prev),
       }}
@@ -609,7 +613,7 @@ export default function AirdropScreen() {
         onChooseWallet={(nextWallet) => {
           void handleWalletSwitch(nextWallet.id);
         }}
-        emptyBody="Create or import a wallet first."
+        emptyBody={t('Create or import a wallet first.')}
       />
 
       <View style={styles.socialGrid}>
@@ -688,7 +692,7 @@ function SocialDropCard({
         <card.Icon width={54} height={54} />
 
         <View style={styles.socialHeaderCopy}>
-          <Text style={styles.socialKicker}>SOCIAL AIRDROP</Text>
+          <Text style={styles.socialKicker}>{translateNow('SOCIAL AIRDROP')}</Text>
           <Text style={styles.socialTitle}>{card.title}</Text>
         </View>
 
@@ -699,7 +703,7 @@ function SocialDropCard({
 
       <View style={styles.socialMetaGrid}>
         <View style={styles.socialMetaCard}>
-          <Text style={styles.socialMetaLabel}>Amount</Text>
+          <Text style={styles.socialMetaLabel}>{translateNow('Amount')}</Text>
           <Text style={styles.socialAmount}>
             {card.amount === 'TBA' || card.amount === 'Claimed'
               ? card.amount
@@ -708,7 +712,7 @@ function SocialDropCard({
         </View>
 
         <View style={styles.socialMetaCard}>
-          <Text style={styles.socialMetaLabel}>Received</Text>
+          <Text style={styles.socialMetaLabel}>{translateNow('Received')}</Text>
           <Text style={styles.socialWhen}>{card.when}</Text>
         </View>
       </View>

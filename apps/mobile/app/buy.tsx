@@ -35,6 +35,7 @@ import {
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import {
   DEFAULT_DIRECT_BUY_BURN_BUFFER_TRX,
   computeDirectBuySplit,
@@ -151,6 +152,7 @@ type WalletSwitcherItem = {
 };
 
 export default function BuyScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const params = useLocalSearchParams<{ amount?: string | string[] }>();
   const notice = useNotice();
@@ -212,19 +214,19 @@ export default function BuyScreen() {
 
       if (nextContext.switchedFromWatchOnly) {
         notice.showNeutralNotice(
-          `Using signing wallet ${nextContext.wallet.name} for direct buy.`,
+          t('Using signing wallet {{name}} for direct buy.', { name: nextContext.wallet.name }),
           2600
         );
       }
     } catch (error) {
       setContext(null);
       setWalletChoices([]);
-      setErrorText(error instanceof Error ? error.message : 'Failed to load buy flow.');
+      setErrorText(error instanceof Error ? error.message : t('Failed to load buy flow.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [notice, refreshing]);
+  }, [notice, refreshing, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -396,7 +398,7 @@ export default function BuyScreen() {
           }}
         >
           <ScreenBrow
-            label="DIRECT BUY"
+            label={t('DIRECT BUY')}
             variant="back"
             onLabelPress={() => setInfoExpanded((prev) => !prev)}
             labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
@@ -404,8 +406,8 @@ export default function BuyScreen() {
 
           {infoExpanded ? (
             <View style={styles.infoPanel}>
-              <Text style={styles.infoTitle}>{BUY_INFO_TITLE}</Text>
-              <Text style={styles.infoText}>{BUY_INFO_TEXT}</Text>
+              <Text style={styles.infoTitle}>{t(BUY_INFO_TITLE)}</Text>
+              <Text style={styles.infoText}>{t(BUY_INFO_TEXT)}</Text>
             </View>
           ) : null}
 
@@ -432,20 +434,20 @@ export default function BuyScreen() {
               onChooseWallet={(wallet) => {
                 void handleChooseWallet(wallet);
               }}
-              emptyTitle="No signing wallet"
-              emptyBody="Import or switch to a full-access wallet."
+              emptyTitle={t('No signing wallet')}
+              emptyBody={t('Import or switch to a full-access wallet.')}
             />
           </View>
 
           <View style={styles.sectionBlock} onLayout={handleAmountSectionLayout}>
             <View style={styles.fieldHeaderRow}>
-              <Text style={styles.sectionEyebrow}>BUY AMOUNT</Text>
+              <Text style={styles.sectionEyebrow}>{t('BUY AMOUNT')}</Text>
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={handleSelectMax}
                 style={styles.maxButton}
               >
-                <Text style={styles.maxButtonText}>MAX</Text>
+                <Text style={styles.maxButtonText}>{t('MAX')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -459,7 +461,7 @@ export default function BuyScreen() {
                 onChangeText={(value) =>
                   setAmount(applyAmountLimit(value, context?.trxBalance))
                 }
-                placeholder="0.00"
+                placeholder={t('0.00')}
                 placeholderTextColor={colors.textDim}
                 style={styles.amountInput}
                 autoCapitalize="none"
@@ -471,23 +473,24 @@ export default function BuyScreen() {
 
               <View style={styles.inputSuffixWrap}>
                 <Image source={{ uri: TRX_LOGO }} style={styles.inputTokenLogo} contentFit="contain" />
-                <Text style={styles.inputSuffix}>TRX</Text>
+                <Text style={styles.inputSuffix}>{t('TRX')}</Text>
               </View>
             </TouchableOpacity>
 
             <Text style={styles.hintText}>
-              Current price {context ? `${formatDirectBuyPrice(context.tokenPriceSun)} TRX` : '—'} per
-              4TEEN. Direct buy locks received 4TEEN for 14 days.
+              {t('Current price {{price}} per 4TEEN. Direct buy locks received 4TEEN for 14 days.', {
+                price: context ? `${formatDirectBuyPrice(context.tokenPriceSun)} ${t('TRX')}` : '—',
+              })}
             </Text>
 
             {errorText ? <Text style={styles.errorText}>{errorText}</Text> : null}
             {exceedsBalance ? (
-              <Text style={styles.errorText}>Entered amount is higher than available TRX.</Text>
+              <Text style={styles.errorText}>{t('Entered amount is higher than available TRX.')}</Text>
               ) : null}
           </View>
 
           <View style={styles.sectionBlock}>
-            <Text style={styles.sectionEyebrow}>YOU RECEIVE</Text>
+            <Text style={styles.sectionEyebrow}>{t('YOU RECEIVE')}</Text>
 
             <View
               style={[
@@ -520,23 +523,23 @@ export default function BuyScreen() {
 
             <View style={styles.splitSummary}>
               <View style={styles.splitSummaryItem}>
-                <Text style={styles.splitSummaryLabel}>LIQUIDITY</Text>
+                <Text style={styles.splitSummaryLabel}>{t('LIQUIDITY')}</Text>
                 <Text style={[styles.splitSummaryText, styles.splitSummaryTextLiquidity]}>
-                  {formatCompactTrx(split.liquidityShareTrx)} TRX
+                  {formatCompactTrx(split.liquidityShareTrx)} {t('TRX')}
                 </Text>
               </View>
 
               <View style={styles.splitSummaryItem}>
-                <Text style={styles.splitSummaryLabel}>CONTROLLER</Text>
+                <Text style={styles.splitSummaryLabel}>{t('CONTROLLER')}</Text>
                 <Text style={[styles.splitSummaryText, styles.splitSummaryTextController]}>
-                  {formatCompactTrx(split.ownerShareTrx)} TRX
+                  {formatCompactTrx(split.ownerShareTrx)} {t('TRX')}
                 </Text>
               </View>
 
               <View style={styles.splitSummaryItem}>
-                <Text style={styles.splitSummaryLabel}>AIRDROP</Text>
+                <Text style={styles.splitSummaryLabel}>{t('AIRDROP')}</Text>
                 <Text style={[styles.splitSummaryText, styles.splitSummaryTextAirdrop]}>
-                  {formatCompactTrx(split.airdropShareTrx)} TRX
+                  {formatCompactTrx(split.airdropShareTrx)} {t('TRX')}
                 </Text>
               </View>
             </View>

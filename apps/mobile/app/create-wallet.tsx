@@ -13,6 +13,7 @@ import { entropyToMnemonic, wordlists } from 'bip39';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useI18n } from '../src/i18n';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import KeyboardView from '../src/ui/KeyboardView';
 import InfoToggleIcon from '../src/ui/info-toggle-icon';
@@ -75,6 +76,7 @@ export default function CreateWalletScreen() {
   const params = useLocalSearchParams<{ wordCount?: string; walletName?: string }>();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const notice = useNotice();
+  const { t } = useI18n();
   const contentBottomInset = useBottomInset();
   const [stage, setStage] = useState<CreateStage>('setup');
   const [wordCount, setWordCount] = useState<12 | 24>(() => resolveInitialWordCount(params.wordCount));
@@ -170,16 +172,13 @@ export default function CreateWalletScreen() {
 
   const handleGenerate = useCallback(async () => {
     if (!walletNameTrimmed.length) {
-      notice.showErrorNotice('Wallet name is required.', 2600);
+      notice.showErrorNotice(t('Wallet name is required.'), 2600);
       focusWalletName();
       return;
     }
 
     if (walletNameTrimmed.length > MAX_WALLET_NAME_LENGTH) {
-      notice.showErrorNotice(
-        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
-        2600
-      );
+      notice.showErrorNotice(t('Wallet name must be {{count}} characters or less.', { count: MAX_WALLET_NAME_LENGTH }), 2600);
       focusWalletName();
       return;
     }
@@ -207,13 +206,13 @@ export default function CreateWalletScreen() {
     setActiveVerifyIndex(null);
     setStage('reveal');
     notice.hideNotice();
-  }, [focusWalletName, notice, router, walletNameTrimmed, wordCount]);
+  }, [focusWalletName, notice, router, t, walletNameTrimmed, wordCount]);
 
   const handleCopyPhrase = useCallback(async () => {
     if (!generatedMnemonic) return;
     await Clipboard.setStringAsync(generatedMnemonic);
-    notice.showSuccessNotice(`Copied ${wordCount}-word phrase.`, 2200);
-  }, [generatedMnemonic, notice, wordCount]);
+    notice.showSuccessNotice(t('Copied {{count}}-word phrase.', { count: wordCount }), 2200);
+  }, [generatedMnemonic, notice, t, wordCount]);
 
   const handleStartVerify = useCallback(() => {
     if (!generatedWords.length) return;
@@ -243,10 +242,7 @@ export default function CreateWalletScreen() {
     });
 
     if (mismatchIndex !== -1) {
-      notice.showErrorNotice(
-        `Word ${verifyIndexes[mismatchIndex] + 1} does not match the generated phrase.`,
-        3000
-      );
+      notice.showErrorNotice(t('Word {{index}} does not match the generated phrase.', { index: verifyIndexes[mismatchIndex] + 1 }), 3000);
       setVerifyWords((prev) => {
         const next = [...prev];
         next[mismatchIndex] = '';
@@ -267,11 +263,11 @@ export default function CreateWalletScreen() {
         mnemonic: generatedMnemonic,
       });
 
-      notice.showSuccessNotice('Seed wallet created.', 2400);
+      notice.showSuccessNotice(t('Seed wallet created.'), 2400);
       router.replace('/wallet');
     } catch (error) {
       console.error('CREATE WALLET FAILED', error);
-      const message = error instanceof Error ? error.message : 'Failed to create wallet.';
+      const message = error instanceof Error ? error.message : t('Failed to create wallet.');
       notice.showErrorNotice(message, 3200);
     } finally {
       setSubmitting(false);
@@ -283,6 +279,7 @@ export default function CreateWalletScreen() {
     generatedWords,
     notice,
     router,
+    t,
     verifyIndexes,
     verifyWords,
     walletNameTrimmed,
@@ -299,7 +296,7 @@ export default function CreateWalletScreen() {
           extraScrollHeight={56}
         >
           <ScreenBrow
-            label="CREATE WALLET"
+            label={t('CREATE WALLET')}
             variant="backLink"
             onLabelPress={() => setInfoExpanded((prev) => !prev)}
             labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
@@ -307,19 +304,19 @@ export default function CreateWalletScreen() {
 
           {infoExpanded ? (
             <View style={styles.infoPanel}>
-              <Text style={styles.infoTitle}>{CREATE_WALLET_INFO_TITLE}</Text>
-              <Text style={styles.infoText}>{CREATE_WALLET_INFO_TEXT}</Text>
+              <Text style={styles.infoTitle}>{t(CREATE_WALLET_INFO_TITLE)}</Text>
+              <Text style={styles.infoText}>{t(CREATE_WALLET_INFO_TEXT)}</Text>
             </View>
           ) : null}
 
           {stage === 'setup' ? (
             <>
               <Text style={styles.title}>
-                Create a new <Text style={styles.titleAccent}>seed wallet</Text>
+                {t('Create a new')} <Text style={styles.titleAccent}>{t('seed wallet')}</Text>
               </Text>
 
               <Text style={styles.noticeLine}>
-                Create the wallet here, then back up the generated phrase before saving it.
+                {t('Create the wallet here, then back up the generated phrase before saving it.')}
               </Text>
 
               <View style={styles.switchRow}>
@@ -329,7 +326,7 @@ export default function CreateWalletScreen() {
                   onPress={() => setWordCount(12)}
                 >
                   <Text style={[styles.switchText, wordCount === 12 && styles.switchTextActive]}>
-                    12 Words
+                    {t('12 Words')}
                   </Text>
                 </TouchableOpacity>
 
@@ -339,25 +336,25 @@ export default function CreateWalletScreen() {
                   onPress={() => setWordCount(24)}
                 >
                   <Text style={[styles.switchText, wordCount === 24 && styles.switchTextActive]}>
-                    24 Words
+                    {t('24 Words')}
                   </Text>
                 </TouchableOpacity>
               </View>
 
               <Text style={styles.helperTextCentered}>
                 {wordCount === 12
-                  ? '12 words is faster to back up. 24 words adds more entropy.'
-                  : '24 words gives the longest recovery phrase this app supports.'}
+                  ? t('12 words is faster to back up. 24 words adds more entropy.')
+                  : t('24 words gives the longest recovery phrase this app supports.')}
               </Text>
 
-              <Text style={styles.walletNameEyebrow}>Wallet Name</Text>
+              <Text style={styles.walletNameEyebrow}>{t('Wallet Name')}</Text>
 
               <View style={styles.nameField}>
                 <TextInput
                   ref={walletNameRef}
                   value={walletName}
                   onChangeText={(value) => setWalletName(value.slice(0, MAX_WALLET_NAME_LENGTH))}
-                  placeholder="Main wallet"
+                  placeholder={t('Main wallet')}
                   placeholderTextColor={colors.textDim}
                   style={styles.nameInput}
                   maxLength={MAX_WALLET_NAME_LENGTH}
@@ -380,7 +377,7 @@ export default function CreateWalletScreen() {
                 onPress={() => void handleGenerate()}
               >
                 <Text style={[ui.buttonLabel, !canGenerate && styles.primaryButtonTextDisabled]}>
-                  GENERATE SEED PHRASE
+                  {t('GENERATE SEED PHRASE')}
                 </Text>
               </TouchableOpacity>
             </>
@@ -389,18 +386,21 @@ export default function CreateWalletScreen() {
           {stage === 'reveal' ? (
             <>
               <Text style={styles.title}>
-                Back up your <Text style={styles.titleAccent}>seed phrase</Text>
+                {t('Back up your')} <Text style={styles.titleAccent}>{t('seed phrase')}</Text>
               </Text>
 
               <Text style={styles.noticeLine}>
-                Write these {wordCount} words down in order and store them offline.
+                {t('Write these {{count}} words down in order and store them offline.', { count: wordCount })}
               </Text>
 
               <Text style={styles.helperTextCentered}>
-                Showing {generatedWords.length}/{wordCount} generated recovery words
+                {t('Showing {{shown}}/{{total}} generated recovery words', {
+                  shown: generatedWords.length,
+                  total: wordCount,
+                })}
               </Text>
 
-              <Text style={styles.blockEyebrow}>Seed Phrase</Text>
+              <Text style={styles.blockEyebrow}>{t('Seed Phrase')}</Text>
 
               <View style={styles.grid}>
                 {generatedWords.map((value, index) => (
@@ -416,7 +416,7 @@ export default function CreateWalletScreen() {
                 style={styles.secondaryButton}
                 onPress={() => void handleCopyPhrase()}
               >
-                <Text style={ui.buttonLabel}>COPY PHRASE</Text>
+                <Text style={ui.buttonLabel}>{t('COPY PHRASE')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -424,7 +424,7 @@ export default function CreateWalletScreen() {
                 style={styles.primaryButton}
                 onPress={handleStartVerify}
               >
-                <Text style={ui.buttonLabel}>I BACKED IT UP</Text>
+                <Text style={ui.buttonLabel}>{t('I BACKED IT UP')}</Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -432,18 +432,20 @@ export default function CreateWalletScreen() {
           {stage === 'verify' ? (
             <>
               <Text style={styles.title}>
-                Verify <Text style={styles.titleAccent}>3 words</Text>
+                {t('Verify')} <Text style={styles.titleAccent}>{t('3 words')}</Text>
               </Text>
 
               <Text style={styles.noticeLine}>
-                Enter the requested words exactly as they appeared in the backup phrase.
+                {t('Enter the requested words exactly as they appeared in the backup phrase.')}
               </Text>
 
               <Text style={styles.helperTextCentered}>
-                Verify only the requested words. The full {wordCount}-word phrase is not retyped here.
+                {t('Verify only the requested words. The full {{count}}-word phrase is not retyped here.', {
+                  count: wordCount,
+                })}
               </Text>
 
-              <Text style={styles.blockEyebrow}>Verification</Text>
+              <Text style={styles.blockEyebrow}>{t('Verification')}</Text>
 
               <View style={styles.grid}>
                 {verifyIndexes.map((wordIndex, index) => {
@@ -507,7 +509,7 @@ export default function CreateWalletScreen() {
                   notice.hideNotice();
                 }}
               >
-                <Text style={ui.buttonLabel}>BACK TO PHRASE</Text>
+                <Text style={ui.buttonLabel}>{t('BACK TO PHRASE')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -516,7 +518,7 @@ export default function CreateWalletScreen() {
                 onPress={() => void handleCreateWallet()}
               >
                 <Text style={[ui.buttonLabel, !canFinish && styles.primaryButtonTextDisabled]}>
-                  {submitting ? 'CREATING WALLET...' : 'CREATE WALLET'}
+                  {submitting ? t('CREATING WALLET...') : t('CREATE WALLET')}
                 </Text>
               </TouchableOpacity>
             </>

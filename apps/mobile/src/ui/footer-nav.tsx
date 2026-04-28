@@ -15,6 +15,7 @@ import { usePathname, useRouter } from 'expo-router';
 import Svg, { Defs, Line, LinearGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useI18n } from '../i18n';
 import { colors, radius } from '../theme/tokens';
 import { useNotice } from '../notice/notice-provider';
 import { useWalletSession } from '../wallet/wallet-session';
@@ -136,6 +137,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
   const insets = useSafeAreaInsets();
   const notice = useNotice();
   const { hasWallet, activeWalletKind, footerTickerItems, chromeLoaderVisible } = useWalletSession();
+  const { t } = useI18n();
 
   const [barWidth, setBarWidth] = useState(0);
   const [tickerIndex, setTickerIndex] = useState(0);
@@ -219,23 +221,23 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
   const footerModeMeta = useMemo(() => {
     if (footerMode === 'home') {
       return {
-        label: 'HOME GRID',
+        label: t('HOME GRID'),
         color: colors.red,
       };
     }
 
     if (footerMode === 'earn') {
       return {
-        label: 'EARN GRID',
+        label: t('EARN GRID'),
         color: colors.green,
       };
     }
 
     return {
-      label: 'MAIN GRID',
+      label: t('MAIN GRID'),
       color: colors.white,
     };
-  }, [footerMode]);
+  }, [footerMode, t]);
   const footerActiveColor =
     footerMode === 'home' ? colors.red : footerMode === 'earn' ? colors.green : colors.accent;
 
@@ -505,7 +507,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
     footerMode === 'home'
         ? [
           {
-            label: 'MAIN',
+            label: t('MAIN'),
             active: false,
             icon: 'menu',
             activeIcon: 'menu',
@@ -514,7 +516,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
             onPress: goWalletFromFooter,
           },
           {
-            label: 'UNLOCK',
+            label: t('UNLOCK'),
             active: pathname === '/unlock-timeline',
             icon: 'timeline-clock-outline',
             activeIcon: 'timeline-clock',
@@ -526,7 +528,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
             onPress: goUnlock,
           },
           {
-            label: 'LIQUIDITY',
+            label: t('LIQUIDITY'),
             active: pathname === '/liquidity-controller' || pathname === '/liquidity-confirm',
             icon: 'chart-timeline-variant',
             activeIcon: 'chart-timeline-variant-shimmer',
@@ -538,7 +540,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
             onPress: goLiquidity,
           },
           {
-            label: 'INFO',
+            label: t('INFO'),
             active: pathname === '/earn',
             icon: 'information-outline',
             activeIcon: 'information',
@@ -553,7 +555,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
       : footerMode === 'earn'
         ? [
             {
-              label: 'BUY',
+              label: t('BUY'),
               active: pathname === '/buy' || pathname === '/buy-confirm',
               icon: 'cart-outline',
               activeIcon: 'cart',
@@ -565,7 +567,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
               onPress: goBuy,
             },
             {
-              label: 'AIRDROP',
+              label: t('AIRDROP'),
               active: pathname === '/airdrop',
               icon: 'gift-outline',
               activeIcon: 'gift',
@@ -577,7 +579,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
               onPress: goAirdrop,
             },
             {
-              label: 'AMBASSADOR',
+              label: t('AMBASSADOR'),
               active: pathname === '/ambassador-program',
               icon: 'account-star-outline',
               activeIcon: 'account-star',
@@ -589,7 +591,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
               onPress: goAmbassador,
             },
           {
-            label: 'MAIN',
+            label: t('MAIN'),
             active: false,
             icon: 'menu',
             activeIcon: 'menu',
@@ -600,7 +602,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
           ]
         : [
             {
-            label: 'HOME',
+            label: t('HOME'),
             active: false,
             icon: 'home-variant-outline',
             activeIcon: 'home-variant',
@@ -609,7 +611,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
             onPress: goHomeFromFooter,
           },
             {
-              label: 'SEND',
+              label: t('SEND'),
               active: isSendActive,
               icon: 'arrow-top-right-thin',
               activeIcon: 'arrow-top-right',
@@ -621,7 +623,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
               onPress: goSend,
             },
             {
-              label: 'SWAP',
+              label: t('SWAP'),
               active: isSwapActive,
               icon: 'swap-horizontal',
               activeIcon: 'swap-horizontal-bold',
@@ -633,7 +635,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
               onPress: guardedGoSwap,
             },
             {
-              label: 'EARN',
+              label: t('EARN'),
               active: false,
               icon: 'chart-line',
               activeIcon: 'chart-line-variant',
@@ -914,7 +916,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
                   isWalletActive && { color: footerActiveColor },
                 ]}
               >
-                {tickerItem?.balanceLabel || 'WALLET'}
+                {tickerItem?.balanceLabel || t('WALLET')}
               </Text>
             </TouchableOpacity>
 

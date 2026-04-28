@@ -1,6 +1,7 @@
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useI18n } from '../i18n';
 import { colors, layout, radius } from '../theme/tokens';
 import { ui } from '../theme/ui';
 import { BackspaceIcon } from './ui-icons';
@@ -41,6 +42,7 @@ export default function ApprovalAuthModal({
   onBackspacePress,
   onBiometricPress,
 }: ApprovalAuthModalProps) {
+  const { t } = useI18n();
   const dots = Array.from({ length: 6 }, (_, index) => (
     <View
       key={index}
@@ -64,20 +66,22 @@ export default function ApprovalAuthModal({
               <Text style={ui.eyebrow}>{eyebrow}</Text>
 
               <Text style={styles.title}>
-                Confirm with <Text style={styles.titleAccent}>Passcode</Text>
+                {t('Confirm with')} <Text style={styles.titleAccent}>{t('Passcode')}</Text>
               </Text>
 
               <Text style={styles.lead}>
                 {passcodeEntryOpen
-                  ? `Authorize this ${actionLabel} with your 6-digit passcode.`
-                  : `Choose how to authorize this ${actionLabel}.`}
+                  ? t('Authorize this {{action}} with your 6-digit passcode.', {
+                      action: actionLabel,
+                    })
+                  : t('Choose how to authorize this {{action}}.', { action: actionLabel })}
               </Text>
 
               {passcodeEntryOpen ? (
                 <>
                   <View style={styles.card}>
                     <View style={styles.cardHeaderRow}>
-                      <Text style={ui.sectionEyebrow}>Approve</Text>
+                      <Text style={ui.sectionEyebrow}>{t('Approve')}</Text>
                       <Text style={styles.cardErrorText} numberOfLines={1}>
                         {passcodeError || ' '}
                       </Text>
@@ -99,7 +103,7 @@ export default function ApprovalAuthModal({
                     disabled={submitting}
                   >
                     <Text style={styles.secondaryTextButtonText}>
-                      {canUseBiometrics ? 'BACK' : 'CANCEL'}
+                      {canUseBiometrics ? t('BACK') : t('CANCEL')}
                     </Text>
                   </TouchableOpacity>
                 </>
@@ -113,7 +117,7 @@ export default function ApprovalAuthModal({
                       disabled={submitting}
                     >
                       <Text style={styles.primaryButtonText}>
-                        USE {biometricLabel.toUpperCase()}
+                        {t('USE')} {biometricLabel.toUpperCase()}
                       </Text>
                     </TouchableOpacity>
                   ) : null}
@@ -130,7 +134,7 @@ export default function ApprovalAuthModal({
                         !canUseBiometrics && styles.primaryButtonText,
                       ]}
                     >
-                      ENTER PASSCODE
+                      {t('ENTER PASSCODE')}
                     </Text>
                   </TouchableOpacity>
 
@@ -140,7 +144,7 @@ export default function ApprovalAuthModal({
                     onPress={onRequestClose}
                     disabled={submitting}
                   >
-                    <Text style={styles.secondaryTextButtonText}>CANCEL</Text>
+                    <Text style={styles.secondaryTextButtonText}>{t('CANCEL')}</Text>
                   </TouchableOpacity>
                 </View>
               )}

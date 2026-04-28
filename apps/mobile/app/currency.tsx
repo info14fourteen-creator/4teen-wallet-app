@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
+import { useI18n } from '../src/i18n';
 import { useNotice } from '../src/notice/notice-provider';
 import { clearAllAppCaches } from '../src/services/app-cache';
 import {
@@ -20,6 +21,7 @@ import { useWalletSession } from '../src/wallet/wallet-session';
 export default function CurrencyScreen() {
   const notice = useNotice();
   const { triggerWalletDataRefresh } = useWalletSession();
+  const { t } = useI18n();
   const [selectedCurrency, setSelectedCurrency] = useState<DisplayCurrencyCode>(
     getCachedDisplayCurrency()
   );
@@ -54,30 +56,31 @@ export default function CurrencyScreen() {
         await clearAllAppCaches();
         triggerWalletDataRefresh();
         setSelectedCurrency(currency);
-        notice.showSuccessNotice(`Display currency set to ${currency}.`, 2200);
+        notice.showSuccessNotice(t('Display currency set to {{currency}}.', { currency }), 2200);
       } catch (error) {
         console.error(error);
-        notice.showErrorNotice('Currency update failed.', 2200);
+        notice.showErrorNotice(t('Currency update failed.'), 2200);
       } finally {
         setSaving(false);
       }
     },
-    [notice, saving, selectedCurrency, triggerWalletDataRefresh]
+    [notice, saving, selectedCurrency, t, triggerWalletDataRefresh]
   );
 
   return (
     <ProductScreen
-      eyebrow="CURRENCY"
+      eyebrow={t('CURRENCY')}
       browVariant="back"
       headerInfo={{
-        title: 'How display currency works',
-        text:
-          'This screen changes only the converted market view of the app. Token amounts, raw balances, and blockchain state stay the same.\n\nAfter you switch currency, the app refreshes market caches so wallet balances, token values, liquidity figures, and other price-based surfaces stay aligned to one display currency.',
+        title: t('How display currency works'),
+        text: t(
+          'This screen changes only the converted market view of the app. Token amounts, raw balances, and blockchain state stay the same.\n\nAfter you switch currency, the app refreshes market caches so wallet balances, token values, liquidity figures, and other price-based surfaces stay aligned to one display currency.'
+        ),
         expanded: infoExpanded,
         onToggle: () => setInfoExpanded((value) => !value),
       }}
     >
-      <Text style={styles.sectionEyebrow}>AVAILABLE CURRENCIES</Text>
+      <Text style={styles.sectionEyebrow}>{t('AVAILABLE CURRENCIES')}</Text>
 
       <View style={styles.list}>
         {getDisplayCurrencyOptions().map((option) => {
@@ -106,7 +109,7 @@ export default function CurrencyScreen() {
                     adjustsFontSizeToFit
                     minimumFontScale={0.72}
                   >
-                    {option.title}
+                    {t(option.title)}
                   </Text>
                 </View>
 

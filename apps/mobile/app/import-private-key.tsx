@@ -19,6 +19,7 @@ import ScreenBrow from '../src/ui/screen-brow';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import {
   importWalletFromPrivateKey,
   isValidPrivateKey,
@@ -34,6 +35,7 @@ const IMPORT_INFO_TEXT =
   'Paste the raw private key exactly as issued. You can paste it from the clipboard into the key field, and the eye only shows or hides that text locally on this device.\n\nThe wallet name is just a local label for this app. It helps you recognize the imported wallet and does not change anything on-chain.\n\nImport starts only after the key passes local validation. We derive the TRON address here on device, and we never store your seed phrase or private key on our servers.';
 
 export default function ImportPrivateKeyScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const navInsets = useNavigationInsets({ topExtra: 14 });
 
@@ -86,19 +88,19 @@ export default function ImportPrivateKeyScreen() {
 
   const handleImport = async () => {
     if (!keyValid) {
-      notice.showErrorNotice('Enter a valid private key.', 2600);
+      notice.showErrorNotice(t('Enter a valid private key.'), 2600);
       return;
     }
 
     if (!walletNameTrimmed.length) {
-      notice.showErrorNotice('Wallet name is required.', 2600);
+      notice.showErrorNotice(t('Wallet name is required.'), 2600);
       walletNameRef.current?.focus();
       return;
     }
 
     if (walletNameTrimmed.length > MAX_WALLET_NAME_LENGTH) {
       notice.showErrorNotice(
-        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
+        t('Wallet name must be {{count}} characters or less.', { count: MAX_WALLET_NAME_LENGTH }),
         2600
       );
       walletNameRef.current?.focus();
@@ -116,10 +118,10 @@ export default function ImportPrivateKeyScreen() {
         privateKey: normalized,
       });
 
-      notice.showSuccessNotice('Private-key wallet imported.', 2400);
+      notice.showSuccessNotice(t('Private-key wallet imported.'), 2400);
       router.replace('/wallet');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to import wallet.';
+      const message = error instanceof Error ? error.message : t('Failed to import wallet.');
       notice.showErrorNotice(message, 3000);
     } finally {
       setSubmitting(false);
@@ -137,7 +139,7 @@ export default function ImportPrivateKeyScreen() {
           extraScrollHeight={56}
         >
           <ScreenBrow
-            label="IMPORT PRIVATE KEY"
+            label={t('IMPORT PRIVATE KEY')}
             variant="backLink"
             onLabelPress={() => setInfoExpanded((prev) => !prev)}
             labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
@@ -146,18 +148,18 @@ export default function ImportPrivateKeyScreen() {
           {infoExpanded ? (
             <View style={styles.infoPanel}>
               <Text style={styles.infoTitle}>{IMPORT_INFO_TITLE}</Text>
-              <Text style={styles.infoText}>{IMPORT_INFO_TEXT}</Text>
+              <Text style={styles.infoText}>{t(IMPORT_INFO_TEXT)}</Text>
             </View>
           ) : null}
 
           <Text style={styles.title}>
-            Restore from <Text style={styles.titleAccent}>private key</Text>
+            {t('Restore from')} <Text style={styles.titleAccent}>{t('private key')}</Text>
           </Text>
 
-          <Text style={styles.noticeLine}>We never store your seed phrase or private key.</Text>
+          <Text style={styles.noticeLine}>{t('We never store your seed phrase or private key.')}</Text>
 
           <View style={styles.blockEyebrowRow}>
-            <Text style={styles.blockEyebrow}>Private Key</Text>
+            <Text style={styles.blockEyebrow}>{t('Private Key')}</Text>
 
             <TouchableOpacity
               activeOpacity={0.9}
@@ -191,7 +193,7 @@ export default function ImportPrivateKeyScreen() {
               <TextInput
                 value={normalized}
                 onChangeText={(value) => setPrivateKey(value.replace(/\s+/g, ''))}
-                placeholder="Paste private key"
+                placeholder={t('Paste private key')}
                 placeholderTextColor={colors.textDim}
                 style={[
                   styles.privateKeyInput,
@@ -234,14 +236,14 @@ export default function ImportPrivateKeyScreen() {
             </View>
           </View>
 
-          <Text style={styles.walletNameEyebrow}>Wallet Name</Text>
+          <Text style={styles.walletNameEyebrow}>{t('Wallet Name')}</Text>
 
           <View style={styles.nameField}>
             <TextInput
               ref={walletNameRef}
               value={walletName}
               onChangeText={(value) => setWalletName(value.slice(0, MAX_WALLET_NAME_LENGTH))}
-              placeholder="Imported wallet"
+              placeholder={t('Imported wallet')}
               placeholderTextColor={colors.textDim}
               style={styles.nameInput}
               maxLength={MAX_WALLET_NAME_LENGTH}

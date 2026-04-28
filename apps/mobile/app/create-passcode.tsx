@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useI18n } from '../src/i18n';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
@@ -14,6 +15,7 @@ import { useBottomInset } from '../src/ui/use-bottom-inset';
 
 export default function CreatePasscodeScreen() {
   const router = useRouter();
+  const { t } = useI18n();
   const params = useLocalSearchParams<{ next?: string; flow?: string }>();
   const nextPath = typeof params.next === 'string' ? params.next : '/import-wallet';
   const flow = typeof params.flow === 'string' ? params.flow : 'create-passcode';
@@ -54,7 +56,7 @@ export default function CreatePasscodeScreen() {
       const ok = await verifyPasscode(digits);
 
       if (!ok) {
-        setError('Wrong current passcode.');
+        setError(t('Wrong current passcode.'));
         setDigits('');
         return;
       }
@@ -81,28 +83,28 @@ export default function CreatePasscodeScreen() {
       <Stack.Screen options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <View style={styles.screen}>
         <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
-          <ScreenBrow label={isChangeFlow ? 'CHANGE PASSCODE' : 'CREATE PASSCODE'} />
+          <ScreenBrow label={isChangeFlow ? t('CHANGE PASSCODE') : t('CREATE PASSCODE')} />
           <Text style={styles.title}>
             {isVerifyCurrentStep
-              ? 'Confirm your current '
+              ? t('Confirm your current ')
               : isChangeFlow
-                ? 'Create a new '
-                : 'Create a '}
-            <Text style={styles.titleAccent}>6-digit</Text> passcode
+                ? t('Create a new ')
+                : t('Create a ')}
+            <Text style={styles.titleAccent}>{t('6-digit')}</Text> {t('passcode')}
           </Text>
 
           <Text style={styles.lead}>
             {isVerifyCurrentStep
-              ? 'Enter your current 6-digit passcode before setting a new one.'
+              ? t('Enter your current 6-digit passcode before setting a new one.')
               : isChangeFlow
-              ? 'Set the new 6-digit passcode that will protect this app.'
-              : 'Signing wallets should not be imported into an unprotected local shell. Set a passcode first, then continue.'}
+              ? t('Set the new 6-digit passcode that will protect this app.')
+              : t('Signing wallets should not be imported into an unprotected local shell. Set a passcode first, then continue.')}
           </Text>
 
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
               <Text style={ui.sectionEyebrow}>
-                {isVerifyCurrentStep ? 'Current passcode' : 'Passcode'}
+                {isVerifyCurrentStep ? t('Current passcode') : t('Passcode')}
               </Text>
               <Text style={styles.cardHeaderErrorText} numberOfLines={1}>
                 {error || ' '}
@@ -124,7 +126,7 @@ export default function CreatePasscodeScreen() {
             onBackspacePress={digits.length === 0 ? handleCancel : handleBackspace}
             backspaceIcon={
               digits.length === 0 ? (
-                <Text style={styles.cancelKeyText}>CANCEL</Text>
+                <Text style={styles.cancelKeyText}>{t('CANCEL')}</Text>
               ) : (
                 <BackspaceIcon width={22} height={22} />
               )
@@ -138,7 +140,7 @@ export default function CreatePasscodeScreen() {
             onPress={() => void handleContinue()}
           >
             <Text style={[ui.buttonLabel, !canContinue && styles.primaryButtonTextDisabled]}>
-              {isVerifyCurrentStep ? 'Verify Current Passcode' : 'Continue'}
+              {isVerifyCurrentStep ? t('Verify Current Passcode') : t('Continue')}
             </Text>
           </TouchableOpacity>
         </View>

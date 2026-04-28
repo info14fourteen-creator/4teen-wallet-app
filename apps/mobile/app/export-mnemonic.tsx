@@ -23,6 +23,7 @@ import { useNavigationInsets } from '../src/ui/navigation';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import { ui } from '../src/theme/ui';
 import {
   getBiometricsEnabled,
@@ -62,6 +63,7 @@ function resolveBiometricPromptLabel(label: string) {
 }
 
 export default function ExportMnemonicScreen() {
+  const { t } = useI18n();
   const notice = useNotice();
   const params = useLocalSearchParams<{ walletId?: string }>();
   const navInsets = useNavigationInsets({ topExtra: 14 });
@@ -293,7 +295,7 @@ export default function ExportMnemonicScreen() {
     try {
       const ok = await verifyPasscode(passcodeDigits);
       if (!ok) {
-        setPasscodeError('Wrong passcode.');
+        setPasscodeError(t('Wrong passcode.'));
         setPasscodeDigits('');
         return;
       }
@@ -304,10 +306,10 @@ export default function ExportMnemonicScreen() {
       await revealPhraseSecurely();
     } catch (error) {
       console.error(error);
-      setPasscodeError('Failed to verify passcode.');
+      setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
-  }, [passcodeDigits, revealPhraseSecurely]);
+  }, [passcodeDigits, revealPhraseSecurely, t]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -318,21 +320,21 @@ export default function ExportMnemonicScreen() {
   const handleCopy = useCallback(async () => {
     if (!state || !revealed) return;
     await Clipboard.setStringAsync(state.words.join(' '));
-    notice.showSuccessNotice('Seed phrase copied. Keep it offline.', 2200);
-  }, [notice, revealed, state]);
+    notice.showSuccessNotice(t('Seed phrase copied. Keep it offline.'), 2200);
+  }, [notice, revealed, state, t]);
 
   const handleHide = useCallback(() => {
     setRevealed(false);
-    notice.showNeutralNotice('Seed phrase hidden.', 1800);
-  }, [notice]);
+    notice.showNeutralNotice(t('Seed phrase hidden.'), 1800);
+  }, [notice, t]);
 
-  const walletLabel = state?.wallet.name || 'Seed Phrase';
+  const walletLabel = state?.wallet.name || t('Seed Phrase');
   const maskedWords = useMemo(() => {
     return state?.words.map(() => '••••') ?? [];
   }, [state]);
 
   if (loading) {
-    return <ScreenLoadingState label="Loading seed phrase..." />;
+    return <ScreenLoadingState label={t('Loading seed phrase...')} />;
   }
 
   return (
@@ -352,7 +354,7 @@ export default function ExportMnemonicScreen() {
             bounces
           >
             <ScreenBrow
-              label="EXPORT SEED PHRASE"
+              label={t('EXPORT SEED PHRASE')}
               variant="backLink"
               onLabelPress={() => setInfoExpanded((prev) => !prev)}
               labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
@@ -360,14 +362,14 @@ export default function ExportMnemonicScreen() {
 
             {infoExpanded ? (
               <View style={styles.infoPanel}>
-                <Text style={styles.infoTitle}>{EXPORT_INFO_TITLE}</Text>
-                <Text style={styles.infoText}>{EXPORT_INFO_TEXT}</Text>
+                <Text style={styles.infoTitle}>{t(EXPORT_INFO_TITLE)}</Text>
+                <Text style={styles.infoText}>{t(EXPORT_INFO_TEXT)}</Text>
               </View>
             ) : null}
 
             {errorText ? (
               <View style={styles.errorCard}>
-                <Text style={styles.errorTitle}>Unavailable</Text>
+                <Text style={styles.errorTitle}>{t('Unavailable')}</Text>
                 <Text style={styles.errorBody}>{errorText}</Text>
               </View>
             ) : null}
@@ -375,21 +377,20 @@ export default function ExportMnemonicScreen() {
             {state ? (
               <>
                 <View style={styles.warningCard}>
-                  <Text style={ui.sectionEyebrow}>Before you reveal</Text>
+                  <Text style={ui.sectionEyebrow}>{t('Before you reveal')}</Text>
                   <Text style={styles.warningBody}>
-                    Anyone with these words can move the funds. 4TEEN will never ask for them.
-                    Write them down offline, verify every word, then hide the phrase.
+                    {t('Anyone with these words can move the funds. 4TEEN will never ask for them. Write them down offline, verify every word, then hide the phrase.')}
                   </Text>
                 </View>
 
                 <View style={styles.wordsCard}>
                   <View style={styles.wordsHeader}>
-                    <Text style={ui.sectionEyebrow}>Recovery Phrase</Text>
-                    <Text style={styles.wordsCount}>{state.words.length} words</Text>
+                    <Text style={ui.sectionEyebrow}>{t('Recovery Phrase')}</Text>
+                    <Text style={styles.wordsCount}>{t('{{count}} words', { count: state.words.length })}</Text>
                   </View>
 
                   <View style={styles.walletRow}>
-                    <Text style={styles.walletLabel}>Wallet</Text>
+                    <Text style={styles.walletLabel}>{t('Wallet')}</Text>
                     <Text style={styles.walletValue}>{walletLabel}</Text>
                   </View>
 
@@ -413,7 +414,7 @@ export default function ExportMnemonicScreen() {
                       style={[styles.primaryButton, styles.actionButtonFlex]}
                       onPress={handleCopy}
                     >
-                      <Text style={styles.primaryButtonText}>COPY PHRASE</Text>
+                      <Text style={styles.primaryButtonText}>{t('COPY PHRASE')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -421,12 +422,12 @@ export default function ExportMnemonicScreen() {
                       style={[styles.secondaryButton, styles.actionButtonFlex]}
                       onPress={handleHide}
                     >
-                      <Text style={styles.secondaryButtonText}>HIDE</Text>
+                      <Text style={styles.secondaryButtonText}>{t('HIDE')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton} onPress={() => void handleReveal()}>
-                    <Text style={styles.primaryButtonText}>REVEAL PHRASE</Text>
+                    <Text style={styles.primaryButtonText}>{t('REVEAL PHRASE')}</Text>
                   </TouchableOpacity>
                 )}
               </>
@@ -451,23 +452,23 @@ export default function ExportMnemonicScreen() {
           <View style={styles.authOverlay}>
             <View style={styles.authScreen}>
               <View style={styles.authContent}>
-                <Text style={ui.eyebrow}>Seed Phrase Export</Text>
+                <Text style={ui.eyebrow}>{t('Seed Phrase Export')}</Text>
 
                 <Text style={styles.authTitle}>
-                  Confirm with <Text style={styles.authTitleAccent}>Passcode</Text>
+                  {t('Confirm with ')}<Text style={styles.authTitleAccent}>{t('Passcode')}</Text>
                 </Text>
 
                 <Text style={styles.authLead}>
-                  This unlocks the wallet root key locally. Confirm with your 6-digit passcode
+                  {t('This unlocks the wallet root key locally. Confirm with your 6-digit passcode')}
                   {biometricAvailable
-                    ? ` or ${resolveBiometricPromptLabel(biometricLabel)}`
+                    ? ` ${t('or')} ${resolveBiometricPromptLabel(biometricLabel)}`
                     : ''}
-                  ; nothing is sent to 4TEEN servers.
+                  {t('; nothing is sent to 4TEEN servers.')}
                 </Text>
 
                 <View style={styles.authPasscodeCard}>
                   <View style={styles.authCardHeaderRow}>
-                    <Text style={ui.sectionEyebrow}>Reveal Seed Phrase</Text>
+                    <Text style={ui.sectionEyebrow}>{t('Reveal Seed Phrase')}</Text>
                     <Text style={styles.authCardErrorText} numberOfLines={1}>
                       {passcodeError || ' '}
                     </Text>
@@ -515,7 +516,7 @@ export default function ExportMnemonicScreen() {
                     setPasscodeError('');
                   }}
                 >
-                  <Text style={styles.cancelButtonText}>CANCEL</Text>
+                  <Text style={styles.cancelButtonText}>{t('CANCEL')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

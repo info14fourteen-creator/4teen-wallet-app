@@ -14,6 +14,7 @@ import { useFocusEffect } from 'expo-router';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { ProductScreen } from '../src/ui/product-shell';
+import { useI18n } from '../src/i18n';
 
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
@@ -57,6 +58,7 @@ function mapTokenListItemToCustomToken(token: TronscanTokenListItem): CustomToke
 }
 
 export default function AddCustomTokenScreen() {
+  const { t } = useI18n();
   const notice = useNotice();
   const { triggerWalletDataRefresh } = useWalletSession();
 
@@ -79,7 +81,7 @@ export default function AddCustomTokenScreen() {
 
         const activeWallet = await getActiveWallet();
         if (!activeWallet) {
-          throw new Error('No active wallet selected.');
+          throw new Error(t('No active wallet selected.'));
         }
 
         const visibleStorageKey = buildWalletHomeVisibleTokensStorageKey(activeWallet.id);
@@ -121,13 +123,13 @@ export default function AddCustomTokenScreen() {
       } catch (error) {
         console.error(error);
         setTokens([]);
-        setErrorText('Failed to load custom tokens.');
-        notice.showErrorNotice('Custom token list failed to load.', 2400);
+        setErrorText(t('Failed to load custom tokens.'));
+        notice.showErrorNotice(t('Custom token list failed to load.'), 2400);
       } finally {
         setLoading(false);
       }
     },
-    [notice]
+    [notice, t]
   );
 
   useFocusEffect(
@@ -179,7 +181,7 @@ export default function AddCustomTokenScreen() {
 
         const activeWallet = await getActiveWallet();
         if (!activeWallet) {
-          throw new Error('No active wallet selected.');
+          throw new Error(t('No active wallet selected.'));
         }
 
         await Promise.all([
@@ -195,10 +197,10 @@ export default function AddCustomTokenScreen() {
         triggerWalletDataRefresh();
       } catch (error) {
         console.error(error);
-        notice.showErrorNotice('Custom token update failed.', 2200);
+        notice.showErrorNotice(t('Custom token update failed.'), 2200);
       }
     },
-    [customTokenCatalog, homeVisibleTokenIds, notice, triggerWalletDataRefresh]
+    [customTokenCatalog, homeVisibleTokenIds, notice, t, triggerWalletDataRefresh]
   );
 
   const filteredTokens = useMemo(() => {
@@ -224,12 +226,12 @@ export default function AddCustomTokenScreen() {
   }, [customTokenCatalog]);
 
   if (loading && tokens.length === 0) {
-    return <ScreenLoadingState label="Loading custom token..." />;
+    return <ScreenLoadingState label={t('Loading custom token...')} />;
   }
 
   return (
     <ProductScreen
-      eyebrow={`ADD CUSTOM TOKEN (${filteredTokens.length})`}
+      eyebrow={`${t('ADD CUSTOM TOKEN')} (${filteredTokens.length})`}
       browVariant="back"
       keyboardAware
       loadingOverlayVisible={refreshing}
@@ -249,7 +251,7 @@ export default function AddCustomTokenScreen() {
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Search by contract / name / symbol"
+          placeholder={t('Search by contract / name / symbol')}
           placeholderTextColor={colors.textDim}
           style={styles.searchInput}
           autoCapitalize="none"

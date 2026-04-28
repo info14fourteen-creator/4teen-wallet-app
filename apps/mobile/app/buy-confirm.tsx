@@ -26,6 +26,7 @@ import { goBackOrReplace } from '../src/ui/safe-back';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import {
   buildDirectBuyReview,
   executeDirectBuy,
@@ -127,6 +128,7 @@ export default function BuyConfirmScreen() {
     contractAddress?: string | string[];
   }>();
   const notice = useNotice();
+  const { t } = useI18n();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
   const { triggerWalletDataRefresh, setChromeHidden } = useWalletSession();
@@ -200,7 +202,7 @@ export default function BuyConfirmScreen() {
           : null;
 
       if (!draft) {
-        throw new Error('Buy request is missing. Go back and build it again.');
+        throw new Error(t('Buy request is missing. Go back and build it again.'));
       }
 
       const nextReview = await buildDirectBuyReview({
@@ -210,11 +212,11 @@ export default function BuyConfirmScreen() {
       setReview(nextReview);
     } catch (error) {
       setReview(null);
-      setErrorText(error instanceof Error ? error.message : 'Failed to build buy confirmation.');
+      setErrorText(error instanceof Error ? error.message : t('Failed to build buy confirmation.'));
     } finally {
       setLoading(false);
     }
-  }, [params.amountTrx, params.contractAddress]);
+  }, [params.amountTrx, params.contractAddress, t]);
 
   const loadBiometricsState = useCallback(async () => {
     try {
@@ -227,22 +229,22 @@ export default function BuyConfirmScreen() {
       setBiometricAvailable(enabled && compatible && enrolled);
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        setBiometricLabel('Face ID');
+        setBiometricLabel(t('Face ID'));
         return;
       }
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-        setBiometricLabel('Fingerprint');
+        setBiometricLabel(t('Fingerprint'));
         return;
       }
 
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     } catch {
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -275,9 +277,9 @@ export default function BuyConfirmScreen() {
 
       burnWarningShownRef.current = true;
       notice.showErrorNotice(
-        `Not enough TRX for buy value and network burn. Top up at least ${formatTrxFromSunAmount(
-          review.trxCoverage.missingTrxSun
-        )} TRX first.`,
+        t('Not enough TRX for buy value and network burn. Top up at least {{amount}} TRX first.', {
+          amount: formatTrxFromSunAmount(review.trxCoverage.missingTrxSun),
+        }),
         3400
       );
       return;
@@ -285,7 +287,7 @@ export default function BuyConfirmScreen() {
 
     burnWarningShownRef.current = false;
     notice.hideNotice();
-  }, [notice, review]);
+  }, [notice, review, t]);
 
   const handleRefresh = useCallback(async () => {
     try {
@@ -328,7 +330,7 @@ export default function BuyConfirmScreen() {
 
     try {
       setEnergyRenting(true);
-      notice.showNeutralNotice('Sending Energy rental payment...', 2500);
+      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'direct_buy',
         wallet: review.wallet.address,
@@ -337,13 +339,13 @@ export default function BuyConfirmScreen() {
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Energy is live. Sending buy transaction...', 3000);
+      notice.showSuccessNotice(t('Energy is live. Sending buy transaction...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Energy rental failed.',
+        error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
       );
       return false;
@@ -353,7 +355,7 @@ export default function BuyConfirmScreen() {
       setPasscodeDigits('');
       setPasscodeError('');
     }
-  }, [energyQuote, energyRenting, load, notice, review]);
+  }, [energyQuote, energyRenting, load, notice, review, t]);
 
   const performBuy = useCallback(async () => {
     if (!review || submitting) return;
@@ -379,12 +381,14 @@ export default function BuyConfirmScreen() {
       } catch (error) {
         setAttributionStatus({
           state: 'pending-error',
-          message: error instanceof Error ? error.message : 'Referral sync is pending.',
+          message: error instanceof Error ? error.message : t('Referral sync is pending.'),
         });
         notice.showNeutralNotice(
           error instanceof Error
-            ? `Buy sent, but referral sync is pending: ${error.message}`
-            : 'Buy sent, but referral sync is pending.',
+            ? t('Buy sent, but referral sync is pending: {{message}}', {
+                message: error.message,
+              })
+            : t('Buy sent, but referral sync is pending.'),
           3200
         );
       }
@@ -403,7 +407,7 @@ export default function BuyConfirmScreen() {
           message:
             error instanceof Error
               ? error.message
-              : 'Controller confirmation is still pending.',
+              : t('Controller confirmation is still pending.'),
         });
       }
 
@@ -411,18 +415,18 @@ export default function BuyConfirmScreen() {
       await clearWalletRuntimeCaches(review.wallet.address);
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Direct buy transaction sent.', 3200);
+      notice.showSuccessNotice(t('Direct buy transaction sent.'), 3200);
       setReceipt(nextReceipt);
       setPasscodeOpen(false);
       setPasscodeEntryOpen(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Direct buy failed.';
+      const message = error instanceof Error ? error.message : t('Direct buy failed.');
       setErrorText(message);
       notice.showErrorNotice(message, 3400);
     } finally {
       setSubmitting(false);
     }
-  }, [notice, review, submitting, triggerWalletDataRefresh]);
+  }, [notice, review, submitting, t, triggerWalletDataRefresh]);
 
   const closeApprovalAuth = useCallback(() => {
     setPasscodeOpen(false);
@@ -464,9 +468,9 @@ export default function BuyConfirmScreen() {
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage:
-          pendingApprovalMode === 'rent' ? 'Confirm Energy Rental' : 'Approve direct buy',
-        cancelLabel: 'Cancel',
-        fallbackLabel: 'Use Passcode',
+          pendingApprovalMode === 'rent' ? t('Confirm Energy Rental') : t('Approve direct buy'),
+        cancelLabel: t('Cancel'),
+        fallbackLabel: t('Use Passcode'),
       });
 
       if (result.success) {
@@ -481,23 +485,26 @@ export default function BuyConfirmScreen() {
       }
     } catch {
     }
-  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performBuy, performRentEnergy]);
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performBuy, performRentEnergy, t]);
 
   const handleApprove = useCallback(async () => {
     if (!review || submitting) return;
     setPendingApprovalMode('buy');
 
     if (!review.trxCoverage.canCoverBurn) {
-      const message = `Top up at least ${formatTrxFromSunAmount(
-        review.trxCoverage.missingTrxSun
-      )} TRX to cover buy value and network burn.`;
+      const message = t(
+        'Top up at least {{amount}} TRX to cover buy value and network burn.',
+        {
+          amount: formatTrxFromSunAmount(review.trxCoverage.missingTrxSun),
+        }
+      );
       setErrorText(message);
       notice.showErrorNotice(message, 3400);
       return;
     }
 
     openApprovalAuth();
-  }, [notice, openApprovalAuth, review, submitting]);
+  }, [notice, openApprovalAuth, review, submitting, t]);
 
   const handleRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || submitting || energyRenting) return;
@@ -538,7 +545,7 @@ export default function BuyConfirmScreen() {
 
       if (!valid) {
         setPasscodeDigits('');
-        setPasscodeError('Wrong passcode.');
+        setPasscodeError(t('Wrong passcode.'));
         return;
       }
 
@@ -558,10 +565,10 @@ export default function BuyConfirmScreen() {
     return () => {
       cancelled = true;
     };
-  }, [energyRenting, passcodeDigits, pendingApprovalMode, performBuy, performRentEnergy, submitting]);
+  }, [energyRenting, passcodeDigits, pendingApprovalMode, performBuy, performRentEnergy, submitting, t]);
 
   if (loading) {
-    return <ScreenLoadingState label="Loading buy confirmation..." />;
+    return <ScreenLoadingState label={t('Loading buy confirmation...')} />;
   }
 
   return (
@@ -585,7 +592,7 @@ export default function BuyConfirmScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <ScreenBrow label="BUY" variant="back" />
+          <ScreenBrow label={t('BUY')} variant="back" />
 
           {receipt ? (
             <View style={styles.successBlock}>
@@ -599,19 +606,23 @@ export default function BuyConfirmScreen() {
               {attributionStatus ? (
                 <Text style={styles.successMeta}>
                   {attributionStatus.state === 'submitted'
-                    ? `Referral synced${attributionStatus.slug ? `: ${attributionStatus.slug}` : '.'}`
+                    ? t('Referral synced{{suffix}}', {
+                        suffix: attributionStatus.slug ? `: ${attributionStatus.slug}` : '.',
+                      })
                     : attributionStatus.state === 'skipped-no-referral'
-                      ? 'No referral attached to this buy.'
-                      : attributionStatus.message || 'Referral sync is pending.'}
+                      ? t('No referral attached to this buy.')
+                      : attributionStatus.message || t('Referral sync is pending.')}
                 </Text>
               ) : null}
               {controllerBindingStatus ? (
                 <Text style={styles.successMeta}>
                   {controllerBindingStatus.state === 'bound'
-                    ? `Controller linked this buyer to ambassador ${controllerBindingStatus.ambassadorWallet}.`
+                    ? t('Controller linked this buyer to ambassador {{wallet}}.', {
+                        wallet: controllerBindingStatus.ambassadorWallet || '—',
+                      })
                     : controllerBindingStatus.state === 'not-bound-yet'
-                      ? 'Controller has not linked this buyer to an ambassador yet.'
-                      : controllerBindingStatus.message || 'Controller confirmation is pending.'}
+                      ? t('Controller has not linked this buyer to an ambassador yet.')
+                      : controllerBindingStatus.message || t('Controller confirmation is pending.')}
                 </Text>
               ) : null}
 
@@ -699,7 +710,7 @@ export default function BuyConfirmScreen() {
                       <Text style={styles.heroMetricLabel}>LOCK RELEASE</Text>
                       <Text style={styles.heroMetricValue}>{lockReleaseParts?.primary || '—'}</Text>
                       <Text style={styles.heroMetricToken}>
-                        {lockReleaseParts?.secondary || 'YEAR'}
+                        {lockReleaseParts?.secondary || t('YEAR')}
                       </Text>
                     </View>
                   </View>
@@ -719,7 +730,7 @@ export default function BuyConfirmScreen() {
                     <ActivityIndicator color={colors.white} />
                   ) : (
                     <Text style={styles.primaryButtonText}>
-                      {hasTrxForBurn ? 'BUY 4TEEN' : 'TOP UP TRX'}
+                      {hasTrxForBurn ? t('BUY 4TEEN') : t('TOP UP TRX')}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -730,7 +741,7 @@ export default function BuyConfirmScreen() {
                   processing={energyRenting}
                   disabled={submitting}
                   showUnavailable={canRentResources}
-                  actionLabel="BUY"
+                  actionLabel={t('BUY')}
                   estimatedBurnSun={review.resources.estimatedBurnSun}
                   onRent={() => void handleRentEnergy()}
                 />
@@ -789,11 +800,11 @@ export default function BuyConfirmScreen() {
                 bandwidthShortfall={review.resources.bandwidthShortfall}
                 message={
                   !review.trxCoverage.canCoverBurn
-                    ? 'Not enough TRX to cover the buy and the estimated burn.'
+                    ? t('Not enough TRX to cover the buy and the estimated burn.')
                     : hasResourceShortfall
-                      ? 'You are short on resources. The burn estimate above already includes this gap.'
-                      : 'You have enough resources for this action. Extra burn is unlikely.'
-                }
+                      ? t('You are short on resources. The burn estimate above already includes this gap.')
+                      : t('You have enough resources for this action. Extra burn is unlikely.')
+                  }
                 messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
               />
 
@@ -814,15 +825,17 @@ export default function BuyConfirmScreen() {
             </>
           ) : (
             <View style={styles.errorCard}>
-              <Text style={styles.errorText}>{errorText || 'Buy confirmation is unavailable.'}</Text>
+              <Text style={styles.errorText}>{errorText || t('Buy confirmation is unavailable.')}</Text>
             </View>
           )}
         </ScrollView>
 
         <ApprovalAuthModal
           visible={passcodeOpen}
-          eyebrow="Transaction Approval"
-          actionLabel={pendingApprovalMode === 'rent' ? 'Energy rental and direct buy' : 'direct buy'}
+          eyebrow={t('Transaction Approval')}
+          actionLabel={
+            pendingApprovalMode === 'rent' ? t('Energy rental and direct buy') : t('direct buy')
+          }
           passcodeError={passcodeError}
           digitsLength={passcodeDigits.length}
           canUseBiometrics={canUseBiometrics}

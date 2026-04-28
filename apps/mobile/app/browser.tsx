@@ -15,6 +15,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 
+import { useI18n } from '../src/i18n';
 import { colors, radius } from '../src/theme/tokens';
 
 import {
@@ -81,6 +82,7 @@ function getReadableTitle(title: string) {
 
 export default function BrowserScreen() {
   const router = useRouter();
+  const { t } = useI18n();
   const params = useLocalSearchParams<{ url?: string | string[] }>();
   const webViewRef = useRef<WebView>(null);
   const inputRef = useRef<TextInput>(null);
@@ -217,7 +219,7 @@ export default function BrowserScreen() {
                   keyboardType="url"
                   returnKeyType="go"
                   blurOnSubmit
-                  placeholder="Enter URL"
+                  placeholder={t('Enter URL')}
                   placeholderTextColor={colors.textDim}
                   style={styles.addressInput}
                 />
@@ -255,7 +257,7 @@ export default function BrowserScreen() {
                   style={[styles.editActionButton, styles.editCancelButton]}
                   onPress={cancelEditing}
                 >
-                  <Text style={styles.editCancelText}>Cancel</Text>
+                  <Text style={styles.editCancelText}>{t('Cancel')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -263,7 +265,7 @@ export default function BrowserScreen() {
                   style={[styles.editActionButton, styles.editGoButton]}
                   onPress={submitUrl}
                 >
-                  <Text style={styles.editGoText}>Go</Text>
+                  <Text style={styles.editGoText}>{t('Go')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

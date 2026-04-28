@@ -3,6 +3,7 @@ import { Animated, Easing, Pressable, StyleSheet, Text, TouchableOpacity, View }
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useI18n } from '../i18n';
 import { colors, radius, spacing } from '../theme/tokens';
 import { ui } from '../theme/ui';
 import {
@@ -29,6 +30,7 @@ export default function MenuSheet({ open, onClose, forceVisible = false }: MenuS
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { hasWallet } = useWalletSession();
+  const { t } = useI18n();
   const shouldHide = !forceVisible && shouldRenderSharedNavigation(pathname, undefined, { hasWallet });
   const [mounted, setMounted] = useState(open);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -137,30 +139,30 @@ export default function MenuSheet({ open, onClose, forceVisible = false }: MenuS
         ]}
       >
         <View style={styles.sheetContent}>
-          <ScreenBrow label="CONTROL PANEL" />
+          <ScreenBrow label={t('CONTROL PANEL')} />
 
           <View style={styles.menuBlock}>
             <MenuItem
-              label="Wallet Management"
+              label={t('Wallet Management')}
               onPress={() => go('/wallet-manager')}
               icon={<WalletIcon width={20} height={20} />}
             />
 
             <MenuItem
-              label="Address Book"
+              label={t('Address Book')}
               onPress={() => go('/address-book')}
               icon={<AddressIcon width={20} height={20} />}
             />
 
             <MenuItem
-              label="Settings"
+              label={t('Settings')}
               onPress={() => go('/settings')}
               onLongPress={() => go('/ui-shell-lab')}
               icon={<SettingsIcon width={20} height={20} />}
             />
 
             <MenuItem
-              label="About Us"
+              label={t('About Us')}
               onPress={() => go('/about')}
               icon={<InfoIcon width={20} height={20} />}
             />

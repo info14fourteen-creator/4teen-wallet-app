@@ -16,6 +16,7 @@ import { useWalletSession } from '../src/wallet/wallet-session';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import {
   getActiveWalletId,
   listWallets,
@@ -42,6 +43,7 @@ function formatWalletKind(kind: WalletMeta['kind']) {
 }
 
 export default function SelectWalletScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const notice = useNotice();
@@ -71,11 +73,11 @@ export default function SelectWalletScreen() {
       setAggregate(nextAggregate);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Wallet list failed to load.', 2600);
+      notice.showErrorNotice(t('Wallet list failed to load.'), 2600);
     } finally {
       setLoading(false);
     }
-  }, [aggregate, notice]);
+  }, [aggregate, notice, t]);
 
   const handleRefresh = useCallback(async () => {
     try {
@@ -113,7 +115,7 @@ export default function SelectWalletScreen() {
   }, [aggregate?.totalDeltaTone]);
 
   if (loading && !aggregate) {
-    return <ScreenLoadingState label="Loading wallet selector..." />;
+    return <ScreenLoadingState label={t('Loading wallet selector...')} />;
   }
 
   const handleSelectWallet = async (wallet: WalletMeta) => {
@@ -121,17 +123,17 @@ export default function SelectWalletScreen() {
       await setActiveWalletId(wallet.id);
       setPendingWalletSelectionId(wallet.id);
       setActiveWalletIdState(wallet.id);
-      notice.showSuccessNotice(`Active wallet: ${wallet.name}`, 2200);
+      notice.showSuccessNotice(t('Active wallet: {{name}}', { name: wallet.name }), 2200);
       goBackOrReplace(router, { pathname, fallback: '/wallet' });
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Wallet selection failed.', 2600);
+      notice.showErrorNotice(t('Wallet selection failed.'), 2600);
     }
   };
 
   return (
     <ProductScreen
-      eyebrow="SELECT WALLET"
+      eyebrow={t('SELECT WALLET')}
       browVariant="backLink"
       browLabelPress={() => goBackOrReplace(router, { pathname, fallback: '/wallet' })}
       browLabelAccessoryAnimation={{
@@ -153,7 +155,7 @@ export default function SelectWalletScreen() {
       }
     >
           <View style={styles.summaryCard}>
-            <Text style={ui.eyebrow}>Total Assets</Text>
+            <Text style={ui.eyebrow}>{t('Total Assets')}</Text>
             <Text
               style={styles.summaryValue}
               numberOfLines={1}
@@ -172,17 +174,17 @@ export default function SelectWalletScreen() {
                 `${formatAdaptiveSignedDisplayCurrency(0)} (0.00%)`}
             </Text>
             <Text style={styles.summaryHint}>
-              Tap any wallet below to open it immediately.
+              {t('Tap any wallet below to open it immediately.')}
             </Text>
           </View>
 
-          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>Managed Wallets</Text>
+          <Text style={[ui.sectionEyebrow, styles.sectionEyebrowOutside]}>{t('Managed Wallets')}</Text>
 
           {wallets.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No wallets available</Text>
+              <Text style={styles.emptyTitle}>{t('No wallets available')}</Text>
               <Text style={styles.emptyText}>
-                Add or import a wallet first, then select it here.
+                {t('Add or import a wallet first, then select it here.')}
               </Text>
             </View>
           ) : (
@@ -203,7 +205,7 @@ export default function SelectWalletScreen() {
                     <View style={styles.walletText}>
                       <View style={styles.walletTitleRow}>
                         <Text style={ui.actionLabel}>{wallet.name}</Text>
-                        {active ? <Text style={styles.activeBadge}>SELECTED</Text> : null}
+                        {active ? <Text style={styles.activeBadge}>{t('SELECTED')}</Text> : null}
                       </View>
 
                       <Text
@@ -212,9 +214,9 @@ export default function SelectWalletScreen() {
                         adjustsFontSizeToFit
                         minimumFontScale={0.72}
                       >
-                        Balance: {balanceDisplay}
+                        {t('Balance')}: {balanceDisplay}
                       </Text>
-                      <Text style={styles.meta}>Access: {formatWalletKind(wallet.kind)}</Text>
+                      <Text style={styles.meta}>{t('Access')}: {t(formatWalletKind(wallet.kind))}</Text>
                       <Text
                         style={styles.address}
                         numberOfLines={1}
@@ -236,7 +238,7 @@ export default function SelectWalletScreen() {
             style={styles.addWalletRow}
             onPress={() => router.push('/wallet-access')}
           >
-            <Text style={ui.actionLabel}>Add Wallet</Text>
+            <Text style={ui.actionLabel}>{t('Add Wallet')}</Text>
             <AddWalletIcon width={20} height={20} />
           </TouchableOpacity>
     </ProductScreen>

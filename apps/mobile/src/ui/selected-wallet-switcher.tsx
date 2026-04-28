@@ -1,5 +1,6 @@
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { useI18n } from '../i18n';
 import type { WalletMeta } from '../services/wallet/storage';
 import { colors, radius } from '../theme/tokens';
 import { OpenDownIcon, OpenRightIcon } from './ui-icons';
@@ -69,11 +70,13 @@ export default function SelectedWalletSwitcher({
   emptyTitle = 'No wallet selected',
   emptyBody = 'Create or import a wallet first.',
 }: SelectedWalletSwitcherProps) {
+  const { t } = useI18n();
+
   return (
     <View style={styles.selectionBlock}>
       <View style={styles.selectionHead}>
-        <Text style={styles.selectionEyebrow}>ACTIVE WALLET</Text>
-        <Text style={styles.selectionHint}>tap to switch</Text>
+        <Text style={styles.selectionEyebrow}>{t('ACTIVE WALLET')}</Text>
+        <Text style={styles.selectionHint}>{t('tap to switch')}</Text>
       </View>
 
       <TouchableOpacity
@@ -83,13 +86,13 @@ export default function SelectedWalletSwitcher({
       >
         <View style={styles.walletCardText}>
           <View style={styles.walletTitleRow}>
-            <Text style={styles.walletName}>{wallet?.name || emptyTitle}</Text>
+            <Text style={styles.walletName}>{wallet?.name || t(emptyTitle)}</Text>
           </View>
 
           <WalletBalance value={wallet?.balanceDisplay || '$0.00'} />
 
           <Text style={styles.walletAddress} numberOfLines={1}>
-            {wallet?.address || emptyBody}
+            {wallet?.address || t(emptyBody)}
           </Text>
         </View>
 

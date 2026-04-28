@@ -27,6 +27,7 @@ import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
+import { translateNow, useI18n } from '../src/i18n';
 import LottieIcon from '../src/ui/lottie-icon';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
@@ -142,7 +143,7 @@ type WalletHistoryRenderRow = {
 };
 
 function formatHistoryTime(timestamp: number) {
-  if (!timestamp) return 'Unknown time';
+  if (!timestamp) return translateNow('Unknown time');
 
   return new Date(timestamp).toLocaleString('en-US', {
     month: 'short',
@@ -160,7 +161,7 @@ function formatShortHash(hash: string) {
 
 function formatShortContract(value?: string) {
   const safe = String(value || '').trim();
-  if (!safe) return 'Unknown token';
+  if (!safe) return translateNow('Unknown token');
   if (safe.length <= 14) return safe;
   return `${safe.slice(0, 6)}...${safe.slice(-6)}`;
 }
@@ -187,22 +188,22 @@ function getHistoryContractActionLabel(item: WalletHistoryItem) {
   const contractType = String(item.contractType || '').trim();
   switch (contractType) {
     case 'DelegateResourceContract':
-      return 'DELEGATE';
+      return translateNow('DELEGATE');
     case 'UnDelegateResourceContract':
-      return 'UNDELEGATE';
+      return translateNow('UNDELEGATE');
     case 'FreezeBalanceContract':
     case 'FreezeBalanceV2Contract':
-      return 'FREEZE';
+      return translateNow('FREEZE');
     case 'UnfreezeBalanceV2Contract':
-      return 'UNFREEZE';
+      return translateNow('UNFREEZE');
     case 'WithdrawExpireUnfreezeContract':
-      return 'WITHDRAW';
+      return translateNow('WITHDRAW');
     case 'VoteWitnessContract':
-      return 'VOTE';
+      return translateNow('VOTE');
     case 'AccountPermissionUpdateContract':
-      return 'PERMISSIONS';
+      return translateNow('PERMISSIONS');
     default:
-      return item.methodName === 'contract-action' ? 'ACTION' : '';
+      return item.methodName === 'contract-action' ? translateNow('ACTION') : '';
   }
 }
 
@@ -230,11 +231,11 @@ function historyRenderRowTone(row: WalletHistoryRenderRow) {
 }
 
 function historyTypeLabel(item: WalletHistoryItem) {
-  if (isHistoryApprove(item)) return 'APPROVE';
+  if (isHistoryApprove(item)) return translateNow('APPROVE');
   const contractActionLabel = getHistoryContractActionLabel(item);
   if (contractActionLabel) return contractActionLabel;
-  if (item.displayType === 'RECEIVE') return 'RECEIVE';
-  return 'SEND';
+  if (item.displayType === 'RECEIVE') return translateNow('RECEIVE');
+  return translateNow('SEND');
 }
 
 function historyCounterpartyLabel(item: WalletHistoryItem) {
@@ -527,6 +528,7 @@ function getAvailableResourcePercent(limit?: number, used?: number) {
 }
 
 export default function HomeScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const params = useLocalSearchParams<{ walletId?: string | string[]; walletNonce?: string | string[] }>();
   const notice = useNotice();
@@ -1149,10 +1151,10 @@ export default function HomeScreen() {
 
   const showWatchOnlyNotice = useCallback(() => {
     notice.showSuccessNotice(
-      'Watch-only wallet. You can view balances and assets here, but sending, signing, and full wallet actions are disabled.',
+      t('Watch-only wallet. You can view balances and assets here, but sending, signing, and full wallet actions are disabled.'),
       3200
     );
-  }, [notice]);
+  }, [notice, t]);
 
   const handleToggleWalletResources = useCallback(
     async (wallet: WalletMeta) => {
@@ -1181,14 +1183,14 @@ export default function HomeScreen() {
       } catch (error) {
         console.error(error);
         notice.showErrorNotice(
-          error instanceof Error ? error.message : 'Failed to load wallet resources.',
+          error instanceof Error ? error.message : t('Failed to load wallet resources.'),
           2400
         );
       } finally {
         setResourceLoadingWalletId((current) => (current === wallet.id ? null : current));
       }
     },
-    [notice, resourceCache, resourceExpandedWalletId, resourceLoadingWalletId, showWatchOnlyNotice]
+    [notice, resourceCache, resourceExpandedWalletId, resourceLoadingWalletId, showWatchOnlyNotice, t]
   );
 
   const handleCopyAddress = useCallback(
@@ -1209,9 +1211,9 @@ export default function HomeScreen() {
         }),
       ]).start();
       await Clipboard.setStringAsync(address);
-      notice.showSuccessNotice('Wallet address copied.', 2200);
+      notice.showSuccessNotice(t('Wallet address copied.'), 2200);
     },
-    [copyIconScale, notice]
+    [copyIconScale, notice, t]
   );
 
   const openQrModal = useCallback(
@@ -1231,8 +1233,8 @@ export default function HomeScreen() {
   const handleCopyQrAddress = useCallback(async () => {
     if (!qrWallet?.address) return;
     await Clipboard.setStringAsync(qrWallet.address);
-    notice.showSuccessNotice('Wallet address copied.', 2200);
-  }, [notice, qrWallet?.address]);
+    notice.showSuccessNotice(t('Wallet address copied.'), 2200);
+  }, [notice, qrWallet?.address, t]);
 
   const ensureWalletHistoryLoaded = useCallback(
     async (wallet: WalletMeta, options?: { force?: boolean }) => {
@@ -1268,13 +1270,13 @@ export default function HomeScreen() {
         return page.items;
       } catch (error) {
         console.error(error);
-        notice.showErrorNotice('Wallet history failed to load.', 2400);
+        notice.showErrorNotice(t('Wallet history failed to load.'), 2400);
         return [];
       } finally {
         setHistoryLoadingWalletId((current) => (current === wallet.id ? null : current));
       }
     },
-    [historyCache, notice]
+    [historyCache, notice, t]
   );
 
   const handleLoadMoreHistory = useCallback(async () => {
@@ -1327,7 +1329,7 @@ export default function HomeScreen() {
       }));
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('More history failed to load.', 2200);
+      notice.showErrorNotice(t('More history failed to load.'), 2200);
     } finally {
       setHistoryLoadingMoreWalletId((current) => (current === activeWallet.id ? null : current));
     }
@@ -1337,6 +1339,7 @@ export default function HomeScreen() {
     historyLoadingMoreWalletId,
     historyNextCursorCache,
     notice,
+    t,
   ]);
 
   const load = useCallback(
@@ -1487,8 +1490,8 @@ export default function HomeScreen() {
         setPortfolioLoadingWalletId(null);
         setHistoryLoadingWalletId(null);
         setHistoryLoadingMoreWalletId(null);
-        setErrorText('Failed to load wallet data.');
-        notice.showErrorNotice('Wallet state failed to load.', 2600);
+        setErrorText(t('Failed to load wallet data.'));
+        notice.showErrorNotice(t('Wallet state failed to load.'), 2600);
       } finally {
         if (walletViewRequestIdRef.current === requestId) {
           setLoading(false);
@@ -1507,6 +1510,7 @@ export default function HomeScreen() {
       removalWalletId,
       resetRemovalState,
       scrollPagerToCardIndex,
+      t,
     ]
   );
 
@@ -1816,7 +1820,7 @@ export default function HomeScreen() {
         setPortfolioLoadingWalletId(null);
         setHistoryLoadingWalletId(null);
         setHistoryLoadingMoreWalletId(null);
-        notice.showErrorNotice('Wallet switch failed.', 2400);
+        notice.showErrorNotice(t('Wallet switch failed.'), 2400);
       }
     },
     [
@@ -1832,6 +1836,7 @@ export default function HomeScreen() {
       primeHomePreferences,
       resetRemovalState,
       scrollPagerToCardIndex,
+      t,
       walletCards,
     ]
   );
@@ -1842,7 +1847,7 @@ export default function HomeScreen() {
 
   const handleToggleHistoryMode = useCallback(async () => {
     if (!activeWallet) {
-      notice.showErrorNotice('No active wallet selected.', 2200);
+      notice.showErrorNotice(t('No active wallet selected.'), 2200);
       return;
     }
 
@@ -1857,11 +1862,11 @@ export default function HomeScreen() {
     }
 
     setContentMode('assets');
-  }, [activeWallet, contentMode, ensureWalletHistoryLoaded, notice, resetRemovalState]);
+  }, [activeWallet, contentMode, ensureWalletHistoryLoaded, notice, resetRemovalState, t]);
 
   const handleToggleMoreMode = useCallback(() => {
     if (!activeWallet) {
-      notice.showErrorNotice('No active wallet selected.', 2200);
+      notice.showErrorNotice(t('No active wallet selected.'), 2200);
       return;
     }
 
@@ -1869,18 +1874,18 @@ export default function HomeScreen() {
     setDraftName('');
     resetRemovalState();
     setContentMode((prev) => (prev === 'more' ? 'assets' : 'more'));
-  }, [activeWallet, notice, resetRemovalState]);
+  }, [activeWallet, notice, resetRemovalState, t]);
 
   const handleOpenWalletOptionRoute = useCallback(
     (pathname: '/export-mnemonic' | '/backup-private-key' | '/multisig-transactions' | '/connections') => {
       if (!activeWallet) {
-        notice.showErrorNotice('No active wallet selected.', 2200);
+        notice.showErrorNotice(t('No active wallet selected.'), 2200);
         return;
       }
 
       if (pathname === '/export-mnemonic') {
         if (!canWalletExposeMnemonic(activeWallet)) {
-          notice.showErrorNotice('This wallet has no seed phrase to export.', 2400);
+          notice.showErrorNotice(t('This wallet has no seed phrase to export.'), 2400);
           return;
         }
 
@@ -1893,7 +1898,7 @@ export default function HomeScreen() {
 
       if (pathname === '/backup-private-key') {
         if (!canWalletExposePrivateKey(activeWallet)) {
-          notice.showErrorNotice('This wallet has no private key to export.', 2400);
+          notice.showErrorNotice(t('This wallet has no private key to export.'), 2400);
           return;
         }
 
@@ -1906,19 +1911,19 @@ export default function HomeScreen() {
 
       router.push(pathname);
     },
-    [activeWallet, notice, router]
+    [activeWallet, notice, router, t]
   );
 
   const handleRenameStart = useCallback(() => {
     if (!activeWallet?.id) {
-      notice.showErrorNotice('No active wallet selected.', 2200);
+      notice.showErrorNotice(t('No active wallet selected.'), 2200);
       return;
     }
 
     resetRemovalState();
     setEditingWalletId(activeWallet.id);
     setDraftName(activeWallet.name);
-  }, [activeWallet?.id, activeWallet?.name, notice, resetRemovalState]);
+  }, [activeWallet?.id, activeWallet?.name, notice, resetRemovalState, t]);
 
   const handleRenameCancel = useCallback(() => {
     setEditingWalletId(null);
@@ -1927,23 +1932,23 @@ export default function HomeScreen() {
 
   const handleRenameSave = useCallback(async () => {
     if (!activeWallet?.id) {
-      notice.showErrorNotice('No active wallet selected.', 2200);
+      notice.showErrorNotice(t('No active wallet selected.'), 2200);
       return;
     }
 
     const nextName = draftName.trim();
 
     if (!nextName) {
-      notice.showErrorNotice('Wallet name is required.', 2200);
+      notice.showErrorNotice(t('Wallet name is required.'), 2200);
       return;
     }
 
-    if (nextName.length > MAX_WALLET_NAME_LENGTH) {
-      notice.showErrorNotice(
-        `Wallet name must be ${MAX_WALLET_NAME_LENGTH} characters or less.`,
-        2600
-      );
-      return;
+      if (nextName.length > MAX_WALLET_NAME_LENGTH) {
+        notice.showErrorNotice(
+          t('Wallet name must be {{count}} characters or less.', { count: MAX_WALLET_NAME_LENGTH }),
+          2600
+        );
+        return;
     }
 
     try {
@@ -1978,16 +1983,16 @@ export default function HomeScreen() {
         };
       });
 
-      notice.showSuccessNotice(`Wallet renamed to ${updated.name}.`, 2400);
+      notice.showSuccessNotice(t('Wallet renamed to {{name}}.', { name: updated.name }), 2400);
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Wallet rename failed.', 2600);
+      notice.showErrorNotice(t('Wallet rename failed.'), 2600);
     }
-  }, [activeWallet, draftName, notice]);
+  }, [activeWallet, draftName, notice, t]);
 
   const handleRemoveConfirmed = useCallback(async () => {
     if (!activeWallet?.id) {
-      notice.showErrorNotice('No active wallet selected.', 2200);
+      notice.showErrorNotice(t('No active wallet selected.'), 2200);
       return;
     }
 
@@ -2008,7 +2013,7 @@ export default function HomeScreen() {
         setPortfolio(null);
         currentCardIndexRef.current = 0;
         setCurrentCardIndex(0);
-        notice.showSuccessNotice('Wallet removed from this device.', 2400);
+        notice.showSuccessNotice(t('Wallet removed from this device.'), 2400);
         return;
       }
 
@@ -2054,12 +2059,12 @@ export default function HomeScreen() {
         await ensureWalletHistoryLoaded(nextActiveItem.wallet, { force: true });
       }
 
-      notice.showSuccessNotice('Wallet removed from this device.', 2400);
+      notice.showSuccessNotice(t('Wallet removed from this device.'), 2400);
     } catch (error) {
       suppressNextWalletRefreshForIdRef.current = null;
       console.error(error);
       resetRemovalState();
-      notice.showErrorNotice('Wallet removal failed.', 2600);
+      notice.showErrorNotice(t('Wallet removal failed.'), 2600);
     }
   }, [
     activeWallet,
@@ -2069,16 +2074,17 @@ export default function HomeScreen() {
     notice,
     resetRemovalState,
     scrollPagerToCardIndex,
+    t,
     walletCards,
   ]);
 
   const handleRemovePress = useCallback(() => {
-    notice.showNeutralNotice('Press and hold to remove this wallet.', 2200);
-  }, [notice]);
+    notice.showNeutralNotice(t('Press and hold to remove this wallet.'), 2200);
+  }, [notice, t]);
 
   const handleRemovePressIn = useCallback(() => {
     if (!activeWallet?.id) {
-      notice.showErrorNotice('No active wallet selected.', 2200);
+      notice.showErrorNotice(t('No active wallet selected.'), 2200);
       return;
     }
 
@@ -2104,7 +2110,7 @@ export default function HomeScreen() {
         void handleRemoveConfirmed();
       }
     }, 50);
-  }, [activeWallet?.id, clearRemovalTimer, handleRemoveConfirmed, notice]);
+  }, [activeWallet?.id, clearRemovalTimer, handleRemoveConfirmed, notice, t]);
 
   const handleRemovePressOut = useCallback(() => {
     if (removalCompletedRef.current) {
@@ -2174,7 +2180,7 @@ export default function HomeScreen() {
         return;
       }
 
-      notice.showNeutralNotice(`${label} is not live yet.`, 2200);
+      notice.showNeutralNotice(t('{{label}} is not live yet.', { label: t(label) }), 2200);
     },
     [
       activeWallet,
@@ -2182,6 +2188,7 @@ export default function HomeScreen() {
       contentMode,
       notice,
       showWatchOnlyNotice,
+      t,
     ]
   );
 
@@ -2203,10 +2210,10 @@ export default function HomeScreen() {
         await openInAppBrowser(router, item.tronscanUrl);
       } catch (error) {
         console.error(error);
-        notice.showErrorNotice('Failed to open Tronscan.', 2200);
+        notice.showErrorNotice(t('Failed to open Tronscan.'), 2200);
       }
     },
-    [notice, router]
+    [notice, router, t]
   );
 
   const handleToggleAssetSort = useCallback(() => {
@@ -2227,12 +2234,14 @@ export default function HomeScreen() {
     setAssetSortMode((prev) => {
       const next = prev === 'name' ? 'value' : 'name';
       notice.showNeutralNotice(
-        next === 'name' ? 'Assets are now sorted by name.' : 'Assets are now sorted by value.',
+        next === 'name'
+          ? t('Assets are now sorted by name.')
+          : t('Assets are now sorted by value.'),
         1800
       );
       return next;
     });
-  }, [assetSortIconScale, notice]);
+  }, [assetSortIconScale, notice, t]);
 
   const handleRefreshTransfers = useCallback(async () => {
     if (!activeWallet) return;
@@ -2262,9 +2271,9 @@ export default function HomeScreen() {
       await ensureWalletHistoryLoaded(activeWallet, { force: true });
     } catch (error) {
       console.error(error);
-      notice.showErrorNotice('Transfer refresh failed.', 2200);
+      notice.showErrorNotice(t('Transfer refresh failed.'), 2200);
     }
-  }, [activeWallet, ensureWalletHistoryLoaded, notice]);
+  }, [activeWallet, ensureWalletHistoryLoaded, notice, t]);
 
   const isInitialScreenLoading =
     entryLoading ||
@@ -2297,8 +2306,8 @@ export default function HomeScreen() {
     return knownManagedTokenIds.some((tokenId) => !visibleSet.has(tokenId));
   }, [homeVisibleTokenIds, knownManagedTokenIds]);
 
-  const historyButtonLabel = contentMode === 'history' ? 'Assets' : 'History';
-  const moreButtonLabel = contentMode === 'more' ? 'Assets' : 'More';
+  const historyButtonLabel = contentMode === 'history' ? t('Assets') : t('History');
+  const moreButtonLabel = contentMode === 'more' ? t('Assets') : t('More');
 
   const isRemovingActiveWallet = Boolean(activeWallet?.id) && removalWalletId === activeWallet?.id;
   const removalFillWidth = `${Math.min(100, (removalProgress / REMOVE_DISPLAY_MAX) * 100)}%`;
@@ -2306,7 +2315,7 @@ export default function HomeScreen() {
     removalProgress >= REMOVE_DISPLAY_MAX ? colors.white : colors.red;
 
   if (isInitialScreenLoading) {
-    return <ScreenLoadingState label="Loading wallet..." />;
+    return <ScreenLoadingState label={t('Loading wallet...')} />;
   }
 
   return (
@@ -2550,7 +2559,7 @@ export default function HomeScreen() {
                             onPress={() => {
                               if (wallet.kind === 'watch-only') {
                                 notice.showErrorNotice(
-                                  'Make sure you have full access to this wallet. You will not be able to send anything from a watch-only wallet.',
+                                  t('Make sure you have full access to this wallet. You will not be able to send anything from a watch-only wallet.'),
                                   3200
                                 );
                                 return;
@@ -2654,9 +2663,9 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View style={styles.emptyWalletCard}>
-              <Text style={styles.emptyWalletTitle}>No wallet selected</Text>
+              <Text style={styles.emptyWalletTitle}>{t('No wallet selected')}</Text>
               <Text style={styles.emptyWalletText}>
-                Add or import a wallet first, then balances, tokens and activity will appear here.
+                {t('Add or import a wallet first, then balances, tokens and activity will appear here.')}
               </Text>
 
                 <TouchableOpacity
@@ -2664,7 +2673,7 @@ export default function HomeScreen() {
                   style={styles.primaryButton}
                   onPress={() => router.push('/wallet-access')}
                 >
-                <Text style={styles.primaryButtonText}>Add Wallet</Text>
+                <Text style={styles.primaryButtonText}>{t('Add Wallet')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -2673,7 +2682,7 @@ export default function HomeScreen() {
             <View style={styles.actionEdgeSlot}>
               <ActionButton
                 icon="send"
-                label="Send"
+                label={t('Send')}
                 onPress={() => void handleHomeAction('Send')}
                 animatedSource={WALLET_ACTION_SEND_SOURCE}
                 animatedFrames={[0, 59]}
@@ -2690,7 +2699,7 @@ export default function HomeScreen() {
             <View style={styles.actionMiddleSlot}>
               <ActionButton
                 icon="receive"
-                label="Receive"
+                label={t('Receive')}
                 onPress={() => void handleHomeAction('Receive')}
                 animatedSource={WALLET_ACTION_RECEIVE_SOURCE}
                 animatedFrames={[0, 59]}
@@ -2758,7 +2767,7 @@ export default function HomeScreen() {
             <>
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.sectionHeaderSide}>
-                  <Text style={[ui.sectionEyebrow, styles.assetsEyebrowBar]}>Assets</Text>
+                  <Text style={[ui.sectionEyebrow, styles.assetsEyebrowBar]}>{t('Assets')}</Text>
                   <TouchableOpacity
                     activeOpacity={0.85}
                     style={styles.assetsHeaderLeftButton}
@@ -2899,14 +2908,14 @@ export default function HomeScreen() {
                 style={styles.manageCryptoTextButton}
                 onPress={() => void handleHomeAction('Manage Crypto')}
               >
-                <Text style={styles.manageCryptoText}>Manage Crypto</Text>
+                <Text style={styles.manageCryptoText}>{t('Manage Crypto')}</Text>
               </TouchableOpacity>
             </>
           ) : contentMode === 'history' ? (
             <>
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.sectionHeaderSide}>
-                  <Text style={[ui.sectionEyebrow, styles.historyEyebrowBar]}>Transactions</Text>
+                  <Text style={[ui.sectionEyebrow, styles.historyEyebrowBar]}>{t('Transactions')}</Text>
                 </View>
 
                 <TouchableOpacity
@@ -3047,14 +3056,14 @@ export default function HomeScreen() {
                         {isActiveHistoryLoadingMore ? (
                           <ActivityIndicator color={colors.accent} size="small" />
                         ) : (
-                          <Text style={styles.loadMoreButtonText}>Load More</Text>
+                          <Text style={styles.loadMoreButtonText}>{t('Load More')}</Text>
                         )}
                       </TouchableOpacity>
                     ) : null}
                   </>
                 ) : (
                   <View style={styles.historyEmpty}>
-                    <Text style={styles.historyEmptyText}>No transactions yet.</Text>
+                    <Text style={styles.historyEmptyText}>{t('No transactions yet.')}</Text>
                   </View>
                 )}
               </View>
@@ -3063,7 +3072,7 @@ export default function HomeScreen() {
             <>
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.sectionHeaderSide}>
-                  <Text style={[ui.sectionEyebrow, styles.optionsEyebrowBar]}>Options</Text>
+                  <Text style={[ui.sectionEyebrow, styles.optionsEyebrowBar]}>{t('Options')}</Text>
                 </View>
                 <View style={styles.sectionHeaderSide} />
               </View>
@@ -3076,7 +3085,7 @@ export default function HomeScreen() {
                       onChangeText={(value) =>
                         setDraftName(value.slice(0, MAX_WALLET_NAME_LENGTH))
                       }
-                      placeholder="Wallet name"
+                      placeholder={t('Wallet name')}
                       placeholderTextColor={colors.textDim}
                       style={styles.renameInput}
                       autoFocus
@@ -3107,7 +3116,7 @@ export default function HomeScreen() {
                     style={styles.optionRow}
                     onPress={handleRenameStart}
                   >
-                    <Text style={ui.actionLabel}>Rename Wallet</Text>
+                    <Text style={ui.actionLabel}>{t('Rename Wallet')}</Text>
                     <OpenRightIcon width={18} height={18} />
                   </TouchableOpacity>
                 )}
@@ -3118,7 +3127,7 @@ export default function HomeScreen() {
                     style={styles.optionRow}
                     onPress={() => handleOpenWalletOptionRoute('/export-mnemonic')}
                   >
-                    <Text style={ui.actionLabel}>Export Mnemonic</Text>
+                    <Text style={ui.actionLabel}>{t('Export Mnemonic')}</Text>
                     <OpenRightIcon width={18} height={18} />
                   </TouchableOpacity>
                 ) : null}
@@ -3129,7 +3138,7 @@ export default function HomeScreen() {
                     style={styles.optionRow}
                     onPress={() => handleOpenWalletOptionRoute('/backup-private-key')}
                   >
-                    <Text style={ui.actionLabel}>Export Private Key</Text>
+                    <Text style={ui.actionLabel}>{t('Export Private Key')}</Text>
                     <OpenRightIcon width={18} height={18} />
                   </TouchableOpacity>
                 ) : null}
@@ -3139,7 +3148,7 @@ export default function HomeScreen() {
                   style={styles.optionRow}
                   onPress={() => handleOpenWalletOptionRoute('/multisig-transactions')}
                 >
-                  <Text style={ui.actionLabel}>Multisig Transactions</Text>
+                  <Text style={ui.actionLabel}>{t('Multisig Transactions')}</Text>
                   <OpenRightIcon width={18} height={18} />
                 </TouchableOpacity>
 
@@ -3148,7 +3157,7 @@ export default function HomeScreen() {
                   style={styles.optionRow}
                   onPress={() => handleOpenWalletOptionRoute('/connections')}
                 >
-                  <Text style={ui.actionLabel}>Connections</Text>
+                  <Text style={ui.actionLabel}>{t('Connections')}</Text>
                   <OpenRightIcon width={18} height={18} />
                 </TouchableOpacity>
 

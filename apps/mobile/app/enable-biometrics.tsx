@@ -11,8 +11,10 @@ import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { getBiometricsStatus, setBiometricsEnabled } from '../src/security/local-auth';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 
 export default function EnableBiometricsScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const params = useLocalSearchParams<{ next?: string; flow?: string }>();
@@ -20,7 +22,7 @@ export default function EnableBiometricsScreen() {
   const flow = typeof params.flow === 'string' ? params.flow : 'enable-biometrics';
   const notice = useNotice();
 
-  const [supportedLabel, setSupportedLabel] = useState('Biometrics');
+  const [supportedLabel, setSupportedLabel] = useState(t('Biometrics'));
   const [available, setAvailable] = useState(false);
   const [compatible, setCompatible] = useState(false);
   const [enabled, setEnabled] = useState(false);
@@ -41,7 +43,7 @@ export default function EnableBiometricsScreen() {
   const handleEnable = async () => {
     if (flow === 'disable-biometrics' || enabled) {
       await setBiometricsEnabled(false);
-      notice.showSuccessNotice(`${supportedLabel} disabled.`, 2200);
+      notice.showSuccessNotice(t('{{label}} disabled.', { label: supportedLabel }), 2200);
       router.replace(nextPath as any);
       return;
     }
@@ -49,25 +51,25 @@ export default function EnableBiometricsScreen() {
     if (!available) {
       notice.showNeutralNotice(
         compatible
-          ? `${supportedLabel} is not enrolled on this device.`
-          : `${supportedLabel} is not available on this device.`,
+          ? t('{{label}} is not enrolled on this device.', { label: supportedLabel })
+          : t('{{label}} is not available on this device.', { label: supportedLabel }),
         2600
       );
       return;
     }
 
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: `Enable ${supportedLabel}`,
-      fallbackLabel: 'Use Passcode',
-      cancelLabel: 'Cancel',
+      promptMessage: t('Enable {{label}}', { label: supportedLabel }),
+      fallbackLabel: t('Use Passcode'),
+      cancelLabel: t('Cancel'),
     });
 
     if (result.success) {
       await setBiometricsEnabled(true);
-      notice.showSuccessNotice(`${supportedLabel} enabled.`, 2200);
+      notice.showSuccessNotice(t('{{label}} enabled.', { label: supportedLabel }), 2200);
       router.replace(nextPath as any);
     } else {
-      notice.showNeutralNotice(`${supportedLabel} was not enabled.`, 2200);
+      notice.showNeutralNotice(t('{{label}} was not enabled.', { label: supportedLabel }), 2200);
     }
   };
 
@@ -86,28 +88,28 @@ export default function EnableBiometricsScreen() {
       <Stack.Screen options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <View style={styles.screen}>
         <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
-          <ScreenBrow label="ENABLE BIOMETRICS" />
+          <ScreenBrow label={t('ENABLE BIOMETRICS')} />
           <Text style={styles.title}>
-            {enabled || flow === 'disable-biometrics' ? 'Disable ' : 'Enable '}
+            {enabled || flow === 'disable-biometrics' ? `${t('Disable')} ` : `${t('Enable')} `}
             <Text style={styles.titleAccent}>{supportedLabel}</Text>
           </Text>
 
           <Text style={styles.lead}>
             {enabled || flow === 'disable-biometrics'
-              ? 'Turn biometric unlock off and keep passcode-only protection.'
-              : 'Biometrics can unlock the app faster after passcode setup.'}
+              ? t('Turn biometric unlock off and keep passcode-only protection.')
+              : t('Biometrics can unlock the app faster after passcode setup.')}
           </Text>
 
           <View style={styles.card}>
-            <Text style={ui.sectionEyebrow}>Status</Text>
+            <Text style={ui.sectionEyebrow}>{t('Status')}</Text>
             <Text style={styles.cardBody}>
               {enabled
-                ? `${supportedLabel} is currently enabled for this wallet shell.`
+                ? t('{{label}} is currently enabled for this wallet shell.', { label: supportedLabel })
                 : available
-                  ? `${supportedLabel} is available on this device.`
+                  ? t('{{label}} is available on this device.', { label: supportedLabel })
                   : compatible
-                    ? `${supportedLabel} is supported, but not enrolled on this device yet.`
-                    : `${supportedLabel} is not available on this device.`}
+                    ? t('{{label}} is supported, but not enrolled on this device yet.', { label: supportedLabel })
+                    : t('{{label}} is not available on this device.', { label: supportedLabel })}
             </Text>
           </View>
 
@@ -115,16 +117,17 @@ export default function EnableBiometricsScreen() {
             <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton} onPress={handleEnable}>
               <Text style={ui.buttonLabel}>
                 {enabled || flow === 'disable-biometrics'
-                  ? `Disable ${supportedLabel}`
+                  ? t('Disable {{label}}', { label: supportedLabel })
                   : available
-                    ? `Enable ${supportedLabel}`
-                    : 'Continue Without Biometrics'}
+                    ? t('Enable {{label}}', { label: supportedLabel })
+                    : t('Continue Without Biometrics')}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity activeOpacity={0.9} style={styles.secondaryButton} onPress={handleSkip}>
               <Text style={ui.buttonLabel}>
                 {enabled || flow === 'disable-biometrics' ? 'Keep It On' : 'Skip for Now'}
+                
               </Text>
             </TouchableOpacity>
           </View>

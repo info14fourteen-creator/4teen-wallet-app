@@ -29,6 +29,7 @@ import LottieIcon from '../src/ui/lottie-icon';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { goBackOrReplace } from '../src/ui/safe-back';
 
@@ -88,6 +89,7 @@ function getPrimaryButtonLabel(kind: ScanKind | null, mode: ScanMode) {
 }
 
 export default function ScanScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const isFocused = useIsFocused();
@@ -282,7 +284,7 @@ export default function ScanScreen() {
     warnTimerRef.current = setTimeout(() => {
       if (!mountedRef.current || leavingRef.current) return;
       setTimeoutStage('warn');
-      notice.showNeutralNotice('QR code not locked yet.', 1800);
+      notice.showNeutralNotice(t('QR code not locked yet.'), 1800);
     }, 30000);
 
     exitTimerRef.current = setTimeout(() => {
@@ -290,14 +292,14 @@ export default function ScanScreen() {
       leavingRef.current = true;
       setTimedOut(true);
       clearTimers();
-      notice.showNeutralNotice('No QR found. Returning to the previous screen.', 1800);
+      notice.showNeutralNotice(t('No QR found. Returning to the previous screen.'), 1800);
       scheduleBack(600);
     }, 45000);
 
     return () => {
       clearTimers();
     };
-  }, [clearTimers, hasResult, notice, scannerPaused, scheduleBack, timedOut]);
+  }, [clearTimers, hasResult, notice, scannerPaused, scheduleBack, t, timedOut]);
 
   useEffect(() => {
     const shouldSkipResultTimeout =
@@ -317,7 +319,7 @@ export default function ScanScreen() {
       if (!mountedRef.current || leavingRef.current) return;
       leavingRef.current = true;
       clearTimers();
-      notice.showNeutralNotice('Scan result expired. Returning back.', 1800);
+      notice.showNeutralNotice(t('Scan result expired. Returning back.'), 1800);
       safeBack();
     }, 60000);
 
@@ -327,7 +329,7 @@ export default function ScanScreen() {
         resultExitTimerRef.current = null;
       }
     };
-  }, [clearTimers, hasResult, mode, notice, safeBack, scannedType, scannerPaused]);
+  }, [clearTimers, hasResult, mode, notice, safeBack, scannedType, scannerPaused, t]);
 
   useEffect(() => {
     if (scannerPaused || hasResult || timedOut) {
@@ -396,8 +398,8 @@ export default function ScanScreen() {
     if (!scannedValue || leavingRef.current || !mountedRef.current) return;
     await Clipboard.setStringAsync(scannedValue);
     if (!mountedRef.current || leavingRef.current) return;
-    notice.showSuccessNotice('Scan result copied.', 1600);
-  }, [notice, scannedValue]);
+    notice.showSuccessNotice(t('Scan result copied.'), 1600);
+  }, [notice, scannedValue, t]);
 
   const handlePrimaryAction = useCallback(async () => {
     if (!scannedValue || leavingRef.current || !mountedRef.current) return;
@@ -425,8 +427,8 @@ export default function ScanScreen() {
 
     await Clipboard.setStringAsync(scannedValue);
     if (!mountedRef.current) return;
-    notice.showNeutralNotice('Result copied. This target cannot open here.', 1800);
-  }, [clearTimers, handleResolvedAddress, notice, router, scannedType, scannedValue]);
+    notice.showNeutralNotice(t('Result copied. This target cannot open here.'), 1800);
+  }, [clearTimers, handleResolvedAddress, notice, router, scannedType, scannedValue, t]);
 
   const handleScanAgain = useCallback(() => {
     resetScannerState();
@@ -439,7 +441,7 @@ export default function ScanScreen() {
       const mediaPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!mediaPermission.granted) {
         if (mountedRef.current && !leavingRef.current) {
-          notice.showNeutralNotice('Allow photo access to scan QR from gallery.', 1800);
+          notice.showNeutralNotice(t('Allow photo access to scan QR from gallery.'), 1800);
         }
         return;
       }
@@ -461,7 +463,7 @@ export default function ScanScreen() {
       if (!mountedRef.current || leavingRef.current) return;
 
       if (!results?.length || !results[0]?.data) {
-        notice.showNeutralNotice('No QR code found in that image.', 2200);
+        notice.showNeutralNotice(t('No QR code found in that image.'), 2200);
         return;
       }
 
@@ -469,14 +471,14 @@ export default function ScanScreen() {
     } catch (error) {
       console.error('Failed to scan image QR:', error);
       if (mountedRef.current && !leavingRef.current) {
-        notice.showErrorNotice('Image QR scan failed.', 2200);
+        notice.showErrorNotice(t('Image QR scan failed.'), 2200);
       }
     } finally {
       if (mountedRef.current) {
         setProcessingImage(false);
       }
     }
-  }, [handleResolvedValue, notice]);
+  }, [handleResolvedValue, notice, t]);
 
   const scanLineTravel = Math.max(0, scanWindowHeight - 2);
 
@@ -500,20 +502,20 @@ export default function ScanScreen() {
           showsVerticalScrollIndicator={false}
           bounces={permission?.granted}
         >
-          <ScreenBrow label="SCAN" variant="back" />
+          <ScreenBrow label={t('SCAN')} variant="back" />
 
           {!permission ? (
             <View style={styles.stubCard}>
-              <Text style={styles.stubTitle}>Preparing camera</Text>
-              <Text style={styles.stubText}>Checking camera permission status.</Text>
+              <Text style={styles.stubTitle}>{t('Preparing camera')}</Text>
+              <Text style={styles.stubText}>{t('Checking camera permission status.')}</Text>
             </View>
           ) : null}
 
           {permission && !permission.granted ? (
             <View style={styles.stubCard}>
-              <Text style={styles.stubTitle}>Camera access required</Text>
+              <Text style={styles.stubTitle}>{t('Camera access required')}</Text>
               <Text style={styles.stubText}>
-                Allow camera access to scan wallet addresses and QR codes.
+                {t('Allow camera access to scan wallet addresses and QR codes.')}
               </Text>
 
               <TouchableOpacity
@@ -521,7 +523,7 @@ export default function ScanScreen() {
                 style={[styles.actionButton, styles.primaryButton]}
                 onPress={() => void requestPermission()}
               >
-                <Text style={styles.primaryButtonText}>Allow Camera</Text>
+                <Text style={styles.primaryButtonText}>{t('Allow Camera')}</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -585,23 +587,23 @@ export default function ScanScreen() {
                       style={styles.scanAgainButton}
                       onPress={handleScanAgain}
                     >
-                      <Text style={styles.scanAgainButtonText}>Scan again</Text>
+                      <Text style={styles.scanAgainButtonText}>{t('Scan again')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : null}
 
                 {!hasResult && timeoutStage === 'warn' ? (
                   <View style={styles.timeoutNoticeWrap} pointerEvents="none">
-                    <Text style={styles.timeoutNoticeText}>Nothing found yet</Text>
+                    <Text style={styles.timeoutNoticeText}>{t('Nothing found yet')}</Text>
                   </View>
                 ) : null}
 
                 {!scanViewReady ? (
                   <View style={styles.cameraBootMask}>
                     <ActivityIndicator size="small" color={colors.accent} />
-                    <Text style={styles.cameraBootTitle}>Preparing camera</Text>
+                    <Text style={styles.cameraBootTitle}>{t('Preparing camera')}</Text>
                     <Text style={styles.cameraBootText}>
-                      If the live preview does not appear, scan a QR code from your photo library.
+                      {t('If the live preview does not appear, scan a QR code from your photo library.')}
                     </Text>
                   </View>
                 ) : null}
@@ -619,8 +621,8 @@ export default function ScanScreen() {
               {hasResult && !(scannedType === 'address' && mode !== 'default') ? (
                 <View style={styles.resultCard}>
                   <View style={styles.resultTopRow}>
-                    <Text style={styles.resultLabel}>Scanned result</Text>
-                    <Text style={styles.resultType}>{scanLabel}</Text>
+                    <Text style={styles.resultLabel}>{t('Scanned result')}</Text>
+                    <Text style={styles.resultType}>{t(scanLabel)}</Text>
                   </View>
 
                   <Text style={styles.resultValue}>{scannedValue}</Text>
@@ -632,7 +634,7 @@ export default function ScanScreen() {
                       onPress={() => void handlePrimaryAction()}
                     >
                       <Text style={styles.primaryButtonText}>
-                        {getPrimaryButtonLabel(scannedType, mode)}
+                        {t(getPrimaryButtonLabel(scannedType, mode))}
                       </Text>
                     </TouchableOpacity>
 
@@ -641,7 +643,7 @@ export default function ScanScreen() {
                       style={[styles.actionButton, styles.secondaryButton, styles.fullWidthButton]}
                       onPress={() => void handleCopy()}
                     >
-                      <Text style={styles.secondaryButtonText}>Copy</Text>
+                      <Text style={styles.secondaryButtonText}>{t('Copy')}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

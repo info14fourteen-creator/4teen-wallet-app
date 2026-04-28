@@ -25,6 +25,7 @@ import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
+import { useI18n } from '../src/i18n';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useSwipeDownDismiss } from '../src/ui/use-swipe-down-dismiss';
@@ -141,6 +142,7 @@ function normalizeAddressMatch(value: string) {
 }
 
 export default function SendScreen() {
+  const { t } = useI18n();
   const router = useRouter();
   const notice = useNotice();
   const { setPendingWalletSelectionId } = useWalletSession();
@@ -339,13 +341,13 @@ export default function SendScreen() {
         setTokenChoices([]);
         setSavedContacts([]);
         setRecentRecipients([]);
-        setErrorText(error instanceof Error ? error.message : 'Failed to load send screen.');
+        setErrorText(error instanceof Error ? error.message : t('Failed to load send screen.'));
         notice.showErrorNotice('Send flow failed to load.', 2400);
       } finally {
         setLoading(false);
       }
     },
-    [notice, refreshing, selectedTokenId]
+    [notice, refreshing, selectedTokenId, t]
   );
 
   useFocusEffect(
@@ -673,14 +675,14 @@ export default function SendScreen() {
 
   const handleToggleTokenOptions = useCallback(() => {
     if (visibleTokenChoices.length <= 0) {
-      notice.showNeutralNotice('No other funded assets in this wallet.', 2200);
+      notice.showNeutralNotice(t('No other funded assets in this wallet.'), 2200);
       return;
     }
 
     closeAmountKeyboard();
     setContactsOpen(false);
     setTokenOptionsOpen((prev) => !prev);
-  }, [closeAmountKeyboard, notice, visibleTokenChoices.length]);
+  }, [closeAmountKeyboard, notice, t, visibleTokenChoices.length]);
 
   const handleChooseToken = useCallback(
     (asset: PortfolioAsset) => {
@@ -700,14 +702,14 @@ export default function SendScreen() {
 
   const handleToggleWalletOptions = useCallback(() => {
     if (visibleWalletChoices.length <= 0) {
-      notice.showNeutralNotice('No other signing wallets available.', 2200);
+      notice.showNeutralNotice(t('No other signing wallets available.'), 2200);
       return;
     }
 
     closeAmountKeyboard();
     setContactsOpen(false);
     setWalletOptionsOpen((prev) => !prev);
-  }, [closeAmountKeyboard, notice, visibleWalletChoices.length]);
+  }, [closeAmountKeyboard, notice, t, visibleWalletChoices.length]);
 
   const handleChooseWallet = useCallback(
     async (wallet: WalletSwitcherItem) => {
@@ -722,18 +724,18 @@ export default function SendScreen() {
         await load();
       } catch (error) {
         console.error(error);
-        notice.showErrorNotice('Failed to switch send wallet.', 2400);
+      notice.showErrorNotice(t('Failed to switch send wallet.'), 2400);
       } finally {
         setSwitchingWalletId(null);
       }
     },
-    [closeAmountKeyboard, load, notice, setPendingWalletSelectionId]
+    [closeAmountKeyboard, load, notice, setPendingWalletSelectionId, t]
   );
 
   const handleSend = useCallback(async () => {
     if (!draft) return;
     if (tokenSelectionSyncPending) {
-      notice.showNeutralNotice('Updating selected token. Try again in a moment.', 1800);
+      notice.showNeutralNotice(t('Updating selected token. Try again in a moment.'), 1800);
       return;
     }
 
@@ -741,15 +743,15 @@ export default function SendScreen() {
     const safeAmount = normalizedSendAmount;
 
     if (!isValidTronAddress(toAddress)) {
-      notice.showErrorNotice('Enter a valid TRON address.', 2200);
+      notice.showErrorNotice(t('Enter a valid TRON address.'), 2200);
       return;
     }
 
     if (!safeAmount) {
       notice.showErrorNotice(
         amountInputMode === 'usd' && selectedTokenPriceUsd <= 0
-          ? `${displayCurrency} conversion is unavailable for this token.`
-          : 'Enter amount.',
+          ? t('{{currency}} conversion is unavailable for this token.', { currency: displayCurrency })
+          : t('Enter amount.'),
         2200
       );
       return;
@@ -757,7 +759,7 @@ export default function SendScreen() {
 
     if (draft.wallet.kind === 'watch-only') {
       notice.showErrorNotice(
-        'Watch-only wallet cannot sign or send transactions.',
+        t('Watch-only wallet cannot sign or send transactions.'),
         2600
       );
       return;
@@ -779,7 +781,7 @@ export default function SendScreen() {
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Failed to open transfer review.',
+        error instanceof Error ? error.message : t('Failed to open transfer review.'),
         3200
       );
     } finally {
@@ -798,6 +800,7 @@ export default function SendScreen() {
     closeAmountKeyboard,
     normalizedSelectedTokenId,
     tokenSelectionSyncPending,
+    t,
   ]);
 
   if (loading && !draft) {
@@ -835,15 +838,15 @@ export default function SendScreen() {
           }
         >
           <ScreenBrow
-            label="SEND"
+            label={t('SEND')}
             variant="backLink"
             onLabelPress={() => setInfoExpanded((prev) => !prev)}
             labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
           />
           {infoExpanded ? (
             <View style={styles.infoPanel}>
-              <Text style={styles.infoTitle}>{SEND_INFO_TITLE}</Text>
-              <Text style={styles.infoText}>{SEND_INFO_TEXT}</Text>
+              <Text style={styles.infoTitle}>{t(SEND_INFO_TITLE)}</Text>
+              <Text style={styles.infoText}>{t(SEND_INFO_TEXT)}</Text>
             </View>
           ) : null}
           {loading ? (
@@ -872,7 +875,7 @@ export default function SendScreen() {
               </View>
 
               <View style={styles.selectionBlock}>
-                <Text style={styles.selectionEyebrow}>SELECTED ASSET · TAP TO SWITCH</Text>
+                <Text style={styles.selectionEyebrow}>{t('SELECTED ASSET · TAP TO SWITCH')}</Text>
 
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -974,7 +977,7 @@ export default function SendScreen() {
 
               <View style={styles.sectionBlock} onLayout={handleAmountSectionLayout}>
                 <View style={styles.fieldHeaderRow}>
-                  <Text style={styles.sectionFieldTitle}>RECIPIENT</Text>
+                  <Text style={styles.sectionFieldTitle}>{t('RECIPIENT')}</Text>
 
                   <TouchableOpacity
                     activeOpacity={0.85}
@@ -982,7 +985,7 @@ export default function SendScreen() {
                     style={styles.addressBookButton}
                   >
                     <Text style={styles.addressBookButtonText}>
-                      {contactsOpen ? 'CLOSE' : 'CONTACTS'}
+                      {contactsOpen ? t('CLOSE') : t('CONTACTS')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -991,7 +994,7 @@ export default function SendScreen() {
                   <TextInput
                     value={recipient}
                     onChangeText={(value) => setRecipient(sanitizeRecipientInput(value))}
-                    placeholder="TRON address"
+                    placeholder={t('TRON address')}
                     placeholderTextColor={colors.textDim}
                     style={[
                       styles.inputWithIcons,
@@ -1032,7 +1035,7 @@ export default function SendScreen() {
                 </View>
 
                 {displayedContactLabel ? (
-                  <Text style={styles.contactHint}>Contact: {displayedContactLabel}</Text>
+                  <Text style={styles.contactHint}>{t('Contact: {{name}}', { name: displayedContactLabel })}</Text>
                 ) : null}
 
                 {contactsOpen ? (
@@ -1047,7 +1050,7 @@ export default function SendScreen() {
                       >
                         {filteredRecentRecipients.length > 0 ? (
                           <View style={styles.contactsGroup}>
-                            <Text style={styles.contactsGroupTitle}>RECENT</Text>
+                            <Text style={styles.contactsGroupTitle}>{t('RECENT')}</Text>
                             {filteredRecentRecipients.map((recipientItem) => {
                               const selected =
                                 normalizeAddressMatch(recipientItem.address) ===
@@ -1071,7 +1074,7 @@ export default function SendScreen() {
                                   </View>
 
                                   {selected ? (
-                                    <Text style={styles.contactRowTag}>SELECTED</Text>
+                                    <Text style={styles.contactRowTag}>{t('SELECTED')}</Text>
                                   ) : (
                                     <OpenRightIcon width={16} height={16} />
                                   )}
@@ -1083,7 +1086,7 @@ export default function SendScreen() {
 
                         {visibleContacts.length > 0 ? (
                           <View style={styles.contactsGroup}>
-                            <Text style={styles.contactsGroupTitle}>CONTACTS</Text>
+                            <Text style={styles.contactsGroupTitle}>{t('CONTACTS')}</Text>
                             {visibleContacts.map((contact) => {
                               const selected =
                                 normalizeAddressMatch(contact.address) ===
@@ -1105,7 +1108,7 @@ export default function SendScreen() {
                                   </View>
 
                                   {selected ? (
-                                    <Text style={styles.contactRowTag}>SELECTED</Text>
+                                    <Text style={styles.contactRowTag}>{t('SELECTED')}</Text>
                                   ) : (
                                     <OpenRightIcon width={16} height={16} />
                                   )}
@@ -1117,7 +1120,7 @@ export default function SendScreen() {
                       </ScrollView>
                     ) : (
                       <Text style={styles.contactsEmptyText}>
-                        No recent recipients or contacts match this address.
+                        {t('No recent recipients or contacts match this address.')}
                       </Text>
                     )}
 
@@ -1126,7 +1129,7 @@ export default function SendScreen() {
                       style={styles.manageContactsButton}
                       onPress={handleOpenAddressBookManage}
                     >
-                      <Text style={styles.manageContactsButtonText}>MANAGE CONTACTS</Text>
+                      <Text style={styles.manageContactsButtonText}>{t('MANAGE CONTACTS')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : null}
@@ -1134,7 +1137,7 @@ export default function SendScreen() {
 
               <View style={styles.sectionBlock}>
                 <View style={styles.amountHeaderRow}>
-                  <Text style={styles.sectionFieldTitle}>AMOUNT</Text>
+                  <Text style={styles.sectionFieldTitle}>{t('AMOUNT')}</Text>
 
                   <View style={styles.amountActions}>
                     <Text style={styles.amountConvertedText}>{convertedPreviewText}</Text>
@@ -1162,7 +1165,7 @@ export default function SendScreen() {
                         setAmount(next);
                       }
                     }}
-                    placeholder={amountInputMode === 'token' ? '0' : '0.00'}
+                    placeholder={amountInputMode === 'token' ? t('0') : t('0.00')}
                     placeholderTextColor={colors.textDim}
                     style={[styles.inputWithIcons, styles.amountInput]}
                     autoCapitalize="none"
@@ -1177,7 +1180,7 @@ export default function SendScreen() {
                     onPress={handleSetMax}
                     style={styles.inputMaxButton}
                   >
-                    <Text style={styles.inputMaxButtonText}>MAX</Text>
+                    <Text style={styles.inputMaxButtonText}>{t('MAX')}</Text>
                   </TouchableOpacity>
 
                   <Text style={styles.inputSuffixText}>{amountSuffixLabel}</Text>
@@ -1185,8 +1188,8 @@ export default function SendScreen() {
 
                 <Text style={styles.hint}>
                   {draft.token.tokenId === TRX_TOKEN_ID
-                    ? 'Native TRX transfer.'
-                    : 'TRC20 transfer. Network may consume energy or burn TRX if energy is insufficient.'}
+                    ? t('Native TRX transfer.')
+                    : t('TRC20 transfer. Network may consume energy or burn TRX if energy is insufficient.')}
                 </Text>
               </View>
 
@@ -1199,13 +1202,13 @@ export default function SendScreen() {
                 {sending ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
-                  <Text style={styles.sendButtonText}>CONFIRM TRANSFER</Text>
+                  <Text style={styles.sendButtonText}>{t('CONFIRM TRANSFER')}</Text>
                 )}
               </TouchableOpacity>
             </>
           ) : (
             <View style={styles.errorWrap}>
-              <Text style={styles.errorText}>{errorText || 'Unable to load send screen.'}</Text>
+              <Text style={styles.errorText}>{errorText || t('Unable to load send screen.')}</Text>
             </View>
           )}
         </KeyboardView>

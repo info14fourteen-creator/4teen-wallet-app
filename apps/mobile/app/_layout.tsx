@@ -12,6 +12,7 @@ import { Buffer } from 'buffer';
 import process from 'process';
 
 import { NoticeProvider } from '../src/notice/notice-provider';
+import { I18nProvider } from '../src/i18n';
 import { useWalletSession, WalletSessionProvider } from '../src/wallet/wallet-session';
 import { SearchProvider } from '../src/search/search-provider';
 import { NavigationChrome } from '../src/ui/navigation';
@@ -172,13 +173,15 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <NoticeProvider>
-        <WalletSessionProvider>
-          <SearchProvider>
-            <LayoutContent />
-          </SearchProvider>
-        </WalletSessionProvider>
-      </NoticeProvider>
+      <I18nProvider>
+        <NoticeProvider>
+          <WalletSessionProvider>
+            <SearchProvider>
+              <LayoutContent />
+            </SearchProvider>
+          </WalletSessionProvider>
+        </NoticeProvider>
+      </I18nProvider>
     </GestureHandlerRootView>
   );
 }

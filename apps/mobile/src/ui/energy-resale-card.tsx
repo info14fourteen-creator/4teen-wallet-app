@@ -1,5 +1,6 @@
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { useI18n } from '../i18n';
 import { colors, radius } from '../theme/tokens';
 import type { EnergyResaleQuote } from '../services/energy-resale';
 import {
@@ -48,11 +49,12 @@ export default function EnergyResaleCard({
   estimatedBurnSun?: number;
   onRent: () => void;
 }) {
+  const { t } = useI18n();
   if (loading) {
     return (
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>SAVE RESOURCES</Text>
-        <Text style={styles.text}>Checking resource rental...</Text>
+        <Text style={styles.eyebrow}>{t('SAVE RESOURCES')}</Text>
+        <Text style={styles.text}>{t('Checking resource rental...')}</Text>
       </View>
     );
   }
@@ -64,8 +66,8 @@ export default function EnergyResaleCard({
 
     return (
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>SAVE RESOURCES</Text>
-        <Text style={styles.text}>{unavailableText}</Text>
+        <Text style={styles.eyebrow}>{t('SAVE RESOURCES')}</Text>
+        <Text style={styles.text}>{t(unavailableText)}</Text>
       </View>
     );
   }
@@ -76,43 +78,43 @@ export default function EnergyResaleCard({
   const readyEnergy = normalizeResourceAmount(quote.readyEnergy || quote.energyQuantity);
   const readyBandwidth = normalizeResourceAmount(quote.readyBandwidth || quote.bandwidthQuantity);
   const burnTrx = formatOptionalTrxFromSun(estimatedBurnSun);
-  const safeActionLabel = String(actionLabel || 'APPROVE').trim().toUpperCase();
-  const buttonLabel = `RENT → APPROVE → ${safeActionLabel}`;
+  const safeActionLabel = String(actionLabel || t('APPROVE')).trim().toUpperCase();
+  const buttonLabel = `${t('RENT')} → ${t('APPROVE')} → ${safeActionLabel}`;
   const resourceLabel = [
-    readyEnergy > 0 ? `${formatResourceAmount(readyEnergy)} Energy` : '',
-    readyBandwidth > 0 ? `${formatResourceAmount(readyBandwidth)} Bandwidth` : '',
+    readyEnergy > 0 ? `${formatResourceAmount(readyEnergy)} ${t('Energy')}` : '',
+    readyBandwidth > 0 ? `${formatResourceAmount(readyBandwidth)} ${t('Bandwidth')}` : '',
   ].filter(Boolean).join(' + ');
   const requiredResourceLabel = [
-    requiredEnergy > 0 ? `${formatResourceAmount(requiredEnergy)} Energy` : '',
-    requiredBandwidth > 0 ? `${formatResourceAmount(requiredBandwidth)} Bandwidth` : '',
+    requiredEnergy > 0 ? `${formatResourceAmount(requiredEnergy)} ${t('Energy')}` : '',
+    requiredBandwidth > 0 ? `${formatResourceAmount(requiredBandwidth)} ${t('Bandwidth')}` : '',
   ].filter(Boolean).join(' + ');
 
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Text style={styles.eyebrow}>SAVE RESOURCES</Text>
-          <Text style={styles.rentLabel}>VIA RENT</Text>
+          <Text style={styles.eyebrow}>{t('SAVE RESOURCES')}</Text>
+          <Text style={styles.rentLabel}>{t('VIA RENT')}</Text>
           <Text style={styles.rentAmount}>{formatTrx(quote.amountTrx)}</Text>
         </View>
 
         {burnTrx ? (
           <View style={styles.headerRight}>
-            <Text style={styles.burnLabel}>ESTIMATED BURN</Text>
+            <Text style={styles.burnLabel}>{t('ESTIMATED BURN')}</Text>
             <Text style={styles.burnAmount}>{burnTrx}</Text>
           </View>
         ) : null}
       </View>
 
       <Text style={styles.text}>
-        Rent {resourceLabel || 'resources'}
-        {packageCount > 1 ? ` · ${packageCount} quick packs` : ''}. The app waits for delivery and
-        refreshes this confirmation automatically.
+        {t('Rent')} {resourceLabel || t('resources')}
+        {packageCount > 1 ? ` · ${packageCount} ${t('quick packs')}` : ''}.{' '}
+        {t('The app waits for delivery and refreshes this confirmation automatically.')}
       </Text>
 
       {requiredResourceLabel ? (
         <View style={styles.coversRow}>
-          <Text style={styles.coversLabel}>COVERS</Text>
+          <Text style={styles.coversLabel}>{t('COVERS')}</Text>
           <Text style={styles.coversValue} numberOfLines={1}>{requiredResourceLabel}</Text>
         </View>
       ) : null}

@@ -28,6 +28,7 @@ import {
   formatAdaptiveDisplayCurrency,
   formatCompactDisplayCurrency,
 } from '../src/ui/currency-format';
+import { useI18n } from '../src/i18n';
 import { getAllWalletPortfolios } from '../src/services/wallet/portfolio';
 import { getActiveWallet, setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
 import { colors, layout, radius } from '../src/theme/tokens';
@@ -86,6 +87,7 @@ function formatCardCurrency(value: number | null | undefined) {
 export default function UnlockTimelineScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { t } = useI18n();
   const { setPendingWalletSelectionId } = useWalletSession();
   const navInsets = useNavigationInsets({ topExtra: 14 });
 
@@ -155,13 +157,13 @@ export default function UnlockTimelineScreen() {
       console.error(error);
       setSnapshot(null);
       setErrorText(
-        error instanceof Error ? error.message : 'Failed to load unlock timeline.'
+        error instanceof Error ? error.message : t('Failed to load unlock timeline.')
       );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -176,12 +178,12 @@ export default function UnlockTimelineScreen() {
 
   const handleToggleWalletOptions = useCallback(() => {
     if (walletChoices.length <= 1) {
-      notice.showNeutralNotice('No other wallets available.', 2200);
+      notice.showNeutralNotice(t('No other wallets available.'), 2200);
       return;
     }
 
     setWalletOptionsOpen((prev) => !prev);
-  }, [notice, walletChoices.length]);
+  }, [notice, t, walletChoices.length]);
 
   const handleChooseWallet = useCallback(
     async (wallet: WalletSwitcherOption) => {
@@ -193,12 +195,12 @@ export default function UnlockTimelineScreen() {
         await load({ silent: true, force: true });
       } catch (error) {
         console.error(error);
-        notice.showErrorNotice('Failed to switch timeline wallet.', 2400);
+        notice.showErrorNotice(t('Failed to switch timeline wallet.'), 2400);
       } finally {
         setSwitchingWalletId(null);
       }
     },
-    [load, notice, setPendingWalletSelectionId]
+    [load, notice, setPendingWalletSelectionId, t]
   );
 
   const visibleWalletChoices = useMemo(() => {
@@ -238,7 +240,7 @@ export default function UnlockTimelineScreen() {
       : styles.statusNeutral;
 
   if (loading && !snapshot) {
-    return <ScreenLoadingState label="Loading unlock timeline" />;
+    return <ScreenLoadingState label={t('Loading unlock timeline')} />;
   }
 
   return (
@@ -263,7 +265,7 @@ export default function UnlockTimelineScreen() {
         scrollEventThrottle={16}
       >
         <ScreenBrow
-          label="UNLOCK TIMELINE"
+          label={t('UNLOCK TIMELINE')}
           variant="backLink"
           labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
           onLabelPress={() => setInfoExpanded((prev) => !prev)}
@@ -271,8 +273,8 @@ export default function UnlockTimelineScreen() {
 
         {infoExpanded ? (
           <View style={styles.infoPanel}>
-            <Text style={styles.infoTitle}>{UNLOCK_TIMELINE_INFO_TITLE}</Text>
-            <Text style={styles.infoText}>{UNLOCK_TIMELINE_INFO_TEXT}</Text>
+            <Text style={styles.infoTitle}>{t(UNLOCK_TIMELINE_INFO_TITLE)}</Text>
+            <Text style={styles.infoText}>{t(UNLOCK_TIMELINE_INFO_TEXT)}</Text>
           </View>
         ) : null}
 
@@ -305,16 +307,16 @@ export default function UnlockTimelineScreen() {
               contentFit="contain"
             />
 
-            <Text style={styles.emptyWalletTitle}>No wallet connected</Text>
+            <Text style={styles.emptyWalletTitle}>{t('No wallet connected')}</Text>
             <Text style={styles.emptyWalletBody}>
-              Create or import a wallet to load balances, rate, and unlock history.
+              {t('Create or import a wallet to load balances, rate, and unlock history.')}
             </Text>
             <TouchableOpacity
               activeOpacity={0.88}
               style={styles.primaryAction}
               onPress={() => router.push('/wallet-access')}
             >
-              <Text style={styles.primaryActionLabel}>OPEN WALLET ACCESS</Text>
+              <Text style={styles.primaryActionLabel}>{t('OPEN WALLET ACCESS')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -325,7 +327,7 @@ export default function UnlockTimelineScreen() {
             style={styles.primaryAction}
             onPress={() => router.push('/buy')}
           >
-            <Text style={styles.primaryActionLabel}>BUY 4TEEN</Text>
+            <Text style={styles.primaryActionLabel}>{t('BUY 4TEEN')}</Text>
           </TouchableOpacity>
 
           {canOpenSwap ? (
@@ -342,14 +344,14 @@ export default function UnlockTimelineScreen() {
                 } as any)
               }
             >
-              <Text style={styles.secondaryActionLabel}>SWAP</Text>
+              <Text style={styles.secondaryActionLabel}>{t('SWAP')}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
 
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>DIRECT BUY PRICE</Text>
+            <Text style={styles.summaryLabel}>{t('DIRECT BUY PRICE')}</Text>
             <Text style={styles.summaryValue}>{formatCardValue(snapshot?.directBuyRateTrx)}</Text>
             <Text style={styles.summaryUnit}>
               TRX {snapshot?.directBuyRateUsd ? `• ${formatCardCurrency(snapshot.directBuyRateUsd)}` : ''}
@@ -357,7 +359,7 @@ export default function UnlockTimelineScreen() {
           </View>
 
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>MARKET PRICE</Text>
+            <Text style={styles.summaryLabel}>{t('MARKET PRICE')}</Text>
             <Text style={styles.summaryValue}>{formatCardValue(snapshot?.marketRateTrx)}</Text>
             <Text style={styles.summaryUnit}>
               TRX {snapshot?.marketRateUsd ? `• ${formatCardCurrency(snapshot.marketRateUsd)}` : ''}
@@ -367,7 +369,7 @@ export default function UnlockTimelineScreen() {
 
         <View style={styles.detailGrid}>
           <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>AVAILABLE NOW</Text>
+            <Text style={styles.detailLabel}>{t('AVAILABLE NOW')}</Text>
             <Text style={[styles.detailValue, styles.detailValueAvailable]}>
               {formatCardValue(snapshot?.availableBalance)}
             </Text>
@@ -375,7 +377,7 @@ export default function UnlockTimelineScreen() {
           </View>
 
           <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>TOTAL BALANCE</Text>
+            <Text style={styles.detailLabel}>{t('TOTAL BALANCE')}</Text>
             <Text style={styles.detailValue}>
               {formatCardValue(snapshot?.totalBalance)}
             </Text>
@@ -383,7 +385,7 @@ export default function UnlockTimelineScreen() {
           </View>
 
           <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>LOCKED BALANCE</Text>
+            <Text style={styles.detailLabel}>{t('LOCKED BALANCE')}</Text>
             <Text style={[styles.detailValue, styles.detailValueLocked]}>
               {formatCardValue(snapshot?.lockedBalance)}
             </Text>
@@ -391,7 +393,7 @@ export default function UnlockTimelineScreen() {
           </View>
 
           <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>CONVERSION</Text>
+            <Text style={styles.detailLabel}>{t('CONVERSION')}</Text>
             <Text
               style={styles.detailValueSmall}
               numberOfLines={1}
@@ -415,21 +417,21 @@ export default function UnlockTimelineScreen() {
         {hasUnlockedOnWatchOnly ? (
           <View style={[styles.statusCard, styles.statusNeutral]}>
             <Text style={styles.statusText}>
-              Unlocked 4TEEN is visible here, but swapping still requires a signing wallet.
+              {t('Unlocked 4TEEN is visible here, but swapping still requires a signing wallet.')}
             </Text>
           </View>
         ) : null}
 
         <View style={styles.historyHead}>
           <View>
-            <Text style={styles.historyEyebrow}>UNLOCK HISTORY</Text>
+            <Text style={styles.historyEyebrow}>{t('UNLOCK HISTORY')}</Text>
           </View>
 
           <TouchableOpacity
             activeOpacity={0.85}
             style={styles.historyAction}
             accessibilityRole="button"
-            accessibilityLabel="Buy 4TEEN"
+            accessibilityLabel={t('Buy 4TEEN')}
             onPress={() => router.push('/buy')}
           >
             <MaterialCommunityIcons name="cart-outline" size={18} color={colors.accent} />
@@ -458,25 +460,25 @@ export default function UnlockTimelineScreen() {
                         unlocked ? styles.statusPillTextUnlocked : styles.statusPillTextLocked,
                       ]}
                     >
-                      {unlocked ? 'UNLOCKED' : 'LOCKED'}
+                      {unlocked ? t('UNLOCKED') : t('LOCKED')}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.historyMetrics}>
                   <View style={styles.historyMetricCard}>
-                    <Text style={styles.historyMetricLabel}>UNLOCK</Text>
+                    <Text style={styles.historyMetricLabel}>{t('UNLOCK')}</Text>
                     <Text style={styles.historyMetricPrimary}>{dateParts.primary}</Text>
                     <Text style={styles.historyMetricSecondary}>{dateParts.year} UTC</Text>
                   </View>
 
                   <View style={styles.historyMetricCard}>
-                    <Text style={styles.historyMetricLabel}>COUNTDOWN</Text>
+                    <Text style={styles.historyMetricLabel}>{t('COUNTDOWN')}</Text>
                     <Text style={[styles.historyMetricPrimary, unlocked && styles.historyMetricPrimaryUnlocked]}>
                       {countdown}
                     </Text>
                     <Text style={styles.historyMetricSecondary}>
-                      {unlocked ? 'Ready to move' : 'Live countdown'}
+                      {unlocked ? t('Ready to move') : t('Live countdown')}
                     </Text>
                   </View>
                 </View>
@@ -486,10 +488,10 @@ export default function UnlockTimelineScreen() {
         ) : (
           <View style={styles.emptyHistoryCard}>
             <Text style={styles.emptyHistoryTitle}>
-              {snapshot?.historyMessage || 'No unlock entries yet.'}
+              {snapshot?.historyMessage || t('No unlock entries yet.')}
             </Text>
             <Text style={styles.emptyHistoryBody}>
-              Direct-buy transactions will appear here as separate lock batches with their own release time.
+              {t('Direct-buy transactions will appear here as separate lock batches with their own release time.')}
             </Text>
           </View>
         )}

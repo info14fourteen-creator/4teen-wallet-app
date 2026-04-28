@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 
+import { useI18n } from '../src/i18n';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import {
   ProductActionRow,
@@ -13,18 +14,21 @@ import {
 
 export default function Buy4teenScreen() {
   const router = useRouter();
+  const { t } = useI18n();
 
   return (
-    <ProductScreen eyebrow="BUY 4TEEN">
+    <ProductScreen eyebrow={t('BUY 4TEEN')}>
       <ProductHero
-        eyebrow="DIRECT PURCHASE"
-        title="Buy 4TEEN through the live contract flow."
-        body="The buy surface is the protocol entry point. You send TRX, 4TEEN is minted directly by contract rules, and the new tokens enter a fixed 14-day lock immediately."
+        eyebrow={t('DIRECT PURCHASE')}
+        title={t('Buy 4TEEN through the live contract flow.')}
+        body={t(
+          'The buy surface is the protocol entry point. You send TRX, 4TEEN is minted directly by contract rules, and the new tokens enter a fixed 14-day lock immediately.'
+        )}
       >
         <ProductActionRow
-          primaryLabel="Open Live Buy"
+          primaryLabel={t('Open Live Buy')}
           onPrimaryPress={() => void openInAppBrowser(router, 'https://4teen.me/bt')}
-          secondaryLabel="Whitepaper"
+          secondaryLabel={t('Whitepaper')}
           onSecondaryPress={() => router.push('/whitepaper')}
         />
       </ProductHero>
@@ -32,73 +36,73 @@ export default function Buy4teenScreen() {
       <ProductStatGrid
         items={[
           {
-            eyebrow: 'Contract route',
-            value: 'Live',
-            body: 'This uses the real direct-buy widget, not a fake preview.',
+            eyebrow: t('Contract route'),
+            value: t('Live'),
+            body: t('This uses the real direct-buy widget, not a fake preview.'),
           },
           {
-            eyebrow: 'Lock rule',
+            eyebrow: t('Lock rule'),
             value: '14D',
-            body: 'Every direct purchase creates a separate fixed lock entry.',
+            body: t('Every direct purchase creates a separate fixed lock entry.'),
           },
           {
-            eyebrow: 'TRX split',
+            eyebrow: t('TRX split'),
             value: '90 / 7 / 3',
-            body: 'Liquidity, controller, and airdrop rails are routed atomically.',
+            body: t('Liquidity, controller, and airdrop rails are routed atomically.'),
           },
           {
-            eyebrow: 'Price logic',
-            value: 'Primary',
-            body: 'The contract price governs direct buy only, not secondary market price.',
+            eyebrow: t('Price logic'),
+            value: t('Primary'),
+            body: t('The contract price governs direct buy only, not secondary market price.'),
           },
         ]}
       />
 
-      <ProductSection eyebrow="HOW IT WORKS" title="The buy page should answer three questions fast">
+      <ProductSection eyebrow={t('HOW IT WORKS')} title={t('The buy page should answer three questions fast')}>
         <ProductBulletList
           items={[
-            'How much TRX you are committing to the contract-side mint flow.',
-            'What part of the value goes to liquidity, controller, and airdrop rails.',
-            'When the purchased 4TEEN becomes transferable after the 14-day lock.',
+            t('How much TRX you are committing to the contract-side mint flow.'),
+            t('What part of the value goes to liquidity, controller, and airdrop rails.'),
+            t('When the purchased 4TEEN becomes transferable after the 14-day lock.'),
           ]}
         />
       </ProductSection>
 
-      <ProductSection eyebrow="TRX FLOW" title="Every direct buy routes value by hard rule">
+      <ProductSection eyebrow={t('TRX FLOW')} title={t('Every direct buy routes value by hard rule')}>
         <ProductSplitRows
           rows={[
             {
               eyebrow: '90% TRX',
-              title: 'Liquidity System',
-              body: 'Forwarded to the controller side that releases liquidity under explicit execution conditions.',
+              title: t('Liquidity System'),
+              body: t('Forwarded to the controller side that releases liquidity under explicit execution conditions.'),
               accent: true,
             },
             {
               eyebrow: '7% TRX',
-              title: 'Controller Layer',
-              body: 'Used for protocol-side accounting, attribution, and ambassador settlement logic.',
+              title: t('Controller Layer'),
+              body: t('Used for protocol-side accounting, attribution, and ambassador settlement logic.'),
             },
             {
               eyebrow: '3% TRX',
-              title: 'Airdrop Layer',
-              body: 'Reserved for staged ecosystem distribution and public campaign flows.',
+              title: t('Airdrop Layer'),
+              body: t('Reserved for staged ecosystem distribution and public campaign flows.'),
             },
           ]}
         />
       </ProductSection>
 
-      <ProductSection eyebrow="NEXT STEP" title="Use the live surface when you are ready">
+      <ProductSection eyebrow={t('NEXT STEP')} title={t('Use the live surface when you are ready')}>
         <ProductBulletList
           items={[
-            'Open the live buy widget for the actual transaction flow.',
-            'Open unlock timeline right after the purchase if you want immediate lock visibility.',
-            'Use swap later when the tokens unlock and you want the market route instead of the primary mint route.',
+            t('Open the live buy widget for the actual transaction flow.'),
+            t('Open unlock timeline right after the purchase if you want immediate lock visibility.'),
+            t('Use swap later when the tokens unlock and you want the market route instead of the primary mint route.'),
           ]}
         />
         <ProductActionRow
-          primaryLabel="Launch Buy Widget"
+          primaryLabel={t('Launch Buy Widget')}
           onPrimaryPress={() => void openInAppBrowser(router, 'https://4teen.me/bt')}
-          secondaryLabel="Open Unlock Timeline"
+          secondaryLabel={t('Open Unlock Timeline')}
           onSecondaryPress={() => router.push('/unlock-timeline')}
         />
       </ProductSection>

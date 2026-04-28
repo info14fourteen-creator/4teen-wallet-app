@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ExpandChevron from '../src/ui/expand-chevron';
+import { useI18n } from '../src/i18n';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { hasPasscode } from '../src/security/local-auth';
@@ -38,6 +39,7 @@ export default function ImportWalletScreen() {
   const router = useRouter();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
+  const { t } = useI18n();
 
   const handleOptionPress = async (path: string, requiresPasscode: boolean) => {
     if (!requiresPasscode) {
@@ -78,14 +80,15 @@ export default function ImportWalletScreen() {
           showsVerticalScrollIndicator={false}
           bounces
         >
-          <ScreenBrow label="IMPORT WALLET" variant="back" />
+          <ScreenBrow label={t('IMPORT WALLET')} variant="back" />
           <Text style={styles.title}>
-            Reconnect your <Text style={styles.titleAccent}>wallet access</Text>
+            Reconnect your <Text style={styles.titleAccent}>{t('wallet access')}</Text>
           </Text>
 
           <Text style={styles.lead}>
-            Pick the recovery path that matches what you actually control. Seed phrase and private
-            key restore signing power. Watch-only is strictly for tracking, not for moving funds.
+            {t(
+              'Pick the recovery path that matches what you actually control. Seed phrase and private key restore signing power. Watch-only is strictly for tracking, not for moving funds.'
+            )}
           </Text>
 
           <View style={styles.optionList}>
@@ -97,8 +100,8 @@ export default function ImportWalletScreen() {
                 onPress={() => handleOptionPress(option.path, option.requiresPasscode)}
               >
                 <View style={styles.optionText}>
-                  <Text style={ui.actionLabel}>{option.title}</Text>
-                  <Text style={styles.optionBody}>{option.body}</Text>
+                  <Text style={ui.actionLabel}>{t(option.title)}</Text>
+                  <Text style={styles.optionBody}>{t(option.body)}</Text>
                 </View>
 
                 <ExpandChevron open={false} />

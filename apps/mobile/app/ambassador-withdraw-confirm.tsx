@@ -24,6 +24,7 @@ import { goBackOrReplace } from '../src/ui/safe-back';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useNotice } from '../src/notice/notice-provider';
+import { useI18n } from '../src/i18n';
 import { getBiometricsEnabled, verifyPasscode } from '../src/security/local-auth';
 import { clearWalletRuntimeCaches, FOURTEEN_LOGO } from '../src/services/tron/api';
 import {
@@ -53,6 +54,7 @@ function shortAddress(address: string) {
 export default function AmbassadorWithdrawConfirmScreen() {
   const router = useRouter();
   const notice = useNotice();
+  const { t } = useI18n();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
   const { setChromeHidden, triggerWalletDataRefresh } = useWalletSession();
@@ -66,7 +68,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const [passcodeEntryOpen, setPasscodeEntryOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
-  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
+  const [biometricLabel, setBiometricLabel] = useState(t('Biometrics'));
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
@@ -104,13 +106,13 @@ export default function AmbassadorWithdrawConfirmScreen() {
       console.error(error);
       setReview(null);
       setErrorText(
-        error instanceof Error ? error.message : 'Failed to build ambassador withdrawal confirmation.'
+        error instanceof Error ? error.message : t('Failed to build ambassador withdrawal confirmation.')
       );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   const loadBiometricsState = useCallback(async () => {
     try {
@@ -123,23 +125,23 @@ export default function AmbassadorWithdrawConfirmScreen() {
       setBiometricAvailable(enabled && compatible && enrolled);
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        setBiometricLabel('Face ID');
+        setBiometricLabel(t('Face ID'));
         return;
       }
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-        setBiometricLabel('Fingerprint');
+        setBiometricLabel(t('Fingerprint'));
         return;
       }
 
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     } catch (error) {
       console.error(error);
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -157,9 +159,9 @@ export default function AmbassadorWithdrawConfirmScreen() {
       if (burnWarningShownRef.current) return;
       burnWarningShownRef.current = true;
       notice.showErrorNotice(
-        `Not enough TRX for network burn. Top up at least ${formatTrxFromSunAmount(
-          review.trxCoverage.missingTrxSun
-        )} TRX first.`,
+        t('Not enough TRX for network burn. Top up at least {{amount}} TRX first.', {
+          amount: formatTrxFromSunAmount(review.trxCoverage.missingTrxSun),
+        }),
         3200
       );
       return;
@@ -167,7 +169,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
     burnWarningShownRef.current = false;
     notice.hideNotice();
-  }, [notice, review]);
+  }, [notice, review, t]);
 
   useEffect(() => {
     return () => {
@@ -217,7 +219,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
     try {
       setEnergyRenting(true);
-      notice.showNeutralNotice('Sending Energy rental payment...', 2500);
+      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'ambassador_withdraw',
         wallet: review.wallet.address,
@@ -226,13 +228,13 @@ export default function AmbassadorWithdrawConfirmScreen() {
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice('Energy is live. Sending withdrawal...', 3000);
+      notice.showSuccessNotice(t('Energy is live. Sending withdrawal...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Energy rental failed.',
+        error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
       );
       return false;
@@ -243,7 +245,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
       setPasscodeDigits('');
       setPasscodeError('');
     }
-  }, [energyQuote, energyRenting, load, notice, review]);
+  }, [energyQuote, energyRenting, load, notice, review, t]);
 
   const performWithdraw = useCallback(async () => {
     if (!review || submitting) return;
@@ -257,18 +259,21 @@ export default function AmbassadorWithdrawConfirmScreen() {
       setPasscodeDigits('');
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
-      notice.showSuccessNotice(`Withdrawal sent: ${receipt.txId.slice(0, 10)}...`, 3000);
+      notice.showSuccessNotice(
+        t('Withdrawal sent: {{tx}}', { tx: `${receipt.txId.slice(0, 10)}...` }),
+        3000
+      );
       router.replace('/ambassador-program');
     } catch (error) {
       console.error(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Ambassador withdrawal failed.',
+        error instanceof Error ? error.message : t('Ambassador withdrawal failed.'),
         3400
       );
     } finally {
       setSubmitting(false);
     }
-  }, [notice, review, router, submitting, triggerWalletDataRefresh]);
+  }, [notice, review, router, submitting, t, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -277,7 +282,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
       const ok = await verifyPasscode(passcodeDigits);
 
       if (!ok) {
-        setPasscodeError('Wrong passcode.');
+        setPasscodeError(t('Wrong passcode.'));
         setPasscodeDigits('');
         return;
       }
@@ -293,10 +298,10 @@ export default function AmbassadorWithdrawConfirmScreen() {
       await performWithdraw();
     } catch (error) {
       console.error(error);
-      setPasscodeError('Failed to verify passcode.');
+      setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
-  }, [energyRenting, passcodeDigits, pendingApprovalMode, performRentEnergy, performWithdraw, submitting]);
+  }, [energyRenting, passcodeDigits, pendingApprovalMode, performRentEnergy, performWithdraw, submitting, t]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -332,9 +337,9 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const handleReject = useCallback(() => {
     if (submitting) return;
     preserveNoticeOnExitRef.current = true;
-    notice.showNeutralNotice('Ambassador withdrawal rejected by user.', 2200);
+    notice.showNeutralNotice(t('Ambassador withdrawal rejected by user.'), 2200);
     goBackOrReplace(router, { fallback: '/ambassador-program' });
-  }, [notice, router, submitting]);
+  }, [notice, router, submitting, t]);
 
   const handlePasscodeDigitPress = useCallback((digit: string) => {
     if (submitting) return;
@@ -381,9 +386,11 @@ export default function AmbassadorWithdrawConfirmScreen() {
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage:
-          pendingApprovalMode === 'rent' ? 'Confirm Energy Rental' : 'Confirm Ambassador Withdrawal',
-        fallbackLabel: 'Use Passcode',
-        cancelLabel: 'Cancel',
+          pendingApprovalMode === 'rent'
+            ? t('Confirm Energy Rental')
+            : t('Confirm Ambassador Withdrawal'),
+        fallbackLabel: t('Use Passcode'),
+        cancelLabel: t('Cancel'),
       });
 
       if (!result.success) {
@@ -402,10 +409,10 @@ export default function AmbassadorWithdrawConfirmScreen() {
     } catch (error) {
       console.error(error);
     }
-  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performWithdraw]);
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performWithdraw, t]);
 
   if (loading && !review) {
-    return <ScreenLoadingState label="Building ambassador withdrawal confirmation" />;
+    return <ScreenLoadingState label={t('Building ambassador withdrawal confirmation')} />;
   }
 
   return (
@@ -429,12 +436,12 @@ export default function AmbassadorWithdrawConfirmScreen() {
             />
           }
         >
-          <ScreenBrow label="AMBASSADOR" variant="back" />
+          <ScreenBrow label={t('AMBASSADOR')} variant="back" />
 
           {errorText || !review ? (
             <View style={styles.errorWrap}>
               <Text style={styles.errorText}>
-                {errorText || 'Unable to build ambassador withdrawal confirmation.'}
+                {errorText || t('Unable to build ambassador withdrawal confirmation.')}
               </Text>
             </View>
           ) : (
@@ -478,7 +485,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
                   <ActivityIndicator color={colors.white} />
                 ) : (
                   <Text style={styles.primaryButtonText}>
-                    {hasTrxForBurn ? 'APPROVE & WITHDRAW' : 'TOP UP TRX'}
+                    {hasTrxForBurn ? t('APPROVE & WITHDRAW') : t('TOP UP TRX')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -489,20 +496,20 @@ export default function AmbassadorWithdrawConfirmScreen() {
                 processing={energyRenting}
                 disabled={submitting}
                 showUnavailable={canRentResources}
-                actionLabel="WITHDRAW"
+                actionLabel={t('WITHDRAW')}
                 estimatedBurnSun={review.resources.estimatedBurnSun}
                 onRent={() => void handleRentEnergy()}
               />
 
               <View style={styles.sectionBlock}>
-                <Text style={styles.sectionEyebrow}>WITHDRAW REVIEW</Text>
+                <Text style={styles.sectionEyebrow}>{t('WITHDRAW REVIEW')}</Text>
                 <View style={styles.detailCard}>
-                  <DetailRow label="Wallet" value={review.wallet.name} first />
-                  <DetailRow label="Controller" value={shortAddress(review.controllerAddress)} />
-                  <DetailRow label="Claimable" value={`${formatTrxFromSun(review.claimableRewardsSun)} TRX`} accent />
-                  <DetailRow label="Estimated Burn" value={`${formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX`} accent={hasResourceShortfall} />
-                  <DetailRow label="Fee Cap" value={`${formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX`} />
-                  <DetailRow label="TRX Available" value={review.trxCoverage.trxBalanceDisplay} />
+                  <DetailRow label={t('Wallet')} value={review.wallet.name} first />
+                  <DetailRow label={t('Controller')} value={shortAddress(review.controllerAddress)} />
+                  <DetailRow label={t('Claimable')} value={`${formatTrxFromSun(review.claimableRewardsSun)} TRX`} accent />
+                  <DetailRow label={t('Estimated Burn')} value={`${formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX`} accent={hasResourceShortfall} />
+                  <DetailRow label={t('Fee Cap')} value={`${formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX`} />
+                  <DetailRow label={t('TRX Available')} value={review.trxCoverage.trxBalanceDisplay} />
                 </View>
               </View>
 
@@ -515,22 +522,22 @@ export default function AmbassadorWithdrawConfirmScreen() {
                 bandwidthShortfall={review.resources.bandwidthShortfall}
                 message={
                   !review.trxCoverage.canCoverBurn
-                    ? 'Not enough TRX to cover the estimated burn.'
+                    ? t('Not enough TRX to cover the estimated burn.')
                     : hasResourceShortfall
-                      ? 'You are short on resources. The burn estimate above already includes this gap.'
-                      : 'You have enough resources for this action. Extra burn is unlikely.'
+                      ? t('You are short on resources. The burn estimate above already includes this gap.')
+                      : t('You have enough resources for this action. Extra burn is unlikely.')
                 }
                 messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
               />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>
-                  This calls withdrawRewards() on FourteenController. The contract sends only the current claimable TRX reward to the connected ambassador wallet.
+                  {t('This calls withdrawRewards() on FourteenController. The contract sends only the current claimable TRX reward to the connected ambassador wallet.')}
                 </Text>
               </View>
 
               <TouchableOpacity activeOpacity={0.9} style={styles.secondaryButton} onPress={handleReject} disabled={submitting}>
-                <Text style={styles.secondaryButtonText}>REJECT</Text>
+                <Text style={styles.secondaryButtonText}>{t('REJECT')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -538,8 +545,12 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
         <ApprovalAuthModal
           visible={passcodeOpen}
-          eyebrow="AMBASSADOR"
-          actionLabel={pendingApprovalMode === 'rent' ? 'Energy rental and reward withdrawal' : 'reward withdrawal'}
+          eyebrow={t('AMBASSADOR')}
+          actionLabel={
+            pendingApprovalMode === 'rent'
+              ? t('Energy rental and reward withdrawal')
+              : t('reward withdrawal')
+          }
           passcodeError={passcodeError}
           digitsLength={passcodeDigits.length}
           canUseBiometrics={canUseBiometrics}
