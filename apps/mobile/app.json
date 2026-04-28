@@ -2,6 +2,7 @@
   "expo": {
     "name": "4TEEN Wallet",
     "slug": "4teen-wallet",
+    "orientation": "portrait",
     "plugins": [
       [
         "expo-local-authentication",

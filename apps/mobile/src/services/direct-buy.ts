@@ -21,6 +21,7 @@ import {
   getWalletSecret,
   type WalletMeta,
 } from './wallet/storage';
+import { formatDisplayCurrency } from '../ui/currency-format';
 
 const SUN = 1_000_000;
 const DEFAULT_DECIMALS = 6;
@@ -762,7 +763,7 @@ export async function loadDirectBuyContext(
     airdropAddress: contractState.airdropAddress,
     trxBalance: trxAsset?.amount ?? 0,
     trxBalanceDisplay: trxAsset?.amountDisplay ?? '0',
-    trxValueDisplay: trxAsset?.valueDisplay ?? '$0.00',
+    trxValueDisplay: trxAsset?.valueDisplay ?? formatDisplayCurrency(0),
     walletLockedTokenBalance: contractState.walletLockedTokenBalance,
     tokenDecimals: contractState.tokenDecimals,
     annualGrowthRateBps: contractState.annualGrowthRateBps,

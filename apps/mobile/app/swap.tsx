@@ -58,6 +58,7 @@ import {
   getWalletPortfolio,
   type PortfolioAsset,
 } from '../src/services/wallet/portfolio';
+import { formatDisplayCurrency } from '../src/ui/currency-format';
 import {
   getWalletById,
   setActiveWalletId,
@@ -97,17 +98,6 @@ function formatTokenAmount(value?: number, maximumFractionDigits = 6) {
   return safe.toLocaleString('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits,
-  });
-}
-
-function formatUsd(value?: number) {
-  const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
-
-  return safe.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: safe >= 1 ? 2 : 4,
-    maximumFractionDigits: safe >= 1 ? 2 : 6,
   });
 }
 
@@ -234,7 +224,7 @@ function buildCatalogSwapAssetChoices(
         logo: item.logo,
         isNative: false,
         amountDisplay: '0',
-        valueDisplay: '$0.00',
+        valueDisplay: formatDisplayCurrency(0),
         deltaDisplay: '—',
         deltaTone: 'dim',
         amount: 0,
@@ -356,7 +346,7 @@ export default function SwapScreen() {
         name: item.wallet.name,
         address: item.wallet.address,
         kind: item.wallet.kind,
-        balanceDisplay: item.portfolio?.totalBalanceDisplay ?? '$0.00',
+        balanceDisplay: item.portfolio?.totalBalanceDisplay ?? formatDisplayCurrency(0),
       }));
 
       const sendableAssets = buildSwapAssetChoices({
@@ -382,7 +372,7 @@ export default function SwapScreen() {
           logo: TRX_LOGO,
           isNative: true,
           amountDisplay: '0',
-          valueDisplay: '$0.00',
+          valueDisplay: formatDisplayCurrency(0),
           deltaDisplay: '—',
           deltaTone: 'dim',
           amount: 0,
@@ -399,7 +389,7 @@ export default function SwapScreen() {
           logo: FOURTEEN_SWAP_TARGETS.USDT.logo,
           isNative: false,
           amountDisplay: '0',
-          valueDisplay: '$0.00',
+          valueDisplay: formatDisplayCurrency(0),
           deltaDisplay: '—',
           deltaTone: 'dim',
           amount: 0,
@@ -416,7 +406,7 @@ export default function SwapScreen() {
           logo: FOURTEEN_SWAP_INPUT.logo,
           isNative: false,
           amountDisplay: '0',
-          valueDisplay: '$0.00',
+          valueDisplay: formatDisplayCurrency(0),
           deltaDisplay: '—',
           deltaTone: 'dim',
           amount: 0,
@@ -772,7 +762,7 @@ export default function SwapScreen() {
                     address: details.address || item.address,
                     decimals: Number.isFinite(details.decimals) ? details.decimals : item.decimals,
                     logo: details.logo || item.logo,
-                    valueDisplay: item.valueDisplay || '$0.00',
+                    valueDisplay: item.valueDisplay || formatDisplayCurrency(0),
                     amountDisplay: item.amountDisplay || '0',
                   }
                 : item
@@ -888,7 +878,14 @@ export default function SwapScreen() {
                 </View>
 
                 <View style={styles.swapAssetRight}>
-                  <Text style={styles.swapAssetValue}>{selectedSourceToken?.valueDisplay || '$0.00'}</Text>
+                  <Text
+                    style={styles.swapAssetValue}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.72}
+                  >
+                    {selectedSourceToken?.valueDisplay || formatDisplayCurrency(0)}
+                  </Text>
                   <Text style={styles.swapAssetAction}>{selectedSourceToken?.amountDisplay || '0'}</Text>
                 </View>
               </TouchableOpacity>
@@ -939,7 +936,14 @@ export default function SwapScreen() {
                     </View>
 
                     <View style={styles.swapAssetRight}>
-                      <Text style={styles.swapAssetValue}>{asset.valueDisplay}</Text>
+                      <Text
+                        style={styles.swapAssetValue}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.72}
+                      >
+                        {asset.valueDisplay}
+                      </Text>
                       <Text style={styles.swapAssetAction}>{asset.amountDisplay}</Text>
                     </View>
                   </TouchableOpacity>
@@ -996,10 +1000,25 @@ export default function SwapScreen() {
                 </View>
               </TouchableOpacity>
 
-              <Text style={styles.swapHint}>
+              <Text
+                style={styles.swapHint}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.72}
+              >
                 {selectedSourceToken?.valueInUsd && selectedSourceToken?.amount
-                  ? `${selectedSourceToken.symbol} price: ${formatUsd(
-                      selectedSourceToken.valueInUsd / Math.max(selectedSourceToken.amount, 1e-9)
+                  ? `${selectedSourceToken.symbol} price: ${formatDisplayCurrency(
+                      selectedSourceToken.valueInUsd / Math.max(selectedSourceToken.amount, 1e-9),
+                      {
+                        minimumFractionDigits:
+                          selectedSourceToken.valueInUsd / Math.max(selectedSourceToken.amount, 1e-9) >= 1
+                            ? 2
+                            : 4,
+                        maximumFractionDigits:
+                          selectedSourceToken.valueInUsd / Math.max(selectedSourceToken.amount, 1e-9) >= 1
+                            ? 2
+                            : 6,
+                      }
                     )}`
                   : 'Choose the amount you want to swap from the selected token.'}
               </Text>
@@ -1029,8 +1048,15 @@ export default function SwapScreen() {
                 </View>
 
                 <View style={styles.swapAssetRight}>
-                  <Text style={styles.swapAssetValue}>
-                    {bestRoute ? formatTokenAmount(bestRoute.expectedOut) : selectedTargetToken?.valueDisplay || '$0.00'}
+                  <Text
+                    style={styles.swapAssetValue}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.72}
+                  >
+                    {bestRoute
+                      ? formatTokenAmount(bestRoute.expectedOut)
+                      : selectedTargetToken?.valueDisplay || formatDisplayCurrency(0)}
                   </Text>
                   <Text style={styles.swapAssetAction}>
                     {bestRoute?.providerName || selectedTargetToken?.symbol || 'TOKEN'}
@@ -1084,7 +1110,14 @@ export default function SwapScreen() {
                     </View>
 
                     <View style={styles.swapAssetRight}>
-                      <Text style={styles.swapAssetValue}>{asset.valueDisplay}</Text>
+                      <Text
+                        style={styles.swapAssetValue}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.72}
+                      >
+                        {asset.valueDisplay}
+                      </Text>
                       <Text style={styles.swapAssetAction}>{asset.amountDisplay}</Text>
                     </View>
                   </TouchableOpacity>

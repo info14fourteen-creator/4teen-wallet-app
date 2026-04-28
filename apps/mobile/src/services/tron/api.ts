@@ -9,6 +9,7 @@ import {
   TRONSCAN_BASE_URL,
 } from '../../config/tron';
 import { getAddressBookMap } from '../address-book';
+import { getDisplayCurrency, type DisplayCurrencyCode } from '../../settings/display-currency';
 import { FOURTEEN_LOGO, getFourteenPriceSnapshot } from './fourteen-price';
 
 const CMC_BASE_URL = CMC_PRO_BASE_URL;
@@ -38,7 +39,7 @@ const DEFAULT_WALLET_HISTORY_LIMIT = 20;
 
 const MARKET_CACHE_TTL_MS = 60 * 60 * 1000;
 const MARKET_CACHE_STALE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
-const MARKET_CACHE_STORAGE_KEY = 'fourteen_market_index_cache_v1';
+const MARKET_CACHE_STORAGE_KEY = 'fourteen_market_index_cache_v2';
 const MARKET_CACHE_STORAGE_KEY_ROOT = 'fourteen_market_index_cache_';
 const TRONSCAN_TOKEN_OVERVIEW_CACHE_TTL_MS = 30 * 60 * 1000;
 const ACCOUNT_INFO_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -103,11 +104,13 @@ type MarketMeta = {
   totalSupply?: number;
   performance?: TokenPerformancePoint[];
   pools?: TokenPoolInfo[];
+  displayCurrency?: DisplayCurrencyCode;
 };
 
 type CachedMarketIndex = {
   expiresAt: number;
   savedAt: number;
+  displayCurrency: DisplayCurrencyCode;
   byContract: Record<string, MarketMeta>;
   trx: MarketMeta;
 };
@@ -195,6 +198,14 @@ export type CustomTokenCatalogItem = {
 
 let marketCache: CachedMarketIndex | null = null;
 let marketIndexInflight: Promise<CachedMarketIndex> | null = null;
+let usdDisplayRateCache:
+  | {
+      currency: DisplayCurrencyCode;
+      rate: number;
+      expiresAt: number;
+    }
+  | null = null;
+let usdDisplayRateInflight: Promise<{ currency: DisplayCurrencyCode; rate: number }> | null = null;
 const tokenHistoryMemoryCache = new Map<string, TokenHistoryCachePayload>();
 const walletHistoryMemoryCache = new Map<string, WalletHistoryCachePayload>();
 const accountInfoMemoryCache = new Map<string, AccountInfoCacheEntry>();
@@ -587,15 +598,27 @@ type CmcProQuoteResponse = {
       id?: number;
       name?: string;
       symbol?: string;
-      quote?: {
-        USD?: {
+      quote?: Record<
+        string,
+        {
           price?: number | string;
           percent_change_24h?: number | string;
           market_cap?: number | string;
-        };
-      };
+        }
+      >;
     }
   >;
+};
+
+type CmcPriceConversionResponse = {
+  data?: {
+    quote?: Record<
+      string,
+      {
+        price?: number | string;
+      }
+    >;
+  };
 };
 
 type CmcDapiTokenListResponse = {
@@ -1231,9 +1254,13 @@ function writeTronscanTokenOverviewCache(tokenId: string, data: TokenMetaFallbac
 function isUsableMarketCache(
   cache: CachedMarketIndex | null | undefined,
   tokenIds: string[],
-  options?: { allowStale?: boolean }
+  options?: { allowStale?: boolean; currency?: DisplayCurrencyCode }
 ) {
   if (!cache || !cache.trx || !cache.byContract || typeof cache.byContract !== 'object') {
+    return false;
+  }
+
+  if (options?.currency && cache.displayCurrency !== options.currency) {
     return false;
   }
 
@@ -1255,6 +1282,7 @@ function isUsableMarketCache(
 async function readStoredMarketCache(options?: {
   allowStale?: boolean;
   tokenIds?: string[];
+  currency?: DisplayCurrencyCode;
 }): Promise<CachedMarketIndex | null> {
   try {
     const raw = await AsyncStorage.getItem(MARKET_CACHE_STORAGE_KEY);
@@ -1263,7 +1291,7 @@ async function readStoredMarketCache(options?: {
     const parsed = JSON.parse(raw) as CachedMarketIndex;
     const tokenIds = options?.tokenIds ?? [];
 
-    if (!isUsableMarketCache(parsed, tokenIds, { allowStale: options?.allowStale })) {
+    if (!isUsableMarketCache(parsed, tokenIds, { allowStale: options?.allowStale, currency: options?.currency })) {
       return null;
     }
 
@@ -1844,7 +1872,79 @@ async function cmcDapiFetch<T>(
   return response.json() as Promise<T>;
 }
 
-async function getTrxMarketMeta(): Promise<MarketMeta> {
+function convertUsdValue(value: number | undefined, usdToDisplayRate: number) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return value;
+  }
+
+  return value * usdToDisplayRate;
+}
+
+async function getUsdToDisplayCurrencyRate(
+  currency: DisplayCurrencyCode
+): Promise<number> {
+  if (currency === 'USD') {
+    return 1;
+  }
+
+  const now = Date.now();
+  if (
+    usdDisplayRateCache &&
+    usdDisplayRateCache.currency === currency &&
+    usdDisplayRateCache.expiresAt > now
+  ) {
+    return usdDisplayRateCache.rate;
+  }
+
+  if (usdDisplayRateInflight) {
+    const inflight = await usdDisplayRateInflight;
+    if (inflight.currency === currency) {
+      return inflight.rate;
+    }
+  }
+
+  const request = (async () => {
+    const response = await cmcFetch<CmcPriceConversionResponse>('/v1/tools/price-conversion', {
+      amount: 1,
+      symbol: 'USD',
+      convert: currency,
+    });
+
+    const quote = response.data?.quote?.[currency];
+    const rate = parseNumber(quote?.price);
+
+    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) {
+      throw new Error(`Missing USD to ${currency} conversion rate.`);
+    }
+
+    const next = {
+      currency,
+      rate,
+      expiresAt: Date.now() + MARKET_CACHE_TTL_MS,
+    };
+    usdDisplayRateCache = next;
+    return { currency, rate };
+  })();
+
+  usdDisplayRateInflight = request;
+
+  try {
+    const result = await request;
+    return result.rate;
+  } catch (error) {
+    if (usdDisplayRateCache && usdDisplayRateCache.currency === currency) {
+      return usdDisplayRateCache.rate;
+    }
+    throw error;
+  } finally {
+    usdDisplayRateInflight = null;
+  }
+}
+
+async function getTrxMarketMeta(
+  currency: DisplayCurrencyCode,
+  usdToDisplayRate: number
+): Promise<MarketMeta> {
   try {
     const payload = await cmcDataApiFetch<CmcDetailLiteResponse>(
       '/data-api/v3/cryptocurrency/detail/lite',
@@ -1858,11 +1958,12 @@ async function getTrxMarketMeta(): Promise<MarketMeta> {
       return {
         name: data.name || 'TRON',
         symbol: data.symbol || TRX_SYMBOL,
-        priceInUsd: parseNumber(stats?.price),
+        priceInUsd: convertUsdValue(parseNumber(stats?.price), usdToDisplayRate),
         priceChange24h: parseNumber(stats?.priceChangePercentage24h),
-        marketCap: parseNumber(stats?.marketCap),
+        marketCap: convertUsdValue(parseNumber(stats?.marketCap), usdToDisplayRate),
         totalSupply: parseNumber(stats?.totalSupply),
         logo: TRX_LOGO,
+        displayCurrency: currency,
         performance: [
           { label: '5m', changePercent: undefined },
           { label: '1h', changePercent: undefined },
@@ -1902,10 +2003,11 @@ async function getTrxMarketMeta(): Promise<MarketMeta> {
     return {
       name: tronItem?.n || 'TRON',
       symbol: tronItem?.sym || TRX_SYMBOL,
-      priceInUsd: parseNumber(tronItem?.p) ?? detailLitePrice,
+      priceInUsd: convertUsdValue(parseNumber(tronItem?.p) ?? detailLitePrice, usdToDisplayRate),
       priceChange24h: parseNumber(tronItem?.pc24h) ?? detailLiteChange24h,
-      marketCap: detailLiteMcap,
+      marketCap: convertUsdValue(detailLiteMcap, usdToDisplayRate),
       logo: tronItem?.lg || TRX_LOGO,
+      displayCurrency: currency,
       performance: [
         { label: '5m', changePercent: undefined },
         { label: '1h', changePercent: parseNumber(tronItem?.pc1h) },
@@ -1924,10 +2026,11 @@ async function getTrxMarketMeta(): Promise<MarketMeta> {
     return {
       name: 'TRON',
       symbol: TRX_SYMBOL,
-      priceInUsd: detailLitePrice,
+      priceInUsd: convertUsdValue(detailLitePrice, usdToDisplayRate),
       priceChange24h: detailLiteChange24h,
-      marketCap: detailLiteMcap,
+      marketCap: convertUsdValue(detailLiteMcap, usdToDisplayRate),
       logo: TRX_LOGO,
+      displayCurrency: currency,
       performance: [
         { label: '5m', changePercent: undefined },
         { label: '1h', changePercent: undefined },
@@ -1948,10 +2051,11 @@ async function getTrxMarketMeta(): Promise<MarketMeta> {
   return {
     name: data?.name || 'TRON',
     symbol: data?.symbol || TRX_SYMBOL,
-    priceInUsd: parseNumber(usd?.price),
+    priceInUsd: convertUsdValue(parseNumber(usd?.price), usdToDisplayRate),
     priceChange24h: parseNumber(usd?.percent_change_24h),
-    marketCap: parseNumber(usd?.market_cap),
+    marketCap: convertUsdValue(parseNumber(usd?.market_cap), usdToDisplayRate),
     logo: TRX_LOGO,
+    displayCurrency: currency,
     performance: [
       { label: '5m', changePercent: undefined },
       { label: '1h', changePercent: undefined },
@@ -1968,7 +2072,9 @@ async function getDexTokenMarketMeta(
     name: string;
     symbol: string;
     logo?: string;
-  }
+  },
+  currency: DisplayCurrencyCode,
+  usdToDisplayRate: number
 ): Promise<MarketMeta> {
   const response = await cmcFetch<CmcDexTokenResponse>('/v1/dex/token', {
     platform: 'TRON',
@@ -1981,29 +2087,34 @@ async function getDexTokenMarketMeta(
     name: data?.n || fallback.name,
     symbol: data?.sym || fallback.symbol,
     decimals: parseNumber(data?.dec),
-    priceInUsd: parseNumber(data?.p),
+    priceInUsd: convertUsdValue(parseNumber(data?.p), usdToDisplayRate),
     priceChange24h: buildPerformance(data?.sts)[3]?.changePercent,
-    marketCap: parseNumber(data?.mcap),
-    liquidityUsd: parseNumber(data?.liqUsd),
+    marketCap: convertUsdValue(parseNumber(data?.mcap), usdToDisplayRate),
+    liquidityUsd: convertUsdValue(parseNumber(data?.liqUsd), usdToDisplayRate),
     totalSupply: parseNumber(data?.ts),
-    volume24h: parseNumber(
+    volume24h: convertUsdValue(parseNumber(
       (data?.sts ?? []).find((entry) => String(entry.tp || '').toLowerCase() === '24h')?.vu
-    ),
+    ), usdToDisplayRate),
     logo: extractDexLogo(data, fallback.logo),
+    displayCurrency: currency,
     performance: buildPerformance(data?.sts),
     pools: buildPools(data),
   };
 }
 
-async function getFourteenRouterMarketMeta(): Promise<MarketMeta> {
+async function getFourteenRouterMarketMeta(
+  currency: DisplayCurrencyCode,
+  usdToDisplayRate: number
+): Promise<MarketMeta> {
   const snapshot = await getFourteenPriceSnapshot();
 
   return {
     name: '4teen',
     symbol: FOURTEEN_SYMBOL,
     decimals: 6,
-    priceInUsd: snapshot.priceInUsdt,
+    priceInUsd: convertUsdValue(snapshot.priceInUsdt, usdToDisplayRate),
     logo: snapshot.logo || FOURTEEN_LOGO,
+    displayCurrency: currency,
     performance: buildFallbackPerformance(),
     pools: [],
   };
@@ -2023,13 +2134,15 @@ export async function getCmcDexSearchToken(address: string): Promise<CmcDexSearc
     logo: known?.tokenLogo,
     decimals: known?.tokenDecimal,
   });
+  const currency = await getDisplayCurrency();
+  const usdToDisplayRate = await getUsdToDisplayCurrencyRate(currency).catch(() => 1);
 
   try {
     const meta = await getDexTokenMarketMeta(tokenId, {
       name: fallback.name || tokenId,
       symbol: fallback.symbol || tokenId.slice(0, 6),
       logo: fallback.logo,
-    });
+    }, currency, usdToDisplayRate);
 
     return {
       id: tokenId,
@@ -2061,6 +2174,8 @@ async function getMarketIndex(
   requestedContracts: string[] = [],
   marketFallbacks: Record<string, TokenMetaFallback> = {}
 ): Promise<CachedMarketIndex> {
+  const currency = await getDisplayCurrency();
+  const usdToDisplayRate = await getUsdToDisplayCurrencyRate(currency).catch(() => 1);
   const normalizedContracts = Array.from(
     new Set(
       requestedContracts
@@ -2070,12 +2185,13 @@ async function getMarketIndex(
   );
 
   const activeMemoryCache = marketCache;
-  if (activeMemoryCache && isUsableMarketCache(activeMemoryCache, normalizedContracts)) {
+  if (activeMemoryCache && isUsableMarketCache(activeMemoryCache, normalizedContracts, { currency })) {
     return activeMemoryCache;
   }
 
   const storedFreshCache = await readStoredMarketCache({
     tokenIds: normalizedContracts,
+    currency,
   });
 
   if (storedFreshCache) {
@@ -2094,11 +2210,12 @@ async function getMarketIndex(
     const staleCache = await readStoredMarketCache({
       allowStale: true,
       tokenIds: [],
+      currency,
     });
     const baseCache = marketCache ?? staleCache;
     const refreshedCacheIsFresh = Boolean(baseCache && baseCache.expiresAt > refreshedNow);
 
-    if (baseCache && isUsableMarketCache(baseCache, normalizedContracts)) {
+    if (baseCache && isUsableMarketCache(baseCache, normalizedContracts, { currency })) {
       marketCache = baseCache;
       return baseCache;
     }
@@ -2106,7 +2223,7 @@ async function getMarketIndex(
     const trxMeta =
       refreshedCacheIsFresh && baseCache
         ? baseCache.trx
-        : await getTrxMarketMeta().catch((error): MarketMeta => {
+        : await getTrxMarketMeta(currency, usdToDisplayRate).catch((error): MarketMeta => {
             if (!isCmcInvalidKeyError(error) && !isCmcRateLimitError(error)) {
               console.error('Failed to load TRX market meta:', error);
             }
@@ -2116,6 +2233,7 @@ async function getMarketIndex(
                 name: 'TRON',
                 symbol: TRX_SYMBOL,
                 logo: TRX_LOGO,
+                displayCurrency: currency,
                 performance: buildFallbackPerformance(),
                 pools: [],
               }
@@ -2131,12 +2249,13 @@ async function getMarketIndex(
           name: 'Tether USDt',
           symbol: USDT_SYMBOL,
           logo: USDT_LOGO,
-        }).catch((): MarketMeta => (
+        }, currency, usdToDisplayRate).catch((): MarketMeta => (
           byContract[USDT_CONTRACT] ?? {
             name: 'Tether USDt',
             symbol: USDT_SYMBOL,
             decimals: 6,
             logo: USDT_LOGO,
+            displayCurrency: currency,
             performance: buildFallbackPerformance(),
             pools: [],
           }
@@ -2145,9 +2264,9 @@ async function getMarketIndex(
           name: '4teen',
           symbol: FOURTEEN_SYMBOL,
           logo: FOURTEEN_LOGO,
-        }).catch(async (): Promise<MarketMeta> => {
+        }, currency, usdToDisplayRate).catch(async (): Promise<MarketMeta> => {
           try {
-            const routerMeta = await getFourteenRouterMarketMeta();
+            const routerMeta = await getFourteenRouterMarketMeta(currency, usdToDisplayRate);
             const previousMeta = byContract[FOURTEEN_CONTRACT];
 
             return {
@@ -2166,6 +2285,7 @@ async function getMarketIndex(
                 symbol: FOURTEEN_SYMBOL,
                 decimals: 6,
                 logo: FOURTEEN_LOGO,
+                displayCurrency: currency,
                 performance: buildFallbackPerformance(),
                 pools: [],
               }
@@ -2196,10 +2316,11 @@ async function getMarketIndex(
             symbol: fallback.symbol || tokenId.slice(0, 6),
             decimals: fallback.decimals,
             logo: fallback.logo,
-            priceInUsd: fallback.priceInUsd,
+            priceInUsd: convertUsdValue(fallback.priceInUsd, usdToDisplayRate),
             priceChange24h: fallback.priceChange24h,
-            liquidityUsd: fallback.liquidityUsd,
+            liquidityUsd: convertUsdValue(fallback.liquidityUsd, usdToDisplayRate),
             totalSupply: fallback.totalSupply,
+            displayCurrency: currency,
             performance: buildFallbackPerformance(fallback.priceChange24h),
             pools: [],
           };
@@ -2209,7 +2330,7 @@ async function getMarketIndex(
               name: fallbackMeta.name || tokenId,
               symbol: fallbackMeta.symbol || tokenId.slice(0, 6),
               logo: fallbackMeta.logo,
-            });
+            }, currency, usdToDisplayRate);
 
             return [
               tokenId,
@@ -2246,6 +2367,7 @@ async function getMarketIndex(
     const next: CachedMarketIndex = {
       expiresAt: refreshedNow + MARKET_CACHE_TTL_MS,
       savedAt: refreshedNow,
+      displayCurrency: currency,
       trx: trxMeta,
       byContract,
     };
@@ -4017,8 +4139,6 @@ export async function getAccountTrc20Assets(
 
       const priceInUsd =
         marketMeta.priceInUsd ??
-        parseNumber(tronscanMeta?.priceInUsd) ??
-        parseNumber(tronscanMeta?.tokenPriceInUsd) ??
         fallbackMeta.priceInUsd ??
         0;
 
@@ -4027,9 +4147,7 @@ export async function getAccountTrc20Assets(
       const valueInUsd =
         typeof marketMeta.priceInUsd === 'number' || typeof fallbackMeta.priceInUsd === 'number'
           ? marketValueInUsd
-          : parseNumber(tronscanMeta?.amountInUsd) ??
-            parseNumber(tronscanMeta?.balanceInUsd) ??
-            marketValueInUsd;
+          : marketValueInUsd;
 
       const priceChange24h =
         marketMeta.priceChange24h ??
@@ -4360,6 +4478,8 @@ export async function getTronscanTokenList(
 export async function clearAllTronCaches(): Promise<void> {
   marketCache = null;
   marketIndexInflight = null;
+  usdDisplayRateCache = null;
+  usdDisplayRateInflight = null;
 
   tokenHistoryMemoryCache.clear();
   walletHistoryMemoryCache.clear();

@@ -26,6 +26,10 @@ import {
   getAllWalletPortfolios,
   type WalletPortfolioAggregate,
 } from '../src/services/wallet/portfolio';
+import {
+  formatAdaptiveDisplayCurrency,
+  formatAdaptiveSignedDisplayCurrency,
+} from '../src/ui/currency-format';
 
 import { AddWalletIcon, OpenRightIcon } from '../src/ui/ui-icons';
 
@@ -150,11 +154,22 @@ export default function SelectWalletScreen() {
     >
           <View style={styles.summaryCard}>
             <Text style={ui.eyebrow}>Total Assets</Text>
-            <Text style={styles.summaryValue}>
-              {aggregate?.totalBalanceDisplay ?? '$0.00'}
+            <Text
+              style={styles.summaryValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
+            >
+              {aggregate?.totalBalanceDisplay ?? formatAdaptiveDisplayCurrency(0)}
             </Text>
-            <Text style={[styles.delta, totalDeltaStyle]}>
-              {aggregate?.totalDeltaDisplay ?? '$0.00 (0.00%)'}
+            <Text
+              style={[styles.delta, totalDeltaStyle]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}
+            >
+              {aggregate?.totalDeltaDisplay ??
+                `${formatAdaptiveSignedDisplayCurrency(0)} (0.00%)`}
             </Text>
             <Text style={styles.summaryHint}>
               Tap any wallet below to open it immediately.
@@ -175,7 +190,8 @@ export default function SelectWalletScreen() {
               {wallets.map((item) => {
                 const wallet = item.wallet;
                 const active = wallet.id === activeWalletId;
-                const balanceDisplay = item.portfolio?.totalBalanceDisplay ?? '$0.00';
+                const balanceDisplay =
+                  item.portfolio?.totalBalanceDisplay ?? formatAdaptiveDisplayCurrency(0);
 
                 return (
                   <TouchableOpacity
@@ -190,7 +206,14 @@ export default function SelectWalletScreen() {
                         {active ? <Text style={styles.activeBadge}>SELECTED</Text> : null}
                       </View>
 
-                      <Text style={styles.meta}>Balance: {balanceDisplay}</Text>
+                      <Text
+                        style={styles.meta}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.72}
+                      >
+                        Balance: {balanceDisplay}
+                      </Text>
                       <Text style={styles.meta}>Access: {formatWalletKind(wallet.kind)}</Text>
                       <Text
                         style={styles.address}

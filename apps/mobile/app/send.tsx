@@ -43,6 +43,8 @@ import {
   getWalletPortfolio,
   type PortfolioAsset,
 } from '../src/services/wallet/portfolio';
+import { getCachedDisplayCurrency } from '../src/settings/display-currency';
+import { formatDisplayCurrency } from '../src/ui/currency-format';
 import { setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
 import { useWalletSession } from '../src/wallet/wallet-session';
 
@@ -198,6 +200,7 @@ export default function SendScreen() {
   const recipientTrimmed = recipient.trim();
   const recipientHasValue = recipientTrimmed.length > 0;
   const recipientIsValid = isValidTronAddress(recipientTrimmed);
+  const displayCurrency = getCachedDisplayCurrency();
   useChromeLoading((loading && !draft) || refreshing);
 
   const contentBottomInset = useBottomInset(amountKeyboardVisible ? 312 : 0);
@@ -307,7 +310,7 @@ export default function SendScreen() {
             name: item.wallet.name,
             address: item.wallet.address,
             kind: item.wallet.kind,
-            balanceDisplay: item.portfolio?.totalBalanceDisplay ?? '$0.00',
+            balanceDisplay: item.portfolio?.totalBalanceDisplay ?? formatDisplayCurrency(0),
           }));
 
         const activePortfolio = await getWalletPortfolio(nextDraft.wallet.address, {
@@ -443,19 +446,31 @@ export default function SendScreen() {
 
   const convertedPreviewText = useMemo(() => {
     if (parsedAmountValue === null || parsedAmountValue <= 0 || selectedTokenPriceUsd <= 0) {
-      return amountInputMode === 'token' ? '$0.00' : `0 ${selectedTokenUnitLabel}`;
+      return amountInputMode === 'token'
+        ? formatDisplayCurrency(0, { currency: displayCurrency })
+        : `0 ${selectedTokenUnitLabel}`;
     }
 
     if (amountInputMode === 'token') {
       const usdValue = parsedAmountValue * selectedTokenPriceUsd;
-      return `$${formatDisplayNumber(usdValue, 2)}`;
+      return formatDisplayCurrency(usdValue, {
+        currency: displayCurrency,
+        maximumFractionDigits: 2,
+      });
     }
 
     const tokenValue = parsedAmountValue / selectedTokenPriceUsd;
     return `${formatDisplayNumber(tokenValue, selectedTokenDecimals)} ${selectedTokenUnitLabel}`;
-  }, [amountInputMode, parsedAmountValue, selectedTokenDecimals, selectedTokenPriceUsd, selectedTokenUnitLabel]);
+  }, [
+    amountInputMode,
+    displayCurrency,
+    parsedAmountValue,
+    selectedTokenDecimals,
+    selectedTokenPriceUsd,
+    selectedTokenUnitLabel,
+  ]);
 
-  const amountSuffixLabel = amountInputMode === 'token' ? selectedTokenUnitLabel : 'USD';
+  const amountSuffixLabel = amountInputMode === 'token' ? selectedTokenUnitLabel : displayCurrency;
 
   const normalizedSendAmount = useMemo(() => {
     if (amountInputMode === 'token') {
@@ -733,7 +748,7 @@ export default function SendScreen() {
     if (!safeAmount) {
       notice.showErrorNotice(
         amountInputMode === 'usd' && selectedTokenPriceUsd <= 0
-          ? 'USD conversion is unavailable for this token.'
+          ? `${displayCurrency} conversion is unavailable for this token.`
           : 'Enter amount.',
         2200
       );
@@ -773,6 +788,7 @@ export default function SendScreen() {
   }, [
     contactName,
     amountInputMode,
+    displayCurrency,
     draft,
     normalizedSendAmount,
     notice,
@@ -895,8 +911,13 @@ export default function SendScreen() {
                   </View>
 
                   <View style={styles.assetRight}>
-                    <Text style={styles.assetValue}>
-                      {selectedTokenAsset?.valueDisplay || '$0.00'}
+                    <Text
+                      style={styles.assetValue}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.72}
+                    >
+                      {selectedTokenAsset?.valueDisplay || formatDisplayCurrency(0)}
                     </Text>
                     <Text style={styles.assetAction}>
                       {selectedTokenAsset?.amountDisplay || draft.token.balanceFormatted}
@@ -936,7 +957,14 @@ export default function SendScreen() {
                       </View>
 
                       <View style={styles.assetRight}>
-                        <Text style={styles.assetValue}>{asset.valueDisplay}</Text>
+                        <Text
+                          style={styles.assetValue}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.72}
+                        >
+                          {asset.valueDisplay}
+                        </Text>
                         <Text style={styles.assetAction}>{asset.amountDisplay}</Text>
                       </View>
                     </TouchableOpacity>

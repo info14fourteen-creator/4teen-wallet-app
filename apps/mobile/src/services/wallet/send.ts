@@ -23,6 +23,8 @@ import {
   normalizeResourceAmount,
   normalizeSunAmount,
 } from './resources';
+import { getDisplayCurrency } from '../../settings/display-currency';
+import { formatDisplayCurrency } from '../../ui/currency-format';
 
 const DEFAULT_TRC20_FEE_LIMIT_SUN = 100_000_000;
 const DEFAULT_TRC20_EXECUTION_FEE_LIMIT_SUN = 150_000_000;
@@ -47,14 +49,6 @@ let resourceUnitPricingCache:
 
 export function clearSendAssetCaches(): void {
   resourceUnitPricingCache = null;
-}
-
-function formatUsd(value: number) {
-  return value.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-  });
 }
 
 export type SendAssetTransferInput = {
@@ -825,12 +819,13 @@ export async function getSendAssetDraft(tokenId?: string) {
     typeof token.balanceValueUsd === 'number' && Number.isFinite(token.balanceValueUsd)
       ? token.balanceValueUsd
       : 0;
+  const displayCurrency = await getDisplayCurrency();
 
   return {
     wallet,
     token: {
       ...token,
-      valueDisplay: formatUsd(valueInUsd),
+      valueDisplay: formatDisplayCurrency(valueInUsd, { currency: displayCurrency }),
     },
     spendableAmount: rawToDecimalString(
       getTokenSpendableRaw(token.tokenId, token.balanceRaw),

@@ -39,6 +39,7 @@ import useChromeLoading from '../src/ui/use-chrome-loading';
 import LottieIcon from '../src/ui/lottie-icon';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import { formatAdaptiveDisplayCurrency } from '../src/ui/currency-format';
 
 const APPROVAL_HISTORY_LIMIT = 100;
 const CONNECTIONS_INFO_ARROW_SOURCE = require('../assets/icons/ui/connections_info_arrow_down.json');
@@ -317,7 +318,7 @@ export default function ConnectionsScreen() {
           name: item.wallet.name,
           address: item.wallet.address,
           kind: item.wallet.kind,
-          balanceDisplay: item.portfolio?.totalBalanceDisplay ?? '$0.00',
+          balanceDisplay: item.portfolio?.totalBalanceDisplay ?? formatAdaptiveDisplayCurrency(0),
         }))
       );
       setWallet(activeWallet);

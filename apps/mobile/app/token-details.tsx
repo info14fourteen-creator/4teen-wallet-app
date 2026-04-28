@@ -35,6 +35,7 @@ import {
   type TokenPerformancePoint,
   type TokenPoolInfo,
 } from '../src/services/tron/api';
+import { formatCompactDisplayCurrency, formatDisplayCurrency } from '../src/ui/currency-format';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
 
@@ -46,27 +47,6 @@ import CopyWalletSvg from '../assets/icons/ui/copy_btn.svg';
 const TOKEN_DETAILS_HISTORY_REFRESH_SOURCE = require('../assets/icons/ui/wallet_action_history_loop.json');
 const TOKEN_DETAILS_MARKET_TOGGLE_SOURCE = require('../assets/icons/ui/token_details_market_toggle.json');
 const TOKEN_DETAILS_SHARE_SOURCE = require('../assets/icons/ui/token_details_share.json');
-
-function formatUsd(value?: number, maximumFractionDigits = 2) {
-  const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
-
-  return safe.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits,
-  });
-}
-
-function formatCompactCurrency(value?: number) {
-  const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
-
-  return safe.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    notation: 'compact',
-    maximumFractionDigits: 2,
-  });
-}
 
 function formatCompactNumber(value?: number) {
   const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -472,7 +452,14 @@ export default function TokenDetailsScreen() {
                 <Text style={styles.balanceAmount}>{details.balanceFormatted}</Text>
 
                 <View style={styles.valueToggleRow}>
-                  <Text style={styles.balanceValue}>{formatUsd(details.balanceValueUsd)}</Text>
+                  <Text
+                    style={styles.balanceValue}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.58}
+                  >
+                    {formatDisplayCurrency(details.balanceValueUsd)}
+                  </Text>
 
                   <TouchableOpacity
                     activeOpacity={0.9}
@@ -549,15 +536,25 @@ export default function TokenDetailsScreen() {
                     <View style={styles.statsGrid}>
                       <View style={styles.statCard}>
                         <Text style={styles.statLabel}>Price</Text>
-                        <Text style={[styles.statValue, priceToneStyle]} numberOfLines={1}>
-                          {formatUsd(details.priceInUsd, 6)}
+                        <Text
+                          style={[styles.statValue, priceToneStyle]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.72}
+                        >
+                          {formatDisplayCurrency(details.priceInUsd, { maximumFractionDigits: 6 })}
                         </Text>
                       </View>
 
                       <View style={styles.statCard}>
                         <Text style={styles.statLabel}>MCap</Text>
-                        <Text style={styles.statValueCompact} numberOfLines={1}>
-                          {formatCompactCurrency(details.marketCap)}
+                        <Text
+                          style={styles.statValueCompact}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.72}
+                        >
+                          {formatCompactDisplayCurrency(details.marketCap)}
                         </Text>
                       </View>
 
@@ -569,8 +566,13 @@ export default function TokenDetailsScreen() {
                         <View style={styles.statButtonRow}>
                           <View style={styles.statButtonText}>
                             <Text style={styles.statLabel}>Liquidity</Text>
-                            <Text style={styles.statValueCompact} numberOfLines={1}>
-                              {formatCompactCurrency(details.liquidityUsd)}
+                            <Text
+                              style={styles.statValueCompact}
+                              numberOfLines={1}
+                              adjustsFontSizeToFit
+                              minimumFontScale={0.72}
+                            >
+                              {formatCompactDisplayCurrency(details.liquidityUsd)}
                             </Text>
                           </View>
 
@@ -597,7 +599,12 @@ export default function TokenDetailsScreen() {
 
                       <View style={styles.statCard}>
                         <Text style={styles.statLabel}>Supply</Text>
-                        <Text style={styles.statValueCompact} numberOfLines={1}>
+                        <Text
+                          style={styles.statValueCompact}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.72}
+                        >
                           {formatCompactNumber(details.totalSupply)}
                         </Text>
                       </View>
@@ -614,11 +621,21 @@ export default function TokenDetailsScreen() {
                               </View>
 
                               <View style={styles.poolRight}>
-                                <Text style={styles.poolLiquidity}>
-                                  {formatCompactCurrency(pool.liquidityUsd)}
+                                <Text
+                                  style={styles.poolLiquidity}
+                                  numberOfLines={1}
+                                  adjustsFontSizeToFit
+                                  minimumFontScale={0.72}
+                                >
+                                  {formatCompactDisplayCurrency(pool.liquidityUsd)}
                                 </Text>
-                                <Text style={styles.poolVolume}>
-                                  24h {formatCompactCurrency(pool.volume24h)}
+                                <Text
+                                  style={styles.poolVolume}
+                                  numberOfLines={1}
+                                  adjustsFontSizeToFit
+                                  minimumFontScale={0.72}
+                                >
+                                  24h {formatCompactDisplayCurrency(pool.volume24h)}
                                 </Text>
                               </View>
                             </View>

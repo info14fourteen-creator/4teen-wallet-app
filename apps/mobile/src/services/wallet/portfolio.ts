@@ -1,7 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { listWallets, type WalletMeta } from './storage';
+import { getDisplayCurrency, type DisplayCurrencyCode } from '../../settings/display-currency';
 import { getWalletSnapshot, type Trc20Asset } from '../tron';
+import {
+  formatAdaptiveDisplayCurrency,
+  formatAdaptiveSignedDisplayCurrency,
+} from '../../ui/currency-format';
 
 export type PortfolioAsset = {
   id: string;
@@ -59,23 +64,6 @@ const PORTFOLIO_MARKET_VERSION = 'cmc-pool-v1';
 const portfolioMemoryCache = new Map<string, PortfolioCachePayload>();
 const portfolioInflight = new Map<string, Promise<WalletPortfolioSnapshot>>();
 
-function formatUsd(value: number) {
-  return value.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatSignedUsd(value: number) {
-  if (!Number.isFinite(value) || Math.abs(value) < 0.0000001) {
-    return '$0.00';
-  }
-
-  const sign = value > 0 ? '+' : '-';
-  return `${sign}${formatUsd(Math.abs(value))}`;
-}
-
 function formatSignedPercent(value: number) {
   if (!Number.isFinite(value) || Math.abs(value) < 0.0000001) {
     return '0.00%';
@@ -113,6 +101,7 @@ function buildAsset(input: {
   valueInUsd: number;
   priceChange24h?: number;
   logo?: string;
+  currency: DisplayCurrencyCode;
 }): PortfolioAsset {
   const safeValueInUsd = Number.isFinite(input.valueInUsd) ? input.valueInUsd : 0;
   const safePriceChange =
@@ -130,7 +119,7 @@ function buildAsset(input: {
     name: input.name,
     symbol: input.symbol,
     amountDisplay: input.amountDisplay,
-    valueDisplay: formatUsd(safeValueInUsd),
+    valueDisplay: formatAdaptiveDisplayCurrency(safeValueInUsd, { currency: input.currency }),
     deltaDisplay: formatAssetPercent(safePriceChange),
     deltaTone: normalizeDeltaTone(safePriceChange),
     logo: input.logo,
@@ -141,7 +130,10 @@ function buildAsset(input: {
   };
 }
 
-function buildTrxAsset(snapshot: Awaited<ReturnType<typeof getWalletSnapshot>>): PortfolioAsset {
+function buildTrxAsset(
+  snapshot: Awaited<ReturnType<typeof getWalletSnapshot>>,
+  currency: DisplayCurrencyCode
+): PortfolioAsset {
   return buildAsset({
     id: 'trx',
     name: 'TRX',
@@ -154,10 +146,11 @@ function buildTrxAsset(snapshot: Awaited<ReturnType<typeof getWalletSnapshot>>):
     valueInUsd: snapshot.trx.valueInUsd || 0,
     priceChange24h: snapshot.trx.priceChange24h,
     logo: snapshot.trx.logo,
+    currency,
   });
 }
 
-function buildTokenAsset(asset: Trc20Asset): PortfolioAsset {
+function buildTokenAsset(asset: Trc20Asset, currency: DisplayCurrencyCode): PortfolioAsset {
   const amount = normalizeAssetAmount(asset.balance, asset.tokenDecimal);
   const valueInUsd =
     typeof asset.valueInUsd === 'number' && Number.isFinite(asset.valueInUsd)
@@ -175,6 +168,7 @@ function buildTokenAsset(asset: Trc20Asset): PortfolioAsset {
     valueInUsd,
     priceChange24h: asset.priceChange24h,
     logo: asset.tokenLogo,
+    currency,
   });
 }
 
@@ -254,16 +248,20 @@ function formatAssetAmountDisplay(amount: number, decimals = 6) {
   });
 }
 
-function rebuildPortfolioSnapshot(
+async function rebuildPortfolioSnapshot(
   address: string,
   assets: PortfolioAsset[]
-): WalletPortfolioSnapshot {
+): Promise<WalletPortfolioSnapshot> {
+  const currency = await getDisplayCurrency();
   const normalizedAssets = assets.map((asset) => ({
     ...asset,
     amount: Number.isFinite(asset.amount) ? Math.max(0, asset.amount) : 0,
     amountDisplay: formatAssetAmountDisplay(asset.amount, asset.id === 'trx' ? 6 : 6),
     valueInUsd: Number.isFinite(asset.valueInUsd) ? Math.max(0, asset.valueInUsd) : 0,
-    valueDisplay: formatUsd(Number.isFinite(asset.valueInUsd) ? Math.max(0, asset.valueInUsd) : 0),
+    valueDisplay: formatAdaptiveDisplayCurrency(
+      Number.isFinite(asset.valueInUsd) ? Math.max(0, asset.valueInUsd) : 0,
+      { currency }
+    ),
     deltaUsd24h: Number.isFinite(asset.deltaUsd24h) ? asset.deltaUsd24h : 0,
   }));
 
@@ -276,10 +274,10 @@ function rebuildPortfolioSnapshot(
   return {
     address,
     totalBalanceUsd,
-    totalBalanceDisplay: formatUsd(totalBalanceUsd),
+    totalBalanceDisplay: formatAdaptiveDisplayCurrency(totalBalanceUsd, { currency }),
     totalDeltaUsd24h,
     totalDeltaPercent24h,
-    totalDeltaDisplay: `${formatSignedUsd(totalDeltaUsd24h)} (${formatSignedPercent(totalDeltaPercent24h)})`,
+    totalDeltaDisplay: `${formatAdaptiveSignedDisplayCurrency(totalDeltaUsd24h, currency)} (${formatSignedPercent(totalDeltaPercent24h)})`,
     totalDeltaTone: normalizeDeltaTone(totalDeltaPercent24h),
     assets: normalizedAssets,
   };
@@ -354,16 +352,17 @@ export async function applyOutgoingTransferToPortfolioCache(input: {
     return asset;
   });
 
-  const nextSnapshot = rebuildPortfolioSnapshot(walletAddress, nextAssets);
+  const nextSnapshot = await rebuildPortfolioSnapshot(walletAddress, nextAssets);
   await writePortfolioCache(walletAddress, nextSnapshot);
 }
 
-function buildPortfolioSnapshot(
+async function buildPortfolioSnapshot(
   snapshot: Awaited<ReturnType<typeof getWalletSnapshot>>
-): WalletPortfolioSnapshot {
+): Promise<WalletPortfolioSnapshot> {
+  const currency = await getDisplayCurrency();
   const assets = [
-    buildTrxAsset(snapshot),
-    ...snapshot.trc20Assets.map(buildTokenAsset),
+    buildTrxAsset(snapshot, currency),
+    ...snapshot.trc20Assets.map((asset) => buildTokenAsset(asset, currency)),
   ];
 
   const totalBalanceUsd = assets.reduce((sum, asset) => sum + asset.valueInUsd, 0);
@@ -376,10 +375,10 @@ function buildPortfolioSnapshot(
   return {
     address: snapshot.address,
     totalBalanceUsd,
-    totalBalanceDisplay: formatUsd(totalBalanceUsd),
+    totalBalanceDisplay: formatAdaptiveDisplayCurrency(totalBalanceUsd, { currency }),
     totalDeltaUsd24h,
     totalDeltaPercent24h,
-    totalDeltaDisplay: `${formatSignedUsd(totalDeltaUsd24h)} (${formatSignedPercent(totalDeltaPercent24h)})`,
+    totalDeltaDisplay: `${formatAdaptiveSignedDisplayCurrency(totalDeltaUsd24h, currency)} (${formatSignedPercent(totalDeltaPercent24h)})`,
     totalDeltaTone: normalizeDeltaTone(totalDeltaPercent24h),
     assets,
   };
@@ -426,7 +425,7 @@ export async function getWalletPortfolio(
   const request = (async () => {
     try {
       const snapshot = await getWalletSnapshot(normalizedAddress, options);
-      const portfolio = buildPortfolioSnapshot(snapshot);
+      const portfolio = await buildPortfolioSnapshot(snapshot);
       await writePortfolioCache(normalizedAddress, portfolio);
       return portfolio;
     } catch (error) {
@@ -453,6 +452,7 @@ export async function getWalletPortfolio(
 export async function getAllWalletPortfolios(
   options?: { force?: boolean }
 ): Promise<WalletPortfolioAggregate> {
+  const currency = await getDisplayCurrency();
   const wallets = await listWallets();
   const items: WalletPortfolioListItem[] = [];
 
@@ -495,10 +495,10 @@ export async function getAllWalletPortfolios(
   return {
     items,
     totalBalanceUsd,
-    totalBalanceDisplay: formatUsd(totalBalanceUsd),
+    totalBalanceDisplay: formatAdaptiveDisplayCurrency(totalBalanceUsd, { currency }),
     totalDeltaUsd24h,
     totalDeltaPercent24h,
-    totalDeltaDisplay: `${formatSignedUsd(totalDeltaUsd24h)} (${formatSignedPercent(totalDeltaPercent24h)})`,
+    totalDeltaDisplay: `${formatAdaptiveSignedDisplayCurrency(totalDeltaUsd24h, currency)} (${formatSignedPercent(totalDeltaPercent24h)})`,
     totalDeltaTone: normalizeDeltaTone(totalDeltaPercent24h),
   };
 }

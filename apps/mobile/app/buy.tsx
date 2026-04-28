@@ -52,6 +52,7 @@ import {
 } from '../src/services/wallet/portfolio';
 import { setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import { formatAdaptiveDisplayCurrency } from '../src/ui/currency-format';
 import { BackspaceIcon, CloseIcon } from '../src/ui/ui-icons';
 
 const BUY_INFO_TITLE = 'How direct buy works';
@@ -418,7 +419,9 @@ export default function BuyScreen() {
                       address: selectedWalletOption?.address || context.wallet.address,
                       kind: selectedWalletOption?.kind || context.wallet.kind,
                       balanceDisplay:
-                        selectedWalletOption?.balanceDisplay || context.trxValueDisplay || '$0.00',
+                        selectedWalletOption?.balanceDisplay ||
+                        context.trxValueDisplay ||
+                        formatAdaptiveDisplayCurrency(0),
                     }
                   : null
               }

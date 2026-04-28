@@ -31,17 +31,30 @@ function WalletBalance({
   compact?: boolean;
 }) {
   const safe = String(value || '—').trim() || '—';
-  const currency = safe.startsWith('$') ? '$' : '';
-  const amount = currency ? safe.slice(1).trim() || '0.00' : safe;
+  const match = safe.match(/^([^\d-]+)\s*(.+)$/);
+  const currency = match?.[1]?.trim() || '';
+  const amount = match?.[2]?.trim() || safe;
 
   return (
     <View style={styles.walletBalanceRow}>
       {currency ? (
-        <Text style={compact ? styles.walletOptionBalanceCurrency : styles.walletBalanceCurrency}>
+        <Text
+          style={compact ? styles.walletOptionBalanceCurrency : styles.walletBalanceCurrency}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.72}
+        >
           {currency}
         </Text>
       ) : null}
-      <Text style={compact ? styles.walletOptionBalance : styles.walletBalance}>{amount}</Text>
+      <Text
+        style={compact ? styles.walletOptionBalance : styles.walletBalance}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+      >
+        {amount}
+      </Text>
     </View>
   );
 }
@@ -194,6 +207,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 2,
+    flexShrink: 1,
+    minWidth: 0,
   },
   walletBalanceCurrency: {
     color: colors.accent,

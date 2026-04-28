@@ -17,6 +17,7 @@ import { ProductScreen } from '../src/ui/product-shell';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { useNotice } from '../src/notice/notice-provider';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import { formatDisplayCurrency } from '../src/ui/currency-format';
 import {
   buildWalletHomeVisibleTokensStorageKey,
   getActiveWallet,
@@ -52,7 +53,7 @@ function mapCustomTokenToAsset(item: CustomTokenCatalogItem): PortfolioAsset {
     symbol: item.abbr || item.name || item.id.slice(0, 6),
     logo: item.logo,
     amountDisplay: '0',
-    valueDisplay: '$0.00',
+    valueDisplay: formatDisplayCurrency(0),
     deltaDisplay: '—',
     deltaTone: 'dim',
     amount: 0,
@@ -119,7 +120,7 @@ async function buildManageFallbackAsset(
       symbol: details.symbol || details.name || tokenId.slice(0, 6),
       logo: details.logo,
       amountDisplay: details.balanceFormatted || '0',
-      valueDisplay: '$0.00',
+      valueDisplay: formatDisplayCurrency(0),
       deltaDisplay: '—',
       deltaTone: 'dim',
       amount: 0,
@@ -142,7 +143,7 @@ async function buildManageFallbackAsset(
       name: fallbackName,
       symbol: fallbackName,
       amountDisplay: '0',
-      valueDisplay: '$0.00',
+      valueDisplay: formatDisplayCurrency(0),
       deltaDisplay: '—',
       deltaTone: 'dim',
       amount: 0,
@@ -253,7 +254,7 @@ export default function ManageCryptoScreen() {
                 symbol: details.symbol || '',
                 logo: details.logo,
                 amountDisplay: details.balanceFormatted || '0',
-                valueDisplay: '$0.00',
+                valueDisplay: formatDisplayCurrency(0),
                 deltaDisplay: '—',
                 deltaTone: 'dim',
                 amount: 0,

@@ -47,6 +47,7 @@ import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import { formatAdaptiveDisplayCurrency } from '../src/ui/currency-format';
 
 type WalletSwitcherItem = {
   id: string;
@@ -101,7 +102,7 @@ export default function LiquidityControllerScreen() {
         name: item.wallet.name,
         address: item.wallet.address,
         kind: item.wallet.kind,
-        balanceDisplay: item.portfolio?.totalBalanceDisplay ?? '$0.00',
+        balanceDisplay: item.portfolio?.totalBalanceDisplay ?? formatAdaptiveDisplayCurrency(0),
       }));
 
       setWalletChoices(nextWalletChoices);

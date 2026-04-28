@@ -24,6 +24,10 @@ import {
   UNLOCK_TIMELINE_INFO_TITLE,
   type UnlockTimelineSnapshot,
 } from '../src/services/unlock-timeline';
+import {
+  formatAdaptiveDisplayCurrency,
+  formatCompactDisplayCurrency,
+} from '../src/ui/currency-format';
 import { getAllWalletPortfolios } from '../src/services/wallet/portfolio';
 import { getActiveWallet, setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
 import { colors, layout, radius } from '../src/theme/tokens';
@@ -73,11 +77,10 @@ function formatCardValue(value: number | null | undefined) {
   return formatUnlockCompact(value);
 }
 
-function formatCardUsd(value: number | null | undefined) {
+function formatCardCurrency(value: number | null | undefined) {
   const safe = Number(value || 0);
   if (!Number.isFinite(safe) || safe <= 0) return '—';
-  if (Math.abs(safe) >= 1000) return formatUnlockCompact(safe);
-  return safe.toFixed(2);
+  return formatCompactDisplayCurrency(safe);
 }
 
 export default function UnlockTimelineScreen() {
@@ -129,7 +132,7 @@ export default function UnlockTimelineScreen() {
         name: item.wallet.name,
         address: item.wallet.address,
         kind: item.wallet.kind,
-        balanceDisplay: item.portfolio?.totalBalanceDisplay ?? '$0.00',
+        balanceDisplay: item.portfolio?.totalBalanceDisplay ?? formatAdaptiveDisplayCurrency(0),
       }));
 
       setWalletChoices(nextWalletChoices);
@@ -349,7 +352,7 @@ export default function UnlockTimelineScreen() {
             <Text style={styles.summaryLabel}>DIRECT BUY PRICE</Text>
             <Text style={styles.summaryValue}>{formatCardValue(snapshot?.directBuyRateTrx)}</Text>
             <Text style={styles.summaryUnit}>
-              TRX {snapshot?.directBuyRateUsd ? `• ${formatCardUsd(snapshot.directBuyRateUsd)} USD` : ''}
+              TRX {snapshot?.directBuyRateUsd ? `• ${formatCardCurrency(snapshot.directBuyRateUsd)}` : ''}
             </Text>
           </View>
 
@@ -357,7 +360,7 @@ export default function UnlockTimelineScreen() {
             <Text style={styles.summaryLabel}>MARKET PRICE</Text>
             <Text style={styles.summaryValue}>{formatCardValue(snapshot?.marketRateTrx)}</Text>
             <Text style={styles.summaryUnit}>
-              TRX {snapshot?.marketRateUsd ? `• ${formatCardUsd(snapshot.marketRateUsd)} USD` : ''}
+              TRX {snapshot?.marketRateUsd ? `• ${formatCardCurrency(snapshot.marketRateUsd)}` : ''}
             </Text>
           </View>
         </View>
@@ -398,7 +401,7 @@ export default function UnlockTimelineScreen() {
               1 4TEEN → {formatCardValue(snapshot?.marketRateTrx)} TRX
             </Text>
             <Text style={styles.detailSubvalue} numberOfLines={1}>
-              ≈ {formatCardUsd(snapshot?.marketRateUsd)} USD
+              ≈ {formatCardCurrency(snapshot?.marketRateUsd)}
             </Text>
           </View>
         </View>

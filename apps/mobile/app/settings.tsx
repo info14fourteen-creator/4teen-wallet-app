@@ -21,6 +21,7 @@ import {
   getBiometricsEnabled,
   hasPasscode,
 } from '../src/security/local-auth';
+import { getCachedDisplayCurrency, getDisplayCurrency } from '../src/settings/display-currency';
 import SettingsRow from '../src/ui/settings-row';
 
 const CLEAR_HOLD_MS = 3500;
@@ -35,6 +36,7 @@ export default function SettingsScreen() {
   const [clearActive, setClearActive] = useState(false);
   const [clearProgress, setClearProgress] = useState(0);
   const [authValue, setAuthValue] = useState('Not set');
+  const [currencyValue, setCurrencyValue] = useState(getCachedDisplayCurrency());
 
   const clearStartedAtRef = useRef<number | null>(null);
   const clearTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -66,13 +68,16 @@ export default function SettingsScreen() {
       let cancelled = false;
 
       const loadAuthValue = async () => {
-        const [passcodeEnabled, biometricsEnabled, autoLockMode] = await Promise.all([
+        const [passcodeEnabled, biometricsEnabled, autoLockMode, displayCurrency] = await Promise.all([
           hasPasscode(),
           getBiometricsEnabled(),
           getAutoLockMode(),
+          getDisplayCurrency(),
         ]);
 
         if (cancelled) return;
+
+        setCurrencyValue(displayCurrency);
 
         if (!passcodeEnabled) {
           setAuthValue('Off');
@@ -159,7 +164,7 @@ export default function SettingsScreen() {
     <ProductScreen eyebrow="SETTINGS" browVariant="back">
           <View style={styles.list}>
             <SettingsRow label="Language" value="English" onPress={() => router.push('/language')} />
-            <SettingsRow label="Currency" value="USD" onPress={() => router.push('/currency')} />
+            <SettingsRow label="Currency" value={currencyValue} onPress={() => router.push('/currency')} />
             <SettingsRow
               label="Authentication Method"
               value={authValue}

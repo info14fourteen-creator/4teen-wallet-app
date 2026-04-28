@@ -71,6 +71,10 @@ import {
 } from '../src/services/tron/api';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import {
+  formatAdaptiveDisplayCurrency,
+  formatAdaptiveSignedDisplayCurrency,
+} from '../src/ui/currency-format';
 
 import {
   AssetsIcon,
@@ -443,10 +447,12 @@ function splitLeadingCurrencySymbol(value: string) {
     return { symbol: '', amount: '$0.00' };
   }
 
-  if (/^[^\d-]/.test(safe)) {
+  const match = safe.match(/^([^\d-]+)\s*(.+)$/);
+
+  if (match) {
     return {
-      symbol: safe.charAt(0),
-      amount: safe.slice(1) || '0.00',
+      symbol: match[1].trim(),
+      amount: match[2].trim() || '0.00',
     };
   }
 
@@ -1102,7 +1108,7 @@ export default function HomeScreen() {
           symbol: fallbackSymbol,
           logo: historyItem?.tokenLogo || metaItem?.logo || customItem?.logo,
           amountDisplay: '0',
-          valueDisplay: '$0.00',
+          valueDisplay: formatAdaptiveDisplayCurrency(0),
           deltaDisplay: '—',
           deltaTone: 'dim',
           amount: 0,
@@ -2386,9 +2392,12 @@ export default function HomeScreen() {
                   const isWalletPortfolioLoading =
                     portfolioLoadingWalletId === wallet.id && !visiblePortfolio;
 
-                  const balanceDisplay = visiblePortfolio?.totalBalanceDisplay ?? '$0.00';
+                  const balanceDisplay =
+                    visiblePortfolio?.totalBalanceDisplay ?? formatAdaptiveDisplayCurrency(0);
                   const balanceParts = splitLeadingCurrencySymbol(balanceDisplay);
-                  const deltaDisplay = visiblePortfolio?.totalDeltaDisplay ?? '$0.00 (0.00%)';
+                  const deltaDisplay =
+                    visiblePortfolio?.totalDeltaDisplay ??
+                    `${formatAdaptiveSignedDisplayCurrency(0)} (0.00%)`;
                   const deltaTone = visiblePortfolio?.totalDeltaTone ?? 'dim';
                   const energyAvailable = getAvailableResource(
                     resourceData?.energyLimit,
@@ -2411,7 +2420,14 @@ export default function HomeScreen() {
                     <View key={key} style={[styles.walletCardPage, { width: cardWidth }]}>
                       <View style={styles.walletCard}>
                         <View style={styles.walletNameRow}>
-                          <Text style={styles.walletName}>{wallet.name}</Text>
+                          <Text
+                            style={styles.walletName}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.72}
+                          >
+                            {wallet.name}
+                          </Text>
 
                           <TouchableOpacity
                             activeOpacity={0.85}
@@ -2582,11 +2598,21 @@ export default function HomeScreen() {
                             <>
                               <View style={styles.balanceValueRow}>
                                 {balanceParts.symbol ? (
-                                  <Text style={styles.balanceCurrencySymbol}>
+                                  <Text
+                                    style={styles.balanceCurrencySymbol}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.72}
+                                  >
                                     {balanceParts.symbol}
                                   </Text>
                                 ) : null}
-                                <Text style={styles.balanceValueAmount}>
+                                <Text
+                                  style={styles.balanceValueAmount}
+                                  numberOfLines={1}
+                                  adjustsFontSizeToFit
+                                  minimumFontScale={0.58}
+                                >
                                   {balanceParts.amount}
                                 </Text>
                               </View>
@@ -2600,6 +2626,9 @@ export default function HomeScreen() {
                                       ? styles.deltaRed
                                       : styles.deltaDim,
                                 ]}
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                                minimumFontScale={0.72}
                               >
                                 {deltaDisplay}
                               </Text>
@@ -2839,7 +2868,14 @@ export default function HomeScreen() {
                       </View>
 
                       <View style={styles.assetRight}>
-                        <Text style={styles.assetValue}>{asset.valueDisplay}</Text>
+                        <Text
+                          style={styles.assetValue}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.72}
+                        >
+                          {asset.valueDisplay}
+                        </Text>
                         <Text
                           style={[
                             styles.assetDelta,
@@ -3393,6 +3429,7 @@ const styles = StyleSheet.create({
     minHeight: 92,
     justifyContent: 'flex-start',
     paddingTop: 10,
+    minWidth: 0,
   },
 
   resourcesBlock: {
@@ -3463,6 +3500,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 2,
     marginTop: 4,
+    minWidth: 0,
   },
 
   balanceCurrencySymbol: {
@@ -3470,6 +3508,7 @@ const styles = StyleSheet.create({
     fontSize: 36,
     lineHeight: 42,
     fontFamily: 'Sora_700Bold',
+    flexShrink: 1,
   },
 
   balanceValueAmount: {
@@ -3485,6 +3524,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
+    minWidth: 0,
   },
 
   walletDots: {
