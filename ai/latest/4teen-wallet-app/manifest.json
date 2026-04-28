@@ -1,99 +1,79 @@
 {
-  "generatedAt": "2026-04-27T23:12:03.740Z",
+  "generatedAt": "2026-04-28T03:03:24.268Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "41cbdf096d8b3d4b7b3c36a0cc7c66c39e3809bb",
-    "shortHash": "41cbdf0",
-    "subject": "Polish mobile UI flows and wallet interactions",
+    "hash": "ffec3092b4c41938b370560aebd63d630699fd15",
+    "shortHash": "ffec309",
+    "subject": "Refine appearance placeholder screen",
     "author": "info14fourteen-creator",
-    "date": "2026-04-28T04:11:46+05:00"
+    "date": "2026-04-28T08:03:11+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/add-custom-token.tsx",
-    "M\tapps/mobile/app/address-book.tsx",
-    "M\tapps/mobile/app/airdrop.tsx",
-    "M\tapps/mobile/app/ambassador-confirm.tsx",
-    "M\tapps/mobile/app/ambassador-program.tsx",
-    "M\tapps/mobile/app/ambassador-withdraw-confirm.tsx",
-    "M\tapps/mobile/app/buy-confirm.tsx",
-    "M\tapps/mobile/app/buy.tsx",
-    "M\tapps/mobile/app/connections.tsx",
-    "M\tapps/mobile/app/create-wallet.tsx",
-    "M\tapps/mobile/app/earn.tsx",
-    "M\tapps/mobile/app/import-private-key.tsx",
-    "M\tapps/mobile/app/import-seed.tsx",
-    "M\tapps/mobile/app/import-watch-only.tsx",
-    "M\tapps/mobile/app/liquidity-confirm.tsx",
-    "M\tapps/mobile/app/liquidity-controller.tsx",
-    "M\tapps/mobile/app/manage-crypto.tsx",
-    "M\tapps/mobile/app/scan.tsx",
-    "M\tapps/mobile/app/select-wallet.tsx",
-    "M\tapps/mobile/app/send-confirm.tsx",
-    "M\tapps/mobile/app/send.tsx",
-    "M\tapps/mobile/app/swap-confirm.tsx",
-    "M\tapps/mobile/app/swap.tsx",
-    "M\tapps/mobile/app/ui-shell-test-b.tsx",
-    "M\tapps/mobile/app/unlock-timeline.tsx",
-    "M\tapps/mobile/app/unlock.tsx",
-    "M\tapps/mobile/app/wallet.tsx",
-    "M\tapps/mobile/app/wallets.tsx",
-    "A\tapps/mobile/assets/icons/ui/brow_back_arrow_slide.json",
-    "A\tapps/mobile/assets/icons/ui/brow_select_wallet_close.json",
-    "A\tapps/mobile/assets/icons/ui/brow_wallet_access_wallet.json",
-    "A\tapps/mobile/assets/icons/ui/brow_wallet_asset_view.json",
-    "A\tapps/mobile/assets/icons/ui/connections_info_arrow_down.json",
-    "A\tapps/mobile/assets/icons/ui/connections_info_cross.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_asset_cross.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_assets_to_history.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_assets_to_more.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_history.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_history_merged.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_history_to_assets.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_history_toggle.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_manage_crypto_orange.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_manage_crypto_white.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_more.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_more_to_assets.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_receive.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_action_send.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_card_copy.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_card_qr.json",
-    "A\tapps/mobile/assets/icons/ui/wallet_resources_battery.json",
-    "M\tapps/mobile/package.json",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/search/search-routes.ts",
-    "M\tapps/mobile/src/services/tron/api.ts",
-    "M\tapps/mobile/src/theme/patterns.ts",
-    "M\tapps/mobile/src/theme/tokens.ts",
-    "M\tapps/mobile/src/ui/app-header.tsx",
-    "A\tapps/mobile/src/ui/approval-auth-modal.tsx",
-    "M\tapps/mobile/src/ui/footer-nav.tsx",
-    "M\tapps/mobile/src/ui/fourteen-wallet-loader.tsx",
-    "A\tapps/mobile/src/ui/info-toggle-icon.tsx",
-    "M\tapps/mobile/src/ui/product-shell.tsx",
-    "A\tapps/mobile/src/ui/safe-back.ts",
-    "M\tapps/mobile/src/ui/screen-brow.tsx",
-    "M\tapps/mobile/src/ui/screen-loading-overlay.tsx",
-    "M\tapps/mobile/src/ui/selected-wallet-switcher.tsx",
-    "M\tapps/mobile/src/wallet/wallet-session.tsx"
+    "M\tapps/mobile/app/appearance.tsx",
+    "M\tapps/mobile/app/settings.tsx",
+    "M\tapps/mobile/src/config/app-version.ts"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 6
+      "count": 9
     },
     {
       "file": "apps/mobile/app/send.tsx",
-      "count": 4
+      "count": 6
     },
     {
       "file": "apps/mobile/app/wallet.tsx",
-      "count": 4
+      "count": 6
     },
     {
       "file": "apps/mobile/package.json",
+      "count": 6
+    },
+    {
+      "file": "apps/mobile/app/swap.tsx",
+      "count": 5
+    },
+    {
+      "file": "apps/mobile/app/wallets.tsx",
+      "count": 5
+    },
+    {
+      "file": "apps/mobile/src/services/tron/api.ts",
+      "count": 5
+    },
+    {
+      "file": "apps/mobile/app/airdrop.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/ambassador-program.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/buy.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/create-wallet.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/manage-crypto.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/select-wallet.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/settings.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/token-details.tsx",
       "count": 4
     },
     {
@@ -105,27 +85,27 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/airdrop.tsx",
+      "file": "apps/mobile/app/backup-private-key.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/ambassador-program.tsx",
+      "file": "apps/mobile/app/connections.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/create-wallet.tsx",
+      "file": "apps/mobile/app/earn.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/manage-crypto.tsx",
+      "file": "apps/mobile/app/export-mnemonic.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/liquidity-controller.tsx",
       "count": 3
     },
     {
       "file": "apps/mobile/app/scan.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/select-wallet.tsx",
       "count": 3
     },
     {
@@ -137,11 +117,11 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/swap.tsx",
+      "file": "apps/mobile/app/unlock-timeline.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/wallets.tsx",
+      "file": "apps/mobile/app/unlock.tsx",
       "count": 3
     },
     {
@@ -149,56 +129,12 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/src/services/tron/api.ts",
+      "file": "apps/mobile/src/services/wallet/send.ts",
       "count": 3
     },
     {
-      "file": "apps/mobile/src/ui/product-shell.tsx",
+      "file": "apps/mobile/src/ui/app-header.tsx",
       "count": 3
-    },
-    {
-      "file": "apps/mobile/src/ui/screen-loading-overlay.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/api/clock.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/routes/ambassador.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/services/airdrop/telegramBot.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/services/gasstation/gasStation.js",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/ambassador-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/backup-private-key.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/buy-confirm.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/buy.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/connections.tsx",
-      "count": 2
     }
   ],
   "todoCount": 11,
@@ -412,6 +348,7 @@
     "apps/mobile/assets/icons/ui/history_btn.svg",
     "apps/mobile/assets/icons/ui/home_footer_menu_btn_onclick.svg",
     "apps/mobile/assets/icons/ui/home_footer_menu_btn.svg",
+    "apps/mobile/assets/icons/ui/import_private_key_visibility_toggle.json",
     "apps/mobile/assets/icons/ui/info_btn.svg",
     "apps/mobile/assets/icons/ui/liquidity_qp_btn.svg",
     "apps/mobile/assets/icons/ui/logo_white.svg",
@@ -434,8 +371,7 @@
     "apps/mobile/assets/icons/ui/send_footer_menu_btn.svg",
     "apps/mobile/assets/icons/ui/send_qp_btn.svg",
     "apps/mobile/assets/icons/ui/setings_btn.svg",
-    "apps/mobile/assets/icons/ui/share_btn.svg",
-    "apps/mobile/assets/icons/ui/socials/discord_social.svg"
+    "apps/mobile/assets/icons/ui/share_btn.svg"
   ],
   "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
   "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"
