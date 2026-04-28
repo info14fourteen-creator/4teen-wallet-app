@@ -170,7 +170,11 @@ export default function SettingsScreen() {
               value={authValue}
               onPress={() => router.push('/authentication-method')}
             />
-            <SettingsRow label="Appearance" value="Dark" onPress={() => router.push('/appearance')} />
+            <SettingsRow
+              label="Appearance"
+              value="Dark Side Only"
+              onPress={() => router.push('/appearance')}
+            />
 
             <ClearCacheHoldRow
               active={clearActive}
