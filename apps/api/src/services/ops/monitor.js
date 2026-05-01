@@ -4,6 +4,7 @@ const { hasEnoughAmbassadorAllocationResources } = require('../ambassador/replay
 const { getGasStationRuntimeState } = require('../gasstation/gasStation');
 const { recordOpsEvent, resolveOpsEvent } = require('./events');
 const { getRuntimeState } = require('./store');
+const { runSyntheticScreeners } = require('./screeners');
 const { bootstrapAdminBotEnv } = require('./telegramAdminBot');
 
 const MONITOR_INTERVAL_MS = 5 * 60 * 1000;
@@ -14,6 +15,9 @@ let started = false;
 
 async function runMonitorTick(trigger) {
   await bootstrapAdminBotEnv().catch(() => null);
+  await runSyntheticScreeners(trigger, {
+    force: trigger !== 'interval'
+  }).catch(() => null);
 
   const dbHealthy = await pool.query('SELECT 1').then(() => true).catch(() => false);
   if (!dbHealthy) {

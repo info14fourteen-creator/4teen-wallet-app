@@ -3,6 +3,7 @@ const env = require('../config/env');
 const { recordOpsEvent } = require('../services/ops/events');
 const { runMonitorTick } = require('../services/ops/monitor');
 const { ensureOpsTables, listRecentEvents } = require('../services/ops/store');
+const { getSyntheticScreenerSnapshot } = require('../services/ops/screeners');
 const {
   bootstrapAdminBotEnv,
   getExpectedWebhookUrl,
@@ -54,10 +55,13 @@ function requireAdminToken(req, res, next) {
 router.get('/health', async (_req, res) => {
   try {
     await ensureOpsTables();
-    const bootstrap = await bootstrapAdminBotEnv().catch((error) => ({
-      ok: false,
-      error: error.message
-    }));
+    const [bootstrap, screeners] = await Promise.all([
+      bootstrapAdminBotEnv().catch((error) => ({
+        ok: false,
+        error: error.message
+      })),
+      getSyntheticScreenerSnapshot().catch(() => null)
+    ]);
 
     const adminBot = bootstrap
       ? {
@@ -78,7 +82,21 @@ router.get('/health', async (_req, res) => {
     return res.json({
       ok: true,
       webhookConfigured: Boolean(getExpectedWebhookUrl()),
-      adminBot
+      adminBot,
+      screeners: screeners
+        ? {
+            checkedAt: screeners.checkedAt || null,
+            summary: screeners.summary || null,
+            items: Array.isArray(screeners.items)
+              ? screeners.items.map((item) => ({
+                  key: item.key,
+                  label: item.label,
+                  status: item.status,
+                  summary: item.summary
+                }))
+              : []
+          }
+        : null
     });
   } catch (error) {
     return res.status(error.status || 500).json({
@@ -162,11 +180,20 @@ router.post('/feedback', requireAdminToken, async (req, res) => {
 router.post('/monitor/run', requireAdminToken, async (_req, res) => {
   try {
     await runMonitorTick('manual');
-    const events = await listRecentEvents(10, { onlyOpen: true }).catch(() => []);
+    const [events, screeners] = await Promise.all([
+      listRecentEvents(10, { onlyOpen: true }).catch(() => []),
+      getSyntheticScreenerSnapshot().catch(() => null)
+    ]);
 
     return res.json({
       ok: true,
-      openEvents: events.length
+      openEvents: events.length,
+      screeners: screeners
+        ? {
+            checkedAt: screeners.checkedAt || null,
+            summary: screeners.summary || null
+          }
+        : null
     });
   } catch (error) {
     return res.status(error.status || 500).json({

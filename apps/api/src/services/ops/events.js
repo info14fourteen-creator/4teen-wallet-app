@@ -18,27 +18,44 @@ function severityIcon(severity) {
 }
 
 function recommendationForEvent(event) {
-  const fingerprint = normalizeValue(event?.fingerprint);
   const source = normalizeValue(event?.source);
+  const category = normalizeValue(event?.category);
+  const type = normalizeValue(event?.type);
 
-  if (fingerprint.includes('airdrop:resources_low') || fingerprint.includes('clock:airdrop_resources_low')) {
+  if (source === 'airdrop' && category === 'resources' && type === 'resource_floor_low') {
     return 'Что делать: проверить airdrop wallet и поднять energy.';
   }
 
-  if (fingerprint.includes('ambassador:resources_low') || fingerprint.includes('clock:ambassador_resources_low')) {
+  if (source === 'ambassador' && category === 'resources' && type === 'resource_floor_low') {
     return 'Что делать: посмотреть operator wallet и его energy/bandwidth.';
   }
 
-  if (fingerprint.includes('key_pool_exhausted')) {
+  if (source === 'proxy' && category === 'keys' && type === 'key_pool_exhausted') {
     return 'Что делать: проверить квоты провайдеров и запасные API-ключи.';
   }
 
-  if (fingerprint.includes('credential_pool_failed') || source === 'gasstation') {
+  if (source === 'gasstation' && category === 'keys' && type === 'credential_pool_failed') {
     return 'Что делать: проверить GasStation credential-ы, лимиты и whitelist.';
   }
 
-  if (fingerprint.includes('clock:heartbeat_stale') || fingerprint.includes('clock:tick_failed')) {
+  if (source === 'clock' && category === 'heartbeat' && type === 'clock_stale') {
     return 'Что делать: проверить clock dyno и свежесть heartbeat.';
+  }
+
+  if (source === 'screeners' && type === 'wallet_market_pipeline') {
+    return 'Что делать: проверить proxy для Trongrid/Tronscan и не упёрлись ли ключи в лимиты.';
+  }
+
+  if (source === 'screeners' && type === 'ambassador_energy_quote') {
+    return 'Что делать: проверить quote на energy, режим GasStation и конфиг resale fallback.';
+  }
+
+  if (source === 'screeners' && type === 'telegram_airdrop_flow') {
+    return 'Что делать: проверить airdrop wallet, его energy/bandwidth и скорость очереди claim.';
+  }
+
+  if (source === 'screeners' && type === 'ambassador_allocation_flow') {
+    return 'Что делать: проверить operator wallet и не залипают ли ambassador allocation/replay.';
   }
 
   return 'Что делать: открыть /menu и посмотреть детали в разделах События и Здоровье.';

@@ -16,9 +16,10 @@ const {
 const TELEGRAM_API_BASE_URL = 'https://api.telegram.org';
 const CALLBACK_PREFIX = 'ops:';
 const DEFAULT_SCREEN = 'overview';
-const SUPPORTED_SCREENS = new Set(['overview', 'health', 'events', 'keys', 'queues', 'targets']);
+const SUPPORTED_SCREENS = new Set(['overview', 'screen', 'health', 'events', 'keys', 'queues', 'targets']);
 const BOT_COMMANDS = [
   { command: 'menu', description: 'Открыть главное меню' },
+  { command: 'screen', description: 'Проверить реальные app-flow' },
   { command: 'health', description: 'Понять, что сейчас болит' },
   { command: 'events', description: 'Посмотреть активные проблемы' },
   { command: 'keys', description: 'Проверить ключи и лимиты' },
@@ -60,6 +61,10 @@ function getGasStationService() {
 
 function getProxyService() {
   return require('../proxy/apiProxy');
+}
+
+function getScreenerService() {
+  return require('./screeners');
 }
 
 function getAdminBotToken() {
@@ -287,29 +292,75 @@ function parseJson(value, fallback = null) {
   }
 }
 
+function screenerStatusIcon(status) {
+  const safe = normalizeValue(status).toLowerCase();
+  if (safe === 'ok') return '🟢';
+  if (safe === 'warn') return '🟠';
+  return '🔴';
+}
+
+function buildScreenerStateSummary(snapshot) {
+  const summary = snapshot?.summary || {};
+  const ok = Number(summary.ok || 0);
+  const warn = Number(summary.warn || 0);
+  const fail = Number(summary.fail || 0);
+  const total = Number(summary.total || 0);
+
+  if (total <= 0) {
+    return 'ещё нет прогона';
+  }
+
+  if (fail > 0) {
+    return `${ok}/${total} ок, ${warn} под давлением, ${fail} сломано`;
+  }
+
+  if (warn > 0) {
+    return `${ok}/${total} ок, ${warn} под давлением`;
+  }
+
+  return `${ok}/${total} ок`;
+}
+
 function buildEventRecommendation(event) {
-  const fingerprint = normalizeValue(event?.fingerprint);
   const source = normalizeValue(event?.source);
+  const category = normalizeValue(event?.category);
+  const type = normalizeValue(event?.type);
   const details = parseJson(event?.details_json, {});
 
-  if (fingerprint.includes('airdrop:resources_low') || fingerprint.includes('clock:airdrop_resources_low')) {
+  if (source === 'airdrop' && category === 'resources' && type === 'resource_floor_low') {
     return `Совет: докинуть energy на airdrop-кошелёк ${shortenAddress(details?.walletAddress)}.`;
   }
 
-  if (fingerprint.includes('ambassador:resources_low') || fingerprint.includes('clock:ambassador_resources_low')) {
+  if (source === 'ambassador' && category === 'resources' && type === 'resource_floor_low') {
     return `Совет: проверить operator wallet ${shortenAddress(details?.walletAddress)} и поднять energy.`;
   }
 
-  if (fingerprint.includes('key_pool_exhausted')) {
+  if (source === 'proxy' && category === 'keys' && type === 'key_pool_exhausted') {
     return 'Совет: часть провайдерских ключей упёрлась в лимиты. Стоит проверить квоты и запасные ключи.';
   }
 
-  if (fingerprint.includes('credential_pool_failed') || source === 'gasstation') {
+  if (source === 'gasstation' && category === 'keys' && type === 'credential_pool_failed') {
     return 'Совет: проверить лимиты/whitelist GasStation и хватает ли средств для top-up.';
   }
 
-  if (fingerprint.includes('clock:heartbeat_stale') || fingerprint.includes('clock:tick_failed')) {
+  if (source === 'clock' && category === 'heartbeat' && type === 'clock_stale') {
     return 'Совет: проверить clock dyno и свежесть heartbeat.';
+  }
+
+  if (source === 'screeners' && type === 'wallet_market_pipeline') {
+    return 'Совет: проверить proxy до Trongrid/Tronscan и запас по ключам.';
+  }
+
+  if (source === 'screeners' && type === 'ambassador_energy_quote') {
+    return 'Совет: проверить quote на energy и fallback-конфиг для resale.';
+  }
+
+  if (source === 'screeners' && type === 'telegram_airdrop_flow') {
+    return `Совет: посмотреть airdrop wallet ${shortenAddress(details?.meta?.walletAddress || details?.walletAddress)} и его ресурсы.`;
+  }
+
+  if (source === 'screeners' && type === 'ambassador_allocation_flow') {
+    return `Совет: проверить operator wallet ${shortenAddress(details?.meta?.walletAddress || details?.walletAddress)} и не застряли ли аллокации.`;
   }
 
   return 'Совет: откройте детали ниже и посмотрите соседние сигналы в разделе здоровья.';
@@ -321,22 +372,31 @@ function buildHeader(title, subtitle) {
 
 function buildMenuMarkup(currentScreen) {
   const safeScreen = SUPPORTED_SCREENS.has(currentScreen) ? currentScreen : DEFAULT_SCREEN;
+  const refreshRow = [{ text: '🔄 Обновить', callback_data: `${CALLBACK_PREFIX}refresh:${safeScreen}` }];
+  const rerunRows =
+    safeScreen === 'screen'
+      ? [[{ text: '🧪 Прогнать скринер сейчас', callback_data: `${CALLBACK_PREFIX}rerun:screen` }]]
+      : [];
 
   return {
     inline_keyboard: [
       [
         { text: '🏠 Сводка', callback_data: `${CALLBACK_PREFIX}screen:overview` },
-        { text: '🚨 События', callback_data: `${CALLBACK_PREFIX}screen:events` }
+        { text: '🧪 Скринер', callback_data: `${CALLBACK_PREFIX}screen:screen` }
       ],
       [
-        { text: '🩺 Здоровье', callback_data: `${CALLBACK_PREFIX}screen:health` },
-        { text: '🔑 Ключи', callback_data: `${CALLBACK_PREFIX}screen:keys` }
+        { text: '🚨 События', callback_data: `${CALLBACK_PREFIX}screen:events` },
+        { text: '🩺 Здоровье', callback_data: `${CALLBACK_PREFIX}screen:health` }
       ],
       [
-        { text: '📦 Очереди', callback_data: `${CALLBACK_PREFIX}screen:queues` },
+        { text: '🔑 Ключи', callback_data: `${CALLBACK_PREFIX}screen:keys` },
+        { text: '📦 Очереди', callback_data: `${CALLBACK_PREFIX}screen:queues` }
+      ],
+      [
         { text: '👥 Чаты', callback_data: `${CALLBACK_PREFIX}screen:targets` }
       ],
-      [{ text: '🔄 Обновить', callback_data: `${CALLBACK_PREFIX}refresh:${safeScreen}` }]
+      ...rerunRows,
+      refreshRow
     ]
   };
 }
@@ -346,14 +406,16 @@ async function collectOverviewData() {
   const { hasEnoughAmbassadorAllocationResources } = getAmbassadorService();
   const { getGasStationRuntimeState, getGasStationCredentialRuntimeState } = getGasStationService();
   const { getProxyKeyPoolRuntimeState } = getProxyService();
+  const { getSyntheticScreenerSnapshot } = getScreenerService();
 
-  const [dbOk, clockState, airdropState, ambassadorState, gasState, events] = await Promise.all([
+  const [dbOk, clockState, airdropState, ambassadorState, gasState, events, screeners] = await Promise.all([
     pool.query('SELECT 1').then(() => true).catch(() => false),
     getRuntimeState('clock.heartbeat').catch(() => null),
     hasEnoughAirdropResources().catch(() => null),
     hasEnoughAmbassadorAllocationResources().catch(() => null),
     getGasStationRuntimeState().catch(() => null),
-    listRecentEvents(6, { onlyOpen: true }).catch(() => [])
+    listRecentEvents(6, { onlyOpen: true }).catch(() => []),
+    getSyntheticScreenerSnapshot().catch(() => null)
   ]);
 
   return {
@@ -363,6 +425,7 @@ async function collectOverviewData() {
     ambassadorState,
     gasState,
     events,
+    screeners,
     keyPools: getProxyKeyPoolRuntimeState(),
     gasPool: getGasStationCredentialRuntimeState()
   };
@@ -405,6 +468,12 @@ function buildRecommendationLines(data) {
     lines.push('4. У operator wallet маленький запас TRX для топ-апов GasStation.');
   }
 
+  if (Number(data.screeners?.summary?.fail || 0) > 0) {
+    lines.push('5. Один или несколько реальных app-flow уже падают. Откройте раздел «Скринер».');
+  } else if (Number(data.screeners?.summary?.warn || 0) > 0) {
+    lines.push('5. Есть flow под давлением. Лучше заранее посмотреть раздел «Скринер».');
+  }
+
   if (!lines.length) {
     lines.push('Срочных красных действий не вижу. Можно просто иногда поглядывать на события.');
   }
@@ -441,10 +510,55 @@ async function buildOverviewText() {
     `${statusIcon(!anyKeysWarn, anyKeysWarn)} Ключи провайдеров: ${
       anyKeysWarn ? 'часть ключей под давлением' : 'запас нормальный'
     }`,
+    `${screenerStatusIcon(
+      Number(data.screeners?.summary?.fail || 0) > 0
+        ? 'fail'
+        : Number(data.screeners?.summary?.warn || 0) > 0
+          ? 'warn'
+          : 'ok'
+    )} Реальные app-flow: ${buildScreenerStateSummary(data.screeners)}`,
     `${openEvents > 0 ? '🟠' : '🟢'} Открытых событий: ${openEvents}`,
     '',
     'Что я бы рекомендовал сейчас:',
     ...buildRecommendationLines(data)
+  ].join('\n');
+}
+
+async function buildScreenerText() {
+  const { getSyntheticScreenerSnapshot } = getScreenerService();
+  const snapshot = await getSyntheticScreenerSnapshot().catch(() => null);
+  const items = Array.isArray(snapshot?.items) ? snapshot.items : [];
+  const summary = snapshot?.summary || {};
+  const checkedAt = snapshot?.checkedAt ? formatRelativeMinutes(snapshot.checkedAt) : 'ещё не запускался';
+
+  if (!items.length) {
+    return [
+      buildHeader('🧪 Реальный скринер', 'Это проверка глазами пользователя, а не просто healthcheck сервера.'),
+      '⚪ Скринер ещё не запускался.',
+      '',
+      'Нажмите кнопку «Прогнать скринер сейчас», и я проверю ключевые app-flow.'
+    ].join('\n');
+  }
+
+  return [
+    buildHeader('🧪 Реальный скринер', 'Показываю, проходят ли ключевые сценарии приложения целиком.'),
+    `Последний прогон: ${checkedAt}`,
+    `Итог: ${buildScreenerStateSummary(snapshot)}`,
+    '',
+    ...items.map((item) => {
+      const meta = item?.meta && typeof item.meta === 'object' ? item.meta : null;
+      const address = meta?.walletAddress ? ` (${shortenAddress(meta.walletAddress)})` : '';
+      return [
+        `${screenerStatusIcon(item.status)} ${normalizeValue(item.label)}${address}`,
+        normalizeValue(item.summary),
+        `Что это значит: ${normalizeValue(item.recommendation) || 'Это один из сценариев, который пользователь чувствует сразу.'}`
+      ].join('\n');
+    }),
+    '',
+    'Как читать экран:',
+    '1. Красный — сценарий уже сломан.',
+    '2. Оранжевый — ещё живо, но пользователь скоро почувствует деградацию.',
+    '3. Зелёный — путь проходит целиком.'
   ].join('\n');
 }
 
@@ -574,6 +688,7 @@ async function buildTargetsText() {
 }
 
 async function buildScreenText(screen) {
+  if (screen === 'screen') return buildScreenerText();
   if (screen === 'health') return buildHealthText();
   if (screen === 'events') return buildEventsText();
   if (screen === 'keys') return buildKeysText();
@@ -733,6 +848,7 @@ async function handleCommand(message) {
         '',
         'Основное:',
         '/menu — открыть меню',
+        '/screen — проверить реальные app-flow',
         '/health — быстро понять, что болит',
         '/events — активные проблемы',
         '/keys — ключи и лимиты',
@@ -753,6 +869,11 @@ async function handleCommand(message) {
 
   if (command === '/health') {
     await sendScreen(chatId, 'health');
+    return { ok: true };
+  }
+
+  if (command === '/screen') {
+    await sendScreen(chatId, 'screen');
     return { ok: true };
   }
 
@@ -837,8 +958,26 @@ async function handleCallbackQuery(callbackQuery) {
 
   await answerTelegramCallback(
     callbackQuery?.id,
-    action === 'refresh' ? 'Обновляю картину...' : 'Открываю раздел...'
+    action === 'refresh'
+      ? 'Обновляю картину...'
+      : action === 'rerun'
+        ? 'Гоняю реальные сценарии...'
+        : 'Открываю раздел...'
   ).catch(() => null);
+
+  if (action === 'rerun') {
+    const { runSyntheticScreeners } = getScreenerService();
+    await runSyntheticScreeners('telegram', { force: true }).catch(() => null);
+    await sendScreen(chatId, 'screen', {
+      editMessageId: messageId
+    });
+
+    return {
+      ok: true,
+      screen: 'screen',
+      rerun: true
+    };
+  }
 
   await sendScreen(chatId, screen, {
     editMessageId: messageId
