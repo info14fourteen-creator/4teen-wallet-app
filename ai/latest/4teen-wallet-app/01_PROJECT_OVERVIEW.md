@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-04-28T04:13:53.120Z
+Generated: 2026-05-01T19:34:07.017Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 92c542185297db8d5f156b06bc433b3d9bf89718
-Short commit: 92c5421
-Commit subject: Add app language infrastructure and key mobile translations
+Last commit: 1279df7db56fc6de3de999bac9d898edd66fb2d1
+Short commit: 1279df7
+Commit subject: Polish app flows, dictionaries, and ops updates
 Commit author: info14fourteen-creator
-Commit date: 2026-04-28T09:13:36+05:00
+Commit date: 2026-05-02T00:33:46+05:00
 
 ## Curated project tree
 
@@ -34,6 +34,7 @@ Commit date: 2026-04-28T09:13:36+05:00
         - ambassador.js
         - gasstation.js
         - health.js
+        - ops.js
         - proxy.js
         - resources.js
         - wallet.js
@@ -53,6 +54,12 @@ Commit date: 2026-04-28T09:13:36+05:00
           - energyResale.js
           - gasStation.js
           - notifications.js
+        - ops/
+          - events.js
+          - monitor.js
+          - screeners.js
+          - store.js
+          - telegramAdminBot.js
         - proxy/
           - apiProxy.js
           - walletSnapshot.js
@@ -92,6 +99,7 @@ Commit date: 2026-04-28T09:13:36+05:00
       - earn.tsx
       - enable-biometrics.tsx
       - export-mnemonic.tsx
+      - feedback.tsx
       - font-lab.tsx
       - home.tsx
       - import-private-key.tsx
@@ -245,13 +253,6 @@ Commit date: 2026-04-28T09:13:36+05:00
           - remove_contact_btn.svg
           - scan.svg
           - search.svg
-          - select_wallet_qp_btn.svg
-          - send_btn.svg
-          - send_footer_menu_btn_onclick.svg
-          - send_footer_menu_btn.svg
-          - send_qp_btn.svg
-          - setings_btn.svg
-          - share_btn.svg
     - app.json
 - docs/
   - ai-snapshots/
