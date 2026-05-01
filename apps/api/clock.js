@@ -9,6 +9,7 @@ const {
   enqueueAmbassadorReplayDrain,
   hasEnoughAmbassadorAllocationResources
 } = require('./src/services/ambassador/replayQueue');
+const { refreshPublicSiteData } = require('./src/services/publicData/siteData');
 
 const HOUR_MS = 60 * 60 * 1000;
 const START_DELAY_MS = 15 * 1000;
@@ -30,6 +31,10 @@ async function runTick(trigger) {
         error: error instanceof Error ? error.message : 'ambassador resource check failed'
       }));
     const ambassadorProcessed = await enqueueAmbassadorReplayDrain();
+    const publicSiteData = await refreshPublicSiteData().catch((error) => ({
+      ok: false,
+      error: error instanceof Error ? error.message : 'public site refresh failed'
+    }));
 
     console.info('[airdrop-clock] tick complete', {
       trigger,
@@ -37,7 +42,8 @@ async function runTick(trigger) {
       webhook,
       resourceState,
       ambassadorProcessed,
-      ambassadorResourceState
+      ambassadorResourceState,
+      publicSiteData
     });
   } catch (error) {
     console.error('[airdrop-clock] tick failed', {
