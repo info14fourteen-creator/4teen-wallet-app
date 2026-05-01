@@ -7,6 +7,7 @@ const { proxyRequest } = require('../proxy/apiProxy');
 
 const SITE_SNAPSHOT_AIRDROP = 'airdrop_summary_v1';
 const SITE_SNAPSHOT_MARKET_PRICE = 'market_price_v1';
+const SITE_PUBLIC_SCHEMA_LOCK_KEY = 14014042;
 
 const AIRDROP_TOKEN_DECIMALS = 6;
 const AIRDROP_TOTAL_ALLOCATION_RAW = BigInt(1_500_000) * BigInt(10 ** AIRDROP_TOKEN_DECIMALS);
@@ -78,6 +79,8 @@ const TRX_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 const USDT_ADDRESS = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 const ROUTER_UNIVERSAL_URL = 'https://rot.endjgfsv.link/swap/routerUniversal';
 const ONE_4TEEN_RAW = '1000000';
+
+let ensureSiteSnapshotTablePromise = null;
 
 function sha256(input) {
   return crypto.createHash('sha256').update(input).digest();
@@ -196,22 +199,40 @@ function jsonParseSafe(value) {
 }
 
 async function ensureSiteSnapshotTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS site_public_snapshots (
-      snapshot_key TEXT PRIMARY KEY,
-      payload_json JSONB NOT NULL,
-      source TEXT NOT NULL DEFAULT 'live',
-      fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      expires_at TIMESTAMPTZ NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      last_error TEXT
-    )
-  `);
+  if (!ensureSiteSnapshotTablePromise) {
+    ensureSiteSnapshotTablePromise = (async () => {
+      const client = await pool.connect();
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_site_public_snapshots_expires_at
-      ON site_public_snapshots (expires_at)
-  `);
+      try {
+        await client.query('SELECT pg_advisory_lock($1)', [SITE_PUBLIC_SCHEMA_LOCK_KEY]);
+
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS site_public_snapshots (
+            snapshot_key TEXT PRIMARY KEY,
+            payload_json JSONB NOT NULL,
+            source TEXT NOT NULL DEFAULT 'live',
+            fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            expires_at TIMESTAMPTZ NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            last_error TEXT
+          )
+        `);
+
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_site_public_snapshots_expires_at
+            ON site_public_snapshots (expires_at)
+        `);
+      } finally {
+        await client.query('SELECT pg_advisory_unlock($1)', [SITE_PUBLIC_SCHEMA_LOCK_KEY]).catch(() => null);
+        client.release();
+      }
+    })().catch((error) => {
+      ensureSiteSnapshotTablePromise = null;
+      throw error;
+    });
+  }
+
+  await ensureSiteSnapshotTablePromise;
 }
 
 async function readSnapshot(snapshotKey) {
@@ -377,10 +398,10 @@ function formatPrice(value, decimals = 6) {
   });
 }
 
-async function triggerConstant(functionSelector) {
+async function triggerConstant(functionSelector, contractAddress = AIRDROP_VAULT_CONTRACT) {
   const body = JSON.stringify({
-    owner_address: AIRDROP_VAULT_CONTRACT,
-    contract_address: AIRDROP_VAULT_CONTRACT,
+    owner_address: contractAddress,
+    contract_address: contractAddress,
     function_selector: functionSelector,
     visible: true
   });
@@ -467,7 +488,9 @@ async function buildMarketPriceSnapshot() {
   const [trxRaw, usdtRaw, directPriceRaw] = await Promise.all([
     fetchRouterQuote(TRX_ADDRESS),
     fetchRouterQuote(USDT_ADDRESS),
-    triggerConstant('getCurrentPrice()').catch(() => triggerConstant('tokenPrice()'))
+    triggerConstant('getCurrentPrice()', FOURTEEN_TOKEN_CONTRACT).catch(() =>
+      triggerConstant('tokenPrice()', FOURTEEN_TOKEN_CONTRACT)
+    )
   ]);
 
   const dexTrxNumber = quoteToNumber(trxRaw, 6);

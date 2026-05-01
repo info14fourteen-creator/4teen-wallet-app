@@ -6,6 +6,9 @@ const env = require('../../config/env');
 const PLATFORM_TELEGRAM = 'telegram';
 const PLATFORM_TELEGRAM_BIT = 4;
 const SESSION_TTL_MS = 10 * 60 * 1000;
+const TELEGRAM_AIRDROP_SCHEMA_LOCK_KEY = 14014041;
+
+let ensureTelegramAirdropTablesPromise = null;
 
 function normalizeWallet(value) {
   return String(value || '').trim();
@@ -67,100 +70,118 @@ function isValidTronAddress(value) {
 }
 
 async function ensureTelegramAirdropTables() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS legacy_telegram_claims (
-      id BIGSERIAL PRIMARY KEY,
-      source TEXT NOT NULL DEFAULT 'legacy_bot',
-      telegram_user_id_hash TEXT NOT NULL UNIQUE,
-      wallet_hash TEXT NOT NULL UNIQUE,
-      txid TEXT,
-      reward_amount NUMERIC(18,6) NOT NULL,
-      claimed_at TIMESTAMPTZ NOT NULL,
-      imported_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      meta_json JSONB
-    )
-  `);
+  if (!ensureTelegramAirdropTablesPromise) {
+    ensureTelegramAirdropTablesPromise = (async () => {
+      const client = await pool.connect();
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_legacy_telegram_claims_txid
-      ON legacy_telegram_claims (txid)
-  `);
+      try {
+        await client.query('SELECT pg_advisory_lock($1)', [TELEGRAM_AIRDROP_SCHEMA_LOCK_KEY]);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS telegram_account_links (
-      id BIGSERIAL PRIMARY KEY,
-      wallet_address TEXT NOT NULL UNIQUE,
-      telegram_user_id TEXT NOT NULL UNIQUE,
-      telegram_username TEXT,
-      telegram_chat_id TEXT,
-      legacy_claimed BOOLEAN NOT NULL DEFAULT FALSE,
-      verified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      notes TEXT
-    )
-  `);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS legacy_telegram_claims (
+            id BIGSERIAL PRIMARY KEY,
+            source TEXT NOT NULL DEFAULT 'legacy_bot',
+            telegram_user_id_hash TEXT NOT NULL UNIQUE,
+            wallet_hash TEXT NOT NULL UNIQUE,
+            txid TEXT,
+            reward_amount NUMERIC(18,6) NOT NULL,
+            claimed_at TIMESTAMPTZ NOT NULL,
+            imported_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            meta_json JSONB
+          )
+        `);
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_telegram_account_links_username
-      ON telegram_account_links (telegram_username)
-  `);
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_legacy_telegram_claims_txid
+            ON legacy_telegram_claims (txid)
+        `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS airdrop_claim_sessions (
-      id BIGSERIAL PRIMARY KEY,
-      session_token_hash TEXT NOT NULL UNIQUE,
-      wallet_address TEXT NOT NULL,
-      platform TEXT NOT NULL,
-      platform_bit INTEGER NOT NULL,
-      telegram_user_id TEXT,
-      status TEXT NOT NULL DEFAULT 'pending',
-      expires_at TIMESTAMPTZ NOT NULL,
-      consumed_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      payload_json JSONB
-    )
-  `);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS telegram_account_links (
+            id BIGSERIAL PRIMARY KEY,
+            wallet_address TEXT NOT NULL UNIQUE,
+            telegram_user_id TEXT NOT NULL UNIQUE,
+            telegram_username TEXT,
+            telegram_chat_id TEXT,
+            legacy_claimed BOOLEAN NOT NULL DEFAULT FALSE,
+            verified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            notes TEXT
+          )
+        `);
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_airdrop_claim_sessions_wallet_platform
-      ON airdrop_claim_sessions (wallet_address, platform)
-  `);
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_telegram_account_links_username
+            ON telegram_account_links (telegram_username)
+        `);
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_airdrop_claim_sessions_status_expires
-      ON airdrop_claim_sessions (status, expires_at)
-  `);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS airdrop_claim_sessions (
+            id BIGSERIAL PRIMARY KEY,
+            session_token_hash TEXT NOT NULL UNIQUE,
+            wallet_address TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            platform_bit INTEGER NOT NULL,
+            telegram_user_id TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            expires_at TIMESTAMPTZ NOT NULL,
+            consumed_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            payload_json JSONB
+          )
+        `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS airdrop_claims (
-      id BIGSERIAL PRIMARY KEY,
-      wallet_address TEXT NOT NULL,
-      platform TEXT NOT NULL,
-      platform_bit INTEGER NOT NULL,
-      telegram_user_id TEXT,
-      reward_amount NUMERIC(18,6) NOT NULL,
-      status TEXT NOT NULL DEFAULT 'queued',
-      txid TEXT,
-      failure_reason TEXT,
-      queued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      sent_at TIMESTAMPTZ,
-      failed_at TIMESTAMPTZ,
-      meta_json JSONB,
-      UNIQUE (wallet_address, platform),
-      UNIQUE (platform, telegram_user_id)
-    )
-  `);
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_airdrop_claim_sessions_wallet_platform
+            ON airdrop_claim_sessions (wallet_address, platform)
+        `);
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_airdrop_claims_status
-      ON airdrop_claims (status)
-  `);
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_airdrop_claim_sessions_status_expires
+            ON airdrop_claim_sessions (status, expires_at)
+        `);
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_airdrop_claims_txid
-      ON airdrop_claims (txid)
-  `);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS airdrop_claims (
+            id BIGSERIAL PRIMARY KEY,
+            wallet_address TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            platform_bit INTEGER NOT NULL,
+            telegram_user_id TEXT,
+            reward_amount NUMERIC(18,6) NOT NULL,
+            status TEXT NOT NULL DEFAULT 'queued',
+            txid TEXT,
+            failure_reason TEXT,
+            queued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            sent_at TIMESTAMPTZ,
+            failed_at TIMESTAMPTZ,
+            meta_json JSONB,
+            UNIQUE (wallet_address, platform),
+            UNIQUE (platform, telegram_user_id)
+          )
+        `);
+
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_airdrop_claims_status
+            ON airdrop_claims (status)
+        `);
+
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_airdrop_claims_txid
+            ON airdrop_claims (txid)
+        `);
+      } finally {
+        await client.query('SELECT pg_advisory_unlock($1)', [TELEGRAM_AIRDROP_SCHEMA_LOCK_KEY]).catch(() => null);
+        client.release();
+      }
+    })().catch((error) => {
+      ensureTelegramAirdropTablesPromise = null;
+      throw error;
+    });
+  }
+
+  await ensureTelegramAirdropTablesPromise;
 }
 
 async function importLegacyTelegramClaims({ sourceConnectionString } = {}) {
