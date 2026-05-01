@@ -71,6 +71,8 @@ export default function SelectedWalletSwitcher({
   emptyBody = 'Create or import a wallet first.',
 }: SelectedWalletSwitcherProps) {
   const { t } = useI18n();
+  const resolvedEmptyTitle = t(emptyTitle);
+  const resolvedEmptyBody = t(emptyBody);
 
   return (
     <View style={styles.selectionBlock}>
@@ -86,13 +88,13 @@ export default function SelectedWalletSwitcher({
       >
         <View style={styles.walletCardText}>
           <View style={styles.walletTitleRow}>
-            <Text style={styles.walletName}>{wallet?.name || t(emptyTitle)}</Text>
+          <Text style={styles.walletName}>{wallet?.name || resolvedEmptyTitle}</Text>
           </View>
 
-          <WalletBalance value={wallet?.balanceDisplay || '$0.00'} />
+          <WalletBalance value={wallet?.balanceDisplay || t('$0.00')} />
 
           <Text style={styles.walletAddress} numberOfLines={1}>
-            {wallet?.address || t(emptyBody)}
+            {wallet?.address || resolvedEmptyBody}
           </Text>
         </View>
 
@@ -120,7 +122,7 @@ export default function SelectedWalletSwitcher({
                   <View style={styles.walletTitleRow}>
                     <Text style={styles.walletName}>{item.name}</Text>
                   </View>
-                  <WalletBalance value={item.balanceDisplay || '$0.00'} compact />
+                  <WalletBalance value={item.balanceDisplay || t('$0.00')} compact />
                   <Text style={styles.optionAddress} numberOfLines={1}>
                     {item.address}
                   </Text>

@@ -89,7 +89,7 @@ export default function SendConfirmScreen() {
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
-  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
+  const [biometricLabel, setBiometricLabel] = useState(t('Biometrics'));
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
@@ -120,7 +120,7 @@ export default function SendConfirmScreen() {
 
       setEstimate(nextEstimate);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setEstimate(null);
       setErrorText(error instanceof Error ? error.message : t('Failed to build send confirmation.'));
     } finally {
@@ -150,7 +150,7 @@ export default function SendConfirmScreen() {
 
       setBiometricLabel(t('Biometrics'));
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
       setBiometricLabel(t('Biometrics'));
@@ -218,6 +218,7 @@ export default function SendConfirmScreen() {
   );
   const hasTrxForBurn = Boolean(estimate?.trxCoverage.canCoverBurn);
   const isApproveDisabled = sending || !estimate || !hasTrxForBurn;
+  const approvalProcessing = !passcodeOpen && (sending || energyRenting);
 
   useEffect(() => {
     let cancelled = false;
@@ -271,7 +272,7 @@ export default function SendConfirmScreen() {
       await load();
       return true;
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
@@ -367,7 +368,7 @@ export default function SendConfirmScreen() {
 
       router.replace('/wallet');
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Transaction broadcast failed.'),
         3200
@@ -389,6 +390,11 @@ export default function SendConfirmScreen() {
         return;
       }
 
+      setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+
       if (pendingApprovalMode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
@@ -399,7 +405,7 @@ export default function SendConfirmScreen() {
 
       await performSend();
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
@@ -410,32 +416,6 @@ export default function SendConfirmScreen() {
       void handlePasscodeSubmit();
     }
   }, [handlePasscodeSubmit, passcodeDigits, passcodeOpen]);
-
-  const handleApprove = useCallback(async () => {
-    if (!estimate || sending) return;
-    if (!estimate.trxCoverage.canCoverBurn) return;
-    setPendingApprovalMode('send');
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeEntryOpen(!canUseBiometrics);
-    setPasscodeOpen(true);
-  }, [canUseBiometrics, estimate, sending]);
-
-  const handleRentEnergy = useCallback(async () => {
-    if (!estimate || !energyQuote || sending || energyRenting) return;
-
-    setPendingApprovalMode('rent');
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeEntryOpen(!canUseBiometrics);
-    setPasscodeOpen(true);
-  }, [
-    canUseBiometrics,
-    energyQuote,
-    energyRenting,
-    estimate,
-    sending,
-  ]);
 
   const handlePasscodeDigitPress = useCallback((digit: string) => {
     if (sending || energyRenting) return;
@@ -462,21 +442,15 @@ export default function SendConfirmScreen() {
   const openPasscodeEntry = useCallback(() => {
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeOpen(true);
     setPasscodeEntryOpen(true);
   }, []);
 
   const closePasscodeEntry = useCallback(() => {
-    if (canUseBiometrics) {
-      setPasscodeDigits('');
-      setPasscodeError('');
-      setPasscodeEntryOpen(false);
-      return;
-    }
-
     closeApprovalAuth();
-  }, [canUseBiometrics, closeApprovalAuth]);
+  }, [closeApprovalAuth]);
 
-  const handleBiometricApproval = useCallback(async () => {
+  const handleBiometricApproval = useCallback(async (mode: 'send' | 'rent' = pendingApprovalMode) => {
     if (!canUseBiometrics) {
       openPasscodeEntry();
       return;
@@ -485,7 +459,7 @@ export default function SendConfirmScreen() {
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage:
-          pendingApprovalMode === 'rent'
+          mode === 'rent'
             ? t('Confirm Energy Rental')
             : t('Confirm Transaction'),
         fallbackLabel: t('Use Passcode'),
@@ -493,10 +467,18 @@ export default function SendConfirmScreen() {
       });
 
       if (!result.success) {
+        if (result.error === 'user_fallback') {
+          openPasscodeEntry();
+        }
         return;
       }
 
-      if (pendingApprovalMode === 'rent') {
+      setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+
+      if (mode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
           await performSend();
@@ -506,9 +488,34 @@ export default function SendConfirmScreen() {
 
       await performSend();
     } catch (error) {
-      console.error(error);
+      console.warn(error);
     }
   }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performSend, t]);
+
+  const openApprovalAuth = useCallback((mode: 'send' | 'rent', preferPasscode = false) => {
+    setPendingApprovalMode(mode);
+    setPasscodeError('');
+    setPasscodeDigits('');
+
+    if (preferPasscode || !canUseBiometrics) {
+      setPasscodeEntryOpen(true);
+      setPasscodeOpen(true);
+      return;
+    }
+
+    void handleBiometricApproval(mode);
+  }, [canUseBiometrics, handleBiometricApproval]);
+
+  const handleApprove = useCallback(async () => {
+    if (!estimate || sending) return;
+    if (!estimate.trxCoverage.canCoverBurn) return;
+    openApprovalAuth('send');
+  }, [estimate, openApprovalAuth, sending]);
+
+  const handleRentEnergy = useCallback(async () => {
+    if (!estimate || !energyQuote || sending || energyRenting) return;
+    openApprovalAuth('rent');
+  }, [energyQuote, energyRenting, estimate, openApprovalAuth, sending]);
 
   const handleRefresh = useCallback(async () => {
     if (sending) return;
@@ -528,7 +535,7 @@ export default function SendConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing} />
+        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -566,7 +573,7 @@ export default function SendConfirmScreen() {
                 <View style={styles.heroTopRow}>
                   <View style={styles.heroWalletBlock}>
                     <Text style={styles.heroWalletName}>{estimate.wallet.name}</Text>
-                    <Text style={styles.heroFromLabel}>FROM</Text>
+                    <Text style={styles.heroFromLabel}>{t('FROM')}</Text>
                     <Text style={styles.heroFromAddress}>{estimate.wallet.address}</Text>
                   </View>
                 </View>
@@ -577,7 +584,7 @@ export default function SendConfirmScreen() {
                   </View>
 
                   <View style={styles.heroTokenSide}>
-                    <Text style={styles.heroBurnSideLabel}>BURN</Text>
+                    <Text style={styles.heroBurnSideLabel}>{t('BURN')}</Text>
                     <Text
                       style={[
                         styles.heroBurnSideValue,
@@ -591,7 +598,7 @@ export default function SendConfirmScreen() {
 
                 <View style={styles.heroTransferMeta}>
                   <View style={styles.heroAddressCol}>
-                    <Text style={styles.heroAddressLabel}>TO</Text>
+                    <Text style={styles.heroAddressLabel}>{t('TO')}</Text>
                     {contactName ? <Text style={styles.heroRecipientName}>{contactName}</Text> : null}
                     <Text style={styles.heroRecipientAddress}>{estimate.recipientAddress}</Text>
                   </View>
@@ -610,7 +617,12 @@ export default function SendConfirmScreen() {
                 {sending ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
-                  <Text style={styles.primaryButtonText}>
+                  <Text
+                    style={styles.primaryButtonText}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
+                  >
                     {hasTrxForBurn ? t('APPROVE & SEND') : t('TOP UP TRX')}
                   </Text>
                 )}
@@ -628,33 +640,33 @@ export default function SendConfirmScreen() {
               />
 
               <View style={styles.sectionBlock}>
-                <Text style={styles.sectionEyebrow}>TRANSFER REVIEW</Text>
+                <Text style={styles.sectionEyebrow}>{t('TRANSFER REVIEW')}</Text>
                 <View style={styles.detailCard}>
                   <View style={styles.detailRowFirst}>
-                    <Text style={styles.detailLabel}>Asset</Text>
+                    <Text style={styles.detailLabel}>{t('Asset')}</Text>
                     <Text style={styles.detailValue}>{estimate.token.name}</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Amount</Text>
+                    <Text style={styles.detailLabel}>{t('Amount')}</Text>
                     <Text style={styles.detailValue}>{estimate.token.amountDisplay}</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Estimated Burn</Text>
+                    <Text style={styles.detailLabel}>{t('Estimated Burn')}</Text>
                     <Text style={styles.detailValueAccent}>
                       {formatTrxFromSunAmount(estimate.resources.estimatedBurnSun)} TRX
                     </Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>TRX Available</Text>
+                    <Text style={styles.detailLabel}>{t('TRX Available')}</Text>
                     <Text style={styles.detailValue}>{estimate.trxCoverage.trxBalanceDisplay}</Text>
                   </View>
 
                   {!estimate.token.isNative ? (
                     <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Fee Limit</Text>
+                      <Text style={styles.detailLabel}>{t('Fee Limit')}</Text>
                       <Text style={styles.detailValue}>
                         {formatTrxFromSunAmount(estimate.token.recommendedFeeLimitSun)} TRX
                       </Text>
@@ -684,7 +696,14 @@ export default function SendConfirmScreen() {
                 onPress={handleReject}
                 disabled={sending}
               >
-                <Text style={styles.secondaryButtonText}>REJECT</Text>
+                <Text
+                  style={styles.secondaryButtonText}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {t('REJECT')}
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -736,7 +755,7 @@ const styles = StyleSheet.create({
   },
 
   heroCard: {
-    marginTop: 10,
+    marginTop: 0,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineStrong,
@@ -1028,6 +1047,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   primaryButton: {
@@ -1050,10 +1072,13 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.7,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   errorWrap: {
-    marginTop: 20,
+    marginTop: 0,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineSoft,

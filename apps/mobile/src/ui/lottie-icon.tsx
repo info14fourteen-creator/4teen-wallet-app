@@ -74,7 +74,7 @@ export default function LottieIcon({
   return (
     <LottieView
       ref={ref}
-      source={source}
+      source={source as any}
       autoPlay={false}
       loop={loop}
       onAnimationFinish={onAnimationFinish}

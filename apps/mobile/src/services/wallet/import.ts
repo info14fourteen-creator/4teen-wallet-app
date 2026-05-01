@@ -1,5 +1,6 @@
 import { validateMnemonic, wordlists } from 'bip39';
 import { TronWeb } from 'tronweb';
+import { translateNow } from '../../i18n';
 import {
   saveWallet,
   type WalletMeta,
@@ -63,11 +64,11 @@ async function saveMnemonicWallet(input: {
   }
 
   if (words.length !== 12 && words.length !== 24) {
-    throw new Error('Seed phrase must contain 12 or 24 words.');
+    throw new Error(translateNow('Seed phrase must contain 12 or 24 words.'));
   }
 
   if (!allWordsInWordlist) {
-    throw new Error('Seed phrase contains words outside the BIP39 English list.');
+    throw new Error(translateNow('Seed phrase contains words outside the BIP39 English list.'));
   }
 
   if (__DEV__ && !validateDefault && !validateEnglish) {
@@ -84,7 +85,7 @@ async function saveMnemonicWallet(input: {
   }
 
   if (!account?.address || !account?.privateKey) {
-    throw new Error('Failed to derive wallet from seed phrase.');
+    throw new Error(translateNow('Failed to derive wallet from seed phrase.'));
   }
 
   return saveWallet({
@@ -128,13 +129,13 @@ export async function importWalletFromPrivateKey(input: {
   const privateKey = normalizePrivateKey(input.privateKey);
 
   if (!isValidPrivateKey(privateKey)) {
-    throw new Error('Private key must be 64 hex characters.');
+    throw new Error(translateNow('Private key must be 64 hex characters.'));
   }
 
   const address = TronWeb.address.fromPrivateKey(privateKey);
 
   if (!address || !isValidTronAddress(address)) {
-    throw new Error('Failed to derive TRON address from private key.');
+    throw new Error(translateNow('Failed to derive TRON address from private key.'));
   }
 
   return saveWallet({
@@ -154,7 +155,7 @@ export async function importWalletFromWatchOnly(input: {
   const address = input.address.trim();
 
   if (!isValidTronAddress(address)) {
-    throw new Error('Enter a valid TRON address.');
+    throw new Error(translateNow('Enter a valid TRON address.'));
   }
 
   return saveWallet({

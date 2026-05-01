@@ -25,6 +25,7 @@ import {
 } from './resources';
 import { getDisplayCurrency } from '../../settings/display-currency';
 import { formatDisplayCurrency } from '../../ui/currency-format';
+import { translateNow } from '../../i18n';
 
 const DEFAULT_TRC20_FEE_LIMIT_SUN = 100_000_000;
 const DEFAULT_TRC20_EXECUTION_FEE_LIMIT_SUN = 150_000_000;
@@ -128,7 +129,7 @@ function assertResolvedTokenId(requestedTokenId: string, resolvedTokenId: string
   const resolved = String(resolvedTokenId || '').trim() || TRX_TOKEN_ID;
 
   if (requested !== resolved) {
-    throw new Error('Selected token changed before send confirmation. Go back and try again.');
+    throw new Error(translateNow('Selected token changed before send confirmation. Go back and try again.'));
   }
 }
 
@@ -146,7 +147,7 @@ function decimalToRaw(amount: string, decimals: number) {
   const safe = normalizeAmountInput(amount);
 
   if (!/^\d+(\.\d+)?$/.test(safe)) {
-    throw new Error('Enter a valid amount.');
+    throw new Error(translateNow('Enter a valid amount.'));
   }
 
   const [wholePart, fractionPart = ''] = safe.split('.');
@@ -219,10 +220,10 @@ function assertTokenTransferWithinSpendableBalance(
   }
 
   if (isProtectedFourteenToken(tokenId)) {
-    throw new Error('You must keep at least 0.000001 4TEEN in the wallet.');
+    throw new Error(translateNow('You must keep at least 0.000001 4TEEN in the wallet.'));
   }
 
-  throw new Error(`Insufficient ${symbol} balance.`);
+  throw new Error(translateNow('Insufficient {{symbol}} balance.', { symbol }));
 }
 
 function parseUnitPriceValue(value: unknown, fallback: number) {
@@ -391,11 +392,11 @@ async function getSigningContext(): Promise<{
   const wallet = await getActiveWallet();
 
   if (!wallet) {
-    throw new Error('No active wallet selected.');
+    throw new Error(translateNow('No active wallet selected.'));
   }
 
   if (wallet.kind === 'watch-only') {
-    throw new Error('Watch-only wallet cannot sign transactions.');
+    throw new Error(translateNow('Watch-only wallet cannot sign transactions.'));
   }
 
   const secret = await getWalletSecret(wallet.id);
@@ -409,7 +410,7 @@ async function getSigningContext(): Promise<{
   }
 
   if (!isValidPrivateKey(privateKey)) {
-    throw new Error('Private key not found for this wallet.');
+    throw new Error(translateNow('Private key not found for this wallet.'));
   }
 
   return {
@@ -430,11 +431,11 @@ export async function sendAssetTransfer(
       : DEFAULT_TRC20_EXECUTION_FEE_LIMIT_SUN;
 
   if (!isValidTronAddress(toAddress)) {
-    throw new Error('Enter a valid TRON address.');
+    throw new Error(translateNow('Enter a valid TRON address.'));
   }
 
   if (!amount) {
-    throw new Error('Amount is required.');
+    throw new Error(translateNow('Amount is required.'));
   }
 
   const { wallet, privateKey } = await getSigningContext();
@@ -445,11 +446,11 @@ export async function sendAssetTransfer(
     const amountRaw = decimalToRaw(amount, 6);
 
     if (compareRawAmounts(amountRaw, '0') <= 0) {
-      throw new Error('Amount must be greater than zero.');
+      throw new Error(translateNow('Amount must be greater than zero.'));
     }
 
     if (compareRawAmounts(amountRaw, trxBalance.balanceRaw) > 0) {
-      throw new Error('Insufficient TRX balance.');
+      throw new Error(translateNow('Insufficient TRX balance.'));
     }
 
     const unsignedTx = await tronWeb.transactionBuilder.sendTrx(
@@ -471,7 +472,7 @@ export async function sendAssetTransfer(
     const totalRequiredSun = Number(amountRaw) + estimatedBurnSun;
 
     if (Number(trxBalance.balanceRaw || '0') < totalRequiredSun) {
-      throw new Error('Not enough TRX to cover amount and network burn. Top up TRX first.');
+      throw new Error(translateNow('Not enough TRX to cover amount and network burn. Top up TRX first.'));
     }
 
     const receipt = await tronWeb.trx.sendRawTransaction(signedTx);
@@ -487,7 +488,7 @@ export async function sendAssetTransfer(
 
     if (!(receipt as any)?.result || !txId) {
       throw new Error(
-        String((receipt as any)?.code || (receipt as any)?.message || 'Failed to broadcast TRX transaction.')
+        String((receipt as any)?.code || (receipt as any)?.message || translateNow('Failed to broadcast TRX transaction.'))
       );
     }
 
@@ -503,7 +504,7 @@ export async function sendAssetTransfer(
   const amountRaw = decimalToRaw(amount, token.decimals);
 
   if (compareRawAmounts(amountRaw, '0') <= 0) {
-    throw new Error('Amount must be greater than zero.');
+    throw new Error(translateNow('Amount must be greater than zero.'));
   }
 
   assertTokenTransferWithinSpendableBalance(
@@ -534,7 +535,7 @@ export async function sendAssetTransfer(
     (triggerResult as any)?.transaction?.transaction;
 
   if (!unsignedTx) {
-    throw new Error('Failed to build TRC20 transfer transaction.');
+    throw new Error(translateNow('Failed to build TRC20 transfer transaction.'));
   }
 
   const signedTx = await tronWeb.trx.sign(unsignedTx, privateKey);
@@ -561,7 +562,7 @@ export async function sendAssetTransfer(
   });
 
   if (Number(trxBalance.balanceRaw || '0') < estimatedBurnSun) {
-    throw new Error('Not enough TRX to cover network burn. Top up TRX first.');
+    throw new Error(translateNow('Not enough TRX to cover network burn. Top up TRX first.'));
   }
 
   const receipt = await tronWeb.trx.sendRawTransaction(signedTx);
@@ -577,7 +578,7 @@ export async function sendAssetTransfer(
 
   if (!(receipt as any)?.result || !txId) {
     throw new Error(
-      String((receipt as any)?.code || (receipt as any)?.message || 'Failed to broadcast token transaction.')
+      String((receipt as any)?.code || (receipt as any)?.message || translateNow('Failed to broadcast token transaction.'))
     );
   }
 
@@ -600,11 +601,11 @@ export async function estimateAssetTransfer(
       : DEFAULT_TRC20_EXECUTION_FEE_LIMIT_SUN;
 
   if (!isValidTronAddress(toAddress)) {
-    throw new Error('Enter a valid TRON address.');
+    throw new Error(translateNow('Enter a valid TRON address.'));
   }
 
   if (!amount) {
-    throw new Error('Amount is required.');
+    throw new Error(translateNow('Amount is required.'));
   }
 
   const { wallet, privateKey } = await getSigningContext();
@@ -618,11 +619,11 @@ export async function estimateAssetTransfer(
     const amountRaw = decimalToRaw(amount, token.decimals);
 
     if (compareRawAmounts(amountRaw, '0') <= 0) {
-      throw new Error('Amount must be greater than zero.');
+      throw new Error(translateNow('Amount must be greater than zero.'));
     }
 
     if (compareRawAmounts(amountRaw, token.balanceRaw) > 0) {
-      throw new Error('Insufficient TRX balance.');
+      throw new Error(translateNow('Insufficient TRX balance.'));
     }
 
     const unsignedTx = await tronWeb.transactionBuilder.sendTrx(
@@ -684,7 +685,7 @@ export async function estimateAssetTransfer(
   const amountRaw = decimalToRaw(amount, token.decimals);
 
   if (compareRawAmounts(amountRaw, '0') <= 0) {
-    throw new Error('Amount must be greater than zero.');
+    throw new Error(translateNow('Amount must be greater than zero.'));
   }
 
   assertTokenTransferWithinSpendableBalance(
@@ -715,7 +716,7 @@ export async function estimateAssetTransfer(
     (triggerResult as any)?.transaction?.transaction;
 
   if (!unsignedTx) {
-    throw new Error('Failed to build TRC20 transfer transaction.');
+    throw new Error(translateNow('Failed to build TRC20 transfer transaction.'));
   }
 
   const signedTx = await tronWeb.trx.sign(unsignedTx, privateKey);
@@ -786,7 +787,7 @@ export async function getSendAssetDraft(tokenId?: string) {
   const wallet = await getActiveWallet();
 
   if (!wallet) {
-    throw new Error('No active wallet selected.');
+    throw new Error(translateNow('No active wallet selected.'));
   }
 
   const requestedTokenId = String(tokenId || '').trim();

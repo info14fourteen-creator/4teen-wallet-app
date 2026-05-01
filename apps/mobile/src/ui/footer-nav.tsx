@@ -21,7 +21,7 @@ import { useNotice } from '../notice/notice-provider';
 import { useWalletSession } from '../wallet/wallet-session';
 import { ensureSigningWalletActive } from '../services/wallet/storage';
 import { shouldHideFooterByRoute } from './navigation-routes';
-import FourteenWalletLoader from './fourteen-wallet-loader.tsx';
+import FourteenWalletLoader from './fourteen-wallet-loader';
 import LottieIcon from './lottie-icon';
 
 const footerHomeCoreSource = require('../../assets/icons/footer/footer_home_orange.json');
@@ -417,7 +417,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
 
       if (!signingWallet) {
         notice.showNeutralNotice(
-          'Send requires a signing wallet. Import or switch to a full-access wallet first.',
+          t('Send requires a signing wallet. Import or switch to a full-access wallet first.'),
           3200
         );
         return;
@@ -449,7 +449,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
 
       if (!signingWallet) {
         notice.showNeutralNotice(
-          'Swap requires a signing wallet. Import or switch to a full-access wallet first.',
+          t('Swap requires a signing wallet. Import or switch to a full-access wallet first.'),
           3200
         );
         return;
@@ -916,7 +916,9 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
                   isWalletActive && { color: footerActiveColor },
                 ]}
               >
-                {tickerItem?.balanceLabel || t('WALLET')}
+                {tickerItem?.id === 'wallet'
+                  ? t('WALLET')
+                  : tickerItem?.balanceLabel || t('WALLET')}
               </Text>
             </TouchableOpacity>
 

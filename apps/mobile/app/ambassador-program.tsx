@@ -13,6 +13,7 @@ import * as Clipboard from 'expo-clipboard';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 
+import { getCachedLanguage, getLanguageLocaleTag, useI18n } from '../src/i18n';
 import { useNotice } from '../src/notice/notice-provider';
 import {
   buildAmbassadorReferralLink,
@@ -88,7 +89,7 @@ function formatChainDate(value: unknown) {
   if (!Number.isFinite(raw) || raw <= 0) return '—';
 
   const ms = raw > 1_000_000_000_000 ? raw : raw * 1000;
-  return new Date(ms).toLocaleString('en-GB', {
+  return new Date(ms).toLocaleString(getLanguageLocaleTag(getCachedLanguage()), {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -109,7 +110,7 @@ function formatMaybeDate(value: unknown) {
 
   if (!Number.isFinite(dateMs)) return raw;
 
-  return new Date(dateMs).toLocaleString('en-GB', {
+  return new Date(dateMs).toLocaleString(getLanguageLocaleTag(getCachedLanguage()), {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -143,6 +144,7 @@ function readRowSun(row: Record<string, unknown>, keys: string[]) {
 
 export default function AmbassadorProgramScreen() {
   const router = useRouter();
+  const { t } = useI18n();
   const notice = useNotice();
   const { setPendingWalletSelectionId } = useWalletSession();
 
@@ -198,14 +200,14 @@ export default function AmbassadorProgramScreen() {
         setSlug((current) => current.trim() || generateAmbassadorSlug());
       }
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setSnapshot(null);
-      setErrorText(error instanceof Error ? error.message : 'Failed to load ambassador data.');
+      setErrorText(error instanceof Error ? error.message : t('Failed to load ambassador data.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -243,12 +245,12 @@ export default function AmbassadorProgramScreen() {
   const headerInfo =
     snapshot?.status === 'cabinet'
       ? {
-          title: AMBASSADOR_CABINET_INFO_TITLE,
-          text: AMBASSADOR_CABINET_INFO_TEXT,
+          title: t(AMBASSADOR_CABINET_INFO_TITLE),
+          text: t(AMBASSADOR_CABINET_INFO_TEXT),
         }
       : {
-          title: AMBASSADOR_REGISTRATION_INFO_TITLE,
-          text: AMBASSADOR_REGISTRATION_INFO_TEXT,
+          title: t(AMBASSADOR_REGISTRATION_INFO_TITLE),
+          text: t(AMBASSADOR_REGISTRATION_INFO_TEXT),
         };
 
   const handleRefresh = useCallback(() => {
@@ -267,9 +269,9 @@ export default function AmbassadorProgramScreen() {
     async (value: string, label: string) => {
       if (!value) return;
       await Clipboard.setStringAsync(value);
-      notice.showSuccessNotice(`${label} copied.`, 1800);
+      notice.showSuccessNotice(t('{{label}} copied.', { label }), 1800);
     },
-    [notice]
+    [notice, t]
   );
 
   const handleShare = useCallback(
@@ -282,18 +284,18 @@ export default function AmbassadorProgramScreen() {
           url: value,
         });
       } catch (error) {
-        console.error(error);
-        notice.showErrorNotice(`Failed to share ${label.toLowerCase()}.`, 2200);
+        console.warn(error);
+        notice.showErrorNotice(t('Failed to share {{label}}.', { label: label.toLowerCase() }), 2200);
       }
     },
-    [notice]
+    [notice, t]
   );
 
   const handleToggleWalletOptions = useCallback(() => {
     const availableFullAccessWallets = walletChoices.filter((wallet) => wallet.kind !== 'watch-only');
 
     if (availableFullAccessWallets.length === 0) {
-      notice.showNeutralNotice('No full-access wallets available.', 2400);
+      notice.showNeutralNotice(t('No full-access wallets available.'), 2400);
       return;
     }
 
@@ -301,17 +303,17 @@ export default function AmbassadorProgramScreen() {
       availableFullAccessWallets.length === 1 &&
       availableFullAccessWallets[0]?.id === activeWallet?.id
     ) {
-      notice.showNeutralNotice('No other full-access wallets available.', 2200);
+      notice.showNeutralNotice(t('No other full-access wallets available.'), 2200);
       return;
     }
 
     setWalletOptionsOpen((prev) => !prev);
-  }, [activeWallet?.id, notice, walletChoices]);
+  }, [activeWallet?.id, notice, t, walletChoices]);
 
   const handleChooseWallet = useCallback(
     async (wallet: WalletSwitcherOption) => {
       if (wallet.kind === 'watch-only') {
-        notice.showNeutralNotice('Watch-only wallets are not available here.', 2400);
+        notice.showNeutralNotice(t('Watch-only wallets are not available here.'), 2400);
         return;
       }
 
@@ -323,14 +325,14 @@ export default function AmbassadorProgramScreen() {
         setPendingWalletSelectionId(wallet.id);
         await load({ silent: true, force: true });
       } catch (error) {
-        console.error(error);
-        notice.showErrorNotice('Failed to switch ambassador wallet.', 2400);
+        console.warn(error);
+        notice.showErrorNotice(t('Failed to switch ambassador wallet.'), 2400);
       } finally {
         setSwitchingWalletId(null);
         setBusyAction(null);
       }
     },
-    [load, notice, setPendingWalletSelectionId]
+    [load, notice, setPendingWalletSelectionId, t]
   );
 
   const handleNormalizeSlug = useCallback((value: string) => {
@@ -339,7 +341,7 @@ export default function AmbassadorProgramScreen() {
 
   const handleRegister = useCallback(async () => {
     if (!canRegister) {
-      notice.showErrorNotice('Enter a valid ambassador slug.', 2200);
+      notice.showErrorNotice(t('Enter a valid ambassador slug.'), 2200);
       return;
     }
 
@@ -349,7 +351,7 @@ export default function AmbassadorProgramScreen() {
         slug: normalizeAmbassadorSlug(slug),
       },
     });
-  }, [canRegister, notice, router, slug]);
+  }, [canRegister, notice, router, slug, t]);
 
   const handleWithdraw = useCallback(async () => {
     router.push('/ambassador-withdraw-confirm');
@@ -361,26 +363,26 @@ export default function AmbassadorProgramScreen() {
     try {
       setBusyAction('replay');
       await replayAmbassadorPendingRewards(profile.wallet);
-      notice.showSuccessNotice('Pending rewards replay requested.', 2600);
+      notice.showSuccessNotice(t('Pending rewards replay requested.'), 2600);
       await load({ silent: true, force: true });
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Replay request failed.',
+        error instanceof Error ? error.message : t('Replay request failed.'),
         3200
       );
     } finally {
       setBusyAction(null);
     }
-  }, [load, notice, profile?.wallet]);
+  }, [load, notice, profile?.wallet, t]);
 
   if (loading && !snapshot) {
-    return <ScreenLoadingState label="Loading ambassador module" />;
+    return <ScreenLoadingState label={t('Loading ambassador module')} />;
   }
 
   return (
     <ProductScreen
-      eyebrow="AMBASSADOR"
+      eyebrow={t('AMBASSADOR')}
       keyboardAware={snapshot?.status === 'register'}
       keyboardExtraScrollHeight={96}
       loadingOverlayVisible={refreshing || Boolean(switchingWalletId) || Boolean(busyAction)}
@@ -417,14 +419,14 @@ export default function AmbassadorProgramScreen() {
           }}
         />
       ) : (
-        <ProductSection eyebrow="WALLET REQUIRED" title="No active wallet">
+        <ProductSection eyebrow={t('WALLET REQUIRED')} title={t('No active wallet')}>
           <Text style={ui.body}>
-            Import or create a wallet before ambassador registration or cabinet lookup can run.
+            {t('Import or create a wallet before ambassador registration or cabinet lookup can run.')}
           </Text>
           <ProductActionRow
-            primaryLabel="Import Wallet"
+            primaryLabel={t('Import Wallet')}
             onPrimaryPress={() => router.push('/import-wallet')}
-            secondaryLabel="Create Wallet"
+            secondaryLabel={t('Create Wallet')}
             onSecondaryPress={() => router.push('/create-wallet')}
           />
         </ProductSection>
@@ -436,15 +438,14 @@ export default function AmbassadorProgramScreen() {
       ) : null}
 
       {isWatchOnlyWallet ? (
-        <ProductSection eyebrow="FULL ACCESS REQUIRED" title="Ambassador is locked for this wallet">
+        <ProductSection eyebrow={t('FULL ACCESS REQUIRED')} title={t('Ambassador is locked for this wallet')}>
           <Text style={ui.body}>
-            Watch-only wallets cannot register, withdraw, replay rewards, or open the ambassador cabinet here.
-            Switch to a seed phrase or private-key wallet.
+            {t('Watch-only wallets cannot register, withdraw, replay rewards, or open the ambassador cabinet here. Switch to a seed phrase or private-key wallet.')}
           </Text>
           <ProductActionRow
-            primaryLabel="Import Wallet"
+            primaryLabel={t('Import Wallet')}
             onPrimaryPress={() => router.push('/import-wallet')}
-            secondaryLabel="Create Wallet"
+            secondaryLabel={t('Create Wallet')}
             onSecondaryPress={() => router.push('/create-wallet')}
           />
         </ProductSection>
@@ -506,6 +507,7 @@ function CabinetView({
   onReplay: () => void;
   onToggleSection: (section: CabinetSectionId) => void;
 }) {
+  const { t } = useI18n();
   const { profile, summary } = cabinet;
   const referralLink = profile.referralLink;
   const claimableSun = summary.claimable_rewards_sun || '0';
@@ -522,24 +524,26 @@ function CabinetView({
       <ProductStatGrid
         items={[
           {
-            eyebrow: 'Slug',
+            eyebrow: t('Slug'),
             value: profile.slug || '—',
-            body: profile.status.toUpperCase(),
+            body: profile.status === 'inactive' ? t('INACTIVE') : t('ACTIVE'),
           },
           {
-            eyebrow: 'Level',
+            eyebrow: t('Level'),
             value: levelToLabel(summary.effective_level),
-            body: `${summary.reward_percent || 0}% reward tier`,
+            body: t('{{percent}}% reward tier', { percent: summary.reward_percent || 0 }),
           },
           {
-            eyebrow: 'Reward',
+            eyebrow: t('Reward'),
             value: `${summary.reward_percent || 0}%`,
-            body: 'Current effective reward',
+            body: t('Current effective reward'),
           },
           {
-            eyebrow: 'Claimable',
+            eyebrow: t('Claimable'),
             value: `${formatTrxFromSun(summary.claimable_rewards_sun)} TRX`,
-            body: `${formatTrxFromSun(summary.total_rewards_accrued_sun)} TRX accrued`,
+            body: t('{{amount}} TRX accrued', {
+              amount: formatTrxFromSun(summary.total_rewards_accrued_sun),
+            }),
           },
         ]}
       />
@@ -548,41 +552,45 @@ function CabinetView({
         {contentLoading ? (
           <View style={styles.cabinetCardsLoading}>
             <ActivityIndicator size="small" color={colors.accent} />
-            <Text style={styles.cabinetCardsLoadingText}>Refreshing ambassador cabinet...</Text>
+            <Text style={styles.cabinetCardsLoadingText}>{t('Refreshing ambassador cabinet...')}</Text>
           </View>
         ) : (
           <>
             <View style={styles.statusGrid}>
               <RewardStatusCard
-                label="Claimable now"
+                label={t('Claimable now')}
                 value={`${formatTrxFromSun(claimableSun)} TRX`}
                 meta={`${claimableSun} SUN`}
                 tone={canWithdraw ? 'green' : 'default'}
               />
               <RewardStatusCard
-                label="Claimed total"
+                label={t('Claimed total')}
                 value={`${formatTrxFromSun(claimedTotalSun)} TRX`}
-                meta={`${claimedTotalSun} SUN withdrawn`}
+                meta={t('{{amount}} SUN withdrawn', { amount: claimedTotalSun })}
                 tone={asCount(claimedTotalSun) > 0 ? 'orange' : 'default'}
               />
               <RewardStatusCard
-                label="Pending"
+                label={t('Pending')}
                 value={`${formatTrxFromSun(pendingRewardSun)} TRX`}
-                meta={pendingCount > 0 ? `${pendingCount} row(s) waiting` : 'No replay rows'}
+                meta={
+                  pendingCount > 0
+                    ? t('{{count}} row(s) waiting', { count: pendingCount })
+                    : t('No replay rows')
+                }
                 tone={pendingCount > 0 ? 'amber' : 'default'}
               />
             </View>
 
             <View style={styles.actionGrid}>
               <ActionPill
-                label="WITHDRAW"
+                label={t('WITHDRAW')}
                 icon="cash-fast"
                 disabled={!canWithdraw || busyAction === 'withdraw'}
                 busy={busyAction === 'withdraw'}
                 onPress={onWithdraw}
               />
               <ActionPill
-                label="REPLAY PENDING"
+                label={t('REPLAY PENDING')}
                 icon="reload"
                 variant="secondary"
                 disabled={!hasPendingRows || busyAction === 'replay'}
@@ -593,18 +601,18 @@ function CabinetView({
 
             <View style={styles.actionGrid}>
               <ActionPill
-                label="COPY LINK"
+                label={t('COPY LINK')}
                 icon="content-copy"
                 variant="secondary"
                 disabled={!referralLink}
-                onPress={() => onCopy(referralLink, 'Referral link')}
+                onPress={() => onCopy(referralLink, t('Referral link'))}
               />
               <ActionPill
-                label="SHARE LINK"
+                label={t('SHARE LINK')}
                 icon="share-variant"
                 variant="secondary"
                 disabled={!referralLink}
-                onPress={() => onShare(referralLink, 'Referral link')}
+                onPress={() => onShare(referralLink, t('Referral link'))}
               />
             </View>
           </>
@@ -613,42 +621,46 @@ function CabinetView({
 
       <CabinetAccordionSection
         id="identity"
-        title="Identity"
+        title={t('Identity')}
         open={sections.identity}
         onToggle={onToggleSection}
       >
         <View style={styles.flatPanel}>
-          <InfoRow label="Slug" value={profile.slug || 'Not assigned yet'} accent={Boolean(profile.slug)} />
-          <InfoRow label="Wallet" value={shortenAddress(profile.wallet)} />
-          <InfoRow label="Status" value={summary.active === false ? 'Inactive' : 'Active'} accent={summary.active !== false} />
-          <InfoRow label="Level" value={levelToLabel(summary.effective_level)} />
-          <InfoRow label="Reward percent" value={`${summary.reward_percent || 0}%`} />
-          <InfoRow label="Created" value={formatChainDate(summary.created_at_chain)} />
+          <InfoRow label={t('Slug')} value={profile.slug || t('Not assigned yet')} accent={Boolean(profile.slug)} />
+          <InfoRow label={t('Wallet')} value={shortenAddress(profile.wallet)} />
+          <InfoRow
+            label={t('Status')}
+            value={summary.active === false ? t('Inactive') : t('Active')}
+            accent={summary.active !== false}
+          />
+          <InfoRow label={t('Level')} value={levelToLabel(summary.effective_level)} />
+          <InfoRow label={t('Reward percent')} value={`${summary.reward_percent || 0}%`} />
+          <InfoRow label={t('Created')} value={formatChainDate(summary.created_at_chain)} />
         </View>
       </CabinetAccordionSection>
 
       <CabinetAccordionSection
         id="overview"
-        title="Overview"
+        title={t('Overview')}
         open={sections.overview}
         onToggle={onToggleSection}
       >
         <View style={styles.flatPanel}>
-          <InfoRow label="Linked buyers" value={String(asCount(summary.buyers_count || summary.total_buyers))} />
-          <InfoRow label="Attributed volume" value={`${formatTrxFromSun(summary.buyers_total_purchase_amount_sun || summary.total_volume_sun)} TRX`} />
-          <InfoRow label="Accrued total" value={`${formatTrxFromSun(summary.buyers_total_reward_sun || accruedTotalSun)} TRX`} />
-          <InfoRow label="Claimed total" value={`${formatTrxFromSun(claimedTotalSun)} TRX`} />
-          <InfoRow label="Processed backend reward" value={`${formatTrxFromSun(processedRewardSun)} TRX`} />
-          <InfoRow label="Pending reward" value={`${formatTrxFromSun(pendingRewardSun)} TRX`} accent={pendingCount > 0} />
-          <InfoRow label="Processed rows" value={String(processedCount)} />
-          <InfoRow label="Pending rows" value={String(pendingCount)} accent={pendingCount > 0} />
-          <InfoRow label="Level" value={`${levelToLabel(summary.effective_level)} · ${summary.reward_percent || 0}%`} />
+          <InfoRow label={t('Linked buyers')} value={String(asCount(summary.buyers_count || summary.total_buyers))} />
+          <InfoRow label={t('Attributed volume')} value={`${formatTrxFromSun(summary.buyers_total_purchase_amount_sun || summary.total_volume_sun)} TRX`} />
+          <InfoRow label={t('Accrued total')} value={`${formatTrxFromSun(summary.buyers_total_reward_sun || accruedTotalSun)} TRX`} />
+          <InfoRow label={t('Claimed total')} value={`${formatTrxFromSun(claimedTotalSun)} TRX`} />
+          <InfoRow label={t('Processed backend reward')} value={`${formatTrxFromSun(processedRewardSun)} TRX`} />
+          <InfoRow label={t('Pending reward')} value={`${formatTrxFromSun(pendingRewardSun)} TRX`} accent={pendingCount > 0} />
+          <InfoRow label={t('Processed rows')} value={String(processedCount)} />
+          <InfoRow label={t('Pending rows')} value={String(pendingCount)} accent={pendingCount > 0} />
+          <InfoRow label={t('Level')} value={`${levelToLabel(summary.effective_level)} · ${summary.reward_percent || 0}%`} />
           <InfoRow
-            label="Next level"
+            label={t('Next level')}
             value={
               remainingToNextLevel > 0
-                ? `${remainingToNextLevel} buyer(s) left`
-                : 'Max tier reached'
+                ? t('{{count}} buyer(s) left', { count: remainingToNextLevel })
+                : t('Max tier reached')
             }
             accent={remainingToNextLevel <= 0}
           />
@@ -659,20 +671,24 @@ function CabinetView({
         sectionId="buyers"
         open={sections.buyers}
         onToggle={onToggleSection}
-        eyebrow="BUYERS"
-        title="Bound buyers"
-        empty="No bound buyers yet."
+        eyebrow={t('BUYERS')}
+        title={t('Bound buyers')}
+        empty={t('No bound buyers yet.')}
         rows={cabinet.buyersRows}
         total={cabinet.buyersTotal}
         renderTitle={(row) => shortenAddress(readRowText(row, ['buyer_wallet', 'buyer', 'wallet']))}
         renderMeta={(row) =>
           [
-            `Bound ${formatMaybeDate(readRowText(row, ['binding_at', 'created_at']))}`,
-            `${readRowText(row, ['purchase_count'])} purchases`,
-            `${readRowSun(row, ['total_purchase_amount_sun', 'purchase_amount_sun'])} TRX volume`,
-            `${readRowSun(row, ['total_reward_amount_sun', 'ambassador_reward_sun'])} TRX reward`,
-            `${readRowText(row, ['processed_purchase_count'])} processed`,
-            `${readRowText(row, ['pending_purchase_count'])} pending`,
+            t('Bound {{date}}', { date: formatMaybeDate(readRowText(row, ['binding_at', 'created_at'])) }),
+            t('{{count}} purchases', { count: readRowText(row, ['purchase_count']) }),
+            t('{{amount}} TRX volume', {
+              amount: readRowSun(row, ['total_purchase_amount_sun', 'purchase_amount_sun']),
+            }),
+            t('{{amount}} TRX reward', {
+              amount: readRowSun(row, ['total_reward_amount_sun', 'ambassador_reward_sun']),
+            }),
+            t('{{count}} processed', { count: readRowText(row, ['processed_purchase_count']) }),
+            t('{{count}} pending', { count: readRowText(row, ['pending_purchase_count']) }),
           ].join(' · ')
         }
       />
@@ -681,9 +697,9 @@ function CabinetView({
         sectionId="purchases"
         open={sections.purchases}
         onToggle={onToggleSection}
-        eyebrow="PURCHASES"
-        title="Tracked purchases"
-        empty="No tracked purchases yet."
+        eyebrow={t('PURCHASES')}
+        title={t('Tracked purchases')}
+        empty={t('No tracked purchases yet.')}
         rows={cabinet.purchasesRows}
         total={cabinet.purchasesTotal}
         renderTitle={(row) =>
@@ -691,10 +707,16 @@ function CabinetView({
         }
         renderMeta={(row) =>
           [
-            `${readRowSun(row, ['purchase_amount_sun'])} TRX purchase`,
-            `${readRowSun(row, ['ambassador_reward_sun', 'reward_sun'])} TRX reward`,
-            `status ${readRowText(row, ['status'])}`,
-            `processed ${readRowText(row, ['controller_processed']) === 'true' ? 'yes' : 'no'}`,
+            t('{{amount}} TRX purchase', {
+              amount: readRowSun(row, ['purchase_amount_sun']),
+            }),
+            t('{{amount}} TRX reward', {
+              amount: readRowSun(row, ['ambassador_reward_sun', 'reward_sun']),
+            }),
+            t('status {{status}}', { status: readRowText(row, ['status']) }),
+            t('processed {{state}}', {
+              state: readRowText(row, ['controller_processed']) === 'true' ? t('yes') : t('no'),
+            }),
             shortenMiddle(readRowText(row, ['tx_hash', 'txid', 'transaction_id'])),
           ].join(' · ')
         }
@@ -704,9 +726,9 @@ function CabinetView({
         sectionId="pending"
         open={sections.pending}
         onToggle={onToggleSection}
-        eyebrow="PENDING"
-        title="Pending allocation"
-        empty="No pending allocation rows."
+        eyebrow={t('PENDING')}
+        title={t('Pending allocation')}
+        empty={t('No pending allocation rows.')}
         rows={cabinet.pendingRows}
         total={cabinet.pendingTotal}
         renderTitle={(row) =>
@@ -714,9 +736,13 @@ function CabinetView({
         }
         renderMeta={(row) =>
           [
-            `${readRowSun(row, ['purchase_amount_sun'])} TRX purchase`,
-            `${readRowSun(row, ['ambassador_reward_sun', 'reward_sun'])} TRX reward`,
-            `status ${readRowText(row, ['status'])}`,
+            t('{{amount}} TRX purchase', {
+              amount: readRowSun(row, ['purchase_amount_sun']),
+            }),
+            t('{{amount}} TRX reward', {
+              amount: readRowSun(row, ['ambassador_reward_sun', 'reward_sun']),
+            }),
+            t('status {{status}}', { status: readRowText(row, ['status']) }),
             shortenMiddle(readRowText(row, ['tx_hash', 'txid', 'transaction_id'])),
           ].join(' · ')
         }
@@ -743,26 +769,27 @@ function RegistrationView({
   onChangeSlug: (value: string) => void;
   onRegister: () => void;
 }) {
+  const { t } = useI18n();
   const normalizedSlug = normalizeAmbassadorSlug(slug);
   const referralPreview = normalizedSlug ? buildAmbassadorReferralLink(normalizedSlug) : '—';
 
   return (
     <View style={styles.registrationBlock}>
-      <Text style={ui.sectionEyebrow}>AMBASSADOR REGISTRATION</Text>
-      <Text style={styles.registrationTitle}>Create ambassador profile</Text>
+      <Text style={ui.sectionEyebrow}>{t('AMBASSADOR REGISTRATION')}</Text>
+      <Text style={styles.registrationTitle}>{t('Create ambassador profile')}</Text>
       <Text style={ui.body}>
-        Continue to confirm, review resources, optionally rent Energy, then approve with biometrics or passcode.
+        {t('Continue to confirm, review resources, optionally rent Energy, then approve with biometrics or passcode.')}
       </Text>
 
       <View style={styles.registrationPreview}>
-        <Text style={styles.registrationPreviewLabel}>Referral link preview</Text>
+        <Text style={styles.registrationPreviewLabel}>{t('Referral link preview')}</Text>
         <Text style={styles.registrationPreviewValue} numberOfLines={1}>
           {referralPreview}
         </Text>
       </View>
 
       <View style={styles.inputBlock}>
-        <Text style={styles.inputLabel}>Referral slug</Text>
+        <Text style={styles.inputLabel}>{t('Referral slug')}</Text>
         <TextInput
           value={slug}
           onChangeText={onChangeSlug}
@@ -776,27 +803,27 @@ function RegistrationView({
           selectionColor={colors.accent}
           returnKeyType="done"
           blurOnSubmit
-          placeholder="your-slug"
+          placeholder={t('your-slug')}
           placeholderTextColor={colors.textDim}
           style={styles.slugInput}
         />
         <Text style={styles.inputHint}>
-          3-24 chars. Lowercase letters, numbers, dash or underscore.
+          {t('3-24 chars. Lowercase letters, numbers, dash or underscore.')}
         </Text>
         <Text style={styles.registrationWarning}>
-          Slug is permanent. After registration it cannot be changed from the wallet.
+          {t('Slug is permanent. After registration it cannot be changed from the wallet.')}
         </Text>
       </View>
 
       {walletKind === 'watch-only' ? (
         <StatusCard
           tone="danger"
-          text="Watch-only wallet cannot register. Select or import a seed/private-key wallet first."
+          text={t('Watch-only wallet cannot register. Select or import a seed/private-key wallet first.')}
         />
       ) : null}
 
       <ProductActionRow
-        primaryLabel="CONTINUE TO CONFIRM"
+        primaryLabel={t('CONTINUE TO CONFIRM')}
         onPrimaryPress={onRegister}
       />
     </View>
@@ -826,10 +853,11 @@ function RowsPreview({
   renderTitle: (row: Record<string, unknown>) => string;
   renderMeta: (row: Record<string, unknown>) => string;
 }) {
+  const { t } = useI18n();
   return (
     <CabinetAccordionSection
       id={sectionId}
-      title={`${title} (${total || rows.length})`}
+      title={`${t(title)} (${total || rows.length})`}
       open={open}
       onToggle={onToggle}
       eyebrow={eyebrow}
@@ -853,7 +881,7 @@ function RowsPreview({
           ))}
         </View>
       ) : (
-        <Text style={ui.body}>{empty}</Text>
+        <Text style={ui.body}>{t(empty)}</Text>
       )}
     </CabinetAccordionSection>
   );
@@ -874,6 +902,7 @@ function CabinetAccordionSection({
   children: ReactNode;
   eyebrow?: string;
 }) {
+  const { t } = useI18n();
   return (
     <View style={styles.accordionCard}>
       <TouchableOpacity
@@ -882,7 +911,7 @@ function CabinetAccordionSection({
         onPress={() => onToggle(id)}
       >
         <View style={styles.accordionHeaderText}>
-          {eyebrow ? <Text style={ui.sectionEyebrow}>{eyebrow}</Text> : null}
+          {eyebrow ? <Text style={ui.sectionEyebrow}>{t(eyebrow)}</Text> : null}
           <Text style={styles.accordionTitle}>{title}</Text>
         </View>
         <MaterialCommunityIcons
@@ -897,17 +926,19 @@ function CabinetAccordionSection({
 }
 
 function InfoRow({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  const { t } = useI18n();
   return (
     <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoLabel}>{t(label)}</Text>
       <Text style={[styles.infoValue, accent ? styles.infoValueAccent : null]} numberOfLines={2}>
-        {value}
+        {t(value)}
       </Text>
     </View>
   );
 }
 
 function StatusCard({ tone, text }: { tone: 'neutral' | 'danger' | 'success'; text: string }) {
+  const { t } = useI18n();
   return (
     <View
       style={[
@@ -915,7 +946,7 @@ function StatusCard({ tone, text }: { tone: 'neutral' | 'danger' | 'success'; te
         tone === 'danger' ? styles.statusDanger : tone === 'success' ? styles.statusSuccess : null,
       ]}
     >
-      <Text style={styles.statusText}>{text}</Text>
+      <Text style={styles.statusText}>{t(text)}</Text>
     </View>
   );
 }
@@ -931,6 +962,7 @@ function RewardStatusCard({
   meta: string;
   tone?: 'default' | 'green' | 'amber' | 'orange';
 }) {
+  const { t } = useI18n();
   return (
     <View
       style={[
@@ -940,12 +972,12 @@ function RewardStatusCard({
         tone === 'amber' ? styles.rewardStatusCardAmber : null,
       ]}
     >
-      <Text style={styles.rewardStatusLabel}>{label}</Text>
+      <Text style={styles.rewardStatusLabel}>{t(label)}</Text>
       <Text style={styles.rewardStatusValue} numberOfLines={2}>
-        {value}
+        {t(value)}
       </Text>
       <Text style={styles.rewardStatusMeta} numberOfLines={1}>
-        {meta}
+        {t(meta)}
       </Text>
     </View>
   );
@@ -966,6 +998,7 @@ function ActionPill({
   busy?: boolean;
   onPress: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <TouchableOpacity
       activeOpacity={0.9}
@@ -986,7 +1019,7 @@ function ActionPill({
           color={variant === 'secondary' ? colors.accent : colors.white}
         />
       )}
-      <Text style={styles.actionPillText}>{label}</Text>
+      <Text style={styles.actionPillText}>{t(label)}</Text>
     </TouchableOpacity>
   );
 }

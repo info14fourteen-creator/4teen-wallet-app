@@ -26,7 +26,7 @@ import { goBackOrReplace } from '../src/ui/safe-back';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
-import { useI18n } from '../src/i18n';
+import { getCachedLanguage, getLanguageLocaleTag, translateNow, useI18n } from '../src/i18n';
 import {
   buildDirectBuyReview,
   executeDirectBuy,
@@ -66,7 +66,7 @@ function formatTokenAmount(value: number, maximumFractionDigits = 6) {
     return '0.00';
   }
 
-  return value.toLocaleString('en-US', {
+  return value.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits,
   });
@@ -102,16 +102,16 @@ function formatLockReleaseParts(unixSeconds: number) {
   if (!Number.isFinite(unixSeconds) || unixSeconds <= 0) {
     return {
       primary: '—',
-      secondary: 'YEAR',
+      secondary: translateNow('YEAR'),
     };
   }
 
   const date = new Date(unixSeconds * 1000);
-  const primary = date.toLocaleDateString('en-GB', {
+  const primary = date.toLocaleDateString(getLanguageLocaleTag(getCachedLanguage()), {
     day: '2-digit',
     month: 'short',
   });
-  const secondary = date.toLocaleDateString('en-GB', {
+  const secondary = date.toLocaleDateString(getLanguageLocaleTag(getCachedLanguage()), {
     year: 'numeric',
   });
 
@@ -153,7 +153,7 @@ export default function BuyConfirmScreen() {
   const [passcodeEntryOpen, setPasscodeEntryOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
-  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
+  const [biometricLabel, setBiometricLabel] = useState(t('Biometrics'));
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
@@ -162,7 +162,6 @@ export default function BuyConfirmScreen() {
   const [pendingApprovalMode, setPendingApprovalMode] = useState<'buy' | 'rent'>('buy');
   const preserveNoticeOnExitRef = useRef(false);
   const burnWarningShownRef = useRef(false);
-
   useChromeLoading(loading || refreshing);
 
   const energyAvailable = review ? getAvailableResource(review.resources.available, 'energy') : 0;
@@ -180,6 +179,7 @@ export default function BuyConfirmScreen() {
       (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
   const canUseBiometrics = biometricAvailable && biometricsEnabled;
+  const approvalProcessing = !passcodeOpen && (submitting || energyRenting);
 
   const load = useCallback(async () => {
     try {
@@ -343,7 +343,7 @@ export default function BuyConfirmScreen() {
       await load();
       return true;
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
@@ -435,31 +435,18 @@ export default function BuyConfirmScreen() {
     setPasscodeError('');
   }, []);
 
-  const openApprovalAuth = useCallback((preferPasscode = false) => {
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeEntryOpen(preferPasscode || !canUseBiometrics);
-    setPasscodeOpen(true);
-  }, [canUseBiometrics]);
-
   const openPasscodeEntry = useCallback(() => {
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeOpen(true);
     setPasscodeEntryOpen(true);
   }, []);
 
   const closePasscodeEntry = useCallback(() => {
-    if (canUseBiometrics) {
-      setPasscodeDigits('');
-      setPasscodeError('');
-      setPasscodeEntryOpen(false);
-      return;
-    }
-
     closeApprovalAuth();
-  }, [canUseBiometrics, closeApprovalAuth]);
+  }, [closeApprovalAuth]);
 
-  const handleBiometricApproval = useCallback(async () => {
+  const handleBiometricApproval = useCallback(async (mode: 'buy' | 'rent' = pendingApprovalMode) => {
     if (!canUseBiometrics) {
       openPasscodeEntry();
       return;
@@ -468,29 +455,51 @@ export default function BuyConfirmScreen() {
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage:
-          pendingApprovalMode === 'rent' ? t('Confirm Energy Rental') : t('Approve direct buy'),
+          mode === 'rent' ? t('Confirm Energy Rental') : t('Approve direct buy'),
         cancelLabel: t('Cancel'),
         fallbackLabel: t('Use Passcode'),
       });
 
-      if (result.success) {
-        if (pendingApprovalMode === 'rent') {
-          const rented = await performRentEnergy();
-          if (rented) {
-            await performBuy();
-          }
-        } else {
+      if (!result.success) {
+        if (result.error === 'user_fallback') {
+          openPasscodeEntry();
+        }
+        return;
+      }
+
+      setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+
+      if (mode === 'rent') {
+        const rented = await performRentEnergy();
+        if (rented) {
           await performBuy();
         }
+      } else {
+        await performBuy();
       }
     } catch {
     }
   }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performBuy, performRentEnergy, t]);
 
+  const openApprovalAuth = useCallback((mode: 'buy' | 'rent', preferPasscode = false) => {
+    setPendingApprovalMode(mode);
+    setPasscodeError('');
+    setPasscodeDigits('');
+
+    if (preferPasscode || !canUseBiometrics) {
+      setPasscodeEntryOpen(true);
+      setPasscodeOpen(true);
+      return;
+    }
+
+    void handleBiometricApproval(mode);
+  }, [canUseBiometrics, handleBiometricApproval]);
+
   const handleApprove = useCallback(async () => {
     if (!review || submitting) return;
-    setPendingApprovalMode('buy');
-
     if (!review.trxCoverage.canCoverBurn) {
       const message = t(
         'Top up at least {{amount}} TRX to cover buy value and network burn.',
@@ -503,22 +512,14 @@ export default function BuyConfirmScreen() {
       return;
     }
 
-    openApprovalAuth();
+    openApprovalAuth('buy');
   }, [notice, openApprovalAuth, review, submitting, t]);
 
   const handleRentEnergy = useCallback(async () => {
     if (!review || !energyQuote || submitting || energyRenting) return;
 
-    setPendingApprovalMode('rent');
-
-    openApprovalAuth();
-  }, [
-    energyQuote,
-    energyRenting,
-    openApprovalAuth,
-    review,
-    submitting,
-  ]);
+    openApprovalAuth('rent');
+  }, [energyQuote, energyRenting, openApprovalAuth, review, submitting]);
 
   const handlePasscodeDigit = useCallback((digit: string) => {
     setPasscodeDigits((current) => {
@@ -549,6 +550,11 @@ export default function BuyConfirmScreen() {
         return;
       }
 
+      setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+
       if (pendingApprovalMode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
@@ -574,7 +580,7 @@ export default function BuyConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing} />
+        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -596,12 +602,14 @@ export default function BuyConfirmScreen() {
 
           {receipt ? (
             <View style={styles.successBlock}>
-              <Text style={ui.sectionEyebrow}>BUY SENT</Text>
+              <Text style={ui.sectionEyebrow}>{t('BUY SENT')}</Text>
               <Text style={styles.successTitle}>
-                {formatTokenAmount(receipt.estimatedTokens)} 4TEEN started a new lock.
+                {t('{{amount}} 4TEEN started a new lock.', {
+                  amount: formatTokenAmount(receipt.estimatedTokens),
+                })}
               </Text>
               <Text style={styles.successBody}>
-                Unlock target: {formatDirectBuyDate(receipt.lockReleaseAt)}.
+                {t('Unlock target:')} {formatDirectBuyDate(receipt.lockReleaseAt)}.
               </Text>
               {attributionStatus ? (
                 <Text style={styles.successMeta}>
@@ -631,7 +639,7 @@ export default function BuyConfirmScreen() {
                 style={styles.primaryButton}
                 onPress={() => router.push('/unlock-timeline')}
               >
-                <Text style={styles.primaryButtonText}>OPEN UNLOCK TIMELINE</Text>
+                <Text style={styles.primaryButtonText}>{t('OPEN UNLOCK TIMELINE')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -639,13 +647,13 @@ export default function BuyConfirmScreen() {
                 style={styles.secondaryButton}
                 onPress={() => router.push('/earn')}
               >
-                <Text style={styles.secondaryButtonText}>BACK TO EARN</Text>
+                <Text style={styles.secondaryButtonText}>{t('BACK TO EARN')}</Text>
               </TouchableOpacity>
             </View>
           ) : review ? (
             <>
-              <View style={styles.sectionBlock}>
-                <Text style={styles.sectionEyebrow}>SELECTED WALLET</Text>
+              <View style={[styles.sectionBlock, styles.sectionBlockFirst]}>
+                <Text style={styles.sectionEyebrow}>{t('SELECTED WALLET')}</Text>
                 <View style={styles.heroCard}>
                   <Image
                     source={{ uri: FOURTEEN_LOGO }}
@@ -657,7 +665,7 @@ export default function BuyConfirmScreen() {
                     <View style={styles.heroWalletBlock}>
                       <View style={styles.heroWalletTitleRow}>
                         <Text style={styles.heroWalletName}>{review.wallet.name}</Text>
-                        <Text style={styles.heroActiveBadge}>SELECTED</Text>
+                        <Text style={styles.heroActiveBadge}>{t('SELECTED')}</Text>
                       </View>
                       <Text style={styles.heroWalletMeta}>
                         {review.trxValueDisplay} <Text style={styles.heroWalletMetaDot}>•</Text>{' '}
@@ -669,7 +677,7 @@ export default function BuyConfirmScreen() {
 
                   <View style={styles.heroMetricGrid}>
                     <View style={[styles.heroMetricCard, styles.heroMetricCardSpend]}>
-                      <Text style={[styles.heroMetricLabel, styles.heroMetricLabelSpend]}>SPEND</Text>
+                      <Text style={[styles.heroMetricLabel, styles.heroMetricLabelSpend]}>{t('SPEND')}</Text>
                       <Text style={[styles.heroMetricValue, styles.heroMetricValueSpend]}>
                         {formatCompactHeroAmount(review.amountTrxValue)}
                       </Text>
@@ -684,7 +692,7 @@ export default function BuyConfirmScreen() {
                     </View>
 
                     <View style={[styles.heroMetricCard, styles.heroMetricCardReceive]}>
-                      <Text style={[styles.heroMetricLabel, styles.heroMetricLabelReceive]}>RECEIVE</Text>
+                      <Text style={[styles.heroMetricLabel, styles.heroMetricLabelReceive]}>{t('RECEIVE')}</Text>
                       <Text style={[styles.heroMetricValue, styles.heroMetricValueReceive]}>
                         {formatCompactHeroAmount(review.estimatedTokens)}
                       </Text>
@@ -699,7 +707,7 @@ export default function BuyConfirmScreen() {
                     </View>
 
                     <View style={styles.heroMetricCard}>
-                      <Text style={styles.heroMetricLabel}>BURN EST.</Text>
+                      <Text style={styles.heroMetricLabel}>{t('BURN EST.')}</Text>
                       <Text style={styles.heroMetricValue}>
                         {formatCompactHeroAmount(review.resources.estimatedBurnSun / 1_000_000)}
                       </Text>
@@ -707,7 +715,7 @@ export default function BuyConfirmScreen() {
                     </View>
 
                     <View style={styles.heroMetricCard}>
-                      <Text style={styles.heroMetricLabel}>LOCK RELEASE</Text>
+                      <Text style={styles.heroMetricLabel}>{t('LOCK RELEASE')}</Text>
                       <Text style={styles.heroMetricValue}>{lockReleaseParts?.primary || '—'}</Text>
                       <Text style={styles.heroMetricToken}>
                         {lockReleaseParts?.secondary || t('YEAR')}
@@ -729,7 +737,12 @@ export default function BuyConfirmScreen() {
                   {submitting ? (
                     <ActivityIndicator color={colors.white} />
                   ) : (
-                    <Text style={styles.primaryButtonText}>
+                    <Text
+                      style={styles.primaryButtonText}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.78}
+                    >
                       {hasTrxForBurn ? t('BUY 4TEEN') : t('TOP UP TRX')}
                     </Text>
                   )}
@@ -748,44 +761,44 @@ export default function BuyConfirmScreen() {
               </View>
 
               <View style={styles.sectionBlock}>
-                <Text style={styles.sectionEyebrow}>BUY REVIEW</Text>
+                <Text style={styles.sectionEyebrow}>{t('BUY REVIEW')}</Text>
                 <View style={styles.detailCard}>
                   <View style={styles.detailRowFirst}>
-                    <Text style={styles.detailLabel}>Estimated Receive</Text>
+                    <Text style={styles.detailLabel}>{t('Estimated Receive')}</Text>
                     <Text style={styles.detailValueAccent}>
                       {formatTokenAmount(review.estimatedTokens)} 4TEEN
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Buy Value</Text>
+                    <Text style={styles.detailLabel}>{t('Buy Value')}</Text>
                     <Text style={styles.detailValue}>{review.amountTrx} TRX</Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Current Price</Text>
+                    <Text style={styles.detailLabel}>{t('Current Price')}</Text>
                     <Text style={styles.detailValue}>
                       {formatDirectBuyPrice(review.tokenPriceSun)} TRX
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Lock Release</Text>
+                    <Text style={styles.detailLabel}>{t('Lock Release')}</Text>
                     <Text style={styles.detailValue}>
                       {formatDirectBuyDate(review.lockReleaseAt)}
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Estimated Burn</Text>
+                    <Text style={styles.detailLabel}>{t('Estimated Burn')}</Text>
                     <Text style={styles.detailValueAccent}>
                       {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Fee Limit</Text>
+                    <Text style={styles.detailLabel}>{t('Fee Limit')}</Text>
                     <Text style={styles.detailValue}>
                       {formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>TRX Available</Text>
+                    <Text style={styles.detailLabel}>{t('TRX Available')}</Text>
                     <Text style={styles.detailValue}>{review.trxBalance.toFixed(6)} TRX</Text>
                   </View>
                 </View>
@@ -820,7 +833,14 @@ export default function BuyConfirmScreen() {
                 disabled={submitting}
                 onPress={() => goBackOrReplace(router, { fallback: '/buy' })}
               >
-                <Text style={styles.rejectButtonText}>REJECT</Text>
+                <Text
+                  style={styles.rejectButtonText}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {t('REJECT')}
+                </Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -880,6 +900,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
+  sectionBlockFirst: {
+    marginTop: 0,
+  },
+
   sectionEyebrow: {
     color: colors.textDim,
     fontSize: 11,
@@ -889,7 +913,7 @@ const styles = StyleSheet.create({
   },
 
   heroCard: {
-    marginTop: 2,
+    marginTop: 0,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineStrong,
@@ -1233,6 +1257,9 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.7,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   rejectButton: {
@@ -1252,6 +1279,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   secondaryButton: {
@@ -1270,6 +1300,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   successBlock: {

@@ -3,6 +3,7 @@ import { RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 
+import { getLanguageLocaleTag, useI18n } from '../src/i18n';
 import {
   ProductActionRow,
   ProductBulletList,
@@ -91,6 +92,7 @@ const CONTRACT_LINKS = [
 
 export default function EarnScreen() {
   const router = useRouter();
+  const { t } = useI18n();
   const [infoExpanded, setInfoExpanded] = useState(false);
   const [assetWallets, setAssetWallets] = useState<AssetWalletsSnapshot | null>(null);
   const [assetWalletsLoading, setAssetWalletsLoading] = useState(true);
@@ -115,13 +117,13 @@ export default function EarnScreen() {
       setAssetWalletsError(snapshot.message);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Could not load asset wallets.';
+        error instanceof Error ? error.message : t('Could not load asset wallets.');
       setAssetWalletsError(message);
     } finally {
       setAssetWalletsLoading(false);
       setAssetWalletsRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   const refreshAllocationHealth = useCallback(async (options?: { force?: boolean }) => {
     const force = options?.force === true;
@@ -136,13 +138,13 @@ export default function EarnScreen() {
       setAllocationHealthError('');
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Could not load ambassador allocation status.';
+        error instanceof Error ? error.message : t('Could not load ambassador allocation status.');
       setAllocationHealth(null);
       setAllocationHealthError(message);
     } finally {
       setAllocationHealthLoading(false);
     }
-  }, [allocationHealth]);
+  }, [allocationHealth, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -182,18 +184,18 @@ export default function EarnScreen() {
     allocationNeedBandwidth - allocationAvailableBandwidth
   );
   const allocationReadyLabel = allocationResourceState?.hasEnough
-    ? 'Ready now'
-    : 'Waiting for resource top-up';
+    ? t('Ready now')
+    : t('Waiting for resource top-up');
   const allocationReadyBody = allocationResourceState?.hasEnough
-    ? 'The operator wallet is above the safe floor. New ambassador rewards can be pushed into FourteenController without waiting for a replay cycle.'
-    : 'If the operator wallet falls below the safe floor, the backend keeps pending rows in queue, tries to rent resources, and the hourly replay checks again until the reward lands on-chain.';
+    ? t('The operator wallet is above the safe floor. New ambassador rewards can be pushed into FourteenController without waiting for a replay cycle.')
+    : t('If the operator wallet falls below the safe floor, the backend keeps pending rows in queue, tries to rent resources, and the hourly replay checks again until the reward lands on-chain.');
 
   return (
     <ProductScreen
-      eyebrow="INFORMATION"
+      eyebrow={t('INFORMATION')}
       headerInfo={{
-        title: INFO_SCREEN_INFO_TITLE,
-        text: INFO_SCREEN_INFO_TEXT,
+        title: t(INFO_SCREEN_INFO_TITLE),
+        text: t(INFO_SCREEN_INFO_TEXT),
         expanded: infoExpanded,
         onToggle: () => setInfoExpanded((prev) => !prev),
       }}
@@ -207,14 +209,14 @@ export default function EarnScreen() {
       }
     >
       <ProductHero
-        eyebrow="BLOCKCHAIN ARCHITECTURE"
-        title="4TEEN is a TRON contract system."
-        body="The app is only an interface. The architecture is built around token minting, purchase locks, fixed TRX routing, liquidity execution, vault custody, and referral accounting on-chain."
+        eyebrow={t('BLOCKCHAIN ARCHITECTURE')}
+        title={t('4TEEN is a TRON contract system.')}
+        body={t('The app is only an interface. The architecture is built around token minting, purchase locks, fixed TRX routing, liquidity execution, vault custody, and referral accounting on-chain.')}
       >
         <ProductActionRow
-          primaryLabel="CONTRACTS REPO"
+          primaryLabel={t('CONTRACTS REPO')}
           onPrimaryPress={() => void openInAppBrowser(router, SMART_CONTRACTS_REPO_URL)}
-          secondaryLabel="LIQUIDITY"
+          secondaryLabel={t('LIQUIDITY')}
           onSecondaryPress={() => router.push('/liquidity-controller')}
         />
       </ProductHero>
@@ -222,99 +224,99 @@ export default function EarnScreen() {
       <ProductStatGrid
         items={[
           {
-            eyebrow: 'Buy routing',
+            eyebrow: t('Buy routing'),
             value: '90 / 7 / 3',
-            body: 'TRX routes to liquidity, referral/admin, and airdrop vaults.',
+            body: t('TRX routes to liquidity, referral/admin, and airdrop vaults.'),
           },
           {
-            eyebrow: 'Purchase lock',
+            eyebrow: t('Purchase lock'),
             value: '14D',
-            body: 'Direct-buy tokens are locked per purchase in FourteenToken.',
+            body: t('Direct-buy tokens are locked per purchase in FourteenToken.'),
           },
           {
-            eyebrow: 'Liquidity cadence',
+            eyebrow: t('Liquidity cadence'),
             value: '6.43%',
-            body: 'Controller can release this share once per UTC day.',
+            body: t('Controller can release this share once per UTC day.'),
           },
           {
-            eyebrow: 'Run threshold',
+            eyebrow: t('Run threshold'),
             value: '100 TRX',
-            body: 'Liquidity execution reverts below controller balance threshold.',
+            body: t('Liquidity execution reverts below controller balance threshold.'),
           },
         ]}
       />
 
-      <ProductSection eyebrow="CORE CONTRACTS" title="The contracts and their jobs">
+      <ProductSection eyebrow={t('CORE CONTRACTS')} title={t('The contracts and their jobs')}>
         <View style={styles.flatStack}>
           <FlatInfoRow
-            eyebrow="FourteenToken"
-            title="Token, primary buy, locks"
-            body="Mints 4TEEN on direct buy, records the 14-day lock, stores token price data, and forwards incoming TRX by fixed split."
+            eyebrow={t('FourteenToken')}
+            title={t('Token, primary buy, locks')}
+            body={t('Mints 4TEEN on direct buy, records the 14-day lock, stores token price data, and forwards incoming TRX by fixed split.')}
             accent
           />
           <FlatInfoRow
-            eyebrow="FourteenController"
-            title="Token admin and referrals"
-            body="Controls token admin functions and stores ambassador state, buyer binding, reward accounting, and processed purchase IDs."
+            eyebrow={t('FourteenController')}
+            title={t('Token admin and referrals')}
+            body={t('Controls token admin functions and stores ambassador state, buyer binding, reward accounting, and processed purchase IDs.')}
           />
           <FlatInfoRow
-            eyebrow="FourteenLiquidityController"
-            title="Liquidity-side TRX router"
-            body="Receives the liquidity share, checks execution conditions, releases 6.43% of balance, then splits the release between DEX executors."
+            eyebrow={t('FourteenLiquidityController')}
+            title={t('Liquidity-side TRX router')}
+            body={t('Receives the liquidity share, checks execution conditions, releases 6.43% of balance, then splits the release between DEX executors.')}
             isLast
           />
         </View>
       </ProductSection>
 
-      <ProductSection eyebrow="DIRECT BUY FLOW" title="What the chain records">
+      <ProductSection eyebrow={t('DIRECT BUY FLOW')} title={t('What the chain records')}>
         <View style={styles.flowStack}>
           <FlowStep
             index="01"
-            title="Buyer sends TRX into FourteenToken"
-            body="The contract uses its primary token price to calculate how much 4TEEN should be minted."
+            title={t('Buyer sends TRX into FourteenToken')}
+            body={t('The contract uses its primary token price to calculate how much 4TEEN should be minted.')}
           />
           <FlowStep
             index="02"
-            title="4TEEN is minted with a lock"
-            body="The buyer receives tokens, but the direct-buy amount is locked for 14 days from the purchase event."
+            title={t('4TEEN is minted with a lock')}
+            body={t('The buyer receives tokens, but the direct-buy amount is locked for 14 days from the purchase event.')}
           />
           <FlowStep
             index="03"
-            title="TRX leaves by fixed contract split"
-            body="90% goes to LiquidityController, 7% goes to FourteenController, and 3% goes to AirdropVault."
+            title={t('TRX leaves by fixed contract split')}
+            body={t('90% goes to LiquidityController, 7% goes to FourteenController, and 3% goes to AirdropVault.')}
           />
           <FlowStep
             index="04"
-            title="Referral accounting is recorded separately"
-            body="FourteenController can bind buyer to ambassador and record a verified purchase once per purchase ID."
+            title={t('Referral accounting is recorded separately')}
+            body={t('FourteenController can bind buyer to ambassador and record a verified purchase once per purchase ID.')}
             isLast
           />
         </View>
       </ProductSection>
 
-      <ProductSection eyebrow="AMBASSADOR ENGINE" title="Referral rewards clear in two stages">
+      <ProductSection eyebrow={t('AMBASSADOR ENGINE')} title={t('Referral rewards clear in two stages')}>
         <ProductBulletList
           items={[
-            'A buy can be attributed immediately in backend accounting even if the controller-side reward is not on-chain yet.',
-            'The operator wallet is the wallet that finalizes allocation into FourteenController, so claimable rewards appear only after that contract write succeeds.',
-            'If resources are low, the backend keeps the purchase in queue, attempts automatic resource rental, and the hourly replay checks again until the allocation lands.',
+            t('A buy can be attributed immediately in backend accounting even if the controller-side reward is not on-chain yet.'),
+            t('The operator wallet is the wallet that finalizes allocation into FourteenController, so claimable rewards appear only after that contract write succeeds.'),
+            t('If resources are low, the backend keeps the purchase in queue, attempts automatic resource rental, and the hourly replay checks again until the allocation lands.'),
           ]}
         />
 
         <View style={styles.allocationMetaCard}>
           <View style={styles.allocationMetaRow}>
-            <Text style={styles.allocationMetaLabel}>Operator wallet</Text>
+            <Text style={styles.allocationMetaLabel}>{t('Operator wallet')}</Text>
             <Text style={styles.allocationMetaValue}>
               {allocationHealth?.operatorWallet
                 ? shortenAddress(allocationHealth.operatorWallet)
                 : allocationHealthLoading
-                  ? 'Loading...'
-                  : '--'}
+                  ? t('Loading...')
+                  : t('--')}
             </Text>
           </View>
 
           <View style={styles.allocationMetaRow}>
-            <Text style={styles.allocationMetaLabel}>Queue state</Text>
+            <Text style={styles.allocationMetaLabel}>{t('Queue state')}</Text>
             <Text
               style={[
                 styles.allocationMetaValue,
@@ -326,11 +328,11 @@ export default function EarnScreen() {
           </View>
 
           <View style={styles.allocationMetaRowLast}>
-            <Text style={styles.allocationMetaLabel}>Safe floor target</Text>
+            <Text style={styles.allocationMetaLabel}>{t('Safe floor target')}</Text>
             <Text style={styles.allocationMetaValue}>
               {[
-                `${formatResourceAmount(allocationNeedEnergy)} energy`,
-                `${formatResourceAmount(allocationNeedBandwidth)} bandwidth`,
+                t('{{count}} energy', { count: formatResourceAmount(allocationNeedEnergy) }),
+                t('{{count}} bandwidth', { count: formatResourceAmount(allocationNeedBandwidth) }),
               ].join(' · ')}
             </Text>
           </View>
@@ -338,31 +340,33 @@ export default function EarnScreen() {
 
         <View style={styles.runtimeWalletCard}>
           <RuntimeWalletRow
-            label="Operator wallet"
+            label={t('Operator wallet')}
             address={operatorRuntime?.wallet || allocationHealth?.operatorWallet || null}
             trxBalance={operatorRuntime?.balanceTrx || '--'}
             energy={operatorRuntime ? formatResourceAmount(operatorRuntime.availableEnergy) : '--'}
             bandwidth={operatorRuntime ? formatResourceAmount(operatorRuntime.availableBandwidth) : '--'}
-            note="Writes ambassador rewards into FourteenController."
+            note={t('Writes ambassador rewards into FourteenController.')}
           />
           <RuntimeWalletRow
-            label="Airdrop control"
+            label={t('Airdrop control')}
             address={airdropControlRuntime?.wallet || null}
             trxBalance={airdropControlRuntime?.balanceTrx || '--'}
             energy={airdropControlRuntime ? formatResourceAmount(airdropControlRuntime.availableEnergy) : '--'}
             bandwidth={airdropControlRuntime ? formatResourceAmount(airdropControlRuntime.availableBandwidth) : '--'}
-            note="Fallback funding wallet that can top up the operator if rental needs extra TRX."
+            note={t('Fallback funding wallet that can top up the operator if rental needs extra TRX.')}
           />
           <RuntimeWalletRow
-            label="Gas Station deposit"
+            label={t('Gas Station deposit')}
             address={gasStationRuntime?.depositAddress || null}
             trxBalance={gasStationRuntime?.balanceTrx || '--'}
             energy={null}
             bandwidth={null}
             details={
               gasStationRuntime?.account
-                ? `provider ${gasStationRuntime.account} · automatic rental pool`
-                : 'Automatic rental pool'
+                ? t('provider {{account}} · automatic rental pool', {
+                    account: gasStationRuntime.account,
+                  })
+                : t('Automatic rental pool')
             }
             isLast
           />
@@ -371,7 +375,7 @@ export default function EarnScreen() {
         {allocationHealthLoading && !allocationHealth ? (
           <View style={styles.assetWalletPlaceholder}>
             <Text style={styles.assetWalletPlaceholderText}>
-              Loading live allocation readiness for the ambassador engine...
+              {t('Loading live allocation readiness for the ambassador engine...')}
             </Text>
           </View>
         ) : allocationHealth ? (
@@ -388,55 +392,56 @@ export default function EarnScreen() {
         ) : (
           <View style={styles.assetWalletPlaceholder}>
             <Text style={styles.assetWalletPlaceholderText}>
-              {allocationHealthError || 'Ambassador allocation status is temporarily unavailable.'}
+              {allocationHealthError || t('Ambassador allocation status is temporarily unavailable.')}
             </Text>
           </View>
         )}
 
         <Text style={styles.assetWalletNote}>
-          Normal screen opens use cached runtime data. Pull down only when you want to force a live
-          read from the backend and chain.
+          {t(
+            'Normal screen opens use cached runtime data. Pull down only when you want to force a live read from the backend and chain.'
+          )}
         </Text>
       </ProductSection>
 
-      <ProductSection eyebrow="LIQUIDITY MODULE" title="Execution is split into three layers">
+      <ProductSection eyebrow={t('LIQUIDITY MODULE')} title={t('Execution is split into three layers')}>
         <ProductBulletList
           items={[
-            'LiquidityController holds liquidity-side TRX and enforces the minimum balance, once-per-day cadence, and 6.43% release rule.',
-            'LiquidityBootstrapper prepares executor token balances from FourteenVault before triggering controller execution.',
-            'JustMoney Executor and Sun.io V3 Executor receive the split TRX release and perform the DEX-specific liquidity calls.',
+            t('LiquidityController holds liquidity-side TRX and enforces the minimum balance, once-per-day cadence, and 6.43% release rule.'),
+            t('LiquidityBootstrapper prepares executor token balances from FourteenVault before triggering controller execution.'),
+            t('JustMoney Executor and Sun.io V3 Executor receive the split TRX release and perform the DEX-specific liquidity calls.'),
           ]}
         />
       </ProductSection>
 
-      <ProductSection eyebrow="VAULTS AND ACCOUNTING" title="Where state lives">
+      <ProductSection eyebrow={t('VAULTS AND ACCOUNTING')} title={t('Where state lives')}>
         <View style={styles.flatStack}>
           <FlatInfoRow
-            eyebrow="FourteenVault"
-            title="Liquidity token reserve"
-            body="Provides token-side balances used by the liquidity bootstrapper and executors."
+            eyebrow={t('FourteenVault')}
+            title={t('Liquidity token reserve')}
+            body={t('Provides token-side balances used by the liquidity bootstrapper and executors.')}
             accent
           />
           <FlatInfoRow
-            eyebrow="AirdropVault"
-            title="Airdrop reserve"
-            body="Receives the airdrop share from direct buys and keeps community distribution funds separate."
+            eyebrow={t('AirdropVault')}
+            title={t('Airdrop reserve')}
+            body={t('Receives the airdrop share from direct buys and keeps community distribution funds separate.')}
           />
           <FlatInfoRow
-            eyebrow="TeamLockVault"
-            title="Team allocation lock"
-            body="Keeps team allocation separated from live liquidity and buyer balances."
+            eyebrow={t('TeamLockVault')}
+            title={t('Team allocation lock')}
+            body={t('Keeps team allocation separated from live liquidity and buyer balances.')}
             isLast
           />
         </View>
       </ProductSection>
 
-      <ProductSection eyebrow="ASSET WALLETS" title="4TEEN reserves visible on-chain">
+      <ProductSection eyebrow={t('ASSET WALLETS')} title={t('4TEEN reserves visible on-chain')}>
         <View style={styles.assetWalletStack}>
           {assetWalletsLoading && !assetWallets ? (
             <View style={styles.assetWalletPlaceholder}>
               <Text style={styles.assetWalletPlaceholderText}>
-                Loading vault balances and latest 4TEEN deposits...
+                {t('Loading vault balances and latest 4TEEN deposits...')}
               </Text>
             </View>
           ) : null}
@@ -458,27 +463,26 @@ export default function EarnScreen() {
             <Text style={styles.assetWalletError}>{assetWalletsError}</Text>
           ) : (
             <Text style={styles.assetWalletNote}>
-              Balances are read from 4TEEN balanceOf(). Latest incoming activity uses the newest
-              direct 4TEEN transfer found for the vault address. AirdropVault refills are routed
-              in TRX from direct buys, so that refill timing does not always appear in the same
-              token-transfer list.
+              {t(
+                'Balances are read from 4TEEN balanceOf(). Latest incoming activity uses the newest direct 4TEEN transfer found for the vault address. AirdropVault refills are routed in TRX from direct buys, so that refill timing does not always appear in the same token-transfer list.'
+              )}
             </Text>
           )}
         </View>
       </ProductSection>
 
-      <ProductSection eyebrow="BOUNDARIES" title="What this system does not promise">
+      <ProductSection eyebrow={t('BOUNDARIES')} title={t('What this system does not promise')}>
         <ProductBulletList
           items={[
-            'No contract guarantees profit or secondary market price growth.',
-            'The primary direct-buy price is not the same thing as market price.',
-            'External automation may trigger execution, but contract code defines the rules.',
-            'On-chain events and contract storage are the source of truth; the app only reads and presents them.',
+            t('No contract guarantees profit or secondary market price growth.'),
+            t('The primary direct-buy price is not the same thing as market price.'),
+            t('External automation may trigger execution, but contract code defines the rules.'),
+            t('On-chain events and contract storage are the source of truth; the app only reads and presents them.'),
           ]}
         />
       </ProductSection>
 
-      <ProductSection eyebrow="CONTRACTS" title="Verify the architecture">
+      <ProductSection eyebrow={t('CONTRACTS')} title={t('Verify the architecture')}>
         <View style={styles.contractList}>
           {CONTRACT_LINKS.map((contract, index) => (
             <TouchableOpacity
@@ -491,9 +495,9 @@ export default function EarnScreen() {
               onPress={() => void openInAppBrowser(router, contract.url)}
             >
               <View style={styles.contractCopy}>
-                <Text style={styles.contractLabel}>{contract.label}</Text>
+                <Text style={styles.contractLabel}>{t(contract.label)}</Text>
                 <Text style={styles.contractAddress}>{contract.address}</Text>
-                <Text style={styles.contractBody}>{contract.body}</Text>
+                <Text style={styles.contractBody}>{t(contract.body)}</Text>
               </View>
               <View style={styles.contractIconBox}>
                 <MaterialCommunityIcons name="open-in-new" size={14} color={colors.accent} />
@@ -519,13 +523,14 @@ function FlatInfoRow({
   accent?: boolean;
   isLast?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <View style={[styles.flatRow, isLast && styles.flatRowLast]}>
       <View style={[styles.flatMarker, accent && styles.flatMarkerAccent]} />
       <View style={styles.flatCopy}>
-        <Text style={accent ? styles.flatEyebrowAccent : styles.flatEyebrow}>{eyebrow}</Text>
-        <Text style={styles.flatTitle}>{title}</Text>
-        <Text style={styles.flatBody}>{body}</Text>
+        <Text style={accent ? styles.flatEyebrowAccent : styles.flatEyebrow}>{t(eyebrow)}</Text>
+        <Text style={styles.flatTitle}>{t(title)}</Text>
+        <Text style={styles.flatBody}>{t(body)}</Text>
       </View>
     </View>
   );
@@ -540,6 +545,7 @@ function AssetWalletCard({
   onOpenWallet: () => void;
   onOpenDeposit: () => void;
 }) {
+  const { language, t } = useI18n();
   const isAirdropVault = wallet.id === 'airdrop-vault';
 
   return (
@@ -547,7 +553,7 @@ function AssetWalletCard({
       <View style={styles.assetWalletTopRow}>
         <View style={styles.assetWalletCopy}>
           <Text style={styles.assetWalletLabel}>{wallet.label}</Text>
-          <Text style={styles.assetWalletRole}>{wallet.role}</Text>
+          <Text style={styles.assetWalletRole}>{t(wallet.role)}</Text>
         </View>
         <MaterialCommunityIcons name="open-in-new" size={16} color={colors.accent} />
       </View>
@@ -567,24 +573,24 @@ function AssetWalletCard({
       >
         <View style={styles.assetDepositCopy}>
           <Text style={styles.assetDepositLabel}>
-            {isAirdropVault ? 'LATEST 4TEEN INCOMING' : 'LATEST 4TEEN DEPOSIT'}
+            {isAirdropVault ? t('LATEST 4TEEN INCOMING') : t('LATEST 4TEEN DEPOSIT')}
           </Text>
           <Text style={styles.assetDepositValue}>
             {wallet.lastDeposit
-              ? `${formatCompactAmount(wallet.lastDeposit.amount)} 4TEEN · ${formatUtc(wallet.lastDeposit.timestamp)}`
+              ? `${formatCompactAmount(wallet.lastDeposit.amount)} 4TEEN · ${formatUtc(wallet.lastDeposit.timestamp, language)}`
               : wallet.status === 'unavailable'
-                ? 'Temporarily unavailable'
+                ? t('Temporarily unavailable')
                 : isAirdropVault
-                  ? 'No direct 4TEEN incoming transfer found'
-                  : 'No recent incoming transfer found'}
+                  ? t('No direct 4TEEN incoming transfer found')
+                  : t('No recent incoming transfer found')}
           </Text>
           {wallet.lastDeposit?.fromAddress ? (
             <Text style={styles.assetDepositFrom}>
-              from {shortenAddress(wallet.lastDeposit.fromAddress)}
+              {t('from')} {shortenAddress(wallet.lastDeposit.fromAddress)}
             </Text>
           ) : isAirdropVault ? (
             <Text style={styles.assetDepositFrom}>
-              Direct-buy funding reaches this vault as routed TRX, not only as visible 4TEEN transfers.
+              {t('Direct-buy funding reaches this vault as routed TRX, not only as visible 4TEEN transfers.')}
             </Text>
           ) : null}
         </View>
@@ -618,22 +624,23 @@ function RuntimeWalletRow({
   details?: string;
   isLast?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <View style={[styles.runtimeWalletRow, isLast && styles.runtimeWalletRowLast]}>
       <View style={styles.runtimeWalletCopy}>
-        <Text style={styles.runtimeWalletLabel}>{label}</Text>
+        <Text style={styles.runtimeWalletLabel}>{t(label)}</Text>
         <Text style={styles.runtimeWalletAddress}>
-          {address ? shortenAddress(address) : 'Unavailable'}
+          {address ? shortenAddress(address) : t('Unavailable')}
         </Text>
-        {note ? <Text style={styles.runtimeWalletNote}>{note}</Text> : null}
+        {note ? <Text style={styles.runtimeWalletNote}>{t(note)}</Text> : null}
       </View>
 
       <View style={styles.runtimeWalletMetrics}>
         <Text style={styles.runtimeWalletMetric}>{trxBalance} TRX</Text>
         <Text style={styles.runtimeWalletMetricSub}>
-          {details || (energy !== null && bandwidth !== null
+          {details ? t(details) : (energy !== null && bandwidth !== null
             ? `${energy} energy · ${bandwidth} bandwidth`
-            : '—')}
+            : t('—'))}
         </Text>
       </View>
     </View>
@@ -651,14 +658,15 @@ function FlowStep({
   body: string;
   isLast?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <View style={[styles.flowStep, isLast && styles.flatRowLast]}>
       <View style={styles.flowIndexBox}>
         <Text style={styles.flowIndex}>{index}</Text>
       </View>
       <View style={styles.flowCopy}>
-        <Text style={styles.flowTitle}>{title}</Text>
-        <Text style={styles.flowBody}>{body}</Text>
+        <Text style={styles.flowTitle}>{t(title)}</Text>
+        <Text style={styles.flowBody}>{t(body)}</Text>
       </View>
     </View>
   );
@@ -684,7 +692,7 @@ function formatCompactAmount(value: number | null) {
   return value.toFixed(2);
 }
 
-function formatUtc(timestamp: number) {
+function formatUtc(timestamp: number, language: Parameters<typeof getLanguageLocaleTag>[0]) {
   if (!timestamp) return 'UTC --';
 
   const date = new Date(timestamp);
@@ -693,7 +701,7 @@ function formatUtc(timestamp: number) {
     return 'UTC --';
   }
 
-  return date.toLocaleString('en-GB', {
+  return date.toLocaleString(getLanguageLocaleTag(language), {
     day: '2-digit',
     month: 'short',
     year: 'numeric',

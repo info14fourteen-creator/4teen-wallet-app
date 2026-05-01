@@ -20,7 +20,7 @@ import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
-import { translateNow, useI18n } from '../src/i18n';
+import { getCachedLanguage, getLanguageLocaleTag, translateNow, useI18n } from '../src/i18n';
 import LottieIcon from '../src/ui/lottie-icon';
 
 import { colors, layout, radius } from '../src/theme/tokens';
@@ -52,7 +52,7 @@ const TOKEN_DETAILS_SHARE_SOURCE = require('../assets/icons/ui/token_details_sha
 function formatCompactNumber(value?: number) {
   const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
 
-  return safe.toLocaleString('en-US', {
+  return safe.toLocaleString(undefined, {
     notation: 'compact',
     maximumFractionDigits: 2,
   });
@@ -76,7 +76,7 @@ function formatPerformanceValue(point?: TokenPerformancePoint) {
 function formatHistoryTime(timestamp: number) {
   if (!timestamp) return translateNow('Unknown time');
 
-  return new Date(timestamp).toLocaleString('en-US', {
+  return new Date(timestamp).toLocaleString(getLanguageLocaleTag(getCachedLanguage()), {
     month: 'short',
     day: '2-digit',
     year: 'numeric',
@@ -216,7 +216,7 @@ export default function TokenDetailsScreen() {
           history: dedupeHistory(nextDetails.history),
         });
       } catch (error) {
-        console.error(error);
+        console.warn(error);
         setDetails(null);
         setErrorText(t('Failed to load token details.'));
         notice.showErrorNotice(t('Token details failed to load.'), 2600);
@@ -264,8 +264,8 @@ export default function TokenDetailsScreen() {
       }),
     ]).start();
     await Clipboard.setStringAsync(details.address);
-    notice.showSuccessNotice('Token contract copied.', 2200);
-  }, [copyIconScale, details?.address, notice]);
+    notice.showSuccessNotice(t('Token contract copied.'), 2200);
+  }, [copyIconScale, details?.address, notice, t]);
 
   const handleOpenTokenContract = useCallback(async () => {
     if (!details?.address) return;
@@ -273,17 +273,17 @@ export default function TokenDetailsScreen() {
     try {
       await openInAppBrowser(router, `https://tronscan.org/#/contract/${details.address}`);
     } catch (error) {
-      console.error(error);
-      notice.showErrorNotice('Failed to open token contract.', 2200);
+      console.warn(error);
+      notice.showErrorNotice(t('Failed to open token contract.'), 2200);
     }
-  }, [details?.address, notice, router]);
+  }, [details?.address, notice, router, t]);
 
   const handleOpenHistoryItem = async (item: TokenHistoryItem) => {
     try {
       await openInAppBrowser(router, item.tronscanUrl);
     } catch (error) {
-      console.error(error);
-      notice.showErrorNotice('Failed to open Tronscan.', 2200);
+      console.warn(error);
+      notice.showErrorNotice(t('Failed to open Tronscan.'), 2200);
     }
   };
 
@@ -310,12 +310,12 @@ export default function TokenDetailsScreen() {
         };
       });
     } catch (error) {
-      console.error(error);
-      notice.showErrorNotice('Token history failed to load.', 2200);
+      console.warn(error);
+      notice.showErrorNotice(t('Token history failed to load.'), 2200);
     } finally {
       setHistoryLoading(false);
     }
-  }, [details, notice, tokenId]);
+  }, [details, notice, t, tokenId]);
 
   const handleReloadHistory = useCallback(() => {
     if (!tokenId || !details || historyLoading || historyRefreshAnimating) return;
@@ -371,8 +371,8 @@ export default function TokenDetailsScreen() {
         };
       });
     } catch (error) {
-      console.error(error);
-      notice.showErrorNotice('More token history failed to load.', 2200);
+      console.warn(error);
+      notice.showErrorNotice(t('More token history failed to load.'), 2200);
     } finally {
       setHistoryLoadingMore(false);
     }

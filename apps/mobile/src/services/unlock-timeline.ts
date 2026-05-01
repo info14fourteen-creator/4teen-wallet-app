@@ -1,6 +1,7 @@
 import { TronWeb } from 'tronweb';
 
 import { buildTrongridHeaders, TRONGRID_BASE_URL } from '../config/tron';
+import { getCachedLanguage, getLanguageLocaleTag, translateNow } from '../i18n';
 import {
   FOURTEEN_CONTRACT,
   FOURTEEN_LOGO,
@@ -138,7 +139,7 @@ function buildContractAbi() {
 }
 
 function formatUnlockDate(unlockAt: number) {
-  return new Date(unlockAt).toLocaleString('en-GB', {
+  return new Date(unlockAt).toLocaleString(getLanguageLocaleTag(getCachedLanguage()), {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -160,11 +161,11 @@ async function readContractUint256(input: {
   const decimals = input.decimals ?? DEFAULT_DECIMALS;
 
   if (!isUsableAddress(walletAddress)) {
-    throw new Error(`${input.methodName}: invalid wallet address`);
+    throw new Error(translateNow('{{method}}: invalid wallet address', { method: input.methodName }));
   }
 
   if (!isUsableAddress(contractAddress)) {
-    throw new Error(`${input.methodName}: invalid contract address`);
+    throw new Error(translateNow('{{method}}: invalid contract address', { method: input.methodName }));
   }
 
   const tronWeb = createReadonlyTronWeb(walletAddress);
@@ -178,7 +179,7 @@ async function readContractUint256(input: {
     const normalized = normalizeTokenUnits(raw, decimals);
 
     if (normalized === null) {
-      throw new Error(`${input.methodName}: invalid result`);
+      throw new Error(translateNow('{{method}}: invalid result', { method: input.methodName }));
     }
 
     return normalized;
@@ -290,7 +291,7 @@ export async function loadUnlockTimelineSnapshot(input: {
   const force = input.force === true;
 
   if (!isUsableAddress(walletAddress)) {
-    throw new Error('Wallet address not available.');
+    throw new Error(translateNow('Wallet address not available.'));
   }
 
   const cacheKey = `${walletAddress.toLowerCase()}:${contractAddress.toLowerCase()}`;
@@ -378,11 +379,11 @@ export async function loadUnlockTimelineSnapshot(input: {
       const isRateLimited = message.includes('429') || message.toLowerCase().includes('rate limit');
       historyStatus = isRateLimited ? 'rate-limited' : 'unavailable';
       historyMessage = isRateLimited
-        ? 'Unlock history is temporarily rate-limited. Pull to refresh in a moment.'
-        : 'Unlock history is temporarily unavailable.';
+        ? translateNow('Unlock history is temporarily rate-limited. Pull to refresh in a moment.')
+        : translateNow('Unlock history is temporarily unavailable.');
     } else if (events.length === 0) {
       historyStatus = 'empty';
-      historyMessage = 'No direct-buy unlock entries found for this wallet yet.';
+      historyMessage = translateNow('No unlock entries yet.');
     }
 
     const snapshot = {
@@ -400,13 +401,13 @@ export async function loadUnlockTimelineSnapshot(input: {
         balancesResult.status === 'rejected'
           ? balancesResult.reason instanceof Error
             ? balancesResult.reason.message
-            : 'Failed to load balances.'
+            : translateNow('Failed to load balances.')
           : null,
       rateError:
         marketPriceResult.status === 'rejected' && directBuyPriceResult.status === 'rejected'
           ? marketPriceResult.reason instanceof Error
             ? marketPriceResult.reason.message
-            : 'Failed to load 4TEEN price.'
+            : translateNow('Failed to load 4TEEN price.')
           : null,
       historyStatus,
       historyMessage,

@@ -72,7 +72,6 @@ export default function ExportPrivateKeyScreen() {
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
   const { setChromeHidden } = useWalletSession();
-  const authBiometricRequestedRef = useRef(false);
   const screenCaptureActiveRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
@@ -84,7 +83,7 @@ export default function ExportPrivateKeyScreen() {
   const [passcodeError, setPasscodeError] = useState('');
   const [infoExpanded, setInfoExpanded] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
+  const [biometricLabel, setBiometricLabel] = useState(t('Biometrics'));
 
   useChromeLoading(loading);
 
@@ -101,7 +100,7 @@ export default function ExportPrivateKeyScreen() {
         : await getActiveWallet();
 
       if (!wallet) {
-        throw new Error('No active wallet found.');
+        throw new Error(t('No active wallet found.'));
       }
 
       const secret = await getWalletSecret(wallet.id);
@@ -109,7 +108,7 @@ export default function ExportPrivateKeyScreen() {
 
       if (!canWalletExposePrivateKey(wallet) || !privateKey) {
         throw new Error(
-          'Private key export is available only for signing wallets stored on this device.'
+          t('Private key export is available only for signing wallets stored on this device.')
         );
       }
 
@@ -120,11 +119,11 @@ export default function ExportPrivateKeyScreen() {
     } catch (error) {
       console.error(error);
       setState(null);
-      setErrorText(error instanceof Error ? error.message : 'Failed to load private key.');
+      setErrorText(error instanceof Error ? error.message : t('Failed to load private key.'));
     } finally {
       setLoading(false);
     }
-  }, [params.walletId]);
+  }, [params.walletId, t]);
 
   const loadBiometricsState = useCallback(async () => {
     try {
@@ -136,22 +135,22 @@ export default function ExportPrivateKeyScreen() {
       setBiometricAvailable(enabled && compatible && enrolled);
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        setBiometricLabel('Face ID');
+        setBiometricLabel(t('Face ID'));
         return;
       }
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-        setBiometricLabel('Fingerprint');
+        setBiometricLabel(t('Fingerprint'));
         return;
       }
 
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     } catch (error) {
       console.error(error);
       setBiometricAvailable(false);
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -189,7 +188,7 @@ export default function ExportPrivateKeyScreen() {
     screenCaptureActiveRef.current = false;
 
     ScreenCapture.allowScreenCaptureAsync(SCREEN_CAPTURE_GUARD_KEY).catch((error) => {
-      console.error('Failed to unblock screen capture:', error);
+      console.warn('Failed to unblock screen capture:', error);
     });
   }, []);
 
@@ -199,16 +198,16 @@ export default function ExportPrivateKeyScreen() {
     if (!locked) {
       setRevealed(false);
       notice.showErrorNotice(
-        'Secure screen protection is not available in this build. Rebuild the app before exporting the private key.',
+        t('Secure screen protection is not available in this build. Rebuild the app before exporting the private key.'),
         7000
       );
       return false;
     }
 
     setRevealed(true);
-    notice.showSuccessNotice('Private key unlocked.', 1800);
+    notice.showSuccessNotice(t('Private key unlocked.'), 1800);
     return true;
-  }, [lockScreenCapture, notice]);
+  }, [lockScreenCapture, notice, t]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -234,14 +233,14 @@ export default function ExportPrivateKeyScreen() {
         if (!active) return;
 
         setRevealed(false);
-        notice.showErrorNotice('Private key hidden after screenshot attempt.', 3600);
+        notice.showErrorNotice(t('Private key hidden after screenshot attempt.'), 3600);
       }) ?? null;
 
     const timeoutId = setTimeout(() => {
       if (!active) return;
 
       setRevealed(false);
-      notice.showNeutralNotice('Private key hidden after 60 seconds.', 3000);
+      notice.showNeutralNotice(t('Private key hidden after 60 seconds.'), 3000);
     }, REVEAL_TIMEOUT_MS);
 
     return () => {
@@ -250,19 +249,26 @@ export default function ExportPrivateKeyScreen() {
       screenshotSubscription?.remove();
       unlockScreenCapture();
     };
-  }, [notice, revealed, unlockScreenCapture]);
+  }, [notice, revealed, t, unlockScreenCapture]);
 
   const requestBiometricReveal = useCallback(async () => {
     if (!state || !biometricAvailable || revealed) return false;
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Reveal private key',
-        cancelLabel: 'Cancel',
-        fallbackLabel: 'Use Passcode',
+        promptMessage: t('Reveal private key'),
+        cancelLabel: t('Cancel'),
+        fallbackLabel: t('Use Passcode'),
       });
 
-      if (!result.success) return false;
+      if (!result.success) {
+        if (result.error === 'user_fallback') {
+          setPasscodeDigits('');
+          setPasscodeError('');
+          setPasscodeOpen(true);
+        }
+        return false;
+      }
 
       setPasscodeOpen(false);
       setPasscodeDigits('');
@@ -272,24 +278,19 @@ export default function ExportPrivateKeyScreen() {
       console.error(error);
       return false;
     }
-  }, [biometricAvailable, revealPrivateKeySecurely, revealed, state]);
+  }, [biometricAvailable, revealPrivateKeySecurely, revealed, state, t]);
 
   const handleReveal = useCallback(() => {
     if (!state) return;
 
-    authBiometricRequestedRef.current = false;
     setPasscodeDigits('');
     setPasscodeError('');
+    if (biometricAvailable) {
+      void requestBiometricReveal();
+      return;
+    }
     setPasscodeOpen(true);
-  }, [state]);
-
-  useEffect(() => {
-    if (!passcodeOpen || revealed || !biometricAvailable) return;
-    if (authBiometricRequestedRef.current) return;
-
-    authBiometricRequestedRef.current = true;
-    void requestBiometricReveal();
-  }, [biometricAvailable, passcodeOpen, requestBiometricReveal, revealed]);
+  }, [biometricAvailable, requestBiometricReveal, state]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (passcodeDigits.length !== 6) return;
@@ -410,7 +411,14 @@ export default function ExportPrivateKeyScreen() {
                       style={[styles.primaryButton, styles.actionButtonFlex]}
                       onPress={handleCopy}
                     >
-                      <Text style={styles.primaryButtonText}>{t('COPY KEY')}</Text>
+                      <Text
+                        style={styles.primaryButtonText}
+                        numberOfLines={2}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.78}
+                      >
+                        {t('COPY KEY')}
+                      </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -418,12 +426,26 @@ export default function ExportPrivateKeyScreen() {
                       style={[styles.secondaryButton, styles.actionButtonFlex]}
                       onPress={handleHide}
                     >
-                      <Text style={styles.secondaryButtonText}>{t('HIDE')}</Text>
+                      <Text
+                        style={styles.secondaryButtonText}
+                        numberOfLines={2}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.8}
+                      >
+                        {t('HIDE')}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton} onPress={() => void handleReveal()}>
-                    <Text style={styles.primaryButtonText}>{t('REVEAL KEY')}</Text>
+                    <Text
+                      style={styles.primaryButtonText}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.78}
+                    >
+                      {t('REVEAL KEY')}
+                    </Text>
                   </TouchableOpacity>
                 )}
               </>
@@ -450,16 +472,17 @@ export default function ExportPrivateKeyScreen() {
               <View style={styles.authContent}>
                 <Text style={ui.eyebrow}>{t('Private Key Export')}</Text>
 
-                <Text style={styles.authTitle}>
-                  {t('Confirm with ')}<Text style={styles.authTitleAccent}>{t('Passcode')}</Text>
-                </Text>
+                <Text style={styles.authTitle}>{t('Confirm with Passcode')}</Text>
 
                 <Text style={styles.authLead}>
-                  {t('This unlocks the wallet signing key locally. Confirm with your 6-digit passcode')}
                   {biometricAvailable
-                    ? ` ${t('or')} ${resolveBiometricPromptLabel(biometricLabel)}`
-                    : ''}
-                  {t('; nothing is sent to 4TEEN servers.')}
+                    ? t(
+                        'This unlocks the wallet signing key locally. Confirm with your 6-digit passcode or {{method}}; nothing is sent to 4TEEN servers.',
+                        { method: resolveBiometricPromptLabel(biometricLabel) }
+                      )
+                    : t(
+                        'This unlocks the wallet signing key locally. Confirm with your 6-digit passcode; nothing is sent to 4TEEN servers.'
+                      )}
                 </Text>
 
                 <View style={styles.authPasscodeCard}>
@@ -704,6 +727,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   secondaryButton: {
@@ -722,6 +748,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   authModalSafe: {

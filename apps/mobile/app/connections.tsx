@@ -10,6 +10,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { getCachedLanguage, getLanguageLocaleTag, translateNow, useI18n } from '../src/i18n';
 import { useNotice } from '../src/notice/notice-provider';
 import {
   clearWalletHistoryCache,
@@ -112,9 +113,9 @@ function shortAddress(address: string) {
 }
 
 function formatTime(timestamp: number) {
-  if (!timestamp) return 'Unknown time';
+  if (!timestamp) return translateNow('Unknown time');
 
-  return new Date(timestamp).toLocaleString('en-US', {
+  return new Date(timestamp).toLocaleString(getLanguageLocaleTag(getCachedLanguage()), {
     month: 'short',
     day: '2-digit',
     year: 'numeric',
@@ -152,15 +153,15 @@ function mapApprovalItem(item: WalletHistoryItem): ApprovalItem | null {
     tronscanUrl: item.tronscanUrl,
     spenderAddress,
     spenderLabel:
-      known?.title ||
+      (known?.title ? translateNow(known.title) : '') ||
       String(item.counterpartyLabel || '').trim() ||
       shortAddress(spenderAddress),
-    tokenSymbol: String(item.tokenSymbol || '').trim() || 'TOKEN',
-    amountFormatted: String(item.amountFormatted || '').trim() || 'Unknown amount',
+    tokenSymbol: String(item.tokenSymbol || '').trim() || translateNow('TOKEN'),
+    amountFormatted: String(item.amountFormatted || '').trim() || translateNow('Unknown amount'),
     timestamp: Number(item.timestamp || 0),
     status: normalizeApprovalStatus(item.transactionStatus),
     siteLabel: known?.site,
-    description: known?.body,
+    description: known?.body ? translateNow(known.body) : undefined,
   };
 }
 
@@ -283,6 +284,7 @@ function ConnectionsInfoToggleIcon({ expanded }: { expanded: boolean }) {
 
 export default function ConnectionsScreen() {
   const router = useRouter();
+  const { t } = useI18n();
   const notice = useNotice();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const { setPendingWalletSelectionId } = useWalletSession();
@@ -342,13 +344,13 @@ export default function ConnectionsScreen() {
         history.map(mapApprovalItem).filter((item): item is ApprovalItem => Boolean(item))
       );
     } catch (error) {
-      console.error(error);
-      notice.showErrorNotice('Connections failed to load.', 2600);
+      console.warn(error);
+      notice.showErrorNotice(t('Connections failed to load.'), 2600);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [notice]);
+  }, [notice, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -365,12 +367,12 @@ export default function ConnectionsScreen() {
     const availableChoices = walletChoices.filter((item) => item.id !== wallet?.id);
 
     if (availableChoices.length <= 0) {
-      notice.showNeutralNotice('No other wallets available.', 2200);
+      notice.showNeutralNotice(t('No other wallets available.'), 2200);
       return;
     }
 
     setWalletOptionsOpen((prev) => !prev);
-  }, [notice, wallet?.id, walletChoices]);
+  }, [notice, t, wallet?.id, walletChoices]);
 
   const handleChooseWallet = useCallback(
     (nextWallet: WalletSwitcherOption) => {
@@ -382,14 +384,14 @@ export default function ConnectionsScreen() {
           setPendingWalletSelectionId(nextWallet.id);
           await load({ silent: true, force: true });
         } catch (error) {
-          console.error(error);
-          notice.showErrorNotice('Failed to switch active wallet.', 2400);
+          console.warn(error);
+          notice.showErrorNotice(t('Failed to switch active wallet.'), 2400);
         } finally {
           setSwitchingWalletId(null);
         }
       })();
     },
-    [load, notice, setPendingWalletSelectionId]
+    [load, notice, setPendingWalletSelectionId, t]
   );
 
   const approvalGroups = useMemo(() => groupApprovals(approvalItems), [approvalItems]);
@@ -414,7 +416,7 @@ export default function ConnectionsScreen() {
   );
 
   if (loading && !wallet) {
-    return <ScreenLoadingState label="Loading connections" />;
+    return <ScreenLoadingState label={t('Loading connections')} />;
   }
 
   return (
@@ -439,7 +441,7 @@ export default function ConnectionsScreen() {
         scrollEventThrottle={16}
       >
         <ScreenBrow
-          label="CONNECTIONS"
+          label={t('CONNECTIONS')}
           variant="backLink"
           labelAccessory={<ConnectionsInfoToggleIcon expanded={infoExpanded} />}
           onLabelPress={() => setInfoExpanded((prev) => !prev)}
@@ -447,8 +449,8 @@ export default function ConnectionsScreen() {
 
         {infoExpanded ? (
           <View style={styles.infoPanel}>
-            <Text style={styles.infoTitle}>{CONNECTIONS_INFO_TITLE}</Text>
-            <Text style={styles.infoText}>{CONNECTIONS_INFO_TEXT}</Text>
+            <Text style={styles.infoTitle}>{t(CONNECTIONS_INFO_TITLE)}</Text>
+            <Text style={styles.infoText}>{t(CONNECTIONS_INFO_TEXT)}</Text>
           </View>
         ) : null}
 
@@ -471,16 +473,16 @@ export default function ConnectionsScreen() {
           </View>
         ) : (
           <View style={styles.emptyWalletCard}>
-            <Text style={styles.emptyWalletTitle}>No wallet connected</Text>
+            <Text style={styles.emptyWalletTitle}>{t('No wallet connected')}</Text>
             <Text style={styles.emptyWalletBody}>
-              Create or import a wallet to review connected sites and recent token approvals.
+              {t('Create or import a wallet to review connected sites and recent token approvals.')}
             </Text>
             <TouchableOpacity
               activeOpacity={0.88}
               style={styles.primaryAction}
               onPress={() => router.push('/wallet-access')}
             >
-              <Text style={styles.primaryActionLabel}>OPEN WALLET ACCESS</Text>
+              <Text style={styles.primaryActionLabel}>{t('OPEN WALLET ACCESS')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -491,7 +493,7 @@ export default function ConnectionsScreen() {
             style={styles.primaryAction}
             onPress={handleRefresh}
           >
-            <Text style={styles.primaryActionLabel}>REFRESH</Text>
+            <Text style={styles.primaryActionLabel}>{t('REFRESH')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -499,39 +501,39 @@ export default function ConnectionsScreen() {
             style={styles.secondaryAction}
             onPress={() => router.push('/browser')}
           >
-            <Text style={styles.secondaryActionLabel}>OPEN BROWSER</Text>
+            <Text style={styles.secondaryActionLabel}>{t('OPEN BROWSER')}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.metricsStack}>
           <View style={styles.metricCard}>
             <View style={styles.metricCopy}>
-              <Text style={styles.summaryLabel}>CONNECTED SITES</Text>
-              <Text style={styles.summaryUnit}>No browser sessions are stored yet.</Text>
+            <Text style={styles.summaryLabel}>{t('CONNECTED SITES')}</Text>
+            <Text style={styles.summaryUnit}>{t('No browser sessions are stored yet.')}</Text>
             </View>
             <Text style={styles.summaryValue}>0</Text>
           </View>
 
           <View style={styles.metricCard}>
             <View style={styles.metricCopy}>
-              <Text style={styles.summaryLabel}>APPROVED CONTRACTS</Text>
-              <Text style={styles.summaryUnit}>Unique spender contracts in recent history.</Text>
+            <Text style={styles.summaryLabel}>{t('APPROVED CONTRACTS')}</Text>
+            <Text style={styles.summaryUnit}>{t('Unique spender contracts in recent history.')}</Text>
             </View>
             <Text style={styles.summaryValue}>{approvalGroups.length}</Text>
           </View>
 
           <View style={styles.metricCard}>
             <View style={styles.metricCopy}>
-              <Text style={styles.summaryLabel}>APPROVED TOKENS</Text>
-              <Text style={styles.summaryUnit}>Successful approve events</Text>
+            <Text style={styles.summaryLabel}>{t('APPROVED TOKENS')}</Text>
+            <Text style={styles.summaryUnit}>{t('Successful approve events')}</Text>
             </View>
             <Text style={styles.summaryValue}>{approvedTokenCount}</Text>
           </View>
 
           <View style={styles.metricCard}>
             <View style={styles.metricCopy}>
-              <Text style={styles.summaryLabel}>PENDING</Text>
-              <Text style={styles.summaryUnit}>Approval tx waiting to finalize</Text>
+            <Text style={styles.summaryLabel}>{t('PENDING')}</Text>
+            <Text style={styles.summaryUnit}>{t('Approval tx waiting to finalize')}</Text>
             </View>
             <Text style={styles.summaryValue}>{pendingApprovalCount}</Text>
           </View>
@@ -539,26 +541,26 @@ export default function ConnectionsScreen() {
 
         <View style={[styles.statusCard, styles.statusNeutral]}>
           <Text style={styles.statusText}>
-            Connected sites and on-chain approvals are different layers. This build already reads approval history, but browser-side wallet connect sessions are not persisted yet.
+            {t('Connected sites and on-chain approvals are different layers. This build already reads approval history, but browser-side wallet connect sessions are not persisted yet.')}
           </Text>
         </View>
 
         <View style={styles.historyHead}>
           <View>
-            <Text style={styles.historyEyebrow}>CONNECTED SITES</Text>
+            <Text style={styles.historyEyebrow}>{t('CONNECTED SITES')}</Text>
           </View>
         </View>
 
         <View style={styles.emptyHistoryCard}>
-          <Text style={styles.emptyHistoryTitle}>No connected site cards yet.</Text>
+          <Text style={styles.emptyHistoryTitle}>{t('No connected site cards yet.')}</Text>
           <Text style={styles.emptyHistoryBody}>
-            The in-app browser opens websites, but it does not store per-domain wallet access state yet. Once browser-side connect sessions exist, this section should render those domains as cards.
+            {t('The in-app browser opens websites, but it does not store per-domain wallet access state yet. Once browser-side connect sessions exist, this section should render those domains as cards.')}
           </Text>
         </View>
 
         <View style={styles.historyHead}>
           <View>
-            <Text style={styles.historyEyebrow}>ON-CHAIN APPROVALS</Text>
+            <Text style={styles.historyEyebrow}>{t('ON-CHAIN APPROVALS')}</Text>
           </View>
         </View>
 
@@ -582,14 +584,14 @@ export default function ConnectionsScreen() {
 
                   <View style={styles.statusPill}>
                     <Text style={styles.statusPillText}>
-                      {group.pendingCount > 0 ? 'PENDING' : 'ACTIVE'}
+                      {group.pendingCount > 0 ? t('PENDING') : t('ACTIVE')}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.historyMetaRow}>
                   <View style={styles.historyMetaPrimary}>
-                    <Text style={styles.historyMetricLabel}>LATEST</Text>
+                    <Text style={styles.historyMetricLabel}>{t('LATEST')}</Text>
                     <Text style={styles.historyMetricPrimary}>{formatTime(group.latestTimestamp)}</Text>
                   </View>
 
@@ -598,25 +600,25 @@ export default function ConnectionsScreen() {
                       <Text style={[styles.inlineStatValue, styles.inlineStatValueSuccess]}>
                         {group.successfulCount}
                       </Text>
-                      <Text style={styles.inlineStatLabel}>ok</Text>
+                        <Text style={styles.inlineStatLabel}>{t('ok')}</Text>
                     </View>
                     <View style={[styles.inlineStatPill, styles.inlineStatPillPending]}>
                       <Text style={[styles.inlineStatValue, styles.inlineStatValuePending]}>
                         {group.pendingCount}
                       </Text>
-                      <Text style={styles.inlineStatLabel}>wait</Text>
+                        <Text style={styles.inlineStatLabel}>{t('wait')}</Text>
                     </View>
                     <View style={[styles.inlineStatPill, styles.inlineStatPillFailed]}>
                       <Text style={[styles.inlineStatValue, styles.inlineStatValueFailed]}>
                         {group.failedCount}
                       </Text>
-                      <Text style={styles.inlineStatLabel}>fail</Text>
+                        <Text style={styles.inlineStatLabel}>{t('fail')}</Text>
                     </View>
                   </View>
                 </View>
 
                 <Text style={styles.historyDescription}>
-                  {group.description || 'Most recent approval in wallet history'}
+                  {group.description || t('Most recent approval in wallet history')}
                 </Text>
 
                 <View style={styles.approvalRows}>
@@ -636,7 +638,7 @@ export default function ConnectionsScreen() {
                               : styles.approvalMetaFailed,
                         ]}
                       >
-                        {item.status.toUpperCase()}
+                        {t(item.status.toUpperCase())}
                       </Text>
                     </View>
                   ))}
@@ -653,7 +655,7 @@ export default function ConnectionsScreen() {
                       )
                     }
                   >
-                    <Text style={styles.cardPrimaryActionLabel}>OPEN CONTRACT</Text>
+                    <Text style={styles.cardPrimaryActionLabel}>{t('OPEN CONTRACT')}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -661,7 +663,7 @@ export default function ConnectionsScreen() {
                     style={styles.cardSecondaryAction}
                     onPress={() => void openInAppBrowser(router, group.latestTronscanUrl)}
                   >
-                    <Text style={styles.cardSecondaryActionLabel}>OPEN LATEST TX</Text>
+                    <Text style={styles.cardSecondaryActionLabel}>{t('OPEN LATEST TX')}</Text>
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
@@ -669,9 +671,9 @@ export default function ConnectionsScreen() {
           </View>
         ) : (
           <View style={styles.emptyHistoryCard}>
-            <Text style={styles.emptyHistoryTitle}>No approval cards yet.</Text>
+            <Text style={styles.emptyHistoryTitle}>{t('No approval cards yet.')}</Text>
             <Text style={styles.emptyHistoryBody}>
-              This wallet has no recent approve events in the current history window. When a dapp receives token spend permission, it should appear here as a spender card.
+              {t('This wallet has no recent approve events in the current history window. When a dapp receives token spend permission, it should appear here as a spender card.')}
             </Text>
           </View>
         )}

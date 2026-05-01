@@ -17,6 +17,7 @@ import {
   radius,
   typography,
 } from '../src/theme/tokens';
+import { useI18n } from '../src/i18n';
 import { ui } from '../src/theme/ui';
 import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenBrow from '../src/ui/screen-brow';
@@ -94,6 +95,7 @@ const slides: Slide[] = [
 
 export default function UiLab() {
   const router = useRouter();
+  const { t } = useI18n();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const { width, height } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
@@ -264,8 +266,8 @@ export default function UiLab() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={[styles.screen, { paddingHorizontal: dynamic.horizontalPadding }]}>
-        <View style={[styles.top, { gap: dynamic.topGap, marginTop: navInsets.top }]}>
-          <ScreenBrow label="4TEEN WALLET" variant="back" />
+        <View style={[styles.top, { gap: 0, marginTop: navInsets.top }]}>
+          <ScreenBrow label={t('4TEEN WALLET')} variant="back" />
           <Text
             style={[
               styles.title,
@@ -275,7 +277,9 @@ export default function UiLab() {
               },
             ]}
           >
-            Your access point to the <Text style={styles.titleAccent}>4TEEN</Text> ecosystem and beyond
+            {t('Your access point to the ')}
+            <Text style={styles.titleAccent}>4TEEN</Text>
+            {t(' ecosystem and beyond')}
           </Text>
         </View>
 
@@ -297,7 +301,7 @@ export default function UiLab() {
               {virtualSlides.map((slide, index) => (
                 <View key={`${slide.title}-${index}`} style={[styles.slidePage, { width: pageSize }]}>
                   <View style={[styles.slideInner, { gap: dynamic.slideGap, paddingVertical: dynamic.slideVerticalPadding }]}>
-                    <Text style={ui.sectionEyebrow}>{slide.eyebrow}</Text>
+                    <Text style={ui.sectionEyebrow}>{t(slide.eyebrow)}</Text>
 
                     <Text
                       style={[
@@ -308,11 +312,13 @@ export default function UiLab() {
                         },
                       ]}
                     >
-                      {slide.title}
+                      {t(slide.title)}
                     </Text>
 
                     <Text style={styles.slideTextWrap}>
-                      {slide.body.map((segment, index) => renderSegment(segment, index))}
+                      {slide.body.map((segment, index) =>
+                        renderSegment({ ...segment, text: t(segment.text) }, index)
+                      )}
                     </Text>
                   </View>
                 </View>
@@ -350,7 +356,7 @@ export default function UiLab() {
             style={styles.primaryButton}
             onPress={() => router.push('/create-wallet')}
           >
-            <Text style={ui.buttonLabel}>Create Wallet</Text>
+            <Text style={ui.buttonLabel}>{t('Create Wallet')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -358,7 +364,7 @@ export default function UiLab() {
             style={styles.secondaryButton}
             onPress={() => router.push('/import-wallet')}
           >
-            <Text style={ui.buttonLabel}>Import Wallet</Text>
+            <Text style={ui.buttonLabel}>{t('Import Wallet')}</Text>
           </TouchableOpacity>
         </View>
       </View>

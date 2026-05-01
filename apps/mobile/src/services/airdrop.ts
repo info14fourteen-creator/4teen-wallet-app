@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TronWeb } from 'tronweb';
 
 import { getFourteenApiBaseUrls, TRONGRID_BASE_URL, buildTrongridHeaders } from '../config/tron';
+import { translateNow } from '../i18n';
 import { isValidPrivateKey, normalizePrivateKey } from './wallet/import';
 import { getActiveWallet, getWalletSecret, type WalletMeta } from './wallet/storage';
 import { trongridFetch } from './tron/api';
@@ -319,7 +320,7 @@ function formatTokenAmount(rawValue: unknown) {
   }
 
   const normalized = raw / Math.pow(10, AIRDROP_TOKEN_DECIMALS);
-  return normalized.toLocaleString('en-US', {
+  return normalized.toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: AIRDROP_TOKEN_DECIMALS,
   });
@@ -327,7 +328,7 @@ function formatTokenAmount(rawValue: unknown) {
 
 function formatTimestampLabel(timestamp: number | null) {
   if (!timestamp || !Number.isFinite(timestamp) || timestamp <= 0) {
-    return 'Not received yet';
+    return translateNow('Not received yet');
   }
 
   return new Date(timestamp).toLocaleString();
@@ -528,7 +529,7 @@ async function loadAirdropVaultOnChainSnapshot(
 ): Promise<AirdropVaultOnChainSnapshot> {
   const wallet = String(walletAddress || '').trim();
   if (!isUsableAddress(wallet)) {
-    throw new Error('Wallet address is not available for airdrop lookup.');
+    throw new Error(translateNow('Wallet address is not available for airdrop lookup.'));
   }
 
   const cacheKey = buildAirdropCacheKey(wallet);
@@ -597,13 +598,13 @@ async function loadAirdropVaultOnChainSnapshot(
         bit: platform.bit,
         claimed,
         amountRaw: event?.amountRaw || null,
-        amountDisplay: event ? formatTokenAmount(event.amountRaw) : claimed ? 'Claimed' : '0',
+        amountDisplay: event ? formatTokenAmount(event.amountRaw) : claimed ? translateNow('Claimed') : '0',
         claimedAt: event?.timestamp || null,
         claimedAtLabel: event
           ? formatTimestampLabel(event.timestamp)
           : claimed
-            ? 'Claim confirmed on chain'
-            : 'Not received yet',
+            ? translateNow('Claim confirmed on chain')
+            : translateNow('Not received yet'),
         txId: event?.txId || null,
         explorerUrl: event?.txId ? `${TRONSCAN_TX_BASE_URL}${event.txId}` : null,
       };
@@ -617,7 +618,7 @@ async function loadAirdropVaultOnChainSnapshot(
       operatorAddress: resolveAddress(tronWeb, operatorRaw),
       currentWave,
       nextWaveTime,
-      nextWaveLabel: nextWaveTime > 0 ? formatTimestampLabel(nextWaveTime * 1000) : 'No next wave',
+      nextWaveLabel: nextWaveTime > 0 ? formatTimestampLabel(nextWaveTime * 1000) : translateNow('No next wave'),
       claimsCount: toSafeNumber(claimsCountRaw, 0),
       unlockedTotalRaw,
       unlockedTotalDisplay: formatTokenAmount(unlockedTotalRaw),
@@ -682,18 +683,18 @@ async function fetchJsonAcrossApiOrigins<T>(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('4TEEN API is unavailable');
+  throw lastError instanceof Error ? lastError : new Error(translateNow('4TEEN API is unavailable'));
 }
 
 async function getSigningWalletContext() {
   const wallet = await getActiveWallet();
 
   if (!wallet) {
-    throw new Error('No wallet available.');
+    throw new Error(translateNow('No wallet available.'));
   }
 
   if (wallet.kind === 'watch-only') {
-    throw new Error('Telegram airdrop requires a full-access wallet.');
+    throw new Error(translateNow('Telegram airdrop requires a full-access wallet.'));
   }
 
   const secret = await getWalletSecret(wallet.id);
@@ -707,7 +708,7 @@ async function getSigningWalletContext() {
   }
 
   if (!isValidPrivateKey(privateKey)) {
-    throw new Error('Private key not found for this wallet.');
+    throw new Error(translateNow('Private key not found for this wallet.'));
   }
 
   return {
@@ -730,7 +731,7 @@ export async function getTelegramAirdropOverview(walletAddress: string) {
   }));
 
   if (!payload.result) {
-    throw new Error('Telegram airdrop overview is unavailable.');
+    throw new Error(translateNow('Telegram airdrop overview is unavailable.'));
   }
 
   return payload.result;
@@ -760,7 +761,7 @@ export async function startTelegramAirdropFlow(): Promise<TelegramAirdropStartRe
   const session = sessionPayload.result;
 
   if (!session?.sessionToken || !session.challenge) {
-    throw new Error('Telegram airdrop session could not be created.');
+    throw new Error(translateNow('Telegram airdrop session could not be created.'));
   }
 
   const tronWeb = createTronWeb(privateKey, wallet.address);
@@ -791,7 +792,7 @@ export async function startTelegramAirdropFlow(): Promise<TelegramAirdropStartRe
   }));
 
   if (!verifyPayload.result?.links?.httpsUrl) {
-    throw new Error('Telegram launch link is unavailable.');
+    throw new Error(translateNow('Telegram launch link is unavailable.'));
   }
 
   return {

@@ -58,6 +58,10 @@ function recommendationForEvent(event) {
     return 'Что делать: проверить operator wallet и не залипают ли ambassador allocation/replay.';
   }
 
+  if (source === 'app-feedback' && category === 'feedback') {
+    return 'Что делать: открыть связанный экран в кошельке и воспроизвести сценарий, который пользователь отметил руками.';
+  }
+
   return 'Что делать: открыть /menu и посмотреть детали в разделах События и Здоровье.';
 }
 

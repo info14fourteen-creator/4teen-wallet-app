@@ -147,7 +147,7 @@ export default function ImportPrivateKeyScreen() {
 
           {infoExpanded ? (
             <View style={styles.infoPanel}>
-              <Text style={styles.infoTitle}>{IMPORT_INFO_TITLE}</Text>
+              <Text style={styles.infoTitle}>{t(IMPORT_INFO_TITLE)}</Text>
               <Text style={styles.infoText}>{t(IMPORT_INFO_TEXT)}</Text>
             </View>
           ) : null}
@@ -267,7 +267,7 @@ export default function ImportPrivateKeyScreen() {
             onPress={() => void handleImport()}
           >
             <Text style={[ui.buttonLabel, !canImport && styles.primaryButtonTextDisabled]}>
-              {submitting ? 'Importing...' : 'Import Wallet'}
+              {submitting ? t('Importing...') : t('Import Wallet')}
             </Text>
           </TouchableOpacity>
         </KeyboardView>
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    marginTop: 8,
+    marginTop: 0,
     color: colors.white,
     fontSize: 34,
     lineHeight: 40,

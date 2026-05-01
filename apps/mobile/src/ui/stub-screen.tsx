@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { translateNow } from '../i18n';
 import { colors, radius } from '../theme/tokens';
 import { ui } from '../theme/ui';
 import { ProductScreen } from './product-shell';
@@ -13,7 +14,7 @@ type StubScreenProps = {
 export default function StubScreen({
   eyebrow,
   title,
-  body = 'This screen is not wired yet.',
+  body = translateNow('This screen is not wired yet.'),
 }: StubScreenProps) {
   return (
     <ProductScreen eyebrow={eyebrow}>

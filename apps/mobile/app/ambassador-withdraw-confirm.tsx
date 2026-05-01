@@ -94,6 +94,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
       (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
   );
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
+  const approvalProcessing = !passcodeOpen && (submitting || energyRenting);
   const isApproveDisabled = submitting || !review || !hasTrxForBurn;
 
   const load = useCallback(async () => {
@@ -103,7 +104,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
       const nextReview = await estimateAmbassadorWithdrawal();
       setReview(nextReview);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setReview(null);
       setErrorText(
         error instanceof Error ? error.message : t('Failed to build ambassador withdrawal confirmation.')
@@ -136,7 +137,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
       setBiometricLabel(t('Biometrics'));
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
       setBiometricLabel(t('Biometrics'));
@@ -232,7 +233,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
       await load();
       return true;
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
@@ -265,7 +266,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
       );
       router.replace('/ambassador-program');
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Ambassador withdrawal failed.'),
         3400
@@ -287,6 +288,11 @@ export default function AmbassadorWithdrawConfirmScreen() {
         return;
       }
 
+      setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+
       if (pendingApprovalMode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
@@ -297,7 +303,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
       await performWithdraw();
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
@@ -308,31 +314,6 @@ export default function AmbassadorWithdrawConfirmScreen() {
       void handlePasscodeSubmit();
     }
   }, [handlePasscodeSubmit, passcodeDigits, passcodeOpen]);
-
-  const handleApprove = useCallback(async () => {
-    if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
-    setPendingApprovalMode('withdraw');
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeEntryOpen(!canUseBiometrics);
-    setPasscodeOpen(true);
-  }, [canUseBiometrics, review, submitting]);
-
-  const handleRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || submitting || energyRenting) return;
-
-    setPendingApprovalMode('rent');
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeEntryOpen(!canUseBiometrics);
-    setPasscodeOpen(true);
-  }, [
-    canUseBiometrics,
-    energyQuote,
-    energyRenting,
-    review,
-    submitting,
-  ]);
 
   const handleReject = useCallback(() => {
     if (submitting) return;
@@ -363,21 +344,15 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const openPasscodeEntry = useCallback(() => {
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeOpen(true);
     setPasscodeEntryOpen(true);
   }, []);
 
   const closePasscodeEntry = useCallback(() => {
-    if (canUseBiometrics) {
-      setPasscodeDigits('');
-      setPasscodeError('');
-      setPasscodeEntryOpen(false);
-      return;
-    }
-
     closeApprovalAuth();
-  }, [canUseBiometrics, closeApprovalAuth]);
+  }, [closeApprovalAuth]);
 
-  const handleBiometricApproval = useCallback(async () => {
+  const handleBiometricApproval = useCallback(async (mode: 'withdraw' | 'rent' = pendingApprovalMode) => {
     if (!canUseBiometrics) {
       openPasscodeEntry();
       return;
@@ -386,7 +361,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage:
-          pendingApprovalMode === 'rent'
+          mode === 'rent'
             ? t('Confirm Energy Rental')
             : t('Confirm Ambassador Withdrawal'),
         fallbackLabel: t('Use Passcode'),
@@ -394,10 +369,18 @@ export default function AmbassadorWithdrawConfirmScreen() {
       });
 
       if (!result.success) {
+        if (result.error === 'user_fallback') {
+          openPasscodeEntry();
+        }
         return;
       }
 
-      if (pendingApprovalMode === 'rent') {
+      setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+
+      if (mode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
           await performWithdraw();
@@ -407,9 +390,34 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
       await performWithdraw();
     } catch (error) {
-      console.error(error);
+      console.warn(error);
     }
   }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performWithdraw, t]);
+
+  const openApprovalAuth = useCallback((mode: 'withdraw' | 'rent', preferPasscode = false) => {
+    setPendingApprovalMode(mode);
+    setPasscodeError('');
+    setPasscodeDigits('');
+
+    if (preferPasscode || !canUseBiometrics) {
+      setPasscodeEntryOpen(true);
+      setPasscodeOpen(true);
+      return;
+    }
+
+    void handleBiometricApproval(mode);
+  }, [canUseBiometrics, handleBiometricApproval]);
+
+  const handleApprove = useCallback(async () => {
+    if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
+    openApprovalAuth('withdraw');
+  }, [openApprovalAuth, review, submitting]);
+
+  const handleRentEnergy = useCallback(async () => {
+    if (!review || !energyQuote || submitting || energyRenting) return;
+
+    openApprovalAuth('rent');
+  }, [energyQuote, energyRenting, openApprovalAuth, review, submitting]);
 
   if (loading && !review) {
     return <ScreenLoadingState label={t('Building ambassador withdrawal confirmation')} />;
@@ -418,7 +426,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing} />
+        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -453,22 +461,22 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
                 <View style={styles.heroMetricRow}>
                   <View style={[styles.heroMetricCard, styles.heroMetricCardSpend]}>
-                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelSpend]}>CLAIMABLE</Text>
+                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelSpend]}>{t('CLAIMABLE')}</Text>
                     <Text style={[styles.heroMetricValue, styles.heroMetricValueSpend]}>
                       {formatTrxFromSun(review.claimableRewardsSun)}
                     </Text>
-                    <Text style={styles.heroMetricToken}>TRX reward</Text>
+                    <Text style={styles.heroMetricToken}>{t('TRX reward')}</Text>
                   </View>
 
                   <View style={[styles.heroMetricCard, styles.heroMetricCardReceive]}>
-                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelReceive]}>ACTION</Text>
-                    <Text style={[styles.heroMetricValue, styles.heroMetricValueReceive]}>Withdraw</Text>
-                    <Text style={styles.heroMetricToken}>to ambassador wallet</Text>
+                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelReceive]}>{t('ACTION')}</Text>
+                    <Text style={[styles.heroMetricValue, styles.heroMetricValueReceive]}>{t('Withdraw')}</Text>
+                    <Text style={styles.heroMetricToken}>{t('to ambassador wallet')}</Text>
                   </View>
                 </View>
 
                 <View style={styles.heroMetaRow}>
-                  <Text style={styles.heroMetaLabel}>Estimated burn</Text>
+                  <Text style={styles.heroMetaLabel}>{t('Estimated burn')}</Text>
                   <Text style={[styles.heroMetaValue, hasResourceShortfall ? styles.heroMetaValueRisk : null]}>
                     {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
                   </Text>
@@ -484,7 +492,12 @@ export default function AmbassadorWithdrawConfirmScreen() {
                 {submitting ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
-                  <Text style={styles.primaryButtonText}>
+                  <Text
+                    style={styles.primaryButtonText}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
+                  >
                     {hasTrxForBurn ? t('APPROVE & WITHDRAW') : t('TOP UP TRX')}
                   </Text>
                 )}
@@ -537,7 +550,14 @@ export default function AmbassadorWithdrawConfirmScreen() {
               </View>
 
               <TouchableOpacity activeOpacity={0.9} style={styles.secondaryButton} onPress={handleReject} disabled={submitting}>
-                <Text style={styles.secondaryButtonText}>{t('REJECT')}</Text>
+                <Text
+                  style={styles.secondaryButtonText}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {t('REJECT')}
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -595,7 +615,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1 },
 
   heroCard: {
-    marginTop: 10,
+    marginTop: 0,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineStrong,
@@ -691,6 +711,9 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.7,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
   sectionBlock: {
     marginTop: 16,
@@ -719,6 +742,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.7,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   detailCard: {
@@ -828,7 +854,7 @@ const styles = StyleSheet.create({
   },
   noticeCardText: { color: colors.textDim, fontSize: 12, lineHeight: 20 },
   errorWrap: {
-    marginTop: 14,
+    marginTop: 0,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: 'rgba(255,48,73,0.28)',

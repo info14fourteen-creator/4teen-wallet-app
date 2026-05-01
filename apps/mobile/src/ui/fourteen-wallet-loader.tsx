@@ -229,13 +229,13 @@ export default function FourteenWalletLoader({
       const phase = phaseRef.current;
       const current = stateRef.current;
 
-      let targetY = {
+      let targetY: Record<'bar1' | 'bar2' | 'bar3', number> = {
         bar1: ENTRY_Y.bar1,
         bar2: START.bar2,
         bar3: ENTRY_Y.bar3,
       };
 
-      let targetOpacity = {
+      let targetOpacity: Record<'bar1' | 'bar2' | 'bar3', number> = {
         bar1: 0,
         bar2: 0,
         bar3: 0,

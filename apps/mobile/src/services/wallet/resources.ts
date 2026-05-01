@@ -1,5 +1,6 @@
 import { TronWeb } from 'tronweb';
 
+import { translateNow } from '../../i18n';
 import { getAccountResources, type WalletAccountResources } from '../tron/api';
 
 const DEFAULT_BANDWIDTH_PRICE_SUN = 1_000;
@@ -295,7 +296,7 @@ export async function estimateContractCallResources(input: {
     (triggerResult as any)?.transaction || (triggerResult as any)?.transaction?.transaction;
 
   if (!unsignedTx) {
-    throw new Error('Failed to build contract transaction for resource estimate.');
+    throw new Error(translateNow('Failed to build contract transaction for resource estimate.'));
   }
 
   const signedTx = await input.tronWeb.trx.sign(unsignedTx, input.privateKey);

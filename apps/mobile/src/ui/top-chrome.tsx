@@ -13,6 +13,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useI18n } from '../i18n';
+import { useNotice } from '../notice/notice-provider';
+import { submitAppFeedback } from '../services/feedback';
 import { colors, fontFamilies, radius, spacing } from '../theme/tokens';
 import { getCompactVersionDisplayString } from '../config/app-version';
 import { openInAppBrowser } from '../utils/open-in-app-browser';
@@ -58,6 +61,7 @@ function ChromeBar({
   open: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <View style={styles.bar}>
       <TouchableOpacity activeOpacity={0.85} style={styles.iconButton} onPress={onToggle}>
@@ -68,7 +72,7 @@ function ChromeBar({
         <TextInput
           editable={false}
           pointerEvents="none"
-          placeholder="crypto, address, dapp..."
+          placeholder={t('crypto, address, dapp...')}
           placeholderTextColor={colors.textDim}
           style={styles.input}
         />
@@ -95,7 +99,14 @@ function MenuItem({
 }) {
   return (
     <TouchableOpacity activeOpacity={0.85} style={styles.menuItem} onPress={onPress}>
-      <Text style={styles.menuItemText}>{label}</Text>
+      <Text
+        style={styles.menuItemText}
+        numberOfLines={2}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+      >
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -107,14 +118,22 @@ function SubHeader({
   title: string;
   onBack: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <View style={styles.subHeader}>
       <TouchableOpacity activeOpacity={0.85} style={styles.backRow} onPress={onBack}>
         <Ionicons name="arrow-back" size={15} color={colors.accent} />
-        <Text style={styles.backText}>back</Text>
+        <Text style={styles.backText}>{t('Back')}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.subEyebrow}>{title}</Text>
+      <Text
+        style={styles.subEyebrow}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.76}
+      >
+        {title}
+      </Text>
     </View>
   );
 }
@@ -130,7 +149,14 @@ function AboutActionRow({
 }) {
   return (
     <TouchableOpacity activeOpacity={0.85} style={styles.aboutActionRow} onPress={onPress}>
-      <Text style={styles.aboutActionText}>{label}</Text>
+      <Text
+        style={styles.aboutActionText}
+        numberOfLines={2}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+      >
+        {label}
+      </Text>
 
       {icon === 'star' ? (
         <Ionicons name="star" size={18} color={colors.accent} />
@@ -150,13 +176,22 @@ function RateButton({
 }) {
   return (
     <TouchableOpacity activeOpacity={0.85} style={styles.rateButton} onPress={onPress}>
-      <Text style={styles.rateButtonText}>{label}</Text>
+      <Text
+        style={styles.rateButtonText}
+        numberOfLines={2}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+      >
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
 
 export function TopChrome() {
   const router = useRouter();
+  const notice = useNotice();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<MenuView>('main');
   const [rateOpen, setRateOpen] = useState(false);
@@ -197,6 +232,25 @@ export function TopChrome() {
   const openAbout = () => setView('about');
   const goTerms = () => setView('terms');
   const goWhitepaper = () => setView('whitepaper');
+  const openFeedback = () => {
+    setRateOpen(false);
+    setOpen(false);
+    router.push('/feedback?sourceScreen=top-chrome' as any);
+  };
+
+  const handleQuickPraise = async () => {
+    setRateOpen(false);
+    await submitAppFeedback({
+      type: 'praise',
+      title: 'This feels good',
+      message: 'User tapped the positive feedback shortcut from the top chrome menu.',
+      sourceScreen: 'top-chrome',
+      details: {
+        trigger: 'top-chrome-rate-us',
+      },
+    }).catch(() => null);
+    notice.showSuccessNotice(t('Nice. At least somebody is happy.'), 3200);
+  };
 
   const handleVersionUpdate = () => {
     const isLatestVersion = true;
@@ -235,21 +289,21 @@ export function TopChrome() {
                   bounces={false}
                 >
                   <View style={styles.sectionBlock}>
-                    <SectionTitle>wallet</SectionTitle>
-                    <MenuItem label="Home" />
-                    <MenuItem label="Create wallet" />
-                    <MenuItem label="Import wallet" />
-                    <MenuItem label="Settings" />
+                    <SectionTitle>{t('wallet')}</SectionTitle>
+                    <MenuItem label={t('Home')} />
+                    <MenuItem label={t('Create wallet')} />
+                    <MenuItem label={t('Import wallet')} />
+                    <MenuItem label={t('Settings')} />
                   </View>
 
                   <View style={styles.sectionBlock}>
-                    <SectionTitle>ecosystem</SectionTitle>
-                    <MenuItem label="Direct buy" />
-                    <MenuItem label="Swap" />
-                    <MenuItem label="Unlock timeline" />
-                    <MenuItem label="Liquidity" />
-                    <MenuItem label="Ambassador" />
-                    <MenuItem label="Airdrop" />
+                    <SectionTitle>{t('ecosystem')}</SectionTitle>
+                    <MenuItem label={t('Direct buy')} />
+                    <MenuItem label={t('Swap')} />
+                    <MenuItem label={t('Unlock timeline')} />
+                    <MenuItem label={t('Liquidity')} />
+                    <MenuItem label={t('Ambassador')} />
+                    <MenuItem label={t('Airdrop')} />
                   </View>
 
                   <View style={styles.menuBottomSpacer} />
@@ -259,7 +313,7 @@ export function TopChrome() {
                   <TouchableOpacity activeOpacity={0.85} style={styles.aboutButton} onPress={openAbout}>
                     <View style={styles.aboutLeft}>
                       <InfoIcon width={18} height={18} />
-                      <Text style={styles.aboutEyebrow}>ABOUT US</Text>
+                      <Text style={styles.aboutEyebrow}>{t('ABOUT US')}</Text>
                     </View>
 
                     <Ionicons name="chevron-forward" size={18} color={colors.accent} />
@@ -275,7 +329,7 @@ export function TopChrome() {
                 showsVerticalScrollIndicator={false}
                 bounces={false}
               >
-                <SubHeader title="ABOUT US" onBack={() => setView('main')} />
+                <SubHeader title={t('ABOUT US')} onBack={() => setView('main')} />
 
                 <View style={styles.logoWrap}>
                   <LogoWhite width={92} height={92} />
@@ -284,13 +338,13 @@ export function TopChrome() {
                 <Text style={styles.versionText}>{getCompactVersionDisplayString()}</Text>
 
                 <View style={styles.aboutCard}>
-                  <AboutActionRow label="Version Update" onPress={handleVersionUpdate} />
-                  <AboutActionRow label="Terms of Service" onPress={goTerms} />
-                  <AboutActionRow label="4TEEN Whitepaper" onPress={goWhitepaper} />
-                  <AboutActionRow label="Rate Us" icon="star" onPress={() => setRateOpen(true)} />
+                  <AboutActionRow label={t('Version Update')} onPress={handleVersionUpdate} />
+                  <AboutActionRow label={t('Terms of Service')} onPress={goTerms} />
+                  <AboutActionRow label={t('4TEEN Whitepaper')} onPress={goWhitepaper} />
+                  <AboutActionRow label={t('Rate Us')} icon="star" onPress={() => setRateOpen(true)} />
                 </View>
 
-                <Text style={styles.channelsTitle}>Official channels</Text>
+                <Text style={styles.channelsTitle}>{t('Official Channels')}</Text>
 
                 <View style={styles.socialCard}>
                   <View style={styles.socialGrid}>
@@ -315,7 +369,7 @@ export function TopChrome() {
                   style={styles.websiteButton}
                   onPress={() => void openInAppBrowser(router, 'https://4teen.me')}
                 >
-                  <Text style={styles.websiteButtonText}>Open 4TEEN Website</Text>
+                  <Text style={styles.websiteButtonText}>{t('Open 4TEEN Website')}</Text>
                 </TouchableOpacity>
               </ScrollView>
             )}
@@ -327,8 +381,8 @@ export function TopChrome() {
                 showsVerticalScrollIndicator={false}
                 bounces={false}
               >
-                <SubHeader title="TERMS OF SERVICE" onBack={() => setView('about')} />
-                <Text style={styles.stubText}>Terms of Service placeholder</Text>
+                <SubHeader title={t('TERMS OF SERVICE')} onBack={() => setView('about')} />
+                <Text style={styles.stubText}>{t('Terms of Service placeholder')}</Text>
               </ScrollView>
             )}
 
@@ -339,8 +393,8 @@ export function TopChrome() {
                 showsVerticalScrollIndicator={false}
                 bounces={false}
               >
-                <SubHeader title="4TEEN WHITEPAPER" onBack={() => setView('about')} />
-                <Text style={styles.stubText}>4TEEN Whitepaper placeholder</Text>
+                <SubHeader title={t('4TEEN WHITEPAPER')} onBack={() => setView('about')} />
+                <Text style={styles.stubText}>{t('4TEEN Whitepaper placeholder')}</Text>
               </ScrollView>
             )}
           </Animated.View>
@@ -348,14 +402,14 @@ export function TopChrome() {
           {rateOpen && (
             <View style={styles.rateModalWrap}>
               <View style={styles.rateModal}>
-                <Text style={styles.rateTitle}>How do you like 4TEEN Wallet?</Text>
+                <Text style={styles.rateTitle}>{t('How do you like 4TEEN Wallet?')}</Text>
                 <Text style={styles.rateLead}>
-                  Your feedback helps shape the wallet while it is still actively evolving.
+                  {t('Your feedback helps shape the wallet while it is still actively evolving.')}
                 </Text>
 
-                <RateButton label="I like it!" onPress={() => setRateOpen(false)} />
-                <RateButton label="I wanna feedback" onPress={() => setRateOpen(false)} />
-                <RateButton label="Not this time" onPress={() => setRateOpen(false)} />
+                <RateButton label={t('I like it!')} onPress={() => void handleQuickPraise()} />
+                <RateButton label={t('I wanna feedback')} onPress={openFeedback} />
+                <RateButton label={t('Not this time')} onPress={() => setRateOpen(false)} />
               </View>
             </View>
           )}
@@ -471,6 +525,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 15,
     lineHeight: 18,
+    flexShrink: 1,
   },
 
   menuBottomSpacer: {
@@ -578,6 +633,8 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 17,
     lineHeight: 22,
+    flex: 1,
+    paddingRight: 12,
   },
 
   channelsTitle: {
@@ -703,5 +760,8 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 18,
     lineHeight: 22,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 });

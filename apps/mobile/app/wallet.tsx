@@ -27,7 +27,7 @@ import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
 import useChromeLoading from '../src/ui/use-chrome-loading';
-import { translateNow, useI18n } from '../src/i18n';
+import { getCachedLanguage, getLanguageLocaleTag, translateNow, useI18n } from '../src/i18n';
 import LottieIcon from '../src/ui/lottie-icon';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
@@ -145,7 +145,7 @@ type WalletHistoryRenderRow = {
 function formatHistoryTime(timestamp: number) {
   if (!timestamp) return translateNow('Unknown time');
 
-  return new Date(timestamp).toLocaleString('en-US', {
+  return new Date(timestamp).toLocaleString(getLanguageLocaleTag(getCachedLanguage()), {
     month: 'short',
     day: '2-digit',
     year: 'numeric',
@@ -239,15 +239,21 @@ function historyTypeLabel(item: WalletHistoryItem) {
 }
 
 function historyCounterpartyLabel(item: WalletHistoryItem) {
-  const label = item.counterpartyLabel || 'Unknown';
-  if (isHistoryApprove(item)) return label === 'Unknown' ? 'Spender contract' : `Spender: ${label}`;
-  if (isHistoryContractAction(item)) return label === 'Unknown' ? 'Contract interaction' : label;
+  const label = item.counterpartyLabel || translateNow('Unknown');
+  if (isHistoryApprove(item)) {
+    return label === translateNow('Unknown')
+      ? translateNow('Spender contract')
+      : translateNow('Spender: {{label}}', { label });
+  }
+  if (isHistoryContractAction(item)) {
+    return label === translateNow('Unknown') ? translateNow('Contract interaction') : label;
+  }
   return label;
 }
 
 function historyRenderTypeLabel(row: WalletHistoryRenderRow) {
-  if (row.status === 'failed') return `${row.title} FAILED`;
-  if (row.status === 'pending') return `${row.title} PENDING`;
+  if (row.status === 'failed') return `${row.title} ${translateNow('FAILED')}`;
+  if (row.status === 'pending') return `${row.title} ${translateNow('PENDING')}`;
   return row.title;
 }
 
@@ -289,8 +295,8 @@ function formatSwapHistoryAmount(sendItem: WalletHistoryItem, receiveItem: Walle
 
 function formatHistoryTokenList(items: WalletHistoryItem[]) {
   const labels = Array.from(new Set(items.map(getHistoryTokenLabel).filter(Boolean)));
-  if (labels.length <= 2) return labels.join(' + ');
-  return `${labels.slice(0, 2).join(' + ')} +${labels.length - 2}`;
+  if (labels.length <= 2) return labels.join(` ${translateNow('+')} `);
+  return `${labels.slice(0, 2).join(` ${translateNow('+')} `)} ${translateNow('+{{count}}', { count: labels.length - 2 })}`;
 }
 
 function isHistoryLiquidityToken(item: WalletHistoryItem) {
@@ -384,13 +390,13 @@ function buildWalletHistoryRows(items: WalletHistoryItem[]): WalletHistoryRender
       const isLiquidity = Boolean(liquidityReceive);
       rows.push({
         id: `${isLiquidity ? 'liquidity' : 'swap'}:${sendItem.txHash}`,
-        title: isLiquidity ? 'LIQUIDITY' : 'SWAP',
+        title: isLiquidity ? translateNow('LIQUIDITY') : translateNow('SWAP'),
         description:
           approvalItems.length > 0
-            ? `${isLiquidity ? 'Add liquidity' : 'Token swap'} · includes approval`
+            ? `${isLiquidity ? translateNow('Add liquidity') : translateNow('Token swap')} · ${translateNow('includes approval')}`
             : isLiquidity
-              ? 'Add liquidity'
-              : 'Token swap',
+              ? translateNow('Add liquidity')
+              : translateNow('Token swap'),
         amount: formatSwapHistoryAmount(sendItem, liquidityReceive || receiveItem),
         tokenLabel: `${formatHistoryTokenList(sendItems)} → ${formatHistoryTokenList(
           liquidityReceive ? [liquidityReceive] : receiveItems
@@ -865,6 +871,18 @@ export default function HomeScreen() {
     return nextPreferences;
   }, [applyHomePreferencesState, homePreferencesCache, readHomePreferences]);
 
+  const resolvedActivePortfolio = useMemo(() => {
+    if (!activeWallet?.id) {
+      return null;
+    }
+
+    if (portfolio?.address && portfolio.address === activeWallet.address) {
+      return portfolio;
+    }
+
+    return portfolioCache[activeWallet.id] ?? null;
+  }, [activeWallet?.address, activeWallet?.id, portfolio, portfolioCache]);
+
   useEffect(() => {
     const walletId = activeWallet?.id;
 
@@ -1019,18 +1037,6 @@ export default function HomeScreen() {
     if (!activeWallet?.id) return [];
     return historyCache[activeWallet.id] ?? [];
   }, [activeWallet?.id, historyCache]);
-
-  const resolvedActivePortfolio = useMemo(() => {
-    if (!activeWallet?.id) {
-      return null;
-    }
-
-    if (portfolio?.address && portfolio.address === activeWallet.address) {
-      return portfolio;
-    }
-
-    return portfolioCache[activeWallet.id] ?? null;
-  }, [activeWallet?.address, activeWallet?.id, portfolio, portfolioCache]);
 
   const visibleHistoryRows = useMemo(() => {
     return buildWalletHistoryRows(visibleHistory);
@@ -2344,7 +2350,7 @@ export default function HomeScreen() {
           }
         >
           <ScreenBrow
-            label="WALLET ASSET"
+            label={t('WALLET ASSET')}
             variant="linkIcon"
             onLabelPress={handleWalletAssetPress}
             labelAccessoryAnimation={{
@@ -3268,6 +3274,7 @@ function RemoveHoldRow({
   onPressIn: () => void;
   onPressOut: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <Pressable
       style={styles.removeHoldRow}
@@ -3278,7 +3285,7 @@ function RemoveHoldRow({
       <>
         {active ? <View style={[styles.removeHoldFill, { width: fillWidth as any }]} /> : null}
         <Text style={[styles.optionRowDestructiveText, active && styles.removeHoldLabelActive]}>
-          Remove Wallet
+          {t('Remove Wallet')}
         </Text>
         {active ? (
           <Text style={[styles.removeHoldProgress, { color: progressColor }]}>

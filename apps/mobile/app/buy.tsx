@@ -91,7 +91,7 @@ function formatTokenAmount(value: number, maximumFractionDigits = 6) {
     return '0.00';
   }
 
-  return value.toLocaleString('en-US', {
+  return value.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: maximumFractionDigits,
   });
@@ -244,13 +244,13 @@ export default function BuyScreen() {
 
   const handleToggleWalletOptions = useCallback(() => {
     if (visibleWalletChoices.length <= 0) {
-      notice.showNeutralNotice('No other signing wallets available.', 2200);
+      notice.showNeutralNotice(t('No other signing wallets available.'), 2200);
       return;
     }
 
     closeAmountKeyboard();
     setWalletOptionsOpen((prev) => !prev);
-  }, [closeAmountKeyboard, notice, visibleWalletChoices.length]);
+  }, [closeAmountKeyboard, notice, t, visibleWalletChoices.length]);
 
   const handleChooseWallet = useCallback(async (wallet: WalletSwitcherOption) => {
     try {
@@ -262,12 +262,12 @@ export default function BuyScreen() {
       setPendingWalletSelectionId(wallet.id);
       await load({ silent: true });
     } catch (error) {
-      console.error(error);
-      notice.showErrorNotice('Failed to switch buy wallet.', 2400);
+      console.warn(error);
+      notice.showErrorNotice(t('Failed to switch buy wallet.'), 2400);
     } finally {
       setSwitchingWalletId(null);
     }
-  }, [closeAmountKeyboard, load, notice, setPendingWalletSelectionId]);
+  }, [closeAmountKeyboard, load, notice, setPendingWalletSelectionId, t]);
 
   const openAmountKeyboard = useCallback(() => {
     setWalletOptionsOpen(false);
@@ -317,17 +317,17 @@ export default function BuyScreen() {
 
   const handleContinue = useCallback(async () => {
     if (!context) {
-      notice.showErrorNotice('Direct buy requires a full-access wallet.', 2600);
+      notice.showErrorNotice(t('Direct buy requires a full-access wallet.'), 2600);
       return;
     }
 
     if (enteredAmount <= 0) {
-      notice.showErrorNotice('Enter a valid TRX amount.', 2400);
+      notice.showErrorNotice(t('Enter a valid TRX amount.'), 2400);
       return;
     }
 
     if (enteredAmount > context.trxBalance) {
-      notice.showErrorNotice('Insufficient TRX balance for this buy.', 2600);
+      notice.showErrorNotice(t('Insufficient TRX balance for this buy.'), 2600);
       return;
     }
 
@@ -348,11 +348,11 @@ export default function BuyScreen() {
       });
     } catch (error) {
       notice.showErrorNotice(
-        error instanceof Error ? error.message : 'Failed to open buy confirmation.',
+        error instanceof Error ? error.message : t('Failed to open buy confirmation.'),
         3000
       );
     }
-  }, [closeAmountKeyboard, context, enteredAmount, notice, router]);
+  }, [closeAmountKeyboard, context, enteredAmount, notice, router, t]);
 
   const handleSelectMax = useCallback(() => {
     if (!context) return;
@@ -361,7 +361,7 @@ export default function BuyScreen() {
   }, [context]);
 
   if (loading) {
-    return <ScreenLoadingState label="Loading buy..." />;
+    return <ScreenLoadingState label={t('Loading buy...')} />;
   }
 
   return (
@@ -557,7 +557,7 @@ export default function BuyScreen() {
                 !canContinue ? styles.continueButtonTextDisabled : null,
               ]}
             >
-              CONTINUE
+              {t('CONTINUE')}
             </Text>
           </TouchableOpacity>
         </KeyboardView>

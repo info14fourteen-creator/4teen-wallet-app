@@ -25,29 +25,6 @@ type AuthStatus = {
   autoLockMode: AutoLockMode;
 };
 
-const AUTO_LOCK_OPTIONS: { mode: AutoLockMode; title: string; body: string }[] = [
-  {
-    mode: '15s',
-    title: 'After 15 seconds',
-    body: 'Relock quickly after the app leaves the foreground.',
-  },
-  {
-    mode: '1m',
-    title: 'After 1 minute',
-    body: 'Balanced default for normal switching between apps.',
-  },
-  {
-    mode: '5m',
-    title: 'After 5 minutes',
-    body: 'Gives more breathing room before asking again.',
-  },
-  {
-    mode: 'never',
-    title: 'Never',
-    body: 'Do not relock during the same app session. Cold start still respects wallet protection.',
-  },
-];
-
 export default function AuthenticationMethodScreen() {
   const router = useRouter();
   const { t } = useI18n();
@@ -93,6 +70,32 @@ export default function AuthenticationMethodScreen() {
     return status.biometricsEnabled ? t('Passcode + Biometrics') : t('Passcode');
   }, [status.biometricsEnabled, status.passcodeEnabled, t]);
 
+  const autoLockOptions = useMemo(
+    () => [
+      {
+        mode: '15s' as const,
+        title: t('After 15 seconds'),
+        body: t('Relock quickly after the app leaves the foreground.'),
+      },
+      {
+        mode: '1m' as const,
+        title: t('After 1 minute'),
+        body: t('Balanced default for normal switching between apps.'),
+      },
+      {
+        mode: '5m' as const,
+        title: t('After 5 minutes'),
+        body: t('Gives more breathing room before asking again.'),
+      },
+      {
+        mode: 'never' as const,
+        title: t('Never'),
+        body: t('Do not relock during the same app session. Cold start still respects wallet protection.'),
+      },
+    ],
+    [t]
+  );
+
   const handleDisableProtection = useCallback(async () => {
     if (disablingProtection) return;
 
@@ -103,7 +106,7 @@ export default function AuthenticationMethodScreen() {
       setAutoLockExpanded(false);
       await loadStatus();
     } catch (error) {
-      console.error(error);
+      console.warn(error);
     } finally {
       setDisablingProtection(false);
     }
@@ -115,8 +118,9 @@ export default function AuthenticationMethodScreen() {
       browVariant="back"
       headerInfo={{
         title: t('How wallet protection works'),
-        text:
-          'Wallet protection has three layers. Passcode is the hard gate. Biometrics are only a faster approval method on top of that passcode. Auto-lock decides when the app should ask again after you leave it. Use a short timer for stricter security, use Never if you want fewer prompts during the same open session, or turn protection off completely if you explicitly do not want unlock checks at all.',
+        text: t(
+          'Wallet protection has three layers. Passcode is the hard gate. Biometrics are only a faster approval method on top of that passcode. Auto-lock decides when the app should ask again after you leave it. Use a short timer for stricter security, use Never if you want fewer prompts during the same open session, or turn protection off completely if you explicitly do not want unlock checks at all.'
+        ),
         expanded: infoExpanded,
         onToggle: () => setInfoExpanded((value) => !value),
       }}
@@ -127,8 +131,8 @@ export default function AuthenticationMethodScreen() {
           value={authSummary}
           hint={
             status.passcodeEnabled
-              ? 'Change your passcode or turn app protection off.'
-              : 'Create a 6-digit passcode to protect wallet access.'
+              ? t('Change your passcode or turn app protection off.')
+              : t('Create a 6-digit passcode to protect wallet access.')
           }
           expanded={disableExpanded}
           onPress={() => {
@@ -149,10 +153,9 @@ export default function AuthenticationMethodScreen() {
 
         {status.passcodeEnabled && disableExpanded ? (
           <View style={styles.inlineCard}>
-            <Text style={styles.inlineTitle}>Turn wallet protection off</Text>
+            <Text style={styles.inlineTitle}>{t('Turn wallet protection off')}</Text>
             <Text style={styles.inlineBody}>
-              Disabling protection removes the passcode gate and turns biometric unlock off too.
-              The app will open straight into wallet screens until you create a new passcode again.
+              {t('Disabling protection removes the passcode gate and turns biometric unlock off too. The app will open straight into wallet screens until you create a new passcode again.')}
             </Text>
 
             <Pressable
@@ -161,7 +164,7 @@ export default function AuthenticationMethodScreen() {
               disabled={disablingProtection}
             >
               <Text style={styles.inlineDangerButtonText}>
-                {disablingProtection ? 'Turning Off…' : 'Turn Off Protection'}
+                {disablingProtection ? t('Turning Off…') : t('Turn Off Protection')}
               </Text>
             </Pressable>
           </View>
@@ -171,21 +174,25 @@ export default function AuthenticationMethodScreen() {
           label={status.biometricsLabel}
           value={
             !status.passcodeEnabled
-              ? 'Passcode required first'
+              ? t('Passcode required first')
               : status.biometricsEnabled
-                ? 'Enabled'
+                ? t('Enabled')
                 : status.biometricsAvailable
-                  ? 'Disabled'
-                  : 'Unavailable'
+                  ? t('Disabled')
+                  : t('Unavailable')
           }
           hint={
             !status.passcodeEnabled
-              ? 'Set a passcode before enabling biometric unlock.'
+              ? t('Set a passcode before enabling biometric unlock.')
               : status.biometricsEnabled
-                ? `Turn ${status.biometricsLabel} unlock off.`
+                ? t('Turn {{label}} unlock off.', { label: status.biometricsLabel })
                 : status.biometricsAvailable
-                  ? `Turn on ${status.biometricsLabel} as a faster approval method.`
-                  : `${status.biometricsLabel} is not ready on this device.`
+                  ? t('Turn on {{label}} as a faster approval method.', {
+                      label: status.biometricsLabel,
+                    })
+                  : t('{{label}} is not ready on this device.', {
+                      label: status.biometricsLabel,
+                    })
           }
           onPress={() =>
             status.passcodeEnabled
@@ -208,11 +215,11 @@ export default function AuthenticationMethodScreen() {
 
         <SettingsRow
           label={t('Auto-Lock')}
-          value={getAutoLockModeLabel(status.autoLockMode)}
+          value={t(getAutoLockModeLabel(status.autoLockMode))}
           hint={
             status.passcodeEnabled
-              ? 'Choose how quickly wallet protection returns after leaving the app.'
-              : 'Auto-lock becomes available after you enable passcode protection.'
+              ? t('Choose how quickly wallet protection returns after leaving the app.')
+              : t('Auto-lock becomes available after you enable passcode protection.')
           }
           expanded={autoLockExpanded}
           onPress={() => {
@@ -233,7 +240,7 @@ export default function AuthenticationMethodScreen() {
 
         {status.passcodeEnabled && autoLockExpanded ? (
           <View style={styles.optionList}>
-            {AUTO_LOCK_OPTIONS.map((option) => {
+            {autoLockOptions.map((option) => {
               const selected = status.autoLockMode === option.mode;
 
               return (

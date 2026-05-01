@@ -1,19 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { useI18n } from '../src/i18n';
 import { colors, fontFamilies, spacing, typography } from '../src/theme/tokens';
 import { hasPasscode } from '../src/security/local-auth';
-import { getActiveWallet } from '../src/services/wallet/storage';
+import {
+  buildWalletHomeVisibleTokensStorageKey,
+  getActiveWallet,
+  listWallets,
+} from '../src/services/wallet/storage';
+import { getWalletPortfolio } from '../src/services/wallet/portfolio';
+import { getCustomTokenCatalog } from '../src/services/tron/api';
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const INITIAL_PROGRESS = 4;
+const STAGE_WEIGHTS = {
+  passcode: 18,
+  activeWallet: 18,
+  wallets: 10,
+  visibleTokens: 10,
+  customCatalog: 12,
+  portfolio: 20,
+  routeDecision: 12,
+  routeHandoff: 10,
+} as const;
+
+type BootStage = keyof typeof STAGE_WEIGHTS;
 
 export default function BootScreen() {
   const router = useRouter();
+  useI18n();
   const progressAnim = useRef(new Animated.Value(0)).current;
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     let mounted = true;
+    const completedStages = new Set<BootStage>();
+    let currentTarget = 0;
 
     const animate = (value: number, duration: number) =>
       new Promise<void>((resolve) => {
@@ -27,32 +50,110 @@ export default function BootScreen() {
 
     const setVal = async (value: number, duration: number) => {
       if (!mounted) return;
+      currentTarget = value;
       setProgress(value);
       await animate(value, duration);
     };
 
+    const completeStage = (stage: BootStage, duration = 90) => {
+      if (!mounted || completedStages.has(stage)) return;
+
+      completedStages.add(stage);
+      const nextValue = Math.min(
+        114,
+        INITIAL_PROGRESS +
+          Array.from(completedStages).reduce((sum, key) => sum + STAGE_WEIGHTS[key], 0)
+      );
+
+      if (nextValue <= currentTarget) return;
+
+      currentTarget = nextValue;
+      setProgress(nextValue);
+      Animated.timing(progressAnim, {
+        toValue: nextValue,
+        duration,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: false,
+      }).start();
+    };
+
     const run = async () => {
-      for (let i = 0; i <= 70; i += 7) await setVal(i, 50);
-      for (let i = 73; i <= 99; i += 3) await setVal(i, 70);
+      await setVal(INITIAL_PROGRESS, 90);
 
-      await wait(120);
+      const passcodePromise = hasPasscode()
+        .catch(() => false)
+        .finally(() => completeStage('passcode'));
+      const activeWalletPromise = getActiveWallet()
+        .catch(() => null)
+        .then((wallet) => {
+          if (!wallet) {
+            completeStage('visibleTokens', 70);
+            completeStage('customCatalog', 70);
+            completeStage('portfolio', 70);
+          }
 
-      for (let i = 100; i <= 107; i++) await setVal(i, 100);
-      await wait(160);
-      for (let i = 108; i <= 114; i++) await setVal(i, 120);
+          return wallet;
+        })
+        .finally(() => completeStage('activeWallet'));
+      const walletsPromise = listWallets()
+        .catch(() => [])
+        .finally(() => completeStage('wallets'));
 
-      await wait(220);
+      const warmupsPromise = (async () => {
+        const activeWallet = await activeWalletPromise;
 
-      const protectedApp = await hasPasscode();
+        await walletsPromise;
+
+        if (!activeWallet) {
+          return;
+        }
+
+        const visibleTokensPromise = AsyncStorage.getItem(
+          buildWalletHomeVisibleTokensStorageKey(activeWallet.id)
+        )
+          .catch(() => null)
+          .finally(() => completeStage('visibleTokens'));
+        const customCatalogPromise = getCustomTokenCatalog(activeWallet.id)
+          .catch(() => [])
+          .finally(() => completeStage('customCatalog'));
+        const portfolioPromise = getWalletPortfolio(activeWallet.address)
+          .catch(() => null)
+          .finally(() => completeStage('portfolio'));
+
+        await Promise.allSettled([
+          visibleTokensPromise,
+          customCatalogPromise,
+          portfolioPromise,
+        ]);
+      })();
+
+      const [protectedApp, activeWallet] = await Promise.all([
+        passcodePromise,
+        activeWalletPromise,
+      ]);
+      completeStage('routeDecision', 100);
 
       if (!mounted) return;
 
       if (protectedApp) {
+        completeStage('routeHandoff', 110);
+        currentTarget = 114;
+        setProgress(114);
+        await animate(114, 110);
         router.replace('/unlock');
         return;
       }
 
-      const activeWallet = await getActiveWallet().catch(() => null);
+      if (activeWallet) {
+        await warmupsPromise;
+      } else {
+        await walletsPromise;
+      }
+
+      completeStage('routeHandoff', 110);
+      currentTarget = 114;
+      setProgress(114);
+      await animate(114, 110);
       router.replace(activeWallet ? '/wallet' : '/wallet-access');
     };
 

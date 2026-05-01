@@ -28,7 +28,7 @@ import {
   formatAdaptiveDisplayCurrency,
   formatCompactDisplayCurrency,
 } from '../src/ui/currency-format';
-import { useI18n } from '../src/i18n';
+import { getCachedLanguage, getLanguageLocaleTag, useI18n } from '../src/i18n';
 import { getAllWalletPortfolios } from '../src/services/wallet/portfolio';
 import { getActiveWallet, setActiveWalletId, type WalletMeta } from '../src/services/wallet/storage';
 import { colors, layout, radius } from '../src/theme/tokens';
@@ -61,12 +61,12 @@ function formatDateParts(unlockAt: number) {
   const date = new Date(unlockAt);
 
   return {
-    primary: date.toLocaleString('en-GB', {
+    primary: date.toLocaleString(getLanguageLocaleTag(getCachedLanguage()), {
       day: '2-digit',
       month: 'short',
       timeZone: 'UTC',
     }),
-    year: date.toLocaleString('en-GB', {
+    year: date.toLocaleString(getLanguageLocaleTag(getCachedLanguage()), {
       year: 'numeric',
       timeZone: 'UTC',
     }),
@@ -154,7 +154,7 @@ export default function UnlockTimelineScreen() {
 
       setSnapshot(nextSnapshot);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setSnapshot(null);
       setErrorText(
         error instanceof Error ? error.message : t('Failed to load unlock timeline.')
@@ -194,7 +194,7 @@ export default function UnlockTimelineScreen() {
         setPendingWalletSelectionId(wallet.id);
         await load({ silent: true, force: true });
       } catch (error) {
-        console.error(error);
+        console.warn(error);
         notice.showErrorNotice(t('Failed to switch timeline wallet.'), 2400);
       } finally {
         setSwitchingWalletId(null);
@@ -224,12 +224,14 @@ export default function UnlockTimelineScreen() {
   const hasUnlockedOnWatchOnly =
     activeWallet?.kind === 'watch-only' && (snapshot?.availableBalance ?? 0) > 0;
 
-  const statusText =
-    errorText ||
-    (snapshot?.historyStatus && snapshot.historyStatus !== 'empty' ? snapshot.historyMessage : '') ||
-    snapshot?.balanceError ||
-    snapshot?.rateError ||
-    '';
+  const historyStatusText =
+    snapshot?.historyStatus === 'rate-limited'
+      ? t('Unlock history is temporarily rate-limited. Pull to refresh in a moment.')
+      : snapshot?.historyStatus === 'unavailable'
+        ? t('Unlock history is temporarily unavailable.')
+        : '';
+
+  const statusText = errorText || historyStatusText || snapshot?.balanceError || snapshot?.rateError || '';
 
   const statusTone =
     errorText ||
@@ -450,7 +452,7 @@ export default function UnlockTimelineScreen() {
                 <View style={styles.historyTop}>
                   <View>
                     <Text style={styles.historyAmount}>{formatUnlockAmount(event.amount)} 4TEEN</Text>
-                    <Text style={styles.historyTx}>TX • {event.txId.slice(0, 8)}...</Text>
+                    <Text style={styles.historyTx}>{t('TX')} • {event.txId.slice(0, 8)}...</Text>
                   </View>
 
                   <View style={[styles.statusPill, unlocked ? styles.statusPillUnlocked : styles.statusPillLocked]}>
@@ -488,7 +490,7 @@ export default function UnlockTimelineScreen() {
         ) : (
           <View style={styles.emptyHistoryCard}>
             <Text style={styles.emptyHistoryTitle}>
-              {snapshot?.historyMessage || t('No unlock entries yet.')}
+              {t('No unlock entries yet.')}
             </Text>
             <Text style={styles.emptyHistoryBody}>
               {t('Direct-buy transactions will appear here as separate lock batches with their own release time.')}

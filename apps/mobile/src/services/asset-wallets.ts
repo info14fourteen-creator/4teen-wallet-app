@@ -1,6 +1,7 @@
 import { TronWeb } from 'tronweb';
 
 import { buildTrongridHeaders, TRONGRID_BASE_URL } from '../config/tron';
+import { translateNow } from '../i18n';
 import { FOURTEEN_CONTRACT, tronscanFetch } from './tron/api';
 
 const TOKEN_DECIMALS = 6;
@@ -167,7 +168,7 @@ async function readTokenBalance(walletAddress: string) {
     const normalized = fromTokenUnits(raw);
 
     if (normalized === null) {
-      throw new Error('balanceOf: invalid result');
+      throw new Error(translateNow('balanceOf: invalid result'));
     }
 
     return normalized;
@@ -281,8 +282,8 @@ async function readAssetWallet(definition: AssetWalletDefinition): Promise<Asset
       status === 'ready'
         ? ''
         : status === 'partial'
-          ? 'Part of this wallet data is temporarily unavailable.'
-          : 'Could not load this wallet on-chain data.',
+          ? translateNow('Part of this wallet data is temporarily unavailable.')
+          : translateNow('Could not load this wallet on-chain data.'),
   };
 }
 
@@ -301,8 +302,8 @@ async function readAssetWalletsSnapshot(): Promise<AssetWalletsSnapshot> {
       status === 'ready'
         ? ''
         : status === 'partial'
-          ? 'Some asset wallet data is temporarily unavailable.'
-          : 'Asset wallet data is temporarily unavailable.',
+          ? translateNow('Some asset wallet data is temporarily unavailable.')
+          : translateNow('Asset wallet data is temporarily unavailable.'),
   };
 }
 

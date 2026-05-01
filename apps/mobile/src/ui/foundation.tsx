@@ -105,11 +105,15 @@ export function BottomActions({
   return (
     <View style={styles.actions}>
       <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton} onPress={onPrimaryPress}>
-        <Text style={styles.primaryButtonText}>{primaryLabel}</Text>
+        <Text style={styles.primaryButtonText} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.78}>
+          {primaryLabel}
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity activeOpacity={0.9} style={styles.secondaryButton} onPress={onSecondaryPress}>
-        <Text style={styles.secondaryButtonText}>{secondaryLabel}</Text>
+        <Text style={styles.secondaryButtonText} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.78}>
+          {secondaryLabel}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -206,6 +210,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontFamily: fontFamilies.display,
     letterSpacing: 0,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
   secondaryButton: {
     minHeight: layout.buttonHeight,
@@ -222,5 +229,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 18,
     letterSpacing: 0,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 });

@@ -77,6 +77,13 @@ export const ui = StyleSheet.create({
     fontFamily: fontFamilies.displaySemi,
   },
 
+  helper: {
+    color: colors.textSoft,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: fontFamilies.displaySemi,
+  },
+
   muted: {
     color: colors.textDim,
     fontSize: 12,

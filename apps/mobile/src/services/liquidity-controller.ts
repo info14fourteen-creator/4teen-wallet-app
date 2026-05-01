@@ -1,6 +1,7 @@
 import { TronWeb } from 'tronweb';
 
 import { buildTrongridHeaders, TRONGRID_BASE_URL } from '../config/tron';
+import { getCachedLanguage, getLanguageLocaleTag, translateNow } from '../i18n';
 import { isValidPrivateKey, normalizePrivateKey } from './wallet/import';
 import {
   ensureSigningWalletActive,
@@ -301,7 +302,7 @@ async function readLiquiditySnapshot() {
     historyMessage:
       executions.length || received.length
         ? ''
-        : 'No controller events found yet.',
+        : translateNow('No controller events found yet.'),
   } satisfies LiquidityControllerSnapshot;
 }
 
@@ -342,7 +343,7 @@ export async function loadLiquidityControllerSnapshot(options?: {
         latestReceivedTrx: null,
         historyStatus: 'unavailable',
         historyMessage:
-          error instanceof Error ? error.message : 'Could not load liquidity events.',
+          error instanceof Error ? error.message : translateNow('Could not load liquidity events.'),
       };
       return fallback;
     })
@@ -364,11 +365,11 @@ async function getSigningWalletContext() {
   const wallet = (await ensureSigningWalletActive()) ?? initialWallet;
 
   if (!wallet) {
-    throw new Error('No wallet available for liquidity execution.');
+    throw new Error(translateNow('No wallet available for liquidity execution.'));
   }
 
   if (wallet.kind === 'watch-only') {
-    throw new Error('Liquidity execution requires a full-access wallet.');
+    throw new Error(translateNow('Liquidity execution requires a full-access wallet.'));
   }
 
   const secret = await getWalletSecret(wallet.id);
@@ -382,7 +383,7 @@ async function getSigningWalletContext() {
   }
 
   if (!isValidPrivateKey(privateKey)) {
-    throw new Error('Private key not found for this wallet.');
+    throw new Error(translateNow('Private key not found for this wallet.'));
   }
 
   return { wallet, privateKey };
@@ -408,7 +409,7 @@ export async function executeLiquidityController(options?: {
   const txId = extractTxId(result);
 
   if (!txId) {
-    throw new Error('Transaction sent but txid was not returned.');
+    throw new Error(translateNow('Transaction sent but txid was not returned.'));
   }
 
   liquidityMemoryCache.delete('default');
@@ -489,7 +490,7 @@ export function formatLiquidityDate(timestamp: number | null | undefined) {
     return '—';
   }
 
-  return new Date(safe).toLocaleString('en-GB', {
+  return new Date(safe).toLocaleString(getLanguageLocaleTag(getCachedLanguage()), {
     day: '2-digit',
     month: 'short',
     year: 'numeric',

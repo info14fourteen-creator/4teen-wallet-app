@@ -4,6 +4,7 @@ import {
   View,
 } from 'react-native';
 
+import { useI18n } from '../src/i18n';
 import { ProductScreen } from '../src/ui/product-shell';
 
 import { colors, radius, spacing } from '../src/theme/tokens';
@@ -35,40 +36,39 @@ const summaryCards = [
   { overline: 'Primary Entry', stat: 'Mint', text: 'New tokens are created only through direct contract purchases.' },
   { overline: 'Lock Rule', stat: '14D', text: 'Every direct purchase is locked for a fixed 14-day period.' },
   { overline: 'Liquidity Rule', stat: '6.43%', text: 'Daily controller release, at most once per UTC day.' },
-];
+] as const;
 
 export default function WhitepaperScreen() {
+  const { t } = useI18n();
   return (
-    <ProductScreen eyebrow="4TEEN WHITEPAPER" browVariant="backLink">
+    <ProductScreen eyebrow={t('4TEEN WHITEPAPER')} browVariant="backLink">
           <View style={styles.heroCard}>
-            <Text style={ui.eyebrow}>4TEEN Whitepaper</Text>
-            <Text style={styles.metaGreen}>Version 1.3 • March 28, 2026</Text>
-            <Text style={ui.titleLg}>Vision, Technology, Economics, and On-Chain Mechanics</Text>
+            <Text style={ui.eyebrow}>{t('4TEEN Whitepaper')}</Text>
+            <Text style={styles.metaGreen}>{t('Version 1.3 • March 28, 2026')}</Text>
+            <Text style={ui.titleLg}>{t('Vision, Technology, Economics, and On-Chain Mechanics')}</Text>
             <Text style={ui.lead}>
-              4TEEN is a modular TRON token protocol built around mint-on-purchase issuance, a fixed 14-day lock,
-              controller-based ownership, scheduled liquidity execution, GitHub Actions–based liquidity automation,
-              and a full-stack ambassador operations system.
+              {t('4TEEN is a modular TRON token protocol built around mint-on-purchase issuance, a fixed 14-day lock, controller-based ownership, scheduled liquidity execution, GitHub Actions–based liquidity automation, and a full-stack ambassador operations system.')}
             </Text>
           </View>
 
           <View style={styles.summaryGrid}>
             {summaryCards.map((card) => (
               <View key={card.overline} style={styles.summaryCard}>
-                <Text style={ui.muted}>{card.overline}</Text>
-                <Text style={styles.stat}>{card.stat}</Text>
-                <Text style={ui.body}>{card.text}</Text>
+                <Text style={ui.muted}>{t(card.overline)}</Text>
+                <Text style={styles.stat}>{t(card.stat)}</Text>
+                <Text style={ui.body}>{t(card.text)}</Text>
               </View>
             ))}
           </View>
 
           <CardPlain>
-            <Text style={ui.eyebrow}>Table of Contents</Text>
-            <Text style={ui.titleSm}>Read the protocol in one pass</Text>
+            <Text style={ui.eyebrow}>{t('Table of Contents')}</Text>
+            <Text style={ui.titleSm}>{t('Read the protocol in one pass')}</Text>
 
             <View style={styles.tocGrid}>
               {toc.map((item) => (
                 <View key={item} style={styles.tocItem}>
-                  <Text style={ui.tocLabel}>{item}</Text>
+                  <Text style={ui.tocLabel}>{t(item)}</Text>
                 </View>
               ))}
             </View>
@@ -79,45 +79,37 @@ export default function WhitepaperScreen() {
             title="A modular on-chain token system with explicit rules and separated operating layers."
           >
             <Text style={ui.body}>
-              4TEEN is a TRON-based token protocol designed around transparent, mechanical behavior.
-              Its core rules are enforced by smart contracts, not by discretionary interpretation.
+              {t('4TEEN is a TRON-based token protocol designed around transparent, mechanical behavior. Its core rules are enforced by smart contracts, not by discretionary interpretation.')}
             </Text>
             <Text style={ui.body}>
-              The system combines a TRC-20 token contract, a dedicated liquidity controller,
-              DEX-specific executor contracts, purpose-separated vaults, GitHub Actions–based liquidity automation,
-              and a full-stack ambassador reward system centered around controller-side settlement.
+              {t('The system combines a TRC-20 token contract, a dedicated liquidity controller, DEX-specific executor contracts, purpose-separated vaults, GitHub Actions–based liquidity automation, and a full-stack ambassador reward system centered around controller-side settlement.')}
             </Text>
-            <HighlightBox title="Scope of this document">
-              This whitepaper describes the current deployed state of the 4TEEN system. It is a technical
-              and structural specification, not a promise of market outcome.
+            <HighlightBox title={t('Scope of this document')}>
+              {t('This whitepaper describes the current deployed state of the 4TEEN system. It is a technical and structural specification, not a promise of market outcome.')}
             </HighlightBox>
             <NoteBox>
-              The 4TEEN token itself does not generate profit. Market price depends on liquidity and demand.
-              Algorithmic price growth applies only to direct contract purchases and does not control secondary market trading.
+              {t('The 4TEEN token itself does not generate profit. Market price depends on liquidity and demand. Algorithmic price growth applies only to direct contract purchases and does not control secondary market trading.')}
             </NoteBox>
           </SectionCard>
 
           <SectionCardPlain eyebrow="1. Introduction" title="The protocol is built to be inspectable, not interpreted.">
             <Text style={ui.body}>
-              4TEEN is an on-chain token mechanism with deliberately narrow and explicit functionality.
-              Its purpose is to create a transparent, verifiable framework for token issuance, transfer restriction,
-              liquidity formation, attribution, and staged ecosystem distribution, all enforced by code.
+              {t('4TEEN is an on-chain token mechanism with deliberately narrow and explicit functionality. Its purpose is to create a transparent, verifiable framework for token issuance, transfer restriction, liquidity formation, attribution, and staged ecosystem distribution, all enforced by code.')}
             </Text>
             <Text style={ui.body}>
-              Unlike custodial or off-chain systems, 4TEEN does not rely on vague promises, hidden bookkeeping,
-              or informal operator discretion for its core behavior.
+              {t('Unlike custodial or off-chain systems, 4TEEN does not rely on vague promises, hidden bookkeeping, or informal operator discretion for its core behavior.')}
             </Text>
           </SectionCardPlain>
 
           <SectionCard eyebrow="2. Token Overview" title="Fourteen Token (4TEEN)">
             <MiniTable
               rows={[
-                ['Name', 'Fourteen Token'],
+                ['Name', t('Fourteen Token')],
                 ['Symbol', '4TEEN'],
                 ['Blockchain', 'TRON'],
                 ['Standard', 'TRC-20'],
                 ['Decimals', '6'],
-                ['Issuing Time', 'November 23, 2025 (UTC)'],
+                ['Issuing Time', t('November 23, 2025 (UTC)')],
               ]}
             />
             <SoftCard
@@ -143,11 +135,11 @@ export default function WhitepaperScreen() {
           <SectionCardPlain eyebrow="3. Supply Model" title="Hybrid supply with on-demand expansion">
             <SoftCard
               title="Initial Supply"
-              body="At deployment, 10,102,022 4TEEN were minted to the owner side of the system. This initial supply is visible on-chain and was created only once."
+              body={t('At deployment, 10,102,022 4TEEN were minted to the owner side of the system. This initial supply is visible on-chain and was created only once.')}
             />
             <SoftCard
               title="Mint-on-Purchase Issuance"
-              body="New 4TEEN are minted only when a user calls buyTokens() and sends TRX to the token contract."
+              body={t('New 4TEEN are minted only when a user calls buyTokens() and sends TRX to the token contract.')}
             />
             <RuleList
               items={[
@@ -158,13 +150,12 @@ export default function WhitepaperScreen() {
               ]}
             />
             <NoteBox>
-              Supply integrity is contract-enforced. The system does not allow arbitrary owner minting,
-              retroactive balance edits, or silent redistribution of user-held tokens.
+              {t('Supply integrity is contract-enforced. The system does not allow arbitrary owner minting, retroactive balance edits, or silent redistribution of user-held tokens.')}
             </NoteBox>
           </SectionCardPlain>
 
           <SectionCard eyebrow="4. Price Logic" title="Primary sale price only">
-            <HighlightBox title="Base purchase price at deployment:">
+            <HighlightBox title={t('Base purchase price at deployment:')}>
               1 TRX = 1 4TEEN
             </HighlightBox>
             <RuleList
@@ -175,17 +166,15 @@ export default function WhitepaperScreen() {
               ]}
             />
             <Text style={ui.body}>
-              This mechanism affects only the amount of 4TEEN minted through the contract purchase flow.
-              It does not set, stabilize, or predict secondary market price.
+              {t('This mechanism affects only the amount of 4TEEN minted through the contract purchase flow. It does not set, stabilize, or predict secondary market price.')}
             </Text>
           </SectionCard>
 
           <SectionCardPlain eyebrow="5. Token Locking Mechanism" title="Per-purchase locks enforced on-chain">
             <Text style={ui.body}>
-              Every direct purchase through buyTokens() creates a separate lock entry for the buyer address.
-              Each lock lasts for a fixed 14 days from the block timestamp of the purchase.
+              {t('Every direct purchase through buyTokens() creates a separate lock entry for the buyer address. Each lock lasts for a fixed 14 days from the block timestamp of the purchase.')}
             </Text>
-            <CodeBlock>available balance = total balance − locked balance</CodeBlock>
+            <CodeBlock>{t('available balance = total balance − locked balance')}</CodeBlock>
             <SoftCard
               title="No administrative override"
               items={[
@@ -197,9 +186,9 @@ export default function WhitepaperScreen() {
           </SectionCardPlain>
 
           <SectionCard eyebrow="6. TRX Flow on Purchase" title="Every direct buy routes value atomically by rule">
-            <SplitCard overline="90% TRX" title="Liquidity System" body="Forwarded to FourteenLiquidityController for scheduled release and DEX execution flow." accent />
-            <SplitCard overline="7% TRX" title="Controller Layer" body="Forwarded to FourteenController for control, attribution, reward accounting, and ambassador settlement logic." />
-            <SplitCard overline="3% TRX" title="Airdrop Layer" body="Forwarded to AirdropVault for staged ecosystem distribution and campaign infrastructure." />
+            <SplitCard overline="90% TRX" title="Liquidity System" body={t('Forwarded to FourteenLiquidityController for scheduled release and DEX execution flow.')} accent />
+            <SplitCard overline="7% TRX" title="Controller Layer" body={t('Forwarded to FourteenController for control, attribution, reward accounting, and ambassador settlement logic.')} />
+            <SplitCard overline="3% TRX" title="Airdrop Layer" body={t('Forwarded to AirdropVault for staged ecosystem distribution and campaign infrastructure.')} />
           </SectionCard>
 
           <SectionCardPlain eyebrow="7. Liquidity Architecture" title="A two-layer liquidity model">
@@ -231,8 +220,8 @@ export default function WhitepaperScreen() {
                 'A valid on-chain execution call is made',
               ]}
             />
-            <HighlightBox title="Daily release amount:">
-              6.43% of the controller’s current TRX balance
+            <HighlightBox title={t('Daily release amount:')}>
+              {t('6.43% of the controller’s current TRX balance')}
             </HighlightBox>
           </SectionCard>
 
@@ -257,8 +246,7 @@ export default function WhitepaperScreen() {
 
           <SectionCardPlain eyebrow="10. Liquidity Automation" title="Automation keeps the system moving. The contract still decides what is allowed.">
             <Text style={ui.body}>
-              The 4TEEN liquidity automation repository is the external execution layer responsible for running the daily liquidity operation.
-              It does not define policy and it does not loosen contract-side constraints.
+              {t('The 4TEEN liquidity automation repository is the external execution layer responsible for running the daily liquidity operation. It does not define policy and it does not loosen contract-side constraints.')}
             </Text>
             <RuleList
               items={[
@@ -277,9 +265,7 @@ export default function WhitepaperScreen() {
 
           <SectionCard eyebrow="11. Ambassador System" title="A full-stack acquisition, attribution, and reward settlement system.">
             <Text style={ui.body}>
-              The 4TEEN Ambassador System is a multi-layer operating system for ambassador identity,
-              first-touch attribution, purchase verification, backend allocation, cabinet visibility,
-              and on-chain reward settlement.
+              {t('The 4TEEN Ambassador System is a multi-layer operating system for ambassador identity, first-touch attribution, purchase verification, backend allocation, cabinet visibility, and on-chain reward settlement.')}
             </Text>
             <SoftCard
               title="Reward Ladder"
@@ -293,9 +279,9 @@ export default function WhitepaperScreen() {
           </SectionCard>
 
           <SectionCardPlain eyebrow="12. Vault Architecture" title="Purpose-separated reserve custody">
-            <SoftCard title="FourteenVault" body="Stores tokens reserved for liquidity provisioning." />
-            <SoftCard title="TeamLockVault" body="Stores team allocation under separate custody and lock-oriented logic." />
-            <SoftCard title="AirdropVault" body="Stores community and growth reserves for staged ecosystem distribution." />
+            <SoftCard title="FourteenVault" body={t('Stores tokens reserved for liquidity provisioning.')} />
+            <SoftCard title="TeamLockVault" body={t('Stores team allocation under separate custody and lock-oriented logic.')} />
+            <SoftCard title="AirdropVault" body={t('Stores community and growth reserves for staged ecosystem distribution.')} />
           </SectionCardPlain>
 
           <SectionCard eyebrow="13. Governance & Permissions" title="Administrative powers are explicit and limited">
@@ -320,11 +306,10 @@ export default function WhitepaperScreen() {
 
           <SectionCardPlain eyebrow="14. Frontend Disclaimer" title="The frontend is an interface, not the source of truth">
             <Text style={ui.body}>
-              The frontend may display balances, locked and available amounts, countdown timers,
-              estimated conversion rates, transaction history, and live state summaries.
+              {t('The frontend may display balances, locked and available amounts, countdown timers, estimated conversion rates, transaction history, and live state summaries.')}
             </Text>
             <NoteBox>
-              If frontend output and on-chain state ever differ, on-chain state is authoritative.
+              {t('If frontend output and on-chain state ever differ, on-chain state is authoritative.')}
             </NoteBox>
           </SectionCardPlain>
 
@@ -339,10 +324,10 @@ export default function WhitepaperScreen() {
           </SectionCard>
 
           <SectionCardPlain eyebrow="16. What 4TEEN Is Not" title="Clarifications against misreading">
-            <SoftCard title="Not an investment product" body="4TEEN does not promise returns, guaranteed appreciation, profit sharing, or exposure to off-chain revenue." />
-            <SoftCard title="Not yield-bearing" body="There are no staking rewards, no interest, and no passive income mechanics tied to simply holding the token." />
-            <SoftCard title="Not price-controlled" body="The protocol does not stabilize secondary market price." />
-            <SoftCard title="Not risk-free" body="Users still face smart contract risk, market volatility, liquidity limitations, and external dependency risk." />
+            <SoftCard title="Not an investment product" body={t('4TEEN does not promise returns, guaranteed appreciation, profit sharing, or exposure to off-chain revenue.')} />
+            <SoftCard title="Not yield-bearing" body={t('There are no staking rewards, no interest, and no passive income mechanics tied to simply holding the token.')} />
+            <SoftCard title="Not price-controlled" body={t('The protocol does not stabilize secondary market price.')} />
+            <SoftCard title="Not risk-free" body={t('Users still face smart contract risk, market volatility, liquidity limitations, and external dependency risk.')} />
           </SectionCardPlain>
 
           <SectionCard eyebrow="17. Verification" title="The system is strongest when it can be checked from multiple angles.">
@@ -355,8 +340,7 @@ export default function WhitepaperScreen() {
               ]}
             />
             <NoteBox>
-              If a behavior is not explicitly described here and not enforced by deployed code,
-              it is not defined by the 4TEEN protocol.
+              {t('If a behavior is not explicitly described here and not enforced by deployed code, it is not defined by the 4TEEN protocol.')}
             </NoteBox>
           </SectionCard>
     </ProductScreen>
@@ -376,10 +360,11 @@ function SectionCard({
   title: string;
   children: React.ReactNode;
 }) {
+  const { t } = useI18n();
   return (
     <View style={styles.sectionCard}>
-      <Text style={ui.eyebrow}>{eyebrow}</Text>
-      <Text style={ui.titleMd}>{title}</Text>
+      <Text style={ui.eyebrow}>{t(eyebrow)}</Text>
+      <Text style={ui.titleMd}>{t(title)}</Text>
       <View style={styles.sectionGap}>{children}</View>
     </View>
   );
@@ -394,10 +379,11 @@ function SectionCardPlain({
   title: string;
   children: React.ReactNode;
 }) {
+  const { t } = useI18n();
   return (
     <View style={styles.sectionCardPlain}>
-      <Text style={ui.eyebrow}>{eyebrow}</Text>
-      <Text style={ui.titleMd}>{title}</Text>
+      <Text style={ui.eyebrow}>{t(eyebrow)}</Text>
+      <Text style={ui.titleMd}>{t(title)}</Text>
       <View style={styles.sectionGap}>{children}</View>
     </View>
   );
@@ -410,28 +396,31 @@ function HighlightBox({
   title: string;
   children: React.ReactNode;
 }) {
+  const { t } = useI18n();
   return (
     <View style={styles.highlightBox}>
-      <Text style={ui.bodyStrong}>{title}</Text>
-      <Text style={ui.body}>{children}</Text>
+      <Text style={ui.bodyStrong}>{t(title)}</Text>
+      <Text style={ui.body}>{typeof children === 'string' ? t(children) : children}</Text>
     </View>
   );
 }
 
 function NoteBox({ children }: { children: React.ReactNode }) {
+  const { t } = useI18n();
   return (
     <View style={styles.noteBox}>
-      <Text style={ui.body}>{children}</Text>
+      <Text style={ui.body}>{typeof children === 'string' ? t(children) : children}</Text>
     </View>
   );
 }
 
 function RuleList({ items }: { items: string[] }) {
+  const { t } = useI18n();
   return (
     <View style={styles.ruleList}>
       {items.map((item) => (
         <View key={item} style={styles.ruleItem}>
-          <Text style={ui.body}>{item}</Text>
+          <Text style={ui.body}>{t(item)}</Text>
         </View>
       ))}
     </View>
@@ -447,10 +436,11 @@ function SoftCard({
   body?: string;
   items?: string[];
 }) {
+  const { t } = useI18n();
   return (
     <View style={styles.softCard}>
-      <Text style={ui.titleSm}>{title}</Text>
-      {body ? <Text style={ui.body}>{body}</Text> : null}
+      <Text style={ui.titleSm}>{t(title)}</Text>
+      {body ? <Text style={ui.body}>{t(body)}</Text> : null}
       {items ? <RuleList items={items} /> : null}
     </View>
   );
@@ -467,22 +457,24 @@ function SplitCard({
   body: string;
   accent?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <View style={[styles.splitCard, accent && styles.splitCardAccent]}>
-      <Text style={ui.muted}>{overline}</Text>
-      <Text style={ui.titleSm}>{title}</Text>
-      <Text style={ui.body}>{body}</Text>
+      <Text style={ui.muted}>{t(overline)}</Text>
+      <Text style={ui.titleSm}>{t(title)}</Text>
+      <Text style={ui.body}>{t(body)}</Text>
     </View>
   );
 }
 
 function MiniTable({ rows }: { rows: string[][] }) {
+  const { t } = useI18n();
   return (
     <View style={styles.tableWrap}>
       {rows.map(([left, right], index) => (
         <View key={left} style={[styles.tableRow, index === rows.length - 1 && styles.tableRowLast]}>
-          <Text style={ui.muted}>{left}</Text>
-          <Text style={styles.tableRight}>{right}</Text>
+          <Text style={ui.muted}>{t(left)}</Text>
+          <Text style={styles.tableRight}>{t(right)}</Text>
         </View>
       ))}
     </View>
@@ -490,7 +482,8 @@ function MiniTable({ rows }: { rows: string[][] }) {
 }
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.codeBlock}>{children}</Text>;
+  const { t } = useI18n();
+  return <Text style={styles.codeBlock}>{typeof children === 'string' ? t(children) : children}</Text>;
 }
 
 const styles = StyleSheet.create({

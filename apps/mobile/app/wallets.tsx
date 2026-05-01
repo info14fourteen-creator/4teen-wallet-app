@@ -17,7 +17,7 @@ import { useWalletSession } from '../src/wallet/wallet-session';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
-import { useI18n } from '../src/i18n';
+import { translateNow, useI18n } from '../src/i18n';
 import {
   canWalletExposeMnemonic,
   canWalletExposePrivateKey,
@@ -46,9 +46,9 @@ import {
 } from '../src/ui/ui-icons';
 
 function formatWalletKind(kind: WalletMeta['kind']) {
-  if (kind === 'mnemonic') return 'Seed Phrase';
-  if (kind === 'private-key') return 'Private Key';
-  return 'Watch-Only';
+  if (kind === 'mnemonic') return translateNow('Seed Phrase');
+  if (kind === 'private-key') return translateNow('Private Key');
+  return translateNow('Watch-Only');
 }
 
 const MAX_WALLET_NAME_LENGTH = 18;
@@ -109,7 +109,7 @@ export default function WalletsScreen() {
       const nextAggregate = await getAllWalletPortfolios();
       setAggregate(nextAggregate);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(t('Wallet manager failed to load.'), 2600);
     } finally {
       setLoading(false);
@@ -165,7 +165,7 @@ export default function WalletsScreen() {
       notice.showSuccessNotice(t('Active wallet: {{name}}', { name: wallet.name }), 2200);
       router.replace('/wallet');
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(t('Wallet selection failed.'), 2600);
     }
   };
@@ -188,7 +188,7 @@ export default function WalletsScreen() {
         await load();
         notice.showSuccessNotice(t('Wallet removed from this device.'), 2400);
       } catch (error) {
-        console.error(error);
+        console.warn(error);
         resetRemovalState();
         notice.showErrorNotice(t('Wallet removal failed.'), 2600);
       }
@@ -271,7 +271,7 @@ export default function WalletsScreen() {
       await load();
       notice.showSuccessNotice(t('Wallet renamed to {{name}}.', { name: updated.name }), 2400);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(t('Wallet rename failed.'), 2600);
     }
   };
@@ -291,7 +291,7 @@ export default function WalletsScreen() {
         params: { walletId: wallet.id },
       });
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(t('Seed phrase export failed to open.'), 2400);
     }
   };
@@ -311,7 +311,7 @@ export default function WalletsScreen() {
         params: { walletId: wallet.id },
       });
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(t('Private key export failed to open.'), 2400);
     }
   };
@@ -365,7 +365,7 @@ export default function WalletsScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>{t('No wallets added')}</Text>
               <Text style={styles.emptyText}>
-                Import or create a wallet to start managing it here.
+                {t('Import or create a wallet to start managing it here.')}
               </Text>
             </View>
           ) : (
@@ -408,9 +408,9 @@ export default function WalletsScreen() {
                             adjustsFontSizeToFit
                             minimumFontScale={0.72}
                           >
-                            Balance: {balanceDisplay}
+                            {t('Balance')}: {balanceDisplay}
                           </Text>
-                        <Text style={styles.meta}>Access: {formatWalletKind(wallet.kind)}</Text>
+                        <Text style={styles.meta}>{t('Access')}: {formatWalletKind(wallet.kind)}</Text>
                         <Text
                           style={styles.address}
                           numberOfLines={1}

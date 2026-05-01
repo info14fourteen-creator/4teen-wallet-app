@@ -58,7 +58,7 @@ export default function CurrencyScreen() {
         setSelectedCurrency(currency);
         notice.showSuccessNotice(t('Display currency set to {{currency}}.', { currency }), 2200);
       } catch (error) {
-        console.error(error);
+        console.warn(error);
         notice.showErrorNotice(t('Currency update failed.'), 2200);
       } finally {
         setSaving(false);

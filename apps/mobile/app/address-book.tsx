@@ -105,6 +105,40 @@ export default function AddressBookScreen() {
     setRemovalProgress(0);
   }, [clearRemovalTimer]);
 
+  const loadContacts = useCallback(async () => {
+    try {
+      const raw = await SecureStore.getItemAsync(STORAGE_KEY);
+
+      if (!raw) {
+        setContacts(defaultContacts);
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as ContactItem[];
+
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        setContacts(parsed);
+      } else {
+        setContacts(defaultContacts);
+      }
+    } catch (error) {
+      console.warn('Failed to load address book', error);
+      setContacts(defaultContacts);
+      notice.showErrorNotice(t('Address book failed to load.'), 2600);
+    } finally {
+      setLoaded(true);
+    }
+  }, [notice, t]);
+
+  const persistContacts = useCallback(async (nextContacts: ContactItem[]) => {
+    try {
+      await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(nextContacts));
+    } catch (error) {
+      console.warn('Failed to save address book', error);
+      notice.showErrorNotice(t('Address book update failed.'), 2600);
+    }
+  }, [notice, t]);
+
   useEffect(() => {
     void loadContacts();
   }, [loadContacts]);
@@ -141,40 +175,6 @@ export default function AddressBookScreen() {
       }
     }
   }, [loaded, params.openAdd, params.prefillAddress, params.prefillName]);
-
-  const loadContacts = useCallback(async () => {
-    try {
-      const raw = await SecureStore.getItemAsync(STORAGE_KEY);
-
-      if (!raw) {
-        setContacts(defaultContacts);
-        return;
-      }
-
-      const parsed = JSON.parse(raw) as ContactItem[];
-
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        setContacts(parsed);
-      } else {
-        setContacts(defaultContacts);
-      }
-    } catch (error) {
-      console.error('Failed to load address book', error);
-      setContacts(defaultContacts);
-      notice.showErrorNotice(t('Address book failed to load.'), 2600);
-    } finally {
-      setLoaded(true);
-    }
-  }, [notice, t]);
-
-  const persistContacts = useCallback(async (nextContacts: ContactItem[]) => {
-    try {
-      await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(nextContacts));
-    } catch (error) {
-      console.error('Failed to save address book', error);
-      notice.showErrorNotice(t('Address book update failed.'), 2600);
-    }
-  }, [notice, t]);
 
   const handlePaste = async () => {
     const text = await Clipboard.getStringAsync();
@@ -415,7 +415,9 @@ export default function AddressBookScreen() {
                     onPress={handleSave}
                     disabled={!canSave}
                   >
-                    <ConfirmIcon width={18} height={18} opacity={canSave ? 1 : 0.35} />
+                    <View style={{ opacity: canSave ? 1 : 0.35 }}>
+                      <ConfirmIcon width={18} height={18} />
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -528,7 +530,7 @@ const styles = StyleSheet.create({
   },
 
   addRowWrap: {
-    marginTop: -8,
+    marginTop: -16,
   },
 
   addRow: {

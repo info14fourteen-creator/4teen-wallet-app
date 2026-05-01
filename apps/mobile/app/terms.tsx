@@ -4,35 +4,37 @@ import {
   View,
 } from 'react-native';
 
+import { useI18n } from '../src/i18n';
 import { ProductScreen } from '../src/ui/product-shell';
 
 import { colors, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 
 export default function TermsScreen() {
+  const { t } = useI18n();
   return (
-    <ProductScreen eyebrow="TERMS OF SERVICE" browVariant="backLink">
+    <ProductScreen eyebrow={t('TERMS OF SERVICE')} browVariant="backLink">
           <SectionCard
-            eyebrow="1. Introduction"
-            title="Application access and agreement"
+            eyebrow={t('1. Introduction')}
+            title={t('Application access and agreement')}
           >
             <Paragraph>
-              4TEEN Wallet is a non-custodial application providing access to blockchain-based
-              tools, token interaction, and ecosystem features.
+              {t('4TEEN Wallet is a non-custodial application providing access to blockchain-based tools, token interaction, and ecosystem features.')}
             </Paragraph>
             <Paragraph>
-              By using the application, you agree to these Terms of Service.
+              {t('By using the application, you agree to these Terms of Service.')}
             </Paragraph>
             <NoteBox>
-              Contact: info@4teen.me • +1 646-217-8070 • https://4teen.me
+              {t('Contact: info@4teen.me • +1 646-217-8070 • https://4teen.me')}
             </NoteBox>
           </SectionCard>
 
           <SectionCardPlain
-            eyebrow="2. Nature of the Application"
-            title="Interface, not control layer"
+            eyebrow={t('2. Nature of the Application')}
+            title={t('Interface, not control layer')}
           >
             <RuleList
+              t={t}
               items={[
                 'Wallet creation and import',
                 'Direct buy and swap interfaces',
@@ -43,16 +45,16 @@ export default function TermsScreen() {
             />
 
             <Paragraph>
-              The application acts as an interface layer. It does not control assets or execute
-              transactions without user authorization.
+              {t('The application acts as an interface layer. It does not control assets or execute transactions without user authorization.')}
             </Paragraph>
           </SectionCardPlain>
 
           <SectionCard
-            eyebrow="3. Non-Custodial Model"
-            title="You control your assets"
+            eyebrow={t('3. Non-Custodial Model')}
+            title={t('You control your assets')}
           >
             <RuleList
+              t={t}
               items={[
                 'Private keys are not stored by the application',
                 'Funds are not controlled by 4TEEN',
@@ -61,15 +63,16 @@ export default function TermsScreen() {
             />
 
             <NoteBox>
-              Loss of seed phrase or private keys results in permanent loss of access.
+              {t('Loss of seed phrase or private keys results in permanent loss of access.')}
             </NoteBox>
           </SectionCard>
 
           <SectionCardPlain
-            eyebrow="4. Blockchain Interaction"
-            title="Irreversible operations"
+            eyebrow={t('4. Blockchain Interaction')}
+            title={t('Irreversible operations')}
           >
             <RuleList
+              t={t}
               items={[
                 'Transactions are irreversible',
                 'Execution depends on network conditions',
@@ -78,15 +81,16 @@ export default function TermsScreen() {
             />
 
             <Paragraph>
-              4TEEN does not guarantee execution, timing, or network availability.
+              {t('4TEEN does not guarantee execution, timing, or network availability.')}
             </Paragraph>
           </SectionCardPlain>
 
           <SectionCard
-            eyebrow="5. Financial Disclaimer"
-            title="No investment guarantees"
+            eyebrow={t('5. Financial Disclaimer')}
+            title={t('No investment guarantees')}
           >
             <RuleList
+              t={t}
               items={[
                 'Not investment advice',
                 'Not a broker, exchange, or custodian',
@@ -95,29 +99,29 @@ export default function TermsScreen() {
             />
 
             <NoteBox>
-              Market risk remains entirely with the user.
+              {t('Market risk remains entirely with the user.')}
             </NoteBox>
           </SectionCard>
 
           <SectionCardPlain
-            eyebrow="6. Token and Protocol Risk"
-            title="Market behavior is external"
+            eyebrow={t('6. Token and Protocol Risk')}
+            title={t('Market behavior is external')}
           >
             <Paragraph>
-              Token interfaces may display price, liquidity, and conversion data, but these values
-              are not controlled by the application.
+              {t('Token interfaces may display price, liquidity, and conversion data, but these values are not controlled by the application.')}
             </Paragraph>
 
             <Paragraph>
-              Market behavior depends on external conditions and participants.
+              {t('Market behavior depends on external conditions and participants.')}
             </Paragraph>
           </SectionCardPlain>
 
           <SectionCard
-            eyebrow="7. External Services"
-            title="Third-party risk"
+            eyebrow={t('7. External Services')}
+            title={t('Third-party risk')}
           >
             <RuleList
+              t={t}
               items={[
                 'DEX protocols',
                 'External dApps',
@@ -126,15 +130,16 @@ export default function TermsScreen() {
             />
 
             <Paragraph>
-              4TEEN does not control third-party services.
+              {t('4TEEN does not control third-party services.')}
             </Paragraph>
           </SectionCard>
 
           <SectionCardPlain
-            eyebrow="8. Ambassador and Airdrop"
-            title="Participation rules"
+            eyebrow={t('8. Ambassador and Airdrop')}
+            title={t('Participation rules')}
           >
             <RuleList
+              t={t}
               items={[
                 'Rewards may be delayed or denied',
                 'Fraud or abuse may lead to exclusion',
@@ -143,15 +148,16 @@ export default function TermsScreen() {
             />
 
             <NoteBox>
-              Participation does not guarantee rewards.
+              {t('Participation does not guarantee rewards.')}
             </NoteBox>
           </SectionCardPlain>
 
           <SectionCard
-            eyebrow="9. Acceptable Use"
-            title="System integrity"
+            eyebrow={t('9. Acceptable Use')}
+            title={t('System integrity')}
           >
             <RuleList
+              t={t}
               items={[
                 'No exploitation of logic',
                 'No manipulation of rewards',
@@ -161,20 +167,20 @@ export default function TermsScreen() {
           </SectionCard>
 
           <SectionCardPlain
-            eyebrow="10. Application State"
-            title="Ongoing development"
+            eyebrow={t('10. Application State')}
+            title={t('Ongoing development')}
           >
             <Paragraph>
-              The application is under active development. Features may change, be removed,
-              or behave differently over time.
+              {t('The application is under active development. Features may change, be removed, or behave differently over time.')}
             </Paragraph>
           </SectionCardPlain>
 
           <SectionCard
-            eyebrow="11. No Warranties"
-            title="Provided as-is"
+            eyebrow={t('11. No Warranties')}
+            title={t('Provided as-is')}
           >
             <RuleList
+              t={t}
               items={[
                 'No uptime guarantees',
                 'No accuracy guarantees',
@@ -184,10 +190,11 @@ export default function TermsScreen() {
           </SectionCard>
 
           <SectionCardPlain
-            eyebrow="12. Limitation of Liability"
-            title="User responsibility"
+            eyebrow={t('12. Limitation of Liability')}
+            title={t('User responsibility')}
           >
             <RuleList
+              t={t}
               items={[
                 'Loss of funds',
                 'Failed transactions',
@@ -198,20 +205,20 @@ export default function TermsScreen() {
           </SectionCardPlain>
 
           <SectionCard
-            eyebrow="13. Changes to Terms"
-            title="Dynamic conditions"
+            eyebrow={t('13. Changes to Terms')}
+            title={t('Dynamic conditions')}
           >
             <Paragraph>
-              Terms may be updated at any time. Continued use implies acceptance.
+              {t('Terms may be updated at any time. Continued use implies acceptance.')}
             </Paragraph>
           </SectionCard>
 
           <SectionCardPlain
-            eyebrow="14. Final Principle"
-            title="Code defines reality"
+            eyebrow={t('14. Final Principle')}
+            title={t('Code defines reality')}
           >
             <NoteBox>
-              If a behavior is not enforced by code, it is not guaranteed.
+              {t('If a behavior is not enforced by code, it is not guaranteed.')}
             </NoteBox>
           </SectionCardPlain>
 
@@ -245,12 +252,12 @@ function Paragraph({ children }: any) {
   return <Text style={ui.body}>{children}</Text>;
 }
 
-function RuleList({ items }: any) {
+function RuleList({ items, t }: any) {
   return (
     <View style={styles.ruleList}>
       {items.map((i: string) => (
         <View key={i} style={styles.ruleItem}>
-          <Text style={ui.body}>{i}</Text>
+          <Text style={ui.body}>{t(i)}</Text>
         </View>
       ))}
     </View>

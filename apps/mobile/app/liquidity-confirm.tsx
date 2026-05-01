@@ -97,6 +97,7 @@ export default function LiquidityConfirmScreen() {
       (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
   );
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
+  const approvalProcessing = !passcodeOpen && (submitting || energyRenting);
   const isApproveDisabled = submitting || !review || !hasTrxForBurn;
 
   useEffect(() => {
@@ -133,7 +134,7 @@ export default function LiquidityConfirmScreen() {
       const nextReview = await estimateLiquidityControllerExecution();
       setReview(nextReview);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setReview(null);
       setErrorText(
         error instanceof Error ? error.message : t('Failed to build liquidity confirmation.')
@@ -166,7 +167,7 @@ export default function LiquidityConfirmScreen() {
 
       setBiometricLabel(t('Biometrics'));
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
       setBiometricLabel(t('Biometrics'));
@@ -238,7 +239,7 @@ export default function LiquidityConfirmScreen() {
       await load();
       return true;
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
@@ -273,7 +274,7 @@ export default function LiquidityConfirmScreen() {
       );
       router.replace('/liquidity-controller');
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Liquidity execution failed.'),
         3200
@@ -295,6 +296,11 @@ export default function LiquidityConfirmScreen() {
         return;
       }
 
+      setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+
       if (pendingApprovalMode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
@@ -305,7 +311,7 @@ export default function LiquidityConfirmScreen() {
 
       await performLiquidityExecution();
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
@@ -324,25 +330,6 @@ export default function LiquidityConfirmScreen() {
       void handlePasscodeSubmit();
     }
   }, [handlePasscodeSubmit, passcodeDigits, passcodeOpen]);
-
-  const handleApprove = useCallback(async () => {
-    if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
-    setPendingApprovalMode('execute');
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeEntryOpen(!canUseBiometrics);
-    setPasscodeOpen(true);
-  }, [canUseBiometrics, review, submitting]);
-
-  const handleRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || submitting || energyRenting) return;
-
-    setPendingApprovalMode('rent');
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeEntryOpen(!canUseBiometrics);
-    setPasscodeOpen(true);
-  }, [canUseBiometrics, energyQuote, energyRenting, review, submitting]);
 
   const handleReject = useCallback(() => {
     if (submitting) return;
@@ -373,21 +360,15 @@ export default function LiquidityConfirmScreen() {
   const openPasscodeEntry = useCallback(() => {
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeOpen(true);
     setPasscodeEntryOpen(true);
   }, []);
 
   const closePasscodeEntry = useCallback(() => {
-    if (canUseBiometrics) {
-      setPasscodeDigits('');
-      setPasscodeError('');
-      setPasscodeEntryOpen(false);
-      return;
-    }
-
     closeApprovalAuth();
-  }, [canUseBiometrics, closeApprovalAuth]);
+  }, [closeApprovalAuth]);
 
-  const handleBiometricApproval = useCallback(async () => {
+  const handleBiometricApproval = useCallback(async (mode: 'execute' | 'rent' = pendingApprovalMode) => {
     if (!canUseBiometrics) {
       openPasscodeEntry();
       return;
@@ -395,17 +376,24 @@ export default function LiquidityConfirmScreen() {
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage:
-          pendingApprovalMode === 'rent' ? t('Confirm Energy Rental') : t('Confirm Liquidity'),
+        promptMessage: mode === 'rent' ? t('Confirm Energy Rental') : t('Confirm Liquidity'),
         fallbackLabel: t('Use Passcode'),
         cancelLabel: t('Cancel'),
       });
 
       if (!result.success) {
+        if (result.error === 'user_fallback') {
+          openPasscodeEntry();
+        }
         return;
       }
 
-      if (pendingApprovalMode === 'rent') {
+      setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+
+      if (mode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
           await performLiquidityExecution();
@@ -415,9 +403,34 @@ export default function LiquidityConfirmScreen() {
 
       await performLiquidityExecution();
     } catch (error) {
-      console.error(error);
+      console.warn(error);
     }
   }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performLiquidityExecution, performRentEnergy, t]);
+
+  const openApprovalAuth = useCallback((mode: 'execute' | 'rent', preferPasscode = false) => {
+    setPendingApprovalMode(mode);
+    setPasscodeError('');
+    setPasscodeDigits('');
+
+    if (preferPasscode || !canUseBiometrics) {
+      setPasscodeEntryOpen(true);
+      setPasscodeOpen(true);
+      return;
+    }
+
+    void handleBiometricApproval(mode);
+  }, [canUseBiometrics, handleBiometricApproval]);
+
+  const handleApprove = useCallback(async () => {
+    if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
+    openApprovalAuth('execute');
+  }, [openApprovalAuth, review, submitting]);
+
+  const handleRentEnergy = useCallback(async () => {
+    if (!review || !energyQuote || submitting || energyRenting) return;
+
+    openApprovalAuth('rent');
+  }, [energyQuote, energyRenting, openApprovalAuth, review, submitting]);
 
   if (loading && !review) {
     return <ScreenLoadingState label={t('Building liquidity confirmation')} />;
@@ -426,7 +439,7 @@ export default function LiquidityConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing} />
+        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -467,7 +480,7 @@ export default function LiquidityConfirmScreen() {
                 <View style={styles.heroMetricRow}>
                   <View style={[styles.heroMetricCard, styles.heroMetricCardSpend]}>
                     <Text style={[styles.heroMetricLabel, styles.heroMetricLabelSpend]}>
-                      CONTRACT
+                      {t('CONTRACT')}
                     </Text>
                     <Text style={[styles.heroMetricValue, styles.heroMetricValueSpend]}>
                       Bootstrap
@@ -479,17 +492,17 @@ export default function LiquidityConfirmScreen() {
 
                   <View style={[styles.heroMetricCard, styles.heroMetricCardReceive]}>
                     <Text style={[styles.heroMetricLabel, styles.heroMetricLabelReceive]}>
-                      ACTION
+                      {t('ACTION')}
                     </Text>
                     <Text style={[styles.heroMetricValue, styles.heroMetricValueReceive]}>
-                      Execute
+                      {t('Execute')}
                     </Text>
-                    <Text style={styles.heroMetricToken}>daily liquidity</Text>
+                    <Text style={styles.heroMetricToken}>{t('daily liquidity')}</Text>
                   </View>
                 </View>
 
                 <View style={styles.heroMetaRow}>
-                  <Text style={styles.heroMetaLabel}>Estimated burn</Text>
+                  <Text style={styles.heroMetaLabel}>{t('Estimated burn')}</Text>
                   <Text
                     style={[
                       styles.heroMetaValue,
@@ -510,8 +523,13 @@ export default function LiquidityConfirmScreen() {
                 {submitting ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
-                  <Text style={styles.primaryButtonText}>
-                    {hasTrxForBurn ? 'APPROVE & EXECUTE' : 'TOP UP TRX'}
+                  <Text
+                    style={styles.primaryButtonText}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
+                  >
+                    {hasTrxForBurn ? t('APPROVE & EXECUTE') : t('TOP UP TRX')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -528,39 +546,39 @@ export default function LiquidityConfirmScreen() {
               />
 
               <View style={styles.sectionBlock}>
-                <Text style={styles.sectionEyebrow}>EXECUTION REVIEW</Text>
+                <Text style={styles.sectionEyebrow}>{t('EXECUTION REVIEW')}</Text>
                 <View style={styles.detailCard}>
                   <View style={styles.detailRowFirst}>
-                    <Text style={styles.detailLabel}>Wallet</Text>
+                    <Text style={styles.detailLabel}>{t('Wallet')}</Text>
                     <Text style={styles.detailValue}>{review.wallet.name}</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Controller</Text>
+                    <Text style={styles.detailLabel}>{t('Controller')}</Text>
                     <Text style={styles.detailValue}>{shortAddress(review.controllerAddress)}</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Bootstrapper</Text>
+                    <Text style={styles.detailLabel}>{t('Bootstrapper')}</Text>
                     <Text style={styles.detailValue}>{shortAddress(review.bootstrapperAddress)}</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Estimated Burn</Text>
+                    <Text style={styles.detailLabel}>{t('Estimated Burn')}</Text>
                     <Text style={styles.detailValueAccent}>
                       {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
                     </Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Fee Cap</Text>
+                    <Text style={styles.detailLabel}>{t('Fee Cap')}</Text>
                     <Text style={styles.detailValue}>
                       {formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX
                     </Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>TRX Available</Text>
+                    <Text style={styles.detailLabel}>{t('TRX Available')}</Text>
                     <Text style={styles.detailValue}>{review.trxCoverage.trxBalanceDisplay}</Text>
                   </View>
                 </View>
@@ -575,18 +593,17 @@ export default function LiquidityConfirmScreen() {
                 bandwidthShortfall={review.resources.bandwidthShortfall}
                 message={
                   !review.trxCoverage.canCoverBurn
-                    ? 'Not enough TRX to cover the estimated burn.'
+                    ? t('Not enough TRX to cover the estimated burn.')
                     : hasResourceShortfall
-                      ? 'You are short on resources. The burn estimate above already includes this gap.'
-                      : 'You have enough resources for this action. Extra burn is unlikely.'
+                      ? t('You are short on resources. The burn estimate above already includes this gap.')
+                      : t('You have enough resources for this action. Extra burn is unlikely.')
                 }
                 messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
               />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>
-                  This calls the LiquidityBootstrapper. The contracts still enforce the daily
-                  cadence, threshold, release percentage, and executor split.
+                  {t('This calls the LiquidityBootstrapper. The contracts still enforce the daily cadence, threshold, release percentage, and executor split.')}
                 </Text>
               </View>
 
@@ -596,7 +613,14 @@ export default function LiquidityConfirmScreen() {
                 onPress={handleReject}
                 disabled={submitting}
               >
-                <Text style={styles.secondaryButtonText}>REJECT</Text>
+                <Text
+                  style={styles.secondaryButtonText}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {t('REJECT')}
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -649,7 +673,7 @@ const styles = StyleSheet.create({
   },
 
   heroCard: {
-    marginTop: 10,
+    marginTop: 0,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineStrong,
@@ -897,6 +921,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   primaryButton: {
@@ -918,10 +945,13 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.7,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   errorWrap: {
-    marginTop: 14,
+    marginTop: 0,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: 'rgba(255,48,73,0.18)',

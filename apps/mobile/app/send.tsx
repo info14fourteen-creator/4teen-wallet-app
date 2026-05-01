@@ -24,7 +24,9 @@ import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ScreenBrow from '../src/ui/screen-brow';
-import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
+import SelectedWalletSwitcher, {
+  type WalletSwitcherOption,
+} from '../src/ui/selected-wallet-switcher';
 import { useI18n } from '../src/i18n';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -113,7 +115,7 @@ function parseDecimalInput(value: string) {
 
 function formatDisplayNumber(value: number, maxFractionDigits = 6) {
   if (!Number.isFinite(value)) return '0';
-  return value.toLocaleString('en-US', {
+  return value.toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: maxFractionDigits,
   });
@@ -335,14 +337,14 @@ export default function SendScreen() {
           setTokenOptionsOpen(false);
         }
       } catch (error) {
-        console.error(error);
+        console.warn(error);
         setDraft(null);
         setWalletChoices([]);
         setTokenChoices([]);
         setSavedContacts([]);
         setRecentRecipients([]);
         setErrorText(error instanceof Error ? error.message : t('Failed to load send screen.'));
-        notice.showErrorNotice('Send flow failed to load.', 2400);
+        notice.showErrorNotice(t('Send flow failed to load.'), 2400);
       } finally {
         setLoading(false);
       }
@@ -428,9 +430,9 @@ export default function SendScreen() {
   }, [draft?.token?.symbol, selectedTokenAsset?.symbol]);
 
   const selectedTokenDecimals = useMemo(() => {
-    const decimals = Number(selectedTokenAsset?.decimals ?? draft?.token?.decimals ?? 6);
+    const decimals = Number(draft?.token?.decimals ?? 6);
     return Number.isFinite(decimals) && decimals >= 0 ? decimals : 6;
-  }, [draft?.token?.decimals, selectedTokenAsset?.decimals]);
+  }, [draft?.token?.decimals]);
 
   const selectedTokenPriceUsd = useMemo(() => {
     if (
@@ -623,11 +625,11 @@ export default function SendScreen() {
     setWalletOptionsOpen(false);
     setTokenOptionsOpen(false);
     if (savedContacts.length <= 0) {
-      notice.showNeutralNotice('No saved contacts yet. Add one first.', 2200);
+      notice.showNeutralNotice(t('No saved contacts yet. Add one first.'), 2200);
       return;
     }
     setContactsOpen((prev) => !prev);
-  }, [closeAmountKeyboard, notice, savedContacts.length]);
+  }, [closeAmountKeyboard, notice, savedContacts.length, t]);
 
   const handleOpenAddressBookManage = useCallback(() => {
     closeAmountKeyboard();
@@ -712,7 +714,7 @@ export default function SendScreen() {
   }, [closeAmountKeyboard, notice, t, visibleWalletChoices.length]);
 
   const handleChooseWallet = useCallback(
-    async (wallet: WalletSwitcherItem) => {
+    async (wallet: WalletSwitcherOption) => {
       try {
         setSwitchingWalletId(wallet.id);
         setAmount('');
@@ -723,7 +725,7 @@ export default function SendScreen() {
         setPendingWalletSelectionId(wallet.id);
         await load();
       } catch (error) {
-        console.error(error);
+        console.warn(error);
       notice.showErrorNotice(t('Failed to switch send wallet.'), 2400);
       } finally {
         setSwitchingWalletId(null);
@@ -779,7 +781,7 @@ export default function SendScreen() {
         },
       } as any);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Failed to open transfer review.'),
         3200
@@ -804,7 +806,7 @@ export default function SendScreen() {
   ]);
 
   if (loading && !draft) {
-    return <ScreenLoadingState label="Loading send..." />;
+    return <ScreenLoadingState label={t('Loading send...')} />;
   }
 
   return (
@@ -984,7 +986,12 @@ export default function SendScreen() {
                     onPress={handleToggleContacts}
                     style={styles.addressBookButton}
                   >
-                    <Text style={styles.addressBookButtonText}>
+                    <Text
+                      style={styles.addressBookButtonText}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.82}
+                    >
                       {contactsOpen ? t('CLOSE') : t('CONTACTS')}
                     </Text>
                   </TouchableOpacity>
@@ -1129,7 +1136,14 @@ export default function SendScreen() {
                       style={styles.manageContactsButton}
                       onPress={handleOpenAddressBookManage}
                     >
-                      <Text style={styles.manageContactsButtonText}>{t('MANAGE CONTACTS')}</Text>
+                      <Text
+                        style={styles.manageContactsButtonText}
+                        numberOfLines={2}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.76}
+                      >
+                        {t('MANAGE CONTACTS')}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 ) : null}
@@ -1202,7 +1216,14 @@ export default function SendScreen() {
                 {sending ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
-                  <Text style={styles.sendButtonText}>{t('CONFIRM TRANSFER')}</Text>
+                  <Text
+                    style={styles.sendButtonText}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
+                  >
+                    {t('CONFIRM TRANSFER')}
+                  </Text>
                 )}
               </TouchableOpacity>
             </>
@@ -1564,6 +1585,8 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.4,
+    textAlign: 'center',
+    flexShrink: 1,
   },
 
   inputShell: {
@@ -1769,6 +1792,9 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.4,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   amountHeaderRow: {
@@ -1851,5 +1877,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 });

@@ -1,3 +1,5 @@
+import { translateNow } from '../../i18n';
+
 const FOURTEEN = 'TMLXiCW2ZAkvjmn79ZXa4vdHX5BE3n9x4A';
 const TRX = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 const USDT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
@@ -75,7 +77,7 @@ async function getQuote(fromToken: string, toToken: string, amountInRaw: string)
   const amountOut = findAmountOutDeep(json);
 
   if (!amountOut) {
-    throw new Error('amountOut not found in router response');
+    throw new Error(translateNow('Router response is missing output amount.'));
   }
 
   return amountOut;

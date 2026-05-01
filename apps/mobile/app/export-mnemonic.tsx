@@ -69,7 +69,6 @@ export default function ExportMnemonicScreen() {
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
   const { setChromeHidden } = useWalletSession();
-  const authBiometricRequestedRef = useRef(false);
   const screenCaptureActiveRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
@@ -81,7 +80,7 @@ export default function ExportMnemonicScreen() {
   const [passcodeError, setPasscodeError] = useState('');
   const [infoExpanded, setInfoExpanded] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
+  const [biometricLabel, setBiometricLabel] = useState(t('Biometrics'));
 
   useChromeLoading(loading);
 
@@ -98,7 +97,7 @@ export default function ExportMnemonicScreen() {
         : await getActiveWallet();
 
       if (!wallet) {
-        throw new Error('No active wallet found.');
+        throw new Error(t('No active wallet found.'));
       }
 
       const secret = await getWalletSecret(wallet.id);
@@ -107,7 +106,7 @@ export default function ExportMnemonicScreen() {
 
       if (!canExportMnemonic(wallet, mnemonic) || !words.length) {
         throw new Error(
-          'Seed phrase export is available only for wallets created in 4TEEN or restored from a seed phrase.'
+          t('Seed phrase export is available only for wallets created in 4TEEN or restored from a seed phrase.')
         );
       }
 
@@ -118,11 +117,11 @@ export default function ExportMnemonicScreen() {
     } catch (error) {
       console.error(error);
       setState(null);
-      setErrorText(error instanceof Error ? error.message : 'Failed to load seed phrase.');
+      setErrorText(error instanceof Error ? error.message : t('Failed to load seed phrase.'));
     } finally {
       setLoading(false);
     }
-  }, [params.walletId]);
+  }, [params.walletId, t]);
 
   const loadBiometricsState = useCallback(async () => {
     try {
@@ -134,22 +133,22 @@ export default function ExportMnemonicScreen() {
       setBiometricAvailable(enabled && compatible && enrolled);
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        setBiometricLabel('Face ID');
+        setBiometricLabel(t('Face ID'));
         return;
       }
 
       if (supported.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
-        setBiometricLabel('Fingerprint');
+        setBiometricLabel(t('Fingerprint'));
         return;
       }
 
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     } catch (error) {
       console.error(error);
       setBiometricAvailable(false);
-      setBiometricLabel('Biometrics');
+      setBiometricLabel(t('Biometrics'));
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -187,7 +186,7 @@ export default function ExportMnemonicScreen() {
     screenCaptureActiveRef.current = false;
 
     ScreenCapture.allowScreenCaptureAsync(SCREEN_CAPTURE_GUARD_KEY).catch((error) => {
-      console.error('Failed to unblock screen capture:', error);
+      console.warn('Failed to unblock screen capture:', error);
     });
   }, []);
 
@@ -197,16 +196,16 @@ export default function ExportMnemonicScreen() {
     if (!locked) {
       setRevealed(false);
       notice.showErrorNotice(
-        'Secure screen protection is not available in this build. Rebuild the app before exporting the seed phrase.',
+        t('Secure screen protection is not available in this build. Rebuild the app before exporting the seed phrase.'),
         7000
       );
       return false;
     }
 
     setRevealed(true);
-    notice.showSuccessNotice('Seed phrase unlocked.', 1800);
+    notice.showSuccessNotice(t('Seed phrase unlocked.'), 1800);
     return true;
-  }, [lockScreenCapture, notice]);
+  }, [lockScreenCapture, notice, t]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -232,14 +231,14 @@ export default function ExportMnemonicScreen() {
         if (!active) return;
 
         setRevealed(false);
-        notice.showErrorNotice('Seed phrase hidden after screenshot attempt.', 3600);
+        notice.showErrorNotice(t('Seed phrase hidden after screenshot attempt.'), 3600);
       }) ?? null;
 
     const timeoutId = setTimeout(() => {
       if (!active) return;
 
       setRevealed(false);
-      notice.showNeutralNotice('Seed phrase hidden after 60 seconds.', 3000);
+      notice.showNeutralNotice(t('Seed phrase hidden after 60 seconds.'), 3000);
     }, REVEAL_TIMEOUT_MS);
 
     return () => {
@@ -248,19 +247,26 @@ export default function ExportMnemonicScreen() {
       screenshotSubscription?.remove();
       unlockScreenCapture();
     };
-  }, [notice, revealed, unlockScreenCapture]);
+  }, [notice, revealed, t, unlockScreenCapture]);
 
   const requestBiometricReveal = useCallback(async () => {
     if (!state || !biometricAvailable || revealed) return false;
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Reveal seed phrase',
-        cancelLabel: 'Cancel',
-        fallbackLabel: 'Use Passcode',
+        promptMessage: t('Reveal seed phrase'),
+        cancelLabel: t('Cancel'),
+        fallbackLabel: t('Use Passcode'),
       });
 
-      if (!result.success) return false;
+      if (!result.success) {
+        if (result.error === 'user_fallback') {
+          setPasscodeDigits('');
+          setPasscodeError('');
+          setPasscodeOpen(true);
+        }
+        return false;
+      }
 
       setPasscodeOpen(false);
       setPasscodeDigits('');
@@ -270,24 +276,19 @@ export default function ExportMnemonicScreen() {
       console.error(error);
       return false;
     }
-  }, [biometricAvailable, revealPhraseSecurely, revealed, state]);
+  }, [biometricAvailable, revealPhraseSecurely, revealed, state, t]);
 
   const handleReveal = useCallback(() => {
     if (!state) return;
 
-    authBiometricRequestedRef.current = false;
     setPasscodeDigits('');
     setPasscodeError('');
+    if (biometricAvailable) {
+      void requestBiometricReveal();
+      return;
+    }
     setPasscodeOpen(true);
-  }, [state]);
-
-  useEffect(() => {
-    if (!passcodeOpen || revealed || !biometricAvailable) return;
-    if (authBiometricRequestedRef.current) return;
-
-    authBiometricRequestedRef.current = true;
-    void requestBiometricReveal();
-  }, [biometricAvailable, passcodeOpen, requestBiometricReveal, revealed]);
+  }, [biometricAvailable, requestBiometricReveal, state]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (passcodeDigits.length !== 6) return;
@@ -414,7 +415,14 @@ export default function ExportMnemonicScreen() {
                       style={[styles.primaryButton, styles.actionButtonFlex]}
                       onPress={handleCopy}
                     >
-                      <Text style={styles.primaryButtonText}>{t('COPY PHRASE')}</Text>
+                      <Text
+                        style={styles.primaryButtonText}
+                        numberOfLines={2}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.78}
+                      >
+                        {t('COPY PHRASE')}
+                      </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -422,12 +430,26 @@ export default function ExportMnemonicScreen() {
                       style={[styles.secondaryButton, styles.actionButtonFlex]}
                       onPress={handleHide}
                     >
-                      <Text style={styles.secondaryButtonText}>{t('HIDE')}</Text>
+                      <Text
+                        style={styles.secondaryButtonText}
+                        numberOfLines={2}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.8}
+                      >
+                        {t('HIDE')}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
                   <TouchableOpacity activeOpacity={0.9} style={styles.primaryButton} onPress={() => void handleReveal()}>
-                    <Text style={styles.primaryButtonText}>{t('REVEAL PHRASE')}</Text>
+                    <Text
+                      style={styles.primaryButtonText}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.78}
+                    >
+                      {t('REVEAL PHRASE')}
+                    </Text>
                   </TouchableOpacity>
                 )}
               </>
@@ -454,16 +476,17 @@ export default function ExportMnemonicScreen() {
               <View style={styles.authContent}>
                 <Text style={ui.eyebrow}>{t('Seed Phrase Export')}</Text>
 
-                <Text style={styles.authTitle}>
-                  {t('Confirm with ')}<Text style={styles.authTitleAccent}>{t('Passcode')}</Text>
-                </Text>
+                <Text style={styles.authTitle}>{t('Confirm with Passcode')}</Text>
 
                 <Text style={styles.authLead}>
-                  {t('This unlocks the wallet root key locally. Confirm with your 6-digit passcode')}
                   {biometricAvailable
-                    ? ` ${t('or')} ${resolveBiometricPromptLabel(biometricLabel)}`
-                    : ''}
-                  {t('; nothing is sent to 4TEEN servers.')}
+                    ? t(
+                        'This unlocks the wallet root key locally. Confirm with your 6-digit passcode or {{method}}; nothing is sent to 4TEEN servers.',
+                        { method: resolveBiometricPromptLabel(biometricLabel) }
+                      )
+                    : t(
+                        'This unlocks the wallet root key locally. Confirm with your 6-digit passcode; nothing is sent to 4TEEN servers.'
+                      )}
                 </Text>
 
                 <View style={styles.authPasscodeCard}>
@@ -725,6 +748,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   secondaryButton: {
@@ -743,6 +769,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   authModalSafe: {

@@ -23,7 +23,9 @@ import ScreenLoadingState from '../src/ui/screen-loading-state';
 import KeyboardView from '../src/ui/KeyboardView';
 import InfoToggleIcon from '../src/ui/info-toggle-icon';
 import NumericKeypad from '../src/ui/numeric-keypad';
-import SelectedWalletSwitcher from '../src/ui/selected-wallet-switcher';
+import SelectedWalletSwitcher, {
+  type WalletSwitcherOption,
+} from '../src/ui/selected-wallet-switcher';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useSwipeDownDismiss } from '../src/ui/use-swipe-down-dismiss';
@@ -96,7 +98,7 @@ function normalizeAmountInput(value: string) {
 
 function formatTokenAmount(value?: number, maximumFractionDigits = 6) {
   const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
-  return safe.toLocaleString('en-US', {
+  return safe.toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits,
   });
@@ -210,30 +212,30 @@ function dedupeSwapAssetChoices(items: SwapAssetChoice[]) {
 function buildCatalogSwapAssetChoices(
   items: { id: string; name: string; abbr: string; logo?: string }[]
 ): SwapAssetChoice[] {
-  return items
-    .map((item) => {
-      const tokenId = String(item.id || '').trim();
-      if (!tokenId || tokenId === TRX_TOKEN_ID) return null;
+  const mapped: (SwapAssetChoice | null)[] = items.map((item) => {
+    const tokenId = String(item.id || '').trim();
+    if (!tokenId || tokenId === TRX_TOKEN_ID) return null;
 
-      return {
-        id: tokenId,
-        tokenId,
-        name: String(item.name || item.abbr || tokenId).trim(),
-        symbol: String(item.abbr || item.name || 'TOKEN').trim() || 'TOKEN',
-        address: tokenId,
-        decimals: 6,
-        logo: item.logo,
-        isNative: false,
-        amountDisplay: '0',
-        valueDisplay: formatDisplayCurrency(0),
-        deltaDisplay: '—',
+    return {
+      id: tokenId,
+      tokenId,
+      name: String(item.name || item.abbr || tokenId).trim(),
+      symbol: String(item.abbr || item.name || 'TOKEN').trim() || 'TOKEN',
+      address: tokenId,
+      decimals: 6,
+      logo: item.logo,
+      isNative: false,
+      amountDisplay: '0',
+      valueDisplay: formatDisplayCurrency(0),
+      deltaDisplay: '—',
         deltaTone: 'dim',
         amount: 0,
         valueInUsd: 0,
         deltaUsd24h: 0,
       } satisfies SwapAssetChoice;
-    })
-    .filter((item): item is SwapAssetChoice => Boolean(item));
+    });
+
+  return mapped.filter((item): item is SwapAssetChoice => item !== null);
 }
 
 export default function SwapScreen() {
@@ -244,7 +246,6 @@ export default function SwapScreen() {
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const [amountKeyboardVisible, setAmountKeyboardVisible] = useState(false);
   const contentBottomInset = useBottomInset(amountKeyboardVisible ? 312 : 0);
-  const amountBackspaceActsAsClose = amount === '' || amount === '0';
   const notice = useNotice();
   const { setPendingWalletSelectionId } = useWalletSession();
   const scrollRef = useRef<any>(null);
@@ -265,6 +266,7 @@ export default function SwapScreen() {
   const [switchingWalletId, setSwitchingWalletId] = useState<string | null>(null);
   const [activeWallet, setActiveWallet] = useState<WalletMeta | null>(null);
   const [amount, setAmount] = useState('');
+  const amountBackspaceActsAsClose = amount === '' || amount === '0';
   const [sourceTokenId, setSourceTokenId] = useState('');
   const [targetTokenId, setTargetTokenId] = useState('');
   const [slippage, setSlippage] = useState('3.00');
@@ -308,7 +310,7 @@ export default function SwapScreen() {
       const baseWallet = explicitWallet ?? currentWallet;
 
       if (!baseWallet) {
-        throw new Error('No active wallet selected.');
+        throw new Error(t('No active wallet selected.'));
       }
 
       const signingWalletItems = aggregate.items.filter((item) => item.wallet.kind !== 'watch-only');
@@ -442,7 +444,7 @@ export default function SwapScreen() {
       setSourceTokenOptionsOpen(false);
       setTargetTokenOptionsOpen(false);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setActiveWallet(null);
       setWalletChoices([]);
       setTokenChoices([]);
@@ -530,7 +532,7 @@ export default function SwapScreen() {
         })
         .catch((error) => {
           if (quotesRequestRef.current !== requestId) return;
-          console.error(error);
+          console.warn(error);
           setRoutes([]);
           setStatusText(error instanceof Error ? error.message : t('Failed to load swap routes.'));
         })
@@ -654,7 +656,7 @@ export default function SwapScreen() {
         });
         router.push('/swap-confirm');
       } catch (error) {
-        console.error(error);
+        console.warn(error);
         notice.showErrorNotice(
           error instanceof Error ? error.message : t('Failed to open swap review.'),
           3200
@@ -691,7 +693,7 @@ export default function SwapScreen() {
     setWalletOptionsOpen((prev) => !prev);
   }, [closeAmountKeyboard, notice, t, visibleWalletChoices.length]);
 
-  const handleChooseWallet = useCallback(async (wallet: WalletSwitcherItem) => {
+  const handleChooseWallet = useCallback(async (wallet: WalletSwitcherOption) => {
     try {
       setSwitchingWalletId(wallet.id);
       setAmount('');
@@ -701,7 +703,7 @@ export default function SwapScreen() {
       setPendingWalletSelectionId(wallet.id);
       await loadSwapContext();
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(t('Failed to switch swap wallet.'), 2400);
     } finally {
       setSwitchingWalletId(null);
@@ -778,7 +780,7 @@ export default function SwapScreen() {
 
         setTargetTokenId(asset.tokenId);
       } catch (error) {
-        console.error(error);
+        console.warn(error);
         notice.showErrorNotice(t('Failed to load target token.'), 2400);
       }
     },
@@ -1013,19 +1015,22 @@ export default function SwapScreen() {
                 minimumFontScale={0.72}
               >
                 {selectedSourceToken?.valueInUsd && selectedSourceToken?.amount
-                  ? `${selectedSourceToken.symbol} price: ${formatDisplayCurrency(
-                      selectedSourceToken.valueInUsd / Math.max(selectedSourceToken.amount, 1e-9),
-                      {
-                        minimumFractionDigits:
-                          selectedSourceToken.valueInUsd / Math.max(selectedSourceToken.amount, 1e-9) >= 1
-                            ? 2
-                            : 4,
-                        maximumFractionDigits:
-                          selectedSourceToken.valueInUsd / Math.max(selectedSourceToken.amount, 1e-9) >= 1
-                            ? 2
-                            : 6,
-                      }
-                    )}`
+                  ? t('{{symbol}} price: {{price}}', {
+                      symbol: selectedSourceToken.symbol,
+                      price: formatDisplayCurrency(
+                        selectedSourceToken.valueInUsd / Math.max(selectedSourceToken.amount, 1e-9),
+                        {
+                          minimumFractionDigits:
+                            selectedSourceToken.valueInUsd / Math.max(selectedSourceToken.amount, 1e-9) >= 1
+                              ? 2
+                              : 4,
+                          maximumFractionDigits:
+                            selectedSourceToken.valueInUsd / Math.max(selectedSourceToken.amount, 1e-9) >= 1
+                              ? 2
+                              : 6,
+                        }
+                      ),
+                    })
                   : t('Choose the amount you want to swap from the selected token.')}
               </Text>
             </View>

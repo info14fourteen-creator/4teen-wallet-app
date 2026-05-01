@@ -22,6 +22,7 @@ import {
   type WalletMeta,
 } from './wallet/storage';
 import { formatDisplayCurrency } from '../ui/currency-format';
+import { getCachedLanguage, getLanguageLocaleTag, translateNow } from '../i18n';
 
 const SUN = 1_000_000;
 const DEFAULT_DECIMALS = 6;
@@ -350,11 +351,11 @@ async function getSigningWalletContext() {
   const wallet = (await ensureSigningWalletActive()) ?? initialWallet;
 
   if (!wallet) {
-    throw new Error('No wallet available for direct buy.');
+    throw new Error(translateNow('No wallet available for direct buy.'));
   }
 
   if (wallet.kind === 'watch-only') {
-    throw new Error('Direct buy requires a full-access wallet.');
+    throw new Error(translateNow('Direct buy requires a full-access wallet.'));
   }
 
   const secret = await getWalletSecret(wallet.id);
@@ -368,7 +369,7 @@ async function getSigningWalletContext() {
   }
 
   if (!isValidPrivateKey(privateKey)) {
-    throw new Error('Private key not found for this wallet.');
+    throw new Error(translateNow('Private key not found for this wallet.'));
   }
 
   return {
@@ -549,11 +550,14 @@ export function formatDirectBuyDate(unixSeconds: number) {
     return '—';
   }
 
-  return new Date(unixSeconds * 1000).toLocaleDateString('en-GB', {
+  return new Date(unixSeconds * 1000).toLocaleDateString(
+    getLanguageLocaleTag(getCachedLanguage()),
+    {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-  });
+    }
+  );
 }
 
 export function parseDirectBuyAmount(value: string) {
@@ -568,7 +572,7 @@ export async function loadDirectBuyPriceSnapshot(input: {
   const readerAddress = normalizeAddress(input.readerAddress);
 
   if (!readerAddress) {
-    throw new Error('Reader address is required.');
+    throw new Error(translateNow('Reader address is required.'));
   }
 
   const contractState = await readDirectBuyContractState(contractAddress, readerAddress).catch(() =>
@@ -656,7 +660,7 @@ export async function buildDirectBuyReview(input: {
       : parsePositiveNumber(input.trxAmount);
 
   if (amountTrxValue <= 0) {
-    throw new Error('Enter a valid TRX amount.');
+    throw new Error(translateNow('Enter a valid TRX amount.'));
   }
 
   const context = await loadDirectBuyContext(input.contractAddress);
@@ -671,7 +675,7 @@ export async function buildDirectBuyReview(input: {
   }
 
   if (!isValidPrivateKey(privateKey)) {
-    throw new Error('Private key not found for this wallet.');
+    throw new Error(translateNow('Private key not found for this wallet.'));
   }
 
   let resources = await estimateDirectBuyResources({
@@ -792,7 +796,7 @@ export async function executeDirectBuy(input: {
       : parsePositiveNumber(input.trxAmount);
 
   if (amountTrx <= 0) {
-    throw new Error('Enter a valid TRX amount.');
+    throw new Error(translateNow('Enter a valid TRX amount.'));
   }
 
   const { wallet, privateKey } = await getSigningWalletContext();
@@ -808,7 +812,7 @@ export async function executeDirectBuy(input: {
   const callValue = toSun(amountTrx);
 
   if (callValue <= 0) {
-    throw new Error('Enter a valid TRX amount.');
+    throw new Error(translateNow('Enter a valid TRX amount.'));
   }
 
   const tronWeb = createTronWeb(privateKey);
@@ -824,7 +828,7 @@ export async function executeDirectBuy(input: {
   const txId = extractTxid(result);
 
   if (!txId) {
-    throw new Error('Transaction sent but txid was not returned.');
+    throw new Error(translateNow('Transaction sent but txid was not returned.'));
   }
 
   const split = computeDirectBuySplit(amountTrx);

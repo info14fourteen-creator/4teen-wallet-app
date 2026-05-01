@@ -126,8 +126,7 @@ export default function EnableBiometricsScreen() {
 
             <TouchableOpacity activeOpacity={0.9} style={styles.secondaryButton} onPress={handleSkip}>
               <Text style={ui.buttonLabel}>
-                {enabled || flow === 'disable-biometrics' ? 'Keep It On' : 'Skip for Now'}
-                
+                {enabled || flow === 'disable-biometrics' ? t('Keep It On') : t('Skip for Now')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -155,7 +154,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    marginTop: 8,
+    marginTop: 0,
     color: colors.white,
     fontSize: 34,
     lineHeight: 40,

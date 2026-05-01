@@ -41,7 +41,7 @@ export default function HomeScreen() {
           },
           {
             eyebrow: t('Visibility'),
-            value: '14D',
+            value: t('14D'),
             body: t('Every direct buy is tracked per purchase with unlock countdowns.'),
           },
           {

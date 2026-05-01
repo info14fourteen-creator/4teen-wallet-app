@@ -317,7 +317,12 @@ function ActionButton({
       onPress={onPress}
       style={[styles.actionButton, variant === 'primary' ? styles.primaryButton : styles.secondaryButton]}
     >
-      <Text style={variant === 'primary' ? styles.primaryButtonText : styles.secondaryButtonText}>
+      <Text
+        style={variant === 'primary' ? styles.primaryButtonText : styles.secondaryButtonText}
+        numberOfLines={2}
+        adjustsFontSizeToFit
+        minimumFontScale={0.78}
+      >
         {label}
       </Text>
     </TouchableOpacity>
@@ -501,6 +506,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
     textTransform: 'uppercase',
     letterSpacing: 0.35,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   secondaryButtonText: {
@@ -510,6 +518,9 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
     textTransform: 'uppercase',
     letterSpacing: 0.35,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   routeCard: {

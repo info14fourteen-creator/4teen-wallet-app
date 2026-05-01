@@ -136,7 +136,7 @@ export default function CreateWalletScreen() {
     }
 
     notice.showAckNotice(
-      `Word ${verifyIndexes[activeVerifyIndex] + 1} suggestions`,
+      t('Word {{index}} suggestions', { index: verifyIndexes[activeVerifyIndex] + 1 }),
       verifySuggestions.slice(0, 6).map((word) => ({
         label: word,
         onPress: () => {
@@ -164,6 +164,7 @@ export default function CreateWalletScreen() {
     activeVerifyValue,
     focusVerifyIndex,
     notice,
+    t,
     verifyIndexes,
     verifySuggestions,
     verifyWords.length,
@@ -266,7 +267,7 @@ export default function CreateWalletScreen() {
       notice.showSuccessNotice(t('Seed wallet created.'), 2400);
       router.replace('/wallet');
     } catch (error) {
-      console.error('CREATE WALLET FAILED', error);
+      console.warn('CREATE WALLET FAILED', error);
       const message = error instanceof Error ? error.message : t('Failed to create wallet.');
       notice.showErrorNotice(message, 3200);
     } finally {
@@ -312,7 +313,7 @@ export default function CreateWalletScreen() {
           {stage === 'setup' ? (
             <>
               <Text style={styles.title}>
-                {t('Create a new')} <Text style={styles.titleAccent}>{t('seed wallet')}</Text>
+                <Text style={styles.titleAccent}>{t('Create a new wallet from a recovery phrase')}</Text>
               </Text>
 
               <Text style={styles.noticeLine}>
@@ -377,7 +378,7 @@ export default function CreateWalletScreen() {
                 onPress={() => void handleGenerate()}
               >
                 <Text style={[ui.buttonLabel, !canGenerate && styles.primaryButtonTextDisabled]}>
-                  {t('GENERATE SEED PHRASE')}
+                  {t('GENERATE PHRASE')}
                 </Text>
               </TouchableOpacity>
             </>
@@ -386,7 +387,7 @@ export default function CreateWalletScreen() {
           {stage === 'reveal' ? (
             <>
               <Text style={styles.title}>
-                {t('Back up your')} <Text style={styles.titleAccent}>{t('seed phrase')}</Text>
+                <Text style={styles.titleAccent}>{t('Back up your recovery phrase')}</Text>
               </Text>
 
               <Text style={styles.noticeLine}>
@@ -400,7 +401,7 @@ export default function CreateWalletScreen() {
                 })}
               </Text>
 
-              <Text style={styles.blockEyebrow}>{t('Seed Phrase')}</Text>
+              <Text style={styles.blockEyebrow}>{t('RECOVERY PHRASE')}</Text>
 
               <View style={styles.grid}>
                 {generatedWords.map((value, index) => (
@@ -566,7 +567,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    marginTop: 8,
+    marginTop: 0,
     color: colors.white,
     fontSize: 34,
     lineHeight: 40,

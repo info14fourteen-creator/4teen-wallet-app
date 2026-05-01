@@ -244,7 +244,7 @@ export default function ManageCryptoScreen() {
           (tokenId) => tokenId && !existingIds.has(tokenId)
         );
 
-        const historyAssets = await mapWithConcurrencyLimit(
+        const historyAssets = await mapWithConcurrencyLimit<string, PortfolioAsset | null>(
           missingHistoryIds,
           HISTORY_FALLBACK_TOKEN_DETAIL_PARALLELISM,
           async (tokenId) => {
@@ -271,7 +271,7 @@ export default function ManageCryptoScreen() {
         );
 
         nextAssets.push(
-          ...historyAssets.filter((asset): asset is PortfolioAsset => Boolean(asset))
+          ...historyAssets.filter((asset): asset is PortfolioAsset => asset !== null)
         );
       } catch {
       }

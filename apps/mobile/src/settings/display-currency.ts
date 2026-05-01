@@ -116,6 +116,10 @@ export function getDisplayCurrencyLabel(currency: DisplayCurrencyCode) {
   return DISPLAY_CURRENCY_OPTIONS.find((item) => item.code === currency)?.title || currency;
 }
 
+export function getDisplayCurrencySymbol(currency: DisplayCurrencyCode) {
+  return DISPLAY_CURRENCY_OPTIONS.find((item) => item.code === currency)?.symbol || currency;
+}
+
 export function subscribeDisplayCurrencyChange(
   listener: (currency: DisplayCurrencyCode) => void
 ) {

@@ -4,7 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 
-import { useI18n } from '../src/i18n';
+import { translateNow, useI18n } from '../src/i18n';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import {
@@ -26,7 +26,7 @@ export default function UnlockScreen() {
   const [passcodeError, setPasscodeError] = useState('');
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [biometricsLabel, setBiometricsLabel] = useState('Biometrics');
+  const [biometricsLabel, setBiometricsLabel] = useState(translateNow('Biometrics'));
   const [biometricsLoaded, setBiometricsLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -40,7 +40,7 @@ export default function UnlockScreen() {
       console.error(error);
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
-      setBiometricsLabel('Biometrics');
+      setBiometricsLabel(translateNow('Biometrics'));
     } finally {
       setBiometricsLoaded(true);
     }
@@ -169,11 +169,17 @@ export default function UnlockScreen() {
   const canUseBiometrics = biometricAvailable && biometricsEnabled;
 
   const biometricMethodText =
-    biometricsLabel === 'Face ID' ? 'face unlock' : biometricsLabel === 'Fingerprint' ? 'fingerprint' : 'biometrics';
+    biometricsLabel === t('Face ID')
+      ? t('face unlock')
+      : biometricsLabel === t('Fingerprint')
+        ? t('fingerprint')
+        : t('biometrics');
 
-  const leadText = `Authorize wallet access with your 6-digit passcode${
-    canUseBiometrics ? ` or use ${biometricMethodText}.` : '.'
-  }`;
+  const leadText = canUseBiometrics
+    ? t('Authorize wallet access with your 6-digit passcode or use {{method}}.', {
+        method: biometricMethodText,
+      })
+    : t('Authorize wallet access with your 6-digit passcode.');
 
   const backspaceIcon = <BackspaceIcon width={22} height={22} />;
   const bioSlot = canUseBiometrics ? (
@@ -213,9 +219,7 @@ export default function UnlockScreen() {
         <View style={styles.content}>
           <Text style={ui.eyebrow}>{t('Wallet Approval')}</Text>
 
-          <Text style={styles.title}>
-            {t('Confirm with')} <Text style={styles.titleAccent}>{t('Passcode')}</Text>
-          </Text>
+          <Text style={styles.title}>{t('Unlock with Passcode')}</Text>
 
           <Text style={styles.lead}>{leadText}</Text>
 
@@ -237,7 +241,7 @@ export default function UnlockScreen() {
                   onPress={handlePasscodeCancel}
                   disabled={submitting}
                 >
-                  <Text style={styles.authCancelButtonText}>CANCEL</Text>
+                  <Text style={styles.authCancelButtonText}>{t('CANCEL')}</Text>
                 </TouchableOpacity>
               ) : null}
             </>
@@ -251,7 +255,7 @@ export default function UnlockScreen() {
                   disabled={submitting}
                 >
                   <Text style={styles.unlockButtonText}>
-                    {`USE ${biometricsLabel.toUpperCase()}`}
+                    {`${t('USE')} ${biometricsLabel.toUpperCase()}`}
                   </Text>
                 </TouchableOpacity>
               ) : null}
@@ -268,7 +272,7 @@ export default function UnlockScreen() {
                     !canUseBiometrics && styles.passcodeButtonTextPrimary,
                   ]}
                 >
-                  ENTER PASSCODE
+                  {t('ENTER PASSCODE')}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -9,7 +9,7 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import ExpandChevron from '../src/ui/expand-chevron';
-import { getCachedLanguageLabel, useI18n } from '../src/i18n';
+import { getLanguageLabel, useI18n } from '../src/i18n';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
@@ -32,14 +32,14 @@ export default function SettingsScreen() {
   const router = useRouter();
   const notice = useNotice();
   const { triggerWalletDataRefresh } = useWalletSession();
-  const { t } = useI18n();
+  const { language, t } = useI18n();
 
   const [clearingCache, setClearingCache] = useState(false);
   const [clearActive, setClearActive] = useState(false);
   const [clearProgress, setClearProgress] = useState(0);
-  const [authValue, setAuthValue] = useState('Not set');
+  const [authValue, setAuthValue] = useState(t('Not set'));
   const [currencyValue, setCurrencyValue] = useState(getCachedDisplayCurrency());
-  const [languageValue, setLanguageValue] = useState(getCachedLanguageLabel());
+  const [languageValue, setLanguageValue] = useState(getLanguageLabel(language));
 
   const clearStartedAtRef = useRef<number | null>(null);
   const clearTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -71,25 +71,24 @@ export default function SettingsScreen() {
       let cancelled = false;
 
       const loadAuthValue = async () => {
-        const [passcodeEnabled, biometricsEnabled, autoLockMode, displayCurrency, languageLabel] = await Promise.all([
+        const [passcodeEnabled, biometricsEnabled, autoLockMode, displayCurrency] = await Promise.all([
           hasPasscode(),
           getBiometricsEnabled(),
           getAutoLockMode(),
           getDisplayCurrency(),
-          Promise.resolve(getCachedLanguageLabel()),
         ]);
 
         if (cancelled) return;
 
         setCurrencyValue(displayCurrency);
-        setLanguageValue(languageLabel);
+        setLanguageValue(getLanguageLabel(language));
 
         if (!passcodeEnabled) {
           setAuthValue(t('Off'));
           return;
         }
 
-        const lockLabel = getAutoLockModeLabel(autoLockMode);
+        const lockLabel = t(getAutoLockModeLabel(autoLockMode));
         setAuthValue(
           biometricsEnabled
             ? `${t('Passcode + Biometrics')} • ${lockLabel}`
@@ -102,7 +101,7 @@ export default function SettingsScreen() {
       return () => {
         cancelled = true;
       };
-    }, [t])
+    }, [language, t])
   );
 
   const handleClearCacheConfirmed = useCallback(async () => {
@@ -117,7 +116,7 @@ export default function SettingsScreen() {
       triggerWalletDataRefresh();
       notice.showSuccessNotice(t('All temporary cache cleared.'), 2400);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(t('Cache clear failed.'), 2200);
     } finally {
       setClearingCache(false);

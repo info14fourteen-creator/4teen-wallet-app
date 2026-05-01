@@ -29,7 +29,7 @@ import LottieIcon from '../src/ui/lottie-icon';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
-import { useI18n } from '../src/i18n';
+import { translateNow, useI18n } from '../src/i18n';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { goBackOrReplace } from '../src/ui/safe-back';
 
@@ -71,21 +71,21 @@ function detectScanKind(value: string): ScanKind {
 }
 
 function getScanLabel(kind: ScanKind | null) {
-  if (kind === 'address') return 'TRON address';
-  if (kind === 'url') return 'URL';
-  if (kind === 'text') return 'Text';
+  if (kind === 'address') return translateNow('TRON address');
+  if (kind === 'url') return translateNow('URL');
+  if (kind === 'text') return translateNow('Text');
   return '';
 }
 
 function getPrimaryButtonLabel(kind: ScanKind | null, mode: ScanMode) {
   if (kind === 'address') {
-    if (mode === 'watch-only') return 'Import';
-    if (mode === 'address-book') return 'Use Address';
-    return 'Send';
+    if (mode === 'watch-only') return translateNow('Import');
+    if (mode === 'address-book') return translateNow('Use Address');
+    return translateNow('Send');
   }
 
-  if (kind === 'url') return 'Open';
-  return 'Use';
+  if (kind === 'url') return translateNow('Open');
+  return translateNow('Use');
 }
 
 export default function ScanScreen() {
@@ -469,7 +469,7 @@ export default function ScanScreen() {
 
       handleResolvedValue(results[0].data);
     } catch (error) {
-      console.error('Failed to scan image QR:', error);
+      console.warn('Failed to scan image QR:', error);
       if (mountedRef.current && !leavingRef.current) {
         notice.showErrorNotice(t('Image QR scan failed.'), 2200);
       }
@@ -504,152 +504,180 @@ export default function ScanScreen() {
         >
           <ScreenBrow label={t('SCAN')} variant="back" />
 
-          {!permission ? (
-            <View style={styles.stubCard}>
-              <Text style={styles.stubTitle}>{t('Preparing camera')}</Text>
-              <Text style={styles.stubText}>{t('Checking camera permission status.')}</Text>
-            </View>
-          ) : null}
+          <View style={styles.contentStack}>
+            {!permission ? (
+              <View style={styles.stubCard}>
+                <Text style={styles.stubTitle}>{t('Preparing camera')}</Text>
+                <Text style={styles.stubText}>{t('Checking camera permission status.')}</Text>
+              </View>
+            ) : null}
 
-          {permission && !permission.granted ? (
-            <View style={styles.stubCard}>
-              <Text style={styles.stubTitle}>{t('Camera access required')}</Text>
-              <Text style={styles.stubText}>
-                {t('Allow camera access to scan wallet addresses and QR codes.')}
-              </Text>
-
-              <TouchableOpacity
-                activeOpacity={0.9}
-                style={[styles.actionButton, styles.primaryButton]}
-                onPress={() => void requestPermission()}
-              >
-                <Text style={styles.primaryButtonText}>{t('Allow Camera')}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
-          {permission?.granted ? (
-            <>
-              <View style={styles.cameraCard}>
-                <CameraView
-                  style={[styles.camera, !scanViewReady ? styles.cameraHidden : null]}
-                  facing="back"
-                  barcodeScannerSettings={{
-                    barcodeTypes: ['qr'],
-                  }}
-                  onCameraReady={() => {
-                    if (!mountedRef.current || leavingRef.current) return;
-                    setCameraReady(true);
-                  }}
-                  onBarcodeScanned={scannerPaused || hasResult || timedOut ? undefined : handleBarcodeScanned}
-                />
-
-                <View
-                  style={[styles.overlayRoot, !scanViewReady ? styles.overlayHidden : null]}
-                  pointerEvents="none"
-                >
-                  <View style={styles.overlayTop} />
-                  <View style={styles.overlayMiddle}>
-                    <View style={styles.overlaySide} />
-
-                    <View
-                      style={styles.scanWindow}
-                      onLayout={(event) => {
-                        const nextHeight = Math.round(event.nativeEvent.layout.height);
-                        if (nextHeight > 0 && nextHeight !== scanWindowHeight) {
-                          setScanWindowHeight(nextHeight);
-                        }
-                      }}
-                    >
-                      <View style={styles.overlayFrame} />
-
-                      {!hasResult && !timedOut ? (
-                        <Animated.View
-                          style={[
-                            styles.scanLine,
-                            {
-                              transform: [{ translateY: scanLineTranslateY }],
-                            },
-                          ]}
-                        />
-                      ) : null}
-                    </View>
-
-                    <View style={styles.overlaySide} />
-                  </View>
-                  <View style={styles.overlayBottom} />
-                </View>
-
-                {hasResult && !(scannedType === 'address' && mode !== 'default') ? (
-                  <View style={styles.cameraActionsWrap}>
-                    <TouchableOpacity
-                      activeOpacity={0.9}
-                      style={styles.scanAgainButton}
-                      onPress={handleScanAgain}
-                    >
-                      <Text style={styles.scanAgainButtonText}>{t('Scan again')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-
-                {!hasResult && timeoutStage === 'warn' ? (
-                  <View style={styles.timeoutNoticeWrap} pointerEvents="none">
-                    <Text style={styles.timeoutNoticeText}>{t('Nothing found yet')}</Text>
-                  </View>
-                ) : null}
-
-                {!scanViewReady ? (
-                  <View style={styles.cameraBootMask}>
-                    <ActivityIndicator size="small" color={colors.accent} />
-                    <Text style={styles.cameraBootTitle}>{t('Preparing camera')}</Text>
-                    <Text style={styles.cameraBootText}>
-                      {t('If the live preview does not appear, scan a QR code from your photo library.')}
-                    </Text>
-                  </View>
-                ) : null}
+            {permission && !permission.granted ? (
+              <View style={styles.stubCard}>
+                <Text style={styles.stubTitle}>{t('Camera access required')}</Text>
+                <Text style={styles.stubText}>
+                  {t('Allow camera access to scan wallet addresses and QR codes.')}
+                </Text>
 
                 <TouchableOpacity
                   activeOpacity={0.9}
-                  style={styles.galleryButton}
-                  onPress={() => void handlePickFromGallery()}
-                  disabled={processingImage}
+                  style={[styles.actionButton, styles.primaryButton]}
+                  onPress={() => void requestPermission()}
                 >
-                  <LottieIcon source={scanGallerySource} size={18} staticFrame={269} />
+                  <Text
+                    style={styles.primaryButtonText}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
+                  >
+                    {t('Allow Camera')}
+                  </Text>
                 </TouchableOpacity>
               </View>
+            ) : null}
 
-              {hasResult && !(scannedType === 'address' && mode !== 'default') ? (
-                <View style={styles.resultCard}>
-                  <View style={styles.resultTopRow}>
-                    <Text style={styles.resultLabel}>{t('Scanned result')}</Text>
-                    <Text style={styles.resultType}>{t(scanLabel)}</Text>
+            {permission?.granted ? (
+              <>
+                <View style={styles.cameraCard}>
+                  <CameraView
+                    style={[styles.camera, !scanViewReady ? styles.cameraHidden : null]}
+                    facing="back"
+                    barcodeScannerSettings={{
+                      barcodeTypes: ['qr'],
+                    }}
+                    onCameraReady={() => {
+                      if (!mountedRef.current || leavingRef.current) return;
+                      setCameraReady(true);
+                    }}
+                    onBarcodeScanned={scannerPaused || hasResult || timedOut ? undefined : handleBarcodeScanned}
+                  />
+
+                  <View
+                    style={[styles.overlayRoot, !scanViewReady ? styles.overlayHidden : null]}
+                    pointerEvents="none"
+                  >
+                    <View style={styles.overlayTop} />
+                    <View style={styles.overlayMiddle}>
+                      <View style={styles.overlaySide} />
+
+                      <View
+                        style={styles.scanWindow}
+                        onLayout={(event) => {
+                          const nextHeight = Math.round(event.nativeEvent.layout.height);
+                          if (nextHeight > 0 && nextHeight !== scanWindowHeight) {
+                            setScanWindowHeight(nextHeight);
+                          }
+                        }}
+                      >
+                        <View style={styles.overlayFrame} />
+
+                        {!hasResult && !timedOut ? (
+                          <Animated.View
+                            style={[
+                              styles.scanLine,
+                              {
+                                transform: [{ translateY: scanLineTranslateY }],
+                              },
+                            ]}
+                          />
+                        ) : null}
+                      </View>
+
+                      <View style={styles.overlaySide} />
+                    </View>
+                    <View style={styles.overlayBottom} />
                   </View>
 
-                  <Text style={styles.resultValue}>{scannedValue}</Text>
+                  {hasResult && !(scannedType === 'address' && mode !== 'default') ? (
+                    <View style={styles.cameraActionsWrap}>
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={styles.scanAgainButton}
+                        onPress={handleScanAgain}
+                      >
+                        <Text
+                          style={styles.scanAgainButtonText}
+                          numberOfLines={2}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.8}
+                        >
+                          {t('Scan again')}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
 
-                  <View style={styles.actionsColumn}>
-                    <TouchableOpacity
-                      activeOpacity={0.9}
-                      style={[styles.actionButton, styles.primaryButton, styles.fullWidthButton]}
-                      onPress={() => void handlePrimaryAction()}
-                    >
-                      <Text style={styles.primaryButtonText}>
-                        {t(getPrimaryButtonLabel(scannedType, mode))}
+                  {!hasResult && timeoutStage === 'warn' ? (
+                    <View style={styles.timeoutNoticeWrap} pointerEvents="none">
+                      <Text style={styles.timeoutNoticeText}>{t('Nothing found yet')}</Text>
+                    </View>
+                  ) : null}
+
+                  {!scanViewReady ? (
+                    <View style={styles.cameraBootMask}>
+                      <ActivityIndicator size="small" color={colors.accent} />
+                      <Text style={styles.cameraBootTitle}>{t('Preparing camera')}</Text>
+                      <Text style={styles.cameraBootText}>
+                        {t('If the live preview does not appear, scan a QR code from your photo library.')}
                       </Text>
-                    </TouchableOpacity>
+                    </View>
+                  ) : null}
 
-                    <TouchableOpacity
-                      activeOpacity={0.9}
-                      style={[styles.actionButton, styles.secondaryButton, styles.fullWidthButton]}
-                      onPress={() => void handleCopy()}
-                    >
-                      <Text style={styles.secondaryButtonText}>{t('Copy')}</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.galleryButton}
+                    onPress={() => void handlePickFromGallery()}
+                    disabled={processingImage}
+                  >
+                    <LottieIcon source={scanGallerySource} size={18} staticFrame={269} />
+                  </TouchableOpacity>
                 </View>
-              ) : null}
-            </>
-          ) : null}
+
+                {hasResult && !(scannedType === 'address' && mode !== 'default') ? (
+                  <View style={styles.resultCard}>
+                    <View style={styles.resultTopRow}>
+                      <Text style={styles.resultLabel}>{t('Scanned result')}</Text>
+                      <Text style={styles.resultType}>{t(scanLabel)}</Text>
+                    </View>
+
+                    <Text style={styles.resultValue}>{scannedValue}</Text>
+
+                    <View style={styles.actionsColumn}>
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={[styles.actionButton, styles.primaryButton, styles.fullWidthButton]}
+                        onPress={() => void handlePrimaryAction()}
+                      >
+                        <Text
+                          style={styles.primaryButtonText}
+                          numberOfLines={2}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.78}
+                        >
+                          {t(getPrimaryButtonLabel(scannedType, mode))}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={[styles.actionButton, styles.secondaryButton, styles.fullWidthButton]}
+                        onPress={() => void handleCopy()}
+                      >
+                        <Text
+                          style={styles.secondaryButtonText}
+                          numberOfLines={2}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.8}
+                        >
+                          {t('Copy')}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+          </View>
         </ScrollView>
 
       </View>
@@ -675,6 +703,9 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: layout.screenPaddingX,
+  },
+
+  contentStack: {
     gap: 12,
   },
 
@@ -795,7 +826,7 @@ const styles = StyleSheet.create({
   },
 
   cameraBootText: {
-    color: colors.textSecondary,
+    color: colors.textSoft,
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
@@ -913,6 +944,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 16,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   secondaryButtonText: {
@@ -920,6 +954,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 16,
     fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   stubCard: {

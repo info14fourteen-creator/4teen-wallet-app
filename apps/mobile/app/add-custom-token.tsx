@@ -312,7 +312,7 @@ export default function AddCustomTokenScreen() {
           })
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>Token not found.</Text>
+            <Text style={styles.emptyText}>{t('Token not found.')}</Text>
           </View>
         )}
       </View>

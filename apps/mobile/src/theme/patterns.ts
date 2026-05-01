@@ -371,7 +371,7 @@ export const patterns = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    marginBottom: 22,
+    marginBottom: 30,
   },
 
   browBack: {
@@ -379,7 +379,7 @@ export const patterns = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 22,
+    marginBottom: 30,
   },
 
   browBackLink: {
@@ -387,7 +387,7 @@ export const patterns = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 22,
+    marginBottom: 30,
   },
 
   browLinkIcon: {
@@ -395,7 +395,7 @@ export const patterns = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 22,
+    marginBottom: 30,
   },
 
   browLabel: {

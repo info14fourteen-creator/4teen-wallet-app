@@ -274,7 +274,7 @@ export default function ImportSeedScreen() {
       notice.showSuccessNotice(t('Wallet imported from seed phrase.'), 2400);
       router.replace('/wallet');
     } catch (error) {
-      console.error('IMPORT FAILED', error);
+      console.warn('IMPORT FAILED', error);
       const message = error instanceof Error ? error.message : t('Failed to import wallet.');
       notice.showErrorNotice(message, 3200);
     } finally {
@@ -318,7 +318,7 @@ export default function ImportSeedScreen() {
           ) : null}
 
           <Text style={styles.title}>
-            {t('Restore from')} <Text style={styles.titleAccent}>{t('seed phrase')}</Text>
+            <Text style={styles.titleAccent}>{t('Restore from a recovery phrase')}</Text>
           </Text>
 
           <Text style={styles.noticeLine}>{t('We never store your seed phrase on our servers.')}</Text>
@@ -357,7 +357,7 @@ export default function ImportSeedScreen() {
             {t('Filled: {{filled}}/{{total}}', { filled: filledCount, total: wordCount })}
           </Text>
 
-          <Text style={styles.blockEyebrow}>{t('Seed Phrase')}</Text>
+          <Text style={styles.blockEyebrow}>{t('RECOVERY PHRASE')}</Text>
 
           <View style={styles.grid}>
             {words.map((value, index) => {
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    marginTop: 8,
+    marginTop: 0,
     color: colors.white,
     fontSize: 34,
     lineHeight: 40,

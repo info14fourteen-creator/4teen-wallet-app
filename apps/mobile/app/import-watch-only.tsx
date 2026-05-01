@@ -147,7 +147,7 @@ export default function ImportWatchOnlyScreen() {
           ) : null}
 
           <Text style={styles.title}>
-            {t('Add a')} <Text style={styles.titleAccent}>{t('watch-only')}</Text> {t('wallet')}
+            <Text style={styles.titleAccent}>{t('Add a watch-only wallet')}</Text>
           </Text>
 
           <Text style={styles.noticeLine}>{t('This wallet can view activity, but it cannot sign.')}</Text>
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    marginTop: 8,
+    marginTop: 0,
     color: colors.white,
     fontSize: 34,
     lineHeight: 40,

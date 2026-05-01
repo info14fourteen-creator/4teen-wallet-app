@@ -88,8 +88,7 @@ export default function ConfirmPasscodeScreen() {
         <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
           <ScreenBrow label={isChangeFlow ? t('CHANGE PASSCODE') : t('CONFIRM PASSCODE')} />
           <Text style={styles.title}>
-            {isChangeFlow ? t('Confirm your new ') : t('Confirm your ')}
-            <Text style={styles.titleAccent}>{t('passcode')}</Text>
+            {isChangeFlow ? t('Confirm your new passcode') : t('Confirm your passcode')}
           </Text>
 
           <Text style={styles.lead}>
@@ -162,7 +161,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    marginTop: 8,
+    marginTop: 0,
     color: colors.white,
     fontSize: 34,
     lineHeight: 40,

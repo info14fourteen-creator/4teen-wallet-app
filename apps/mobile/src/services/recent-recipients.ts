@@ -10,7 +10,7 @@ export type RecentRecipient = {
 const STORAGE_KEY = 'fourteen_wallet_recent_recipients_v1';
 const MAX_RECIPIENTS = 8;
 
-function sanitizeName(value: string) {
+function sanitizeName(value?: string) {
   return String(value || '').trim();
 }
 

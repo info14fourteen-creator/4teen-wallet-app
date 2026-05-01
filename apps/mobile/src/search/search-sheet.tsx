@@ -22,11 +22,11 @@ import { APP_SEARCH_ROUTES } from './search-routes';
 import type {
   SearchQuickPageIcon,
   SearchSuggestion,
-  SearchSuggestionTag,
   SearchTokenItem,
 } from './search-types';
 import { openInAppBrowser } from '../utils/open-in-app-browser';
 import { useNotice } from '../notice/notice-provider';
+import { translateNow, useI18n } from '../i18n';
 import {
   getCustomTokenCatalog,
   getCmcDexSearchToken,
@@ -162,17 +162,17 @@ function scoreTextMatch(query: string, candidates: string[]) {
 }
 
 function sourceLabel(source: SearchTokenItem['source']) {
-  if (source === 'portfolio') return 'IN WALLET';
-  if (source === 'custom') return 'CUSTOM';
+  if (source === 'portfolio') return translateNow('MY');
+  if (source === 'custom') return translateNow('CUSTOM');
   if (source === 'cmc') return 'CMC';
-  return 'CATALOG';
+  return translateNow('CATALOG');
 }
 
-function suggestionTagLabel(item: SearchSuggestion): SearchSuggestionTag | null {
-  if (item.type === 'route') return 'PAGE';
-  if (item.type === 'wallet') return 'WALLET';
-  if (item.type === 'contact') return 'CONTACT';
-  if (item.type === 'address') return 'ADDRESS';
+function suggestionTagLabel(item: SearchSuggestion): string | null {
+  if (item.type === 'route') return translateNow('PAGE');
+  if (item.type === 'wallet') return translateNow('WALLET');
+  if (item.type === 'contact') return translateNow('CONTACT');
+  if (item.type === 'address') return translateNow('ADDRESS');
   if (item.type === 'url') return 'URL';
   return null;
 }
@@ -272,6 +272,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const notice = useNotice();
+  const { t } = useI18n();
   const inputRef = useRef<TextInput>(null);
 
   const [query, setQuery] = useState('');
@@ -437,7 +438,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
           exactContractToken.name ||
           exactContractToken.abbr ||
           shortenMiddle(exactContractToken.id),
-        subtitle: `${exactContractToken.abbr || 'TOKEN'} • ${shortenMiddle(exactContractToken.id)} • ${sourceLabel(exactContractToken.source)}`,
+        subtitle: `${exactContractToken.abbr || t('TOKEN')} • ${shortenMiddle(exactContractToken.id)} • ${sourceLabel(exactContractToken.source)}`,
         tokenId: exactContractToken.id,
         logo: exactContractToken.logo,
         badge: sourceLabel(exactContractToken.source),
@@ -454,10 +455,10 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
         id: `address:${q}`,
         type: 'address',
         title: matchedContact
-          ? `Wallet address • ${matchedContact.name}`
+          ? translateNow('Wallet address • {{name}}', { name: matchedContact.name })
           : exactContractToken
-            ? 'Wallet address also matches this contract'
-            : 'Wallet address detected',
+            ? translateNow('Wallet address also matches this contract')
+            : translateNow('Wallet address detected'),
         subtitle: q,
         address: q,
         score: exactContractToken ? 2050 : 2200,
@@ -468,7 +469,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
       next.push({
         id: `url:${q}`,
         type: 'url',
-        title: 'Open in browser',
+        title: translateNow('Open in browser'),
         subtitle: normalizeUrl(q),
         url: normalizeUrl(q),
         score: 1500,
@@ -493,7 +494,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
         id: `token:${token.id}`,
         type: 'token',
         title: token.name || token.abbr || shortenMiddle(token.id),
-        subtitle: `${token.abbr || 'TOKEN'} • ${shortenMiddle(token.id)} • ${sourceLabel(token.source)}`,
+        subtitle: `${token.abbr || t('TOKEN')} • ${shortenMiddle(token.id)} • ${sourceLabel(token.source)}`,
         tokenId: token.id,
         logo: token.logo,
         badge: sourceLabel(token.source),
@@ -541,9 +542,13 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
 
     for (const route of APP_SEARCH_ROUTES) {
       const routeTerms = routeToSearchTerms(route.route);
+      const translatedRouteTitle = translateNow(route.title);
+      const translatedRouteSubtitle = translateNow(route.subtitle);
       const routeCandidates = [
         route.title,
         route.subtitle,
+        translatedRouteTitle,
+        translatedRouteSubtitle,
         route.route,
         ...routeTerms,
         ...route.keywords,
@@ -560,8 +565,8 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
       next.push({
         id: route.id,
         type: 'route',
-        title: route.title,
-        subtitle: route.subtitle,
+        title: translatedRouteTitle,
+        subtitle: translatedRouteSubtitle,
         route: route.route,
         score: score + 80 + (exactRouteIntent ? 900 : 0),
       });
@@ -570,7 +575,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
     return uniqueById(next)
       .sort((a, b) => b.score - a.score)
       .slice(0, 14);
-  }, [activeWallet?.id, contacts, liveContractToken, normalized, tokenItems, wallets]);
+  }, [activeWallet?.id, contacts, liveContractToken, normalized, t, tokenItems, wallets]);
 
   const quickRoutes = useMemo(() => {
     const hasWallets = wallets.length > 0;
@@ -611,7 +616,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
           : true;
 
       if (!hasString) {
-        notice.showNeutralNotice('Clipboard is empty.', 1800);
+        notice.showNeutralNotice(translateNow('Clipboard is empty.'), 1800);
         focusInput(query);
         return;
       }
@@ -620,36 +625,20 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
       const trimmed = text.trim();
 
       if (!trimmed) {
-        notice.showNeutralNotice('Clipboard is empty.', 1800);
+        notice.showNeutralNotice(translateNow('Clipboard is empty.'), 1800);
         focusInput(query);
         return;
       }
 
       setQuery(trimmed);
-      notice.showSuccessNotice('Pasted from clipboard.', 1400);
+      notice.showSuccessNotice(translateNow('Pasted from clipboard.'), 1400);
       focusInput(trimmed);
     } catch (error) {
       console.error('Failed to read clipboard.', error);
-      notice.showErrorNotice('Clipboard read failed.', 2200);
+      notice.showErrorNotice(translateNow('Clipboard read failed.'), 2200);
       focusInput(query);
     }
   }, [focusInput, notice, query]);
-
-  const handleUrlSubmit = useCallback(async () => {
-    const value = normalized;
-    if (!value) return;
-
-    if (looksLikeUrl(value)) {
-      Keyboard.dismiss();
-      await openInAppBrowser(router, normalizeUrl(value));
-      onClose();
-      return;
-    }
-
-    if (suggestions[0]) {
-      await handlePrimaryPress(suggestions[0]);
-    }
-  }, [handlePrimaryPress, normalized, onClose, router, suggestions]);
 
   const handlePrimaryPress = useCallback(
     async (item: SearchSuggestion) => {
@@ -706,6 +695,22 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
     },
     [onClose, router]
   );
+
+  const handleUrlSubmit = useCallback(async () => {
+    const value = normalized;
+    if (!value) return;
+
+    if (looksLikeUrl(value)) {
+      Keyboard.dismiss();
+      await openInAppBrowser(router, normalizeUrl(value));
+      onClose();
+      return;
+    }
+
+    if (suggestions[0]) {
+      await handlePrimaryPress(suggestions[0]);
+    }
+  }, [handlePrimaryPress, normalized, onClose, router, suggestions]);
 
   const handleAddressBookAdd = useCallback(
     (address: string, suggestedName?: string) => {
@@ -767,7 +772,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
                   ref={inputRef}
                   value={query}
                   onChangeText={setQuery}
-                  placeholder="crypto, address, dapp..."
+                  placeholder={t('crypto, address, dapp...')}
                   placeholderTextColor={colors.textDim}
                   style={styles.input}
                   autoCapitalize="none"
@@ -819,11 +824,11 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
           {loading ? (
             <View style={styles.loadingCard}>
               <ThinOrangeLoader size={18} strokeWidth={2} />
-              <Text style={styles.loadingText}>Loading search index...</Text>
+              <Text style={styles.loadingText}>{t('Loading search index...')}</Text>
             </View>
           ) : normalized.length === 0 ? (
             <View style={styles.dropdownCard}>
-              <Text style={styles.sectionLabel}>Quick pages</Text>
+              <Text style={styles.sectionLabel}>{t('QUICK PAGES')}</Text>
 
               <ScrollView
                 style={styles.resultsScroll}
@@ -852,10 +857,10 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
 
                     <View style={styles.suggestionTextWrap}>
                       <Text style={styles.suggestionTitle} numberOfLines={1}>
-                        {item.title}
+                        {t(item.title)}
                       </Text>
                       <Text style={styles.suggestionSubtitle} numberOfLines={1}>
-                        {item.subtitle}
+                        {t(item.subtitle)}
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -938,9 +943,9 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
                           <TouchableOpacity
                             activeOpacity={0.88}
                             style={[styles.inlineActionButton, styles.inlineActionPrimary]}
-                            onPress={() => void handlePrimaryPress(item)}
-                          >
-                            <Text style={styles.inlineActionPrimaryText}>Send</Text>
+                          onPress={() => void handlePrimaryPress(item)}
+                        >
+                            <Text style={styles.inlineActionPrimaryText}>{t('Send')}</Text>
                           </TouchableOpacity>
 
                           <TouchableOpacity
@@ -949,7 +954,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
                             onPress={() => handleAddressBookAdd(item.address)}
                           >
                             <Text style={styles.inlineActionSecondaryText}>
-                              Add to Address Book
+                              {t('Add to Address Book')}
                             </Text>
                           </TouchableOpacity>
                         </View>
@@ -961,10 +966,11 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
             </View>
           ) : (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>Nothing matched yet</Text>
+              <Text style={styles.emptyTitle}>{t('Nothing matched yet')}</Text>
               <Text style={styles.emptyText}>
-                Try token name, symbol, contract, wallet name, contact, TRON address,
-                route word, or website.
+                {t(
+                  'Try token name, symbol, contract, wallet name, contact, TRON address, route word, or website.'
+                )}
               </Text>
             </View>
           )}

@@ -1,6 +1,6 @@
 const express = require('express');
 const env = require('../config/env');
-const { recordOpsEvent } = require('../services/ops/events');
+const { recordOpsEvent, resolveOpsEvent } = require('../services/ops/events');
 const { runMonitorTick } = require('../services/ops/monitor');
 const { ensureOpsTables, listRecentEvents } = require('../services/ops/store');
 const { getSyntheticScreenerSnapshot } = require('../services/ops/screeners');
@@ -14,6 +14,71 @@ const router = express.Router();
 
 function normalizeValue(value) {
   return String(value || '').trim();
+}
+
+function sanitizeText(value, maxLength = 500) {
+  return normalizeValue(value)
+    .replace(/[\u0000-\u001F\u007F]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, maxLength);
+}
+
+function sanitizeJsonValue(value, depth = 0) {
+  if (depth > 3) {
+    return null;
+  }
+
+  if (value == null) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, 12).map((item) => sanitizeJsonValue(item, depth + 1));
+  }
+
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, 24)
+        .map(([key, item]) => [sanitizeText(key, 80), sanitizeJsonValue(item, depth + 1)])
+    );
+  }
+
+  if (typeof value === 'string') {
+    return sanitizeText(value, 500);
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  return sanitizeText(value, 120);
+}
+
+function normalizeAppFeedbackType(value) {
+  const safe = sanitizeText(value, 40).toLowerCase();
+
+  if (['issue', 'confusing', 'slow', 'idea', 'praise'].includes(safe)) {
+    return safe;
+  }
+
+  return 'issue';
+}
+
+function severityForAppFeedback(type) {
+  if (type === 'praise' || type === 'idea') {
+    return 'info';
+  }
+
+  return 'warning';
+}
+
+function shouldNotifyAppFeedback(type) {
+  return type === 'issue' || type === 'slow' || type === 'confusing';
+}
+
+function shouldKeepAppFeedbackOpen(type) {
+  return type === 'issue' || type === 'slow' || type === 'confusing';
 }
 
 function readAdminToken(req) {
@@ -168,6 +233,59 @@ router.post('/feedback', requireAdminToken, async (req, res) => {
     return res.json({
       ok: true,
       result: event
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/feedback/app', async (req, res) => {
+  try {
+    const type = normalizeAppFeedbackType(req.body?.type);
+    const payload = {
+      title: sanitizeText(req.body?.title, 120) || 'Wallet feedback',
+      message: sanitizeText(req.body?.message, 500) || 'No message provided',
+      sourceScreen: sanitizeText(req.body?.sourceScreen, 80) || 'unknown',
+      appVersion: sanitizeText(req.body?.appVersion, 80) || null,
+      walletAddressMasked: sanitizeText(req.body?.walletAddressMasked, 60) || null,
+      details: sanitizeJsonValue(req.body?.details, 0)
+    };
+
+    const fingerprint =
+      sanitizeText(req.body?.fingerprint, 200) ||
+      `app-feedback:${type}:${payload.sourceScreen}:${payload.title}:${payload.message}`;
+
+    const event = await recordOpsEvent({
+      source: 'app-feedback',
+      category: 'feedback',
+      type: `app_${type}`,
+      severity: severityForAppFeedback(type),
+      title: payload.title,
+      message: payload.message,
+      details: payload,
+      fingerprint,
+      notify: shouldNotifyAppFeedback(type)
+    });
+
+    if (!shouldKeepAppFeedbackOpen(type)) {
+      await resolveOpsEvent({
+        source: 'app-feedback',
+        category: 'feedback',
+        type: `app_${type}`,
+        fingerprint,
+        message: 'Feedback stored.'
+      }).catch(() => null);
+    }
+
+    return res.json({
+      ok: true,
+      result: {
+        id: event?.id || null,
+        stored: true
+      }
     });
   } catch (error) {
     return res.status(error.status || 500).json({

@@ -16,12 +16,22 @@ const {
 const TELEGRAM_API_BASE_URL = 'https://api.telegram.org';
 const CALLBACK_PREFIX = 'ops:';
 const DEFAULT_SCREEN = 'overview';
-const SUPPORTED_SCREENS = new Set(['overview', 'screen', 'health', 'events', 'keys', 'queues', 'targets']);
+const SUPPORTED_SCREENS = new Set([
+  'overview',
+  'screen',
+  'health',
+  'events',
+  'feedback',
+  'keys',
+  'queues',
+  'targets'
+]);
 const BOT_COMMANDS = [
   { command: 'menu', description: 'Открыть главное меню' },
   { command: 'screen', description: 'Проверить реальные app-flow' },
   { command: 'health', description: 'Понять, что сейчас болит' },
   { command: 'events', description: 'Посмотреть активные проблемы' },
+  { command: 'feedback', description: 'Посмотреть отзывы из кошелька' },
   { command: 'keys', description: 'Проверить ключи и лимиты' },
   { command: 'queues', description: 'Посмотреть очереди и фоновые задачи' },
   { command: 'targets', description: 'Увидеть разрешённые чаты' },
@@ -281,6 +291,40 @@ function severityIcon(severity) {
   return '🟢';
 }
 
+function feedbackTypeMeta(type) {
+  const safe = normalizeValue(type).toLowerCase();
+
+  if (safe === 'app_issue') {
+    return { icon: '🚨', label: 'поломка' };
+  }
+
+  if (safe === 'app_confusing') {
+    return { icon: '🤔', label: 'непонятно' };
+  }
+
+  if (safe === 'app_slow') {
+    return { icon: '🐢', label: 'тормозит' };
+  }
+
+  if (safe === 'app_idea') {
+    return { icon: '💡', label: 'идея' };
+  }
+
+  if (safe === 'app_praise') {
+    return { icon: '❤️', label: 'похвала' };
+  }
+
+  return { icon: '💬', label: 'отзыв' };
+}
+
+function feedbackStatusLabel(event) {
+  if (event?.resolved_at) {
+    return 'разобрано';
+  }
+
+  return 'ждёт внимания';
+}
+
 function parseJson(value, fallback = null) {
   if (value == null) return fallback;
   if (typeof value === 'object') return value;
@@ -363,11 +407,24 @@ function buildEventRecommendation(event) {
     return `Совет: проверить operator wallet ${shortenAddress(details?.meta?.walletAddress || details?.walletAddress)} и не застряли ли аллокации.`;
   }
 
+  if (source === 'app-feedback' && category === 'feedback') {
+    return 'Совет: открыть экран, который человек указал в отзыве, и быстро воспроизвести путь руками.';
+  }
+
   return 'Совет: откройте детали ниже и посмотрите соседние сигналы в разделе здоровья.';
 }
 
 function buildHeader(title, subtitle) {
   return `${title}\n${subtitle}`;
+}
+
+function shortenText(value, maxLength = 160) {
+  const safe = normalizeValue(value).replace(/\s+/g, ' ');
+  if (safe.length <= maxLength) {
+    return safe;
+  }
+
+  return `${safe.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 function buildMenuMarkup(currentScreen) {
@@ -386,9 +443,10 @@ function buildMenuMarkup(currentScreen) {
       ],
       [
         { text: '🚨 События', callback_data: `${CALLBACK_PREFIX}screen:events` },
-        { text: '🩺 Здоровье', callback_data: `${CALLBACK_PREFIX}screen:health` }
+        { text: '💬 Feedback', callback_data: `${CALLBACK_PREFIX}screen:feedback` }
       ],
       [
+        { text: '🩺 Здоровье', callback_data: `${CALLBACK_PREFIX}screen:health` },
         { text: '🔑 Ключи', callback_data: `${CALLBACK_PREFIX}screen:keys` },
         { text: '📦 Очереди', callback_data: `${CALLBACK_PREFIX}screen:queues` }
       ],
@@ -646,6 +704,59 @@ async function buildEventsText() {
   ].join('\n');
 }
 
+async function buildFeedbackText() {
+  const events = await listRecentEvents(20, { onlyOpen: false }).catch(() => []);
+  const feedbackEvents = events.filter(
+    (event) =>
+      normalizeValue(event?.source) === 'app-feedback' &&
+      normalizeValue(event?.category) === 'feedback'
+  );
+
+  if (!feedbackEvents.length) {
+    return [
+      buildHeader('💬 Feedback из кошелька', 'Здесь будут живые отзывы прямо из приложения.'),
+      'Пока пусто. Когда кто-то нажмёт feedback в кошельке, я покажу это здесь.'
+    ].join('\n');
+  }
+
+  const openCount = feedbackEvents.filter((event) => !event.resolved_at).length;
+  const issueCount = feedbackEvents.filter((event) => normalizeValue(event?.type) === 'app_issue').length;
+  const confusingCount = feedbackEvents.filter((event) => normalizeValue(event?.type) === 'app_confusing').length;
+  const slowCount = feedbackEvents.filter((event) => normalizeValue(event?.type) === 'app_slow').length;
+  const ideaCount = feedbackEvents.filter((event) => normalizeValue(event?.type) === 'app_idea').length;
+  const praiseCount = feedbackEvents.filter((event) => normalizeValue(event?.type) === 'app_praise').length;
+
+  return [
+    buildHeader('💬 Feedback из кошелька', 'Не логи, а живой голос пользователя: что раздражает, где тупит и что нравится.'),
+    `Сейчас ждут внимания: ${openCount}`,
+    `Срез последних отзывов: 🚨 ${issueCount} • 🤔 ${confusingCount} • 🐢 ${slowCount} • 💡 ${ideaCount} • ❤️ ${praiseCount}`,
+    '',
+    ...feedbackEvents.slice(0, 6).map((event) => {
+      const meta = feedbackTypeMeta(event?.type);
+      const details = parseJson(event?.details_json, {});
+      const sourceScreen = normalizeValue(details?.sourceScreen) || 'unknown';
+      const appVersion = normalizeValue(details?.appVersion) || 'unknown';
+      const walletAddress = normalizeValue(details?.walletAddressMasked);
+      const walletLine = walletAddress ? ` • кошелёк ${walletAddress}` : '';
+      const count = Number(event?.count || 0);
+      const repeatLine = count > 1 ? ` • повторов ${count}` : '';
+
+      return [
+        `${meta.icon} ${normalizeValue(event?.title) || meta.label}`,
+        `Статус: ${feedbackStatusLabel(event)} • ${meta.label} • ${formatRelativeMinutes(event?.last_seen_at)}`,
+        `Экран: ${sourceScreen} • версия ${appVersion}${walletLine}${repeatLine}`,
+        `Что человек сказал: ${shortenText(event?.message, 220)}`,
+        buildEventRecommendation(event)
+      ].join('\n');
+    }),
+    '',
+    'Как читать этот экран:',
+    '1. 🚨 🤔 🐢 — это полезные сигналы, на них лучше смотреть первыми.',
+    '2. 💡 и ❤️ я тоже храню, но они не шумят в активных алертах.',
+    '3. Если один и тот же отзыв повторяется, значит проблема уже не случайная.'
+  ].join('\n');
+}
+
 async function buildQueuesText() {
   const { clockState, events } = await collectOverviewData();
 
@@ -691,6 +802,7 @@ async function buildScreenText(screen) {
   if (screen === 'screen') return buildScreenerText();
   if (screen === 'health') return buildHealthText();
   if (screen === 'events') return buildEventsText();
+  if (screen === 'feedback') return buildFeedbackText();
   if (screen === 'keys') return buildKeysText();
   if (screen === 'queues') return buildQueuesText();
   if (screen === 'targets') return buildTargetsText();
@@ -851,6 +963,7 @@ async function handleCommand(message) {
         '/screen — проверить реальные app-flow',
         '/health — быстро понять, что болит',
         '/events — активные проблемы',
+        '/feedback — отзывы из кошелька',
         '/keys — ключи и лимиты',
         '/queues — очереди и фоновые задачи',
         '/targets — куда бот пишет',
@@ -884,6 +997,11 @@ async function handleCommand(message) {
 
   if (command === '/events') {
     await sendScreen(chatId, 'events');
+    return { ok: true };
+  }
+
+  if (command === '/feedback') {
+    await sendScreen(chatId, 'feedback');
     return { ok: true };
   }
 

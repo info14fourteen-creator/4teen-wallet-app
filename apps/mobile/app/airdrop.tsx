@@ -92,11 +92,11 @@ function formatCardAmount(value: string) {
   }
 
   if (raw.toLowerCase() === 'tba') {
-    return 'TBA';
+    return translateNow('TBA');
   }
 
   if (raw.toLowerCase() === 'claimed') {
-    return 'Claimed';
+    return translateNow('CLAIMED');
   }
 
   const parsed = Number(raw);
@@ -105,7 +105,7 @@ function formatCardAmount(value: string) {
     return '0';
   }
 
-  return parsed.toLocaleString('en-US', {
+  return parsed.toLocaleString(undefined, {
     minimumFractionDigits: parsed >= 100 ? 0 : 2,
     maximumFractionDigits: 2,
   });
@@ -121,8 +121,8 @@ function buildTelegramCard(
   if (!wallet) {
     return {
       key: 'telegram',
-      title: 'Telegram',
-      status: 'NEEDS WALLET',
+      title: translateNow('Telegram'),
+      status: translateNow('NEEDS WALLET'),
       amount: '0',
       when: translateNow('Connect a wallet first'),
       tone: 'orange',
@@ -136,8 +136,8 @@ function buildTelegramCard(
   if (wallet.kind === 'watch-only') {
     return {
       key: 'telegram',
-      title: 'Telegram',
-      status: 'WATCH-ONLY',
+      title: translateNow('Telegram'),
+      status: translateNow('WATCH-ONLY'),
       amount: '0',
       when: translateNow('Switch to a signing wallet'),
       tone: 'orange',
@@ -151,12 +151,12 @@ function buildTelegramCard(
   if (telegramClaim?.claimed) {
     return {
       key: 'telegram',
-      title: 'Telegram',
+      title: translateNow('Telegram'),
       status: translateNow('RECEIVED'),
       amount: formatCardAmount(telegramClaim.amountDisplay),
       when: telegramClaim.claimedAtLabel,
       tone: 'green',
-      actionLabel: 'VIEW TX',
+      actionLabel: translateNow('VIEW TX'),
       actionable: true,
       explorerUrl: telegramClaim.explorerUrl,
       socialUrl: AIRDROP_SOCIAL_URLS.telegram,
@@ -167,8 +167,8 @@ function buildTelegramCard(
   if (overview?.claim?.status === 'sent') {
     return {
       key: 'telegram',
-      title: 'Telegram',
-      status: 'RECEIVED',
+      title: translateNow('Telegram'),
+      status: translateNow('RECEIVED'),
       amount: formatCardAmount(overview.claim.reward_amount || '0'),
       when: formatSocialDate(overview.claim.sent_at),
       tone: 'green',
@@ -185,7 +185,7 @@ function buildTelegramCard(
   if (overview?.claim?.status === 'queued') {
     return {
       key: 'telegram',
-      title: 'Telegram',
+      title: translateNow('Telegram'),
       status: translateNow('QUEUED'),
       amount: formatCardAmount(overview.claim.reward_amount || '0'),
       when: formatSocialDate(overview.claim.queued_at),
@@ -200,7 +200,7 @@ function buildTelegramCard(
   if (overview?.guard.walletBlockedByLegacyClaim || overview?.guard.telegramBlockedByLegacyClaim) {
     return {
       key: 'telegram',
-      title: 'Telegram',
+      title: translateNow('Telegram'),
       status: translateNow('LEGACY USED'),
       amount: '0',
       when: translateNow('Already consumed in old bot flow'),
@@ -215,7 +215,7 @@ function buildTelegramCard(
   if (overview?.session?.status === 'wallet_verified') {
     return {
       key: 'telegram',
-      title: 'Telegram',
+      title: translateNow('Telegram'),
       status: translateNow('SESSION LIVE'),
       amount: '0',
       when: translateNow('Open Telegram, press Start, then Verify'),
@@ -230,7 +230,7 @@ function buildTelegramCard(
   if (overview?.session?.status === 'awaiting_membership') {
     return {
       key: 'telegram',
-      title: 'Telegram',
+      title: translateNow('Telegram'),
       status: translateNow('VERIFY NOW'),
       amount: '0',
       when: translateNow('Join group and channel, then press Verify'),
@@ -244,7 +244,7 @@ function buildTelegramCard(
 
   return {
     key: 'telegram',
-    title: 'Telegram',
+    title: translateNow('Telegram'),
     status: translateNow('AVAILABLE'),
     amount: '0',
     when: translateNow('Not received yet'),
@@ -271,7 +271,7 @@ function buildSocialCards(
     if (claim?.claimed) {
       return {
         key,
-        title,
+        title: translateNow(title),
         status: translateNow('RECEIVED'),
         amount: formatCardAmount(claim.amountDisplay),
         when: claim.claimedAtLabel,
@@ -286,7 +286,7 @@ function buildSocialCards(
 
     return {
       key,
-      title,
+        title: translateNow(title),
       status: translateNow('NOT LIVE'),
       amount: 'TBA',
       when: translateNow('Rollout pending'),
@@ -411,7 +411,7 @@ export default function AirdropScreen() {
 
       setOnChain(nextOnChain);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
 
       if (loadRequestIdRef.current === requestId) {
         setOverview(null);
@@ -526,7 +526,7 @@ export default function AirdropScreen() {
       );
       await load(true);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       const message =
         error instanceof Error ? error.message : t('Failed to start Telegram airdrop flow.');
       notice.showErrorNotice(message, 3000);
@@ -569,7 +569,7 @@ export default function AirdropScreen() {
         setWalletOptionsOpen(false);
         await load(true);
       } catch (error) {
-        console.error(error);
+        console.warn(error);
         notice.showErrorNotice(t('Failed to switch active wallet.'), 2400);
       } finally {
         setSwitchingWalletId(null);
@@ -705,8 +705,8 @@ function SocialDropCard({
         <View style={styles.socialMetaCard}>
           <Text style={styles.socialMetaLabel}>{translateNow('Amount')}</Text>
           <Text style={styles.socialAmount}>
-            {card.amount === 'TBA' || card.amount === 'Claimed'
-              ? card.amount
+            {card.amount === 'TBA' || card.amount === 'CLAIMED'
+              ? translateNow(card.amount)
               : `${card.amount} 4TEEN`}
           </Text>
         </View>

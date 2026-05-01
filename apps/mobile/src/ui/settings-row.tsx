@@ -34,9 +34,34 @@ export default function SettingsRow({
         {icon ? <View style={styles.iconWrap}>{icon}</View> : null}
 
         <View style={styles.rowText}>
-          <Text style={ui.actionLabel}>{label}</Text>
-          {value ? <Text style={styles.value}>{value}</Text> : null}
-          {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+          <Text
+            style={ui.actionLabel}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.72}
+          >
+            {label}
+          </Text>
+          {value ? (
+            <Text
+              style={styles.value}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}
+            >
+              {value}
+            </Text>
+          ) : null}
+          {hint ? (
+            <Text
+              style={styles.hint}
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.76}
+            >
+              {hint}
+            </Text>
+          ) : null}
         </View>
       </View>
 

@@ -78,6 +78,43 @@ export function getLanguageLabel(code: AppLanguageCode) {
   return LANGUAGE_OPTIONS.find((option) => option.code === code)?.nativeName || code;
 }
 
+export function getLanguageLocaleTag(language: AppLanguageCode = languageMemory) {
+  switch (language) {
+    case 'ru':
+      return 'ru-RU';
+    case 'uz':
+      return 'uz-UZ';
+    case 'tr':
+      return 'tr-TR';
+    case 'de':
+      return 'de-DE';
+    case 'fr':
+      return 'fr-FR';
+    case 'es':
+      return 'es-ES';
+    case 'it':
+      return 'it-IT';
+    case 'pt':
+      return 'pt-PT';
+    case 'nl':
+      return 'nl-NL';
+    case 'pl':
+      return 'pl-PL';
+    case 'ar':
+      return 'ar-SA';
+    case 'hi':
+      return 'hi-IN';
+    case 'ja':
+      return 'ja-JP';
+    case 'zh-CN':
+      return 'zh-CN';
+    case 'ko':
+      return 'ko-KR';
+    default:
+      return 'en-US';
+  }
+}
+
 export function getCachedLanguageLabel() {
   return getLanguageLabel(languageMemory);
 }

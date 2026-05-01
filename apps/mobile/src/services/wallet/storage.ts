@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import { translateNow } from '../../i18n';
 
 export type WalletKind = 'mnemonic' | 'private-key' | 'watch-only';
 export type WalletMnemonicSource = 'created-in-app' | 'imported-seed';
@@ -95,11 +96,11 @@ export async function saveWallet(
   const address = input.address.trim();
 
   if (!name) {
-    throw new Error('Wallet name is required.');
+    throw new Error(translateNow('Wallet name is required.'));
   }
 
   if (!address) {
-    throw new Error('Wallet address is required.');
+    throw new Error(translateNow('Wallet address is required.'));
   }
 
   const existing = await getWalletByAddress(address);
@@ -108,7 +109,7 @@ export async function saveWallet(
       existing.kind === 'watch-only' && input.kind !== 'watch-only';
 
     if (!canUpgradeWatchOnly) {
-      throw new Error('This wallet is already imported.');
+      throw new Error(translateNow('This wallet is already imported.'));
     }
 
     const current = await listWallets();
@@ -185,7 +186,7 @@ function notifyActiveWalletChange(walletId: string | null) {
     try {
       listener(walletId);
     } catch (error) {
-      console.error('Active wallet listener failed:', error);
+      console.warn('Active wallet listener failed:', error);
     }
   });
 }
@@ -226,14 +227,14 @@ export async function renameWallet(id: string, nextName: string): Promise<Wallet
   const name = nextName.trim();
 
   if (!name) {
-    throw new Error('Wallet name is required.');
+    throw new Error(translateNow('Wallet name is required.'));
   }
 
   const current = await listWallets();
   const index = current.findIndex((item) => item.id === id);
 
   if (index === -1) {
-    throw new Error('Wallet not found.');
+    throw new Error(translateNow('Wallet not found.'));
   }
 
   const updated: WalletMeta = {
@@ -254,7 +255,7 @@ export async function removeWallet(id: string): Promise<void> {
   const target = current.find((item) => item.id === id);
 
   if (!target) {
-    throw new Error('Wallet not found.');
+    throw new Error(translateNow('Wallet not found.'));
   }
 
   const next = current.filter((item) => item.id !== id);

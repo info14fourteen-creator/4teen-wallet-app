@@ -1,5 +1,6 @@
 import {
   getCachedDisplayCurrency,
+  getDisplayCurrencySymbol,
   type DisplayCurrencyCode,
 } from '../settings/display-currency';
 
@@ -14,20 +15,53 @@ function resolveCurrency(code?: DisplayCurrencyCode) {
   return code || getCachedDisplayCurrency();
 }
 
+function applyPreferredCurrencySymbol(
+  formatted: string,
+  currency: DisplayCurrencyCode,
+  preferredSymbol: string
+) {
+  const normalized = formatted.trim();
+  const replacementMap: Record<DisplayCurrencyCode, string[]> = {
+    USD: ['US$', 'USD'],
+    EUR: ['EUR'],
+    RUB: ['RUB', 'RUR', 'руб.'],
+    UZS: ['UZS'],
+    TRY: ['TRY', 'TL'],
+    GBP: ['GBP'],
+    AED: ['AED'],
+    KZT: ['KZT'],
+    INR: ['INR'],
+    JPY: ['JPY'],
+    CNY: ['CNY', 'CN¥'],
+    KRW: ['KRW'],
+  };
+
+  for (const token of replacementMap[currency] || []) {
+    if (normalized.includes(token)) {
+      return normalized.replace(token, preferredSymbol);
+    }
+  }
+
+  return normalized;
+}
+
 export function formatDisplayCurrency(
   value?: number,
   options?: FormatCurrencyOptions
 ) {
   const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
   const currency = resolveCurrency(options?.currency);
-
-  return safe.toLocaleString('en-US', {
+  const formatter = new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency,
     notation: options?.notation,
+    currencyDisplay: 'narrowSymbol',
     minimumFractionDigits: options?.minimumFractionDigits,
     maximumFractionDigits: options?.maximumFractionDigits ?? 2,
   });
+  const preferredSymbol = getDisplayCurrencySymbol(currency);
+  const formatted = formatter.format(safe);
+  return applyPreferredCurrencySymbol(formatted, currency, preferredSymbol);
 }
 
 export function formatAdaptiveDisplayCurrency(

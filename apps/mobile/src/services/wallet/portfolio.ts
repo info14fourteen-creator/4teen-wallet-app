@@ -139,7 +139,7 @@ function buildTrxAsset(
     name: 'TRX',
     symbol: 'TRX',
     amount: snapshot.trx.balanceTrx,
-    amountDisplay: snapshot.trx.balanceTrx.toLocaleString('en-US', {
+    amountDisplay: snapshot.trx.balanceTrx.toLocaleString(undefined, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 6,
     }),
@@ -242,7 +242,7 @@ function formatAssetAmountDisplay(amount: number, decimals = 6) {
   const safeAmount = Number.isFinite(amount) ? Math.max(0, amount) : 0;
   const maxFractionDigits = Math.max(0, Math.min(6, decimals));
 
-  return safeAmount.toLocaleString('en-US', {
+  return safeAmount.toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: maxFractionDigits,
   });

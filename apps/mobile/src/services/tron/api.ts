@@ -9,6 +9,7 @@ import {
   TRONSCAN_BASE_URL,
 } from '../../config/tron';
 import { getAddressBookMap } from '../address-book';
+import { translateNow } from '../../i18n';
 import { getDisplayCurrency, type DisplayCurrencyCode } from '../../settings/display-currency';
 import { FOURTEEN_LOGO, getFourteenPriceSnapshot } from './fourteen-price';
 
@@ -863,7 +864,7 @@ function formatTokenBalance(rawBalance: string | number, decimals: number) {
 
   if (!Number.isFinite(value)) return '0';
 
-  return value.toLocaleString('en-US', {
+  return value.toLocaleString(undefined, {
     minimumFractionDigits: 0,
     maximumFractionDigits: Math.min(Math.max(decimals, 0), 6),
   });
@@ -1497,7 +1498,7 @@ export async function setCustomTokenCatalog(
 ): Promise<void> {
   const safeWalletId = normalizeCustomTokenCatalogWalletId(walletId);
   if (!safeWalletId) {
-    throw new Error('Wallet id is required.');
+    throw new Error(translateNow('Wallet id is required.'));
   }
 
   const normalized = normalizeCustomTokenCatalogItems(items);
@@ -2225,7 +2226,7 @@ async function getMarketIndex(
         ? baseCache.trx
         : await getTrxMarketMeta(currency, usdToDisplayRate).catch((error): MarketMeta => {
             if (!isCmcInvalidKeyError(error) && !isCmcRateLimitError(error)) {
-              console.error('Failed to load TRX market meta:', error);
+              console.warn('Failed to load TRX market meta:', error);
             }
 
             return (
@@ -4092,7 +4093,7 @@ export async function getAccountTrc20Assets(
     ]);
 
     if (!rawBalances.length && accountLookupFailed && tronscanLookupFailed) {
-      throw new Error('All TRC20 balance providers failed');
+      throw new Error(translateNow('All TRC20 balance providers failed.'));
     }
 
     const tokenOverviewMap = await getTronscanTokenOverviewMap(rawBalances.map((item) => item.tokenId));
@@ -4564,7 +4565,7 @@ export async function getTokenDetails(
       decimals: 6,
       logo: trxPrice.logo,
       balanceRaw: String(Math.round(account.balanceTrx * 1_000_000)),
-      balanceFormatted: account.balanceTrx.toLocaleString('en-US', {
+      balanceFormatted: account.balanceTrx.toLocaleString(undefined, {
         minimumFractionDigits: 0,
         maximumFractionDigits: 6,
       }),

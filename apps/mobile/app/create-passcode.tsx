@@ -86,11 +86,10 @@ export default function CreatePasscodeScreen() {
           <ScreenBrow label={isChangeFlow ? t('CHANGE PASSCODE') : t('CREATE PASSCODE')} />
           <Text style={styles.title}>
             {isVerifyCurrentStep
-              ? t('Confirm your current ')
+              ? t('Confirm your current 6-digit passcode')
               : isChangeFlow
-                ? t('Create a new ')
-                : t('Create a ')}
-            <Text style={styles.titleAccent}>{t('6-digit')}</Text> {t('passcode')}
+                ? t('Create a new 6-digit passcode')
+                : t('Create a 6-digit passcode')}
           </Text>
 
           <Text style={styles.lead}>
@@ -167,7 +166,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    marginTop: 8,
+    marginTop: 0,
     color: colors.white,
     fontSize: 34,
     lineHeight: 40,

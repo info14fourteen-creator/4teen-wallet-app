@@ -81,9 +81,7 @@ export default function ImportWalletScreen() {
           bounces
         >
           <ScreenBrow label={t('IMPORT WALLET')} variant="back" />
-          <Text style={styles.title}>
-            Reconnect your <Text style={styles.titleAccent}>{t('wallet access')}</Text>
-          </Text>
+          <Text style={[styles.title, styles.titleAccent]}>{t('Reconnect your wallet access')}</Text>
 
           <Text style={styles.lead}>
             {t(
@@ -136,7 +134,7 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    marginTop: 8,
+    marginTop: 0,
     color: colors.white,
     fontSize: 34,
     lineHeight: 40,

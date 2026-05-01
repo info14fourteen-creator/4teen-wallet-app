@@ -54,7 +54,7 @@ export default function LanguageScreen() {
           2200
         );
       } catch (error) {
-        console.error(error);
+        console.warn(error);
         notice.showErrorNotice(t('Language update failed.'), 2200);
       } finally {
         setSaving(false);
@@ -70,7 +70,7 @@ export default function LanguageScreen() {
       headerInfo={{
         title: t('Choose app language'),
         text: t(
-          'This changes labels, settings text, and supported interface copy across the wallet. Some long-form product text may still roll over in English until every screen is migrated.'
+          'This switches the wallet interface language. Balances, token amounts, market data, and on-chain state stay the same.'
         ),
         expanded: infoExpanded,
         onToggle: () => setInfoExpanded((value) => !value),

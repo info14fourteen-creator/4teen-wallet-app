@@ -128,7 +128,14 @@ export default function EnergyResaleCard({
         {processing ? (
           <ActivityIndicator color={colors.white} />
         ) : (
-          <Text style={styles.buttonText}>{buttonLabel}</Text>
+          <Text
+            style={styles.buttonText}
+            numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+          >
+            {buttonLabel}
+          </Text>
         )}
       </TouchableOpacity>
     </View>
@@ -239,5 +246,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.7,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 });

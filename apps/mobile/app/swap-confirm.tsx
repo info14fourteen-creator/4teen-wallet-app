@@ -129,7 +129,7 @@ export default function SwapConfirmScreen() {
   const [passcodeEntryOpen, setPasscodeEntryOpen] = useState(false);
   const [passcodeDigits, setPasscodeDigits] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
-  const [biometricLabel, setBiometricLabel] = useState('Biometrics');
+  const [biometricLabel, setBiometricLabel] = useState(t('Biometrics'));
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
@@ -170,6 +170,7 @@ export default function SwapConfirmScreen() {
     normalizeResourceAmount(review?.resources.swap?.bandwidthShortfall);
   const hasResourceShortfall = resourceEnergyShortfall > 0 || resourceBandwidthShortfall > 0;
   const canRentResources = estimatedEnergy > 0 || estimatedBandwidth > 0;
+  const approvalProcessing = !passcodeOpen && (submitting || energyRenting);
 
   const load = useCallback(async () => {
     try {
@@ -214,7 +215,7 @@ export default function SwapConfirmScreen() {
 
       setBiometricLabel(t('Biometrics'));
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setBiometricsEnabled(false);
       setBiometricAvailable(false);
       setBiometricLabel(t('Biometrics'));
@@ -310,7 +311,7 @@ export default function SwapConfirmScreen() {
       await load();
       return true;
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
@@ -436,7 +437,7 @@ export default function SwapConfirmScreen() {
       setPasscodeEntryOpen(false);
       setPasscodeOpen(false);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(error instanceof Error ? error.message : t('Swap failed.'), 3200);
     } finally {
       setSubmitting(false);
@@ -455,6 +456,11 @@ export default function SwapConfirmScreen() {
         return;
       }
 
+      setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+
       if (pendingApprovalMode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
@@ -465,7 +471,7 @@ export default function SwapConfirmScreen() {
 
       await performSwap();
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
@@ -476,31 +482,6 @@ export default function SwapConfirmScreen() {
       void handlePasscodeSubmit();
     }
   }, [handlePasscodeSubmit, passcodeDigits, passcodeOpen]);
-
-  const handleApprove = useCallback(async () => {
-    if (!review || submitting) return;
-    setPendingApprovalMode('swap');
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeEntryOpen(!canUseBiometrics);
-    setPasscodeOpen(true);
-  }, [canUseBiometrics, review, submitting]);
-
-  const handleRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || submitting || energyRenting) return;
-
-    setPendingApprovalMode('rent');
-    setPasscodeError('');
-    setPasscodeDigits('');
-    setPasscodeEntryOpen(!canUseBiometrics);
-    setPasscodeOpen(true);
-  }, [
-    canUseBiometrics,
-    energyQuote,
-    energyRenting,
-    review,
-    submitting,
-  ]);
 
   const handleReject = useCallback(async () => {
     if (submitting) return;
@@ -532,21 +513,15 @@ export default function SwapConfirmScreen() {
   const openPasscodeEntry = useCallback(() => {
     setPasscodeError('');
     setPasscodeDigits('');
+    setPasscodeOpen(true);
     setPasscodeEntryOpen(true);
   }, []);
 
   const closePasscodeEntry = useCallback(() => {
-    if (canUseBiometrics) {
-      setPasscodeDigits('');
-      setPasscodeError('');
-      setPasscodeEntryOpen(false);
-      return;
-    }
-
     closeApprovalAuth();
-  }, [canUseBiometrics, closeApprovalAuth]);
+  }, [closeApprovalAuth]);
 
-  const handleBiometricApproval = useCallback(async () => {
+  const handleBiometricApproval = useCallback(async (mode: 'swap' | 'rent' = pendingApprovalMode) => {
     if (!canUseBiometrics) {
       openPasscodeEntry();
       return;
@@ -555,16 +530,24 @@ export default function SwapConfirmScreen() {
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage:
-          pendingApprovalMode === 'rent' ? t('Confirm Energy Rental') : t('Confirm Swap'),
+          mode === 'rent' ? t('Confirm Energy Rental') : t('Confirm Swap'),
         fallbackLabel: t('Use Passcode'),
         cancelLabel: t('Cancel'),
       });
 
       if (!result.success) {
+        if (result.error === 'user_fallback') {
+          openPasscodeEntry();
+        }
         return;
       }
 
-      if (pendingApprovalMode === 'rent') {
+      setPasscodeOpen(false);
+      setPasscodeEntryOpen(false);
+      setPasscodeDigits('');
+      setPasscodeError('');
+
+      if (mode === 'rent') {
         const rented = await performRentEnergy();
         if (rented) {
           await performSwap();
@@ -574,9 +557,33 @@ export default function SwapConfirmScreen() {
 
       await performSwap();
     } catch (error) {
-      console.error(error);
+      console.warn(error);
     }
   }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performSwap, t]);
+
+  const openApprovalAuth = useCallback((mode: 'swap' | 'rent', preferPasscode = false) => {
+    setPendingApprovalMode(mode);
+    setPasscodeError('');
+    setPasscodeDigits('');
+
+    if (preferPasscode || !canUseBiometrics) {
+      setPasscodeEntryOpen(true);
+      setPasscodeOpen(true);
+      return;
+    }
+
+    void handleBiometricApproval(mode);
+  }, [canUseBiometrics, handleBiometricApproval]);
+
+  const handleApprove = useCallback(async () => {
+    if (!review || submitting) return;
+    openApprovalAuth('swap');
+  }, [openApprovalAuth, review, submitting]);
+
+  const handleRentEnergy = useCallback(async () => {
+    if (!review || !energyQuote || submitting || energyRenting) return;
+    openApprovalAuth('rent');
+  }, [energyQuote, energyRenting, openApprovalAuth, review, submitting]);
 
   if (loading && !review) {
     return <ScreenLoadingState label={t('Loading swap confirmation...')} />;
@@ -585,7 +592,7 @@ export default function SwapConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing} />
+        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[
@@ -623,7 +630,7 @@ export default function SwapConfirmScreen() {
 
                 <View style={styles.heroMetricRow}>
                   <View style={[styles.heroMetricCard, styles.heroMetricCardSpend]}>
-                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelSpend]}>SPEND</Text>
+                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelSpend]}>{t('SPEND')}</Text>
                     <Text style={[styles.heroMetricValue, styles.heroMetricValueSpend]}>
                       {formatCompactHeroAmount(review.amountIn)}
                     </Text>
@@ -638,7 +645,7 @@ export default function SwapConfirmScreen() {
                   </View>
 
                   <View style={[styles.heroMetricCard, styles.heroMetricCardReceive]}>
-                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelReceive]}>RECEIVE</Text>
+                    <Text style={[styles.heroMetricLabel, styles.heroMetricLabelReceive]}>{t('RECEIVE')}</Text>
                     <Text style={[styles.heroMetricValue, styles.heroMetricValueReceive]}>
                       {formatCompactHeroAmount(review.expectedOut)}
                     </Text>
@@ -654,7 +661,7 @@ export default function SwapConfirmScreen() {
                 </View>
 
                 <View style={styles.heroMetaRow}>
-                  <Text style={styles.heroMetaLabel}>Minimum out</Text>
+                  <Text style={styles.heroMetaLabel}>{t('Minimum out')}</Text>
                   <Text style={styles.heroMetaValue}>
                     {review.minReceived} {review.outputToken.symbol}
                   </Text>
@@ -673,7 +680,14 @@ export default function SwapConfirmScreen() {
                 {submitting ? (
                   <ActivityIndicator color={colors.white} />
                 ) : (
-                  <Text style={styles.primaryButtonText}>APPROVE & SWAP</Text>
+                  <Text
+                    style={styles.primaryButtonText}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
+                  >
+                    {t('APPROVE & SWAP')}
+                  </Text>
                 )}
               </TouchableOpacity>
 
@@ -689,40 +703,40 @@ export default function SwapConfirmScreen() {
               />
 
               <View style={styles.sectionBlock}>
-                <Text style={styles.sectionEyebrow}>SWAP REVIEW</Text>
+                <Text style={styles.sectionEyebrow}>{t('SWAP REVIEW')}</Text>
                 <View style={styles.detailCard}>
                   <View style={styles.detailRowFirst}>
-                    <Text style={styles.detailLabel}>From</Text>
+                    <Text style={styles.detailLabel}>{t('From')}</Text>
                     <Text style={styles.detailValue}>{review.inputToken.symbol}</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>To</Text>
+                    <Text style={styles.detailLabel}>{t('To')}</Text>
                     <Text style={styles.detailValue}>{review.outputToken.symbol}</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Route</Text>
+                    <Text style={styles.detailLabel}>{t('Route')}</Text>
                     <Text style={styles.detailValue}>{review.route.routeLabel}</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Path</Text>
+                    <Text style={styles.detailLabel}>{t('Path')}</Text>
                     <Text style={styles.detailValue}>{review.route.symbols.join(' → ')}</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Provider</Text>
+                    <Text style={styles.detailLabel}>{t('Provider')}</Text>
                     <Text style={styles.detailValue}>{review.route.providerName}</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Slippage</Text>
+                    <Text style={styles.detailLabel}>{t('Slippage')}</Text>
                     <Text style={styles.detailValue}>{review.slippage}%</Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Approve</Text>
+                    <Text style={styles.detailLabel}>{t('Approve')}</Text>
                     <Text
                       style={[
                         styles.detailValue,
@@ -734,14 +748,14 @@ export default function SwapConfirmScreen() {
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Estimated Burn</Text>
+                    <Text style={styles.detailLabel}>{t('Estimated Burn')}</Text>
                     <Text style={styles.detailValueAccent}>
                       {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
                     </Text>
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Fee Cap</Text>
+                    <Text style={styles.detailLabel}>{t('Fee Cap')}</Text>
                     <Text style={styles.detailValue}>
                       {formatTrxFromSunAmount(
                         Number(review.resources.swap?.recommendedFeeLimitSun || 0) +
@@ -771,7 +785,7 @@ export default function SwapConfirmScreen() {
               {review.routeChanged ? (
                 <View style={styles.noticeCard}>
                   <Text style={styles.noticeCardText}>
-                    Route changed before approval. You are looking at the latest live quote.
+                    {t('Route changed before approval. You are looking at the latest live quote.')}
                   </Text>
                 </View>
               ) : null}
@@ -779,7 +793,7 @@ export default function SwapConfirmScreen() {
               {review.wallet.kind === 'watch-only' ? (
                 <View style={styles.noticeCard}>
                   <Text style={styles.noticeCardText}>
-                    Watch-only wallet cannot sign swap. Switch to a full-access wallet first.
+                    {t('Watch-only wallet cannot sign swap. Switch to a full-access wallet first.')}
                   </Text>
                 </View>
               ) : null}
@@ -790,7 +804,14 @@ export default function SwapConfirmScreen() {
                 onPress={() => void handleReject()}
                 disabled={submitting}
               >
-                <Text style={styles.secondaryButtonText}>REJECT</Text>
+                <Text
+                  style={styles.secondaryButtonText}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {t('REJECT')}
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -839,7 +860,7 @@ const styles = StyleSheet.create({
   },
 
   heroCard: {
-    marginTop: 10,
+    marginTop: 0,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.lineStrong,
@@ -1103,6 +1124,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   primaryButton: {
@@ -1124,10 +1148,13 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontFamily: 'Sora_700Bold',
     letterSpacing: 0.7,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    flexShrink: 1,
   },
 
   errorWrap: {
-    marginTop: 14,
+    marginTop: 0,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: 'rgba(255,48,73,0.18)',

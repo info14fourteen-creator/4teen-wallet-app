@@ -27,6 +27,7 @@ import {
   normalizeResourceAmount,
   type ContractCallResourceEstimate,
 } from '../wallet/resources';
+import { translateNow } from '../../i18n';
 
 const TRX_CONTRACT = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 const USDT_LOGO = 'https://s2.coinmarketcap.com/static/img/coins/64x64/825.png';
@@ -272,10 +273,14 @@ function assertSwapAmountWithinSpendableBalance(
   }
 
   if (String(token.tokenId || '').trim() === FOURTEEN_CONTRACT) {
-    throw new Error('You must keep at least 0.000001 4TEEN in the wallet.');
+    throw new Error(translateNow('You must keep at least 0.000001 4TEEN in the wallet.'));
   }
 
-  throw new Error(`Not enough ${token.symbol || 'token'} balance for this swap.`);
+  throw new Error(
+    translateNow('Not enough {{token}} balance for this swap.', {
+      token: token.symbol || translateNow('token'),
+    })
+  );
 }
 
 function applySwapEstimateHeadroom(
@@ -374,13 +379,17 @@ function decimalToRaw(amount: string | number, decimals: number) {
   const safe = normalizeAmountInput(String(amount));
 
   if (!/^\d+(\.\d*)?$/.test(safe)) {
-    throw new Error('Enter a valid amount.');
+    throw new Error(translateNow('Enter a valid amount.'));
   }
 
   const [wholePart, fractionPart = ''] = safe.split('.');
 
   if (fractionPart.length > decimals) {
-    throw new Error(`Too many decimal places. Max allowed: ${decimals}.`);
+    throw new Error(
+      translateNow('Too many decimal places. Max allowed: {{count}}.', {
+        count: String(decimals),
+      })
+    );
   }
 
   const paddedFraction = fractionPart.padEnd(decimals, '0');
@@ -489,11 +498,13 @@ async function getSigningContext(walletId?: string) {
   const wallet = walletId ? await getWalletById(walletId) : await getActiveWallet();
 
   if (!wallet) {
-    throw new Error('No active wallet selected.');
+    throw new Error(translateNow('No active wallet selected.'));
   }
 
   if (wallet.kind === 'watch-only') {
-    throw new Error('Watch-only wallet cannot sign swap. Switch to a full-access wallet first.');
+    throw new Error(
+      translateNow('Watch-only wallet cannot sign swap. Switch to a full-access wallet first.')
+    );
   }
 
   const secret = await getWalletSecret(wallet.id);
@@ -507,7 +518,7 @@ async function getSigningContext(walletId?: string) {
   }
 
   if (!isValidPrivateKey(privateKey)) {
-    throw new Error('Invalid private key provided');
+    throw new Error(translateNow('Invalid private key provided'));
   }
 
   return {
@@ -544,21 +555,21 @@ function ensureTronWebAddress(tronWeb: TronWeb, address: string) {
 
 function prepareTronWebForSigning(tronWeb: TronWeb, owner: string) {
   if (!tronWeb) {
-    throw new Error('tronWeb is not available');
+    throw new Error(translateNow('tronWeb is not available'));
   }
 
   if (!isUsableAddress(owner)) {
-    throw new Error('Owner address is invalid.');
+    throw new Error(translateNow('Owner address is invalid.'));
   }
 
   ensureTronWebAddress(tronWeb, owner);
 
   if (tronWeb?.defaultAddress?.base58 !== owner) {
-    throw new Error('Wallet connection is not ready. Please try again.');
+    throw new Error(translateNow('Wallet connection is not ready. Please try again.'));
   }
 }
 
-function extractErrorMessage(error: unknown, fallback = 'Swap failed. Please try again.') {
+function extractErrorMessage(error: unknown, fallback = translateNow('Swap failed. Please try again.')) {
   const candidates = [
     error instanceof Error ? error.message : '',
     typeof error === 'string' ? error : '',
@@ -585,27 +596,27 @@ function extractErrorMessage(error: unknown, fallback = 'Swap failed. Please try
     lower.includes('cancelled') ||
     lower.includes('canceled')
   ) {
-    return 'Transaction was cancelled in the wallet.';
+    return translateNow('Transaction was cancelled in the wallet.');
   }
 
   if (lower.includes('out of energy') || lower.includes('not enough energy')) {
-    return 'Not enough TRX energy for this transaction. Top up TRX and try again.';
+    return translateNow('Not enough TRX energy for this transaction. Top up TRX and try again.');
   }
 
   if (lower.includes('bandwidth')) {
-    return 'Not enough bandwidth for this transaction. Try again after wallet resources recover.';
+    return translateNow('Not enough bandwidth for this transaction. Try again after wallet resources recover.');
   }
 
   if (lower.includes('allowance') || lower.includes('approve')) {
-    return 'Token approval failed. Please try again.';
+    return translateNow('Token approval failed. Please try again.');
   }
 
   if (lower.includes('owner_address') || lower.includes('tronweb is not available')) {
-    return 'Wallet connection is not ready. Please reconnect and try again.';
+    return translateNow('Wallet connection is not ready. Please reconnect and try again.');
   }
 
   if (lower.includes('insufficient output amount') || lower.includes('amountoutmin')) {
-    return 'Price moved before confirmation. Try again or increase slippage slightly.';
+    return translateNow('Price moved before confirmation. Try again or increase slippage slightly.');
   }
 
   return text;
@@ -669,7 +680,7 @@ export async function getSwapQuotes(input: {
   }
 
   if (!sourceToken.address || !targetToken.address) {
-    throw new Error('Swap token addresses are missing.');
+    throw new Error(translateNow('Swap token addresses are missing.'));
   }
 
   if (sourceToken.address === targetToken.address) {
@@ -692,7 +703,11 @@ export async function getSwapQuotes(input: {
   });
 
   if (!response.ok) {
-    throw new Error(`Router request failed: HTTP ${response.status}`);
+    throw new Error(
+      translateNow('Router request failed: HTTP {{status}}', {
+        status: String(response.status),
+      })
+    );
   }
 
   const payload = (await response.json()) as {
@@ -702,7 +717,7 @@ export async function getSwapQuotes(input: {
   };
 
   if (Number(payload?.code) !== 0 || !Array.isArray(payload?.data)) {
-    throw new Error(payload?.message || 'Swap router returned invalid payload.');
+    throw new Error(payload?.message || translateNow('Swap router returned invalid payload.'));
   }
 
   const routes = payload.data
@@ -773,7 +788,11 @@ async function waitForTransactionConfirmation(tronWeb: TronWeb, txid: string) {
       }
 
       if (receiptResult && receiptResult !== 'SUCCESS') {
-        throw new Error(`Transaction failed: ${receiptResult}`);
+        throw new Error(
+          translateNow('Transaction failed: {{status}}', {
+            status: String(receiptResult),
+          })
+        );
       }
 
       const txResultLabel = tx?.ret?.[0]?.contractRet || tx?.ret?.[0]?.contract_ret || tx?.result;
@@ -796,7 +815,7 @@ async function waitForTransactionConfirmation(tronWeb: TronWeb, txid: string) {
     await wait(1500);
   }
 
-  throw new Error('Transaction confirmation timeout');
+  throw new Error(translateNow('Transaction confirmation timeout'));
 }
 
 async function checkAllowance(
@@ -994,7 +1013,7 @@ export async function buildSwapReview(input: {
   const wallet = input.walletId ? await getWalletById(input.walletId) : await getActiveWallet();
 
   if (!wallet) {
-    throw new Error('No active wallet selected.');
+    throw new Error(translateNow('No active wallet selected.'));
   }
 
   const amountIn = normalizeAmountInput(input.amountIn);
@@ -1002,7 +1021,7 @@ export async function buildSwapReview(input: {
   const targetToken = normalizeSwapTokenMeta(input.targetToken);
 
   if (!amountIn || Number.parseFloat(amountIn) <= 0) {
-    throw new Error('Enter amount first.');
+    throw new Error(translateNow('Enter amount first.'));
   }
 
   assertSwapAmountWithinSpendableBalance(sourceToken, amountIn);
@@ -1014,7 +1033,7 @@ export async function buildSwapReview(input: {
   });
 
   if (quotes.length <= 0) {
-    throw new Error('No routes available right now.');
+    throw new Error(translateNow('No routes available right now.'));
   }
 
   const route =

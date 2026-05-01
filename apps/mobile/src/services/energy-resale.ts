@@ -1,4 +1,5 @@
 import { FOURTEEN_API_BASE_URL, getFourteenApiBaseUrls } from '../config/tron';
+import { translateNow } from '../i18n';
 import { TRX_TOKEN_ID } from './tron/api';
 import { sendAssetTransfer } from './wallet/send';
 
@@ -103,7 +104,10 @@ async function fetchJsonOrThrow<T>(url: string, options: RequestInit): Promise<T
 
   if (!response.ok || payload?.ok === false) {
     throw new EnergyResaleApiError(
-      payload?.error || `Request failed with status ${response.status}`,
+      payload?.error ||
+        translateNow('Request failed with status {{status}}.', {
+          status: String(response.status),
+        }),
       response.status,
       payload?.details
     );
@@ -128,7 +132,7 @@ async function fetchJsonAcrossApiOrigins<T>(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('4TEEN API is unavailable');
+  throw lastError instanceof Error ? lastError : new Error(translateNow('4TEEN API is unavailable'));
 }
 
 export async function getEnergyResaleQuote(input: {
@@ -198,7 +202,7 @@ export async function confirmEnergyResalePayment(input: {
 
     input.onProgress?.({
       step: 'energy-ready',
-      message: 'Energy rental confirmed. Continuing transaction...',
+      message: translateNow('Energy rental confirmed. Continuing transaction...'),
     });
 
     return payload.result || {};
@@ -209,7 +213,7 @@ export async function confirmEnergyResalePayment(input: {
 
     input.onProgress?.({
       step: 'waiting-energy',
-      message: 'Payment confirmed. Waiting for Energy distribution...',
+      message: translateNow('Payment confirmed. Waiting for Energy distribution...'),
     });
 
     const status = await waitForEnergyResaleReady({
@@ -250,7 +254,7 @@ export async function getEnergyResaleStatus(input: {
   );
 
   if (!payload.result) {
-    throw new Error('Energy resale status is unavailable');
+    throw new Error(translateNow('Energy resale status is unavailable'));
   }
 
   return payload.result;
@@ -271,7 +275,7 @@ async function waitForEnergyResaleReady(input: {
     if (lastStatus.ready) {
       input.onProgress?.({
         step: 'energy-ready',
-        message: 'Energy is live. Continuing transaction...',
+        message: translateNow('Energy is live. Continuing transaction...'),
       });
       return lastStatus;
     }
@@ -280,8 +284,8 @@ async function waitForEnergyResaleReady(input: {
       step: 'waiting-energy',
       message:
         attempt < 5
-          ? 'Waiting for Energy distribution...'
-          : 'Energy is still pending. Keeping the transaction queued...',
+          ? translateNow('Waiting for Energy distribution...')
+          : translateNow('Energy is still pending. Keeping the transaction queued...'),
     });
 
     await wait(attempt < 5 ? 3000 : 5000);
@@ -289,7 +293,9 @@ async function waitForEnergyResaleReady(input: {
 
   const available = lastStatus?.energyState?.availableEnergy ?? 0;
   throw new Error(
-    `Energy rental is still pending. Available Energy: ${available}. Pull to refresh in a moment.`
+    translateNow('Energy rental is still pending. Available Energy: {{amount}}. Pull to refresh in a moment.', {
+      amount: available,
+    })
   );
 }
 
@@ -308,7 +314,7 @@ export async function rentEnergyForPurpose(input: {
 
   input.onProgress?.({
     step: 'payment-submitted',
-    message: 'Energy rental payment sent. Waiting for confirmation...',
+    message: translateNow('Energy rental payment sent. Waiting for confirmation...'),
   });
 
   const confirmation = await confirmEnergyResalePayment({

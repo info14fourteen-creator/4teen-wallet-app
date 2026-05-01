@@ -12,6 +12,7 @@ import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useI18n } from '../src/i18n';
 import { useNotice } from '../src/notice/notice-provider';
 import {
   LIQUIDITY_BOOTSTRAPPER_CONTRACT_URL,
@@ -66,6 +67,7 @@ function shortenAddress(address: string) {
 
 export default function LiquidityControllerScreen() {
   const router = useRouter();
+  const { t } = useI18n();
   const notice = useNotice();
   const { setPendingWalletSelectionId } = useWalletSession();
   const navInsets = useNavigationInsets({ topExtra: 14 });
@@ -111,16 +113,16 @@ export default function LiquidityControllerScreen() {
       setSnapshot(nextSnapshot);
       setErrorText('');
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       setSnapshot(null);
       setErrorText(
-        error instanceof Error ? error.message : 'Failed to load liquidity controller.'
+        error instanceof Error ? error.message : t('Failed to load liquidity controller.')
       );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -135,12 +137,12 @@ export default function LiquidityControllerScreen() {
 
   const handleToggleWalletOptions = useCallback(() => {
     if (walletChoices.length <= 1) {
-      notice.showNeutralNotice('No other wallets available.', 2200);
+      notice.showNeutralNotice(t('No other wallets available.'), 2200);
       return;
     }
 
     setWalletOptionsOpen((prev) => !prev);
-  }, [notice, walletChoices.length]);
+  }, [notice, t, walletChoices.length]);
 
   const handleChooseWallet = useCallback(
     async (wallet: WalletSwitcherOption) => {
@@ -151,30 +153,30 @@ export default function LiquidityControllerScreen() {
         setPendingWalletSelectionId(wallet.id);
         await load({ silent: true, force: true });
       } catch (error) {
-        console.error(error);
-        notice.showErrorNotice('Failed to switch liquidity wallet.', 2400);
+        console.warn(error);
+        notice.showErrorNotice(t('Failed to switch liquidity wallet.'), 2400);
       } finally {
         setSwitchingWalletId(null);
       }
     },
-    [load, notice, setPendingWalletSelectionId]
+    [load, notice, setPendingWalletSelectionId, t]
   );
 
   const handleExecute = useCallback(async () => {
     if (!activeWallet) {
       setStatusText('');
-      setErrorText('Create or import a wallet before execution.');
+      setErrorText(t('Create or import a wallet before execution.'));
       return;
     }
 
     if (activeWallet.kind === 'watch-only') {
       setStatusText('');
-      setErrorText('Liquidity execution requires a full-access wallet.');
+      setErrorText(t('Liquidity execution requires a full-access wallet.'));
       return;
     }
 
     router.push('/liquidity-confirm');
-  }, [activeWallet, router]);
+  }, [activeWallet, router, t]);
 
   const visibleWalletChoices = useMemo(() => {
     return walletChoices.filter((wallet) => wallet.id !== activeWallet?.id);
@@ -194,27 +196,27 @@ export default function LiquidityControllerScreen() {
   const contractLinks = useMemo(
     () => [
       {
-        label: 'Controller',
+        label: t('Controller'),
         address: snapshot?.controllerAddress || '',
-        body: 'release rules',
+        body: t('release rules'),
         url: LIQUIDITY_CONTROLLER_CONTRACT_URL,
       },
       {
-        label: 'Bootstrapper',
+        label: t('Bootstrapper'),
         address: snapshot?.bootstrapperAddress || '',
-        body: 'vault top-up + trigger',
+        body: t('vault top-up + trigger'),
         url: LIQUIDITY_BOOTSTRAPPER_CONTRACT_URL,
       },
       {
-        label: 'JustMoney executor',
+        label: t('JustMoney executor'),
         address: snapshot?.justMoneyExecutorAddress || '',
-        body: 'AMM liquidity path',
+        body: t('AMM liquidity path'),
         url: LIQUIDITY_JUSTMONEY_EXECUTOR_CONTRACT_URL,
       },
       {
-        label: 'Sun.io V3 executor',
+        label: t('Sun.io V3 executor'),
         address: snapshot?.sunV3ExecutorAddress || '',
-        body: 'concentrated liquidity path',
+        body: t('concentrated liquidity path'),
         url: LIQUIDITY_SUN_V3_EXECUTOR_CONTRACT_URL,
       },
     ],
@@ -223,11 +225,12 @@ export default function LiquidityControllerScreen() {
       snapshot?.controllerAddress,
       snapshot?.justMoneyExecutorAddress,
       snapshot?.sunV3ExecutorAddress,
+      t,
     ]
   );
 
   if (loading && !snapshot) {
-    return <ScreenLoadingState label="Loading liquidity controller" />;
+    return <ScreenLoadingState label={t('Loading liquidity controller')} />;
   }
 
   return (
@@ -252,7 +255,7 @@ export default function LiquidityControllerScreen() {
         scrollEventThrottle={16}
       >
         <ScreenBrow
-          label="LIQUIDITY CONTROLLER"
+          label={t('LIQUIDITY CONTROLLER')}
           variant="backLink"
           labelAccessory={<InfoToggleIcon expanded={infoExpanded} />}
           onLabelPress={() => setInfoExpanded((prev) => !prev)}
@@ -260,8 +263,8 @@ export default function LiquidityControllerScreen() {
 
         {infoExpanded ? (
           <View style={styles.infoPanel}>
-            <Text style={styles.infoTitle}>{LIQUIDITY_INFO_TITLE}</Text>
-            <Text style={styles.infoText}>{LIQUIDITY_INFO_TEXT}</Text>
+            <Text style={styles.infoTitle}>{t(LIQUIDITY_INFO_TITLE)}</Text>
+            <Text style={styles.infoText}>{t(LIQUIDITY_INFO_TEXT)}</Text>
           </View>
         ) : null}
 
@@ -294,16 +297,16 @@ export default function LiquidityControllerScreen() {
               contentFit="contain"
             />
 
-            <Text style={styles.emptyWalletTitle}>No wallet connected</Text>
+            <Text style={styles.emptyWalletTitle}>{t('No wallet connected')}</Text>
             <Text style={styles.emptyWalletBody}>
-              Create or import a signing wallet to execute liquidity routing.
+              {t('Create or import a signing wallet to execute liquidity routing.')}
             </Text>
             <TouchableOpacity
               activeOpacity={0.88}
               style={styles.primaryAction}
               onPress={() => router.push('/wallet-access')}
             >
-              <Text style={styles.primaryActionLabel}>OPEN WALLET ACCESS</Text>
+              <Text style={styles.primaryActionLabel}>{t('OPEN WALLET ACCESS')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -315,7 +318,7 @@ export default function LiquidityControllerScreen() {
             disabled={!activeWallet}
             onPress={() => void handleExecute()}
           >
-            <Text style={styles.primaryActionLabel}>TRIGGER LIQUIDITY</Text>
+            <Text style={styles.primaryActionLabel}>{t('TRIGGER LIQUIDITY')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -329,15 +332,15 @@ export default function LiquidityControllerScreen() {
 
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>CONTROLLER</Text>
+            <Text style={styles.summaryLabel}>{t('CONTROLLER')}</Text>
             <Text style={styles.summaryValueSmall}>
               {shortenAddress(snapshot?.controllerAddress || '')}
             </Text>
-            <Text style={styles.summaryUnit}>on-chain</Text>
+            <Text style={styles.summaryUnit}>{t('on-chain')}</Text>
           </View>
 
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>LAST EXECUTE</Text>
+            <Text style={styles.summaryLabel}>{t('LAST EXECUTE')}</Text>
             <Text style={styles.summaryValueSmall}>
               {formatLiquidityDate(snapshot?.lastExecuteAt)}
             </Text>
@@ -347,7 +350,7 @@ export default function LiquidityControllerScreen() {
 
         <View style={styles.detailGrid}>
           <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>LATEST TRX RECEIVED</Text>
+            <Text style={styles.detailLabel}>{t('LATEST TRX RECEIVED')}</Text>
             <Text style={styles.detailValue}>
               {formatLiquidityTrx(snapshot?.latestReceivedTrx)}
             </Text>
@@ -355,41 +358,41 @@ export default function LiquidityControllerScreen() {
           </View>
 
           <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>MIN BALANCE</Text>
+            <Text style={styles.detailLabel}>{t('MIN BALANCE')}</Text>
             <Text style={styles.detailValue}>100.00</Text>
-            <Text style={styles.detailUnit}>TRX required</Text>
+            <Text style={styles.detailUnit}>{t('TRX required')}</Text>
           </View>
 
           <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>DAILY RELEASE</Text>
+            <Text style={styles.detailLabel}>{t('DAILY RELEASE')}</Text>
             <Text style={[styles.detailValue, styles.detailValueAvailable]}>6.43%</Text>
-            <Text style={styles.detailUnit}>of controller balance</Text>
+            <Text style={styles.detailUnit}>{t('of controller balance')}</Text>
           </View>
 
           <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>CADENCE</Text>
-            <Text style={styles.detailValueSmall}>once per UTC day</Text>
-            <Text style={styles.detailSubvalue}>contract-enforced</Text>
+            <Text style={styles.detailLabel}>{t('CADENCE')}</Text>
+            <Text style={styles.detailValueSmall}>{t('once per UTC day')}</Text>
+            <Text style={styles.detailSubvalue}>{t('contract-enforced')}</Text>
           </View>
 
           <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>TARGET SPLIT</Text>
+            <Text style={styles.detailLabel}>{t('TARGET SPLIT')}</Text>
             <Text style={styles.detailValueSmall}>50 / 50</Text>
-            <Text style={styles.detailSubvalue}>JustMoney · Sun.io V3</Text>
+            <Text style={styles.detailSubvalue}>{t('JustMoney · Sun.io V3')}</Text>
           </View>
 
           <View style={styles.detailCard}>
-            <Text style={styles.detailLabel}>BOOTSTRAPPER</Text>
+            <Text style={styles.detailLabel}>{t('BOOTSTRAPPER')}</Text>
             <Text style={styles.detailValueSmall}>
               {shortenAddress(snapshot?.bootstrapperAddress || '')}
             </Text>
-            <Text style={styles.detailSubvalue}>vault top-up + trigger</Text>
+            <Text style={styles.detailSubvalue}>{t('vault top-up + trigger')}</Text>
           </View>
         </View>
 
         <View style={styles.contractSection}>
           <View style={styles.contractHead}>
-            <Text style={styles.historyEyebrow}>CONTRACT LINKS</Text>
+            <Text style={styles.historyEyebrow}>{t('CONTRACT LINKS')}</Text>
           </View>
 
           <View style={styles.contractGrid}>
@@ -421,14 +424,14 @@ export default function LiquidityControllerScreen() {
 
         <View style={styles.historyHead}>
           <View>
-            <Text style={styles.historyEyebrow}>LIQUIDITY EXECUTIONS</Text>
+            <Text style={styles.historyEyebrow}>{t('LIQUIDITY EXECUTIONS')}</Text>
           </View>
 
           <TouchableOpacity
             activeOpacity={0.85}
             style={styles.historyAction}
             accessibilityRole="button"
-            accessibilityLabel="Open controller events"
+            accessibilityLabel={t('Open controller events')}
             onPress={() => void openInAppBrowser(router, LIQUIDITY_CONTRACT_EVENTS_URL)}
           >
             <MaterialCommunityIcons name="open-in-new" size={18} color={colors.accent} />
@@ -453,13 +456,13 @@ export default function LiquidityControllerScreen() {
                   </View>
 
                   <View style={styles.statusPill}>
-                    <Text style={styles.statusPillText}>EXECUTED</Text>
+                    <Text style={styles.statusPillText}>{t('EXECUTED')}</Text>
                   </View>
                 </View>
 
                 <View style={styles.historyMetrics}>
                   <View style={styles.historyMetricCard}>
-                    <Text style={styles.historyMetricLabel}>DATE</Text>
+                    <Text style={styles.historyMetricLabel}>{t('DATE')}</Text>
                     <Text style={styles.historyMetricPrimary}>
                       {formatLiquidityDate(event.timestamp)}
                     </Text>
@@ -467,7 +470,7 @@ export default function LiquidityControllerScreen() {
                   </View>
 
                   <View style={styles.historyMetricCard}>
-                    <Text style={styles.historyMetricLabel}>JUSTMONEY</Text>
+                    <Text style={styles.historyMetricLabel}>{t('JUSTMONEY')}</Text>
                     <Text style={styles.historyMetricPrimary}>
                       {formatLiquidityTrx(event.justMoneyTrx)}
                     </Text>
@@ -475,7 +478,7 @@ export default function LiquidityControllerScreen() {
                   </View>
 
                   <View style={styles.historyMetricCard}>
-                    <Text style={styles.historyMetricLabel}>SUN.IO</Text>
+                    <Text style={styles.historyMetricLabel}>{t('SUN.IO')}</Text>
                     <Text style={styles.historyMetricPrimary}>
                       {formatLiquidityTrx(event.sunIoTrx)}
                     </Text>
@@ -487,16 +490,16 @@ export default function LiquidityControllerScreen() {
           </View>
         ) : (
           <View style={styles.emptyHistoryCard}>
-            <Text style={styles.emptyHistoryTitle}>No liquidity executions yet.</Text>
+            <Text style={styles.emptyHistoryTitle}>{t('No liquidity executions yet.')}</Text>
             <Text style={styles.emptyHistoryBody}>
-              Controller execution events will appear here after the first on-chain trigger.
+              {t('Controller execution events will appear here after the first on-chain trigger.')}
             </Text>
           </View>
         )}
 
         <View style={styles.historyHead}>
           <View>
-            <Text style={styles.historyEyebrow}>TRX RECEIVED</Text>
+            <Text style={styles.historyEyebrow}>{t('TRX RECEIVED')}</Text>
           </View>
         </View>
 
@@ -519,14 +522,14 @@ export default function LiquidityControllerScreen() {
 
                   <View style={[styles.statusPill, styles.statusPillReceived]}>
                     <Text style={[styles.statusPillText, styles.statusPillTextReceived]}>
-                      RECEIVED
+                      {t('RECEIVED')}
                     </Text>
                   </View>
                 </View>
 
                 <View style={styles.historyMetrics}>
                   <View style={styles.historyMetricCard}>
-                    <Text style={styles.historyMetricLabel}>DATE</Text>
+                    <Text style={styles.historyMetricLabel}>{t('DATE')}</Text>
                     <Text style={styles.historyMetricPrimary}>
                       {formatLiquidityDate(event.timestamp)}
                     </Text>
@@ -534,7 +537,7 @@ export default function LiquidityControllerScreen() {
                   </View>
 
                   <View style={styles.historyMetricCard}>
-                    <Text style={styles.historyMetricLabel}>AMOUNT</Text>
+                    <Text style={styles.historyMetricLabel}>{t('AMOUNT')}</Text>
                     <Text style={styles.historyMetricPrimary}>
                       {formatLiquidityTrx(event.amountTrx)}
                     </Text>
@@ -546,9 +549,9 @@ export default function LiquidityControllerScreen() {
           </View>
         ) : (
           <View style={styles.emptyHistoryCard}>
-            <Text style={styles.emptyHistoryTitle}>No TRX received events yet.</Text>
+            <Text style={styles.emptyHistoryTitle}>{t('No TRX received events yet.')}</Text>
             <Text style={styles.emptyHistoryBody}>
-              Incoming controller deposits from token sales will appear here.
+              {t('Incoming controller deposits from token sales will appear here.')}
             </Text>
           </View>
         )}

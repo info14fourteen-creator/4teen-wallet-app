@@ -66,12 +66,12 @@ function shouldOpenExternally(url: string) {
   );
 }
 
-function getReadableDomain(url: string) {
+function getReadableDomain(url: string, fallbackLabel: string) {
   try {
     const parsed = new URL(url);
     return parsed.hostname.replace(/^www\./, '');
   } catch {
-    return url.replace(/^https?:\/\//, '').split('/')[0] || 'browser';
+    return url.replace(/^https?:\/\//, '').split('/')[0] || fallbackLabel;
   }
 }
 
@@ -99,7 +99,7 @@ export default function BrowserScreen() {
   const [canGoForward, setCanGoForward] = useState(false);
   const [editingUrl, setEditingUrl] = useState(false);
 
-  const domainLabel = useMemo(() => getReadableDomain(currentUrl), [currentUrl]);
+  const domainLabel = useMemo(() => getReadableDomain(currentUrl, t('Browser')), [currentUrl, t]);
   const titleLabel = useMemo(() => getReadableTitle(pageTitle), [pageTitle]);
 
   const closeScreen = useCallback(() => {
@@ -128,7 +128,7 @@ export default function BrowserScreen() {
         url: currentUrl,
       });
     } catch (error) {
-      console.error('Failed to share link:', error);
+      console.warn('Failed to share link:', error);
     }
   }, [currentUrl]);
 
@@ -170,7 +170,7 @@ export default function BrowserScreen() {
 
     if (shouldOpenExternally(nextUrl)) {
       void Linking.openURL(nextUrl).catch((error) => {
-        console.error('Failed to open external deep link:', error);
+        console.warn('Failed to open external deep link:', error);
       });
       return false;
     }
@@ -184,7 +184,7 @@ export default function BrowserScreen() {
     }
 
     void Linking.openURL(nextUrl).catch((error) => {
-      console.error('Failed to open unsupported scheme:', error);
+      console.warn('Failed to open unsupported scheme:', error);
     });
 
     return false;

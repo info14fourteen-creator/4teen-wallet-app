@@ -16,7 +16,7 @@ import { useWalletSession } from '../src/wallet/wallet-session';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { useNotice } from '../src/notice/notice-provider';
-import { useI18n } from '../src/i18n';
+import { translateNow, useI18n } from '../src/i18n';
 import {
   getActiveWalletId,
   listWallets,
@@ -37,9 +37,9 @@ import { AddWalletIcon, OpenRightIcon } from '../src/ui/ui-icons';
 const BROW_SELECT_WALLET_CLOSE_SOURCE = require('../assets/icons/ui/brow_select_wallet_close.json');
 
 function formatWalletKind(kind: WalletMeta['kind']) {
-  if (kind === 'mnemonic') return 'Seed Phrase';
-  if (kind === 'private-key') return 'Private Key';
-  return 'Watch-Only';
+  if (kind === 'mnemonic') return translateNow('Seed Phrase');
+  if (kind === 'private-key') return translateNow('Private Key');
+  return translateNow('Watch-Only');
 }
 
 export default function SelectWalletScreen() {
@@ -72,7 +72,7 @@ export default function SelectWalletScreen() {
       const nextAggregate = await getAllWalletPortfolios();
       setAggregate(nextAggregate);
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(t('Wallet list failed to load.'), 2600);
     } finally {
       setLoading(false);
@@ -126,7 +126,7 @@ export default function SelectWalletScreen() {
       notice.showSuccessNotice(t('Active wallet: {{name}}', { name: wallet.name }), 2200);
       goBackOrReplace(router, { pathname, fallback: '/wallet' });
     } catch (error) {
-      console.error(error);
+      console.warn(error);
       notice.showErrorNotice(t('Wallet selection failed.'), 2600);
     }
   };

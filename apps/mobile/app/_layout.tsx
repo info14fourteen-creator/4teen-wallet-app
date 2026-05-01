@@ -11,7 +11,7 @@ import 'react-native-reanimated';
 import { Buffer } from 'buffer';
 import process from 'process';
 
-import { NoticeProvider } from '../src/notice/notice-provider';
+import { NoticeProvider, useNotice } from '../src/notice/notice-provider';
 import { I18nProvider } from '../src/i18n';
 import { useWalletSession, WalletSessionProvider } from '../src/wallet/wallet-session';
 import { SearchProvider } from '../src/search/search-provider';
@@ -20,7 +20,7 @@ import { shouldRenderSharedNavigation } from '../src/ui/navigation-routes';
 import { captureDeferredReferral, captureReferralFromUrl } from '../src/services/referral';
 import { getAutoLockDelayMs, getAutoLockMode, hasPasscode } from '../src/security/local-auth';
 
-void SplashScreen.preventAutoHideAsync();
+void SplashScreen.preventAutoHideAsync().catch(() => null);
 
 if (!(globalThis as any).Buffer) {
   (globalThis as any).Buffer = Buffer;
@@ -35,6 +35,7 @@ function LayoutContent() {
   const pathname = usePathname();
   const segments = useSegments();
   const rootSegment = segments[0];
+  const notice = useNotice();
   const { hasWallet } = useWalletSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const showSharedNavigation = shouldRenderSharedNavigation(pathname, rootSegment, { hasWallet });
@@ -42,7 +43,8 @@ function LayoutContent() {
 
   useEffect(() => {
     setMenuOpen(false);
-  }, [pathname]);
+    notice.hideNotice();
+  }, [notice, pathname]);
 
   useEffect(() => {
     let mounted = true;
@@ -162,10 +164,12 @@ export default function RootLayout() {
     Sora_600SemiBold,
     Sora_700Bold,
   });
+  const splashHiddenRef = useRef(false);
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
+    if (loaded && !splashHiddenRef.current) {
+      splashHiddenRef.current = true;
+      void SplashScreen.hideAsync().catch(() => null);
     }
   }, [loaded]);
 

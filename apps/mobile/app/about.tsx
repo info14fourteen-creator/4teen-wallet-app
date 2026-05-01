@@ -18,6 +18,7 @@ import {
 } from '../src/config/app-version';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useNotice } from '../src/notice/notice-provider';
+import { submitAppFeedback } from '../src/services/feedback';
 
 import LogoWhite from '../assets/icons/ui/logo_white.svg';
 
@@ -76,11 +77,22 @@ export default function AboutScreen() {
       [
         {
           label: t('I Like It'),
-          onPress: () => notice.showSuccessNotice(t('Nice. At least somebody is happy.'), 3500),
+          onPress: async () => {
+            await submitAppFeedback({
+              type: 'praise',
+              title: 'This feels good',
+              message: 'User tapped the positive feedback shortcut from the About screen.',
+              sourceScreen: 'about',
+              details: {
+                trigger: 'about-rate-us',
+              },
+            }).catch(() => null);
+            notice.showSuccessNotice(t('Nice. At least somebody is happy.'), 3500);
+          },
         },
         {
           label: t('I Wanna Feedback'),
-          onPress: () => notice.showNeutralNotice(t('Feedback flow is not connected yet.'), 3500),
+          onPress: () => router.push('/feedback?sourceScreen=about' as any),
         },
         {
           label: t('Not This Time'),
@@ -99,10 +111,10 @@ export default function AboutScreen() {
 
       <View style={styles.versionRow}>
         <Text style={ui.versionLine}>
-          VERSION {getVersionDisplayString()}
+          {t('VERSION')} {getVersionDisplayString()}
         </Text>
         <Text style={styles.buildLine}>
-          {getBuildDisplayString()}
+          {t('BUILD')} {getBuildDisplayString()}
         </Text>
       </View>
 

@@ -2,6 +2,7 @@ import { TronWeb } from 'tronweb';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { buildTrongridHeaders, FOURTEEN_API_BASE_URL, TRONGRID_BASE_URL } from '../config/tron';
+import { translateNow } from '../i18n';
 import { getAccountResources, getTokenDetails, TRX_TOKEN_ID } from './tron/api';
 import {
   estimateContractCallResources,
@@ -480,6 +481,23 @@ function buildWalletApiUrl(path: string, params?: Record<string, string | number
   return url.toString();
 }
 
+function normalizeWalletApiErrorMessage(message: string | null | undefined, status?: number) {
+  const raw = String(message || '').trim();
+  const match =
+    raw.match(/status code\s+(\d{3})/i) ||
+    raw.match(/^http\s+(\d{3})$/i) ||
+    raw.match(/status\s+(\d{3})/i);
+  const resolvedStatus = match?.[1] || (status ? String(status) : '');
+
+  if (resolvedStatus) {
+    return translateNow('Request failed with status {{status}}.', {
+      status: resolvedStatus,
+    });
+  }
+
+  return raw;
+}
+
 async function readJson(response: Response) {
   try {
     return await response.json();
@@ -501,7 +519,9 @@ async function fetchJsonOrThrow<T>(
   }
 
   if (!response.ok || payload?.ok === false) {
-    const error = new Error(payload?.error || payload?.message || `HTTP ${response.status}`) as Error & {
+    const error = new Error(
+      normalizeWalletApiErrorMessage(payload?.error || payload?.message || `HTTP ${response.status}`, response.status)
+    ) as Error & {
       status?: number;
       payload?: unknown;
     };
@@ -760,11 +780,11 @@ function mergeCabinetWithOnChain(
 
 export function levelToLabel(level: unknown) {
   const numeric = Number(level || 0);
-  if (numeric === 0) return 'Bronze';
-  if (numeric === 1) return 'Silver';
-  if (numeric === 2) return 'Gold';
-  if (numeric === 3) return 'Platinum';
-  return `Level ${numeric}`;
+  if (numeric === 0) return translateNow('Bronze');
+  if (numeric === 1) return translateNow('Silver');
+  if (numeric === 2) return translateNow('Gold');
+  if (numeric === 3) return translateNow('Platinum');
+  return translateNow('Level {{count}}', { count: String(numeric) });
 }
 
 export async function loadAmbassadorCabinet(
@@ -774,7 +794,7 @@ export async function loadAmbassadorCabinet(
   if (!wallet) return null;
 
   const onChainCabinetPromise = loadAmbassadorCabinetOnChain(profile).catch((error) => {
-    console.error('[4TEEN] ambassador direct on-chain cabinet failed', error);
+    console.warn('[4TEEN] ambassador direct on-chain cabinet failed', error);
     return null;
   });
 
@@ -789,7 +809,7 @@ export async function loadAmbassadorCabinet(
       notFoundAsNull: true,
     }
   ).catch((error) => {
-    console.error('[4TEEN] ambassador proxy cabinet failed', error);
+    console.warn('[4TEEN] ambassador proxy cabinet failed', error);
     return null;
   });
 
@@ -893,11 +913,11 @@ async function getSigningWalletContext() {
   const wallet = await getActiveWallet();
 
   if (!wallet) {
-    throw new Error('No wallet available.');
+    throw new Error(translateNow('No wallet available.'));
   }
 
   if (wallet.kind === 'watch-only') {
-    throw new Error('This action requires a full-access wallet.');
+    throw new Error(translateNow('This action requires a full-access wallet.'));
   }
 
   const secret = await getWalletSecret(wallet.id);
@@ -911,7 +931,7 @@ async function getSigningWalletContext() {
   }
 
   if (!isValidPrivateKey(privateKey)) {
-    throw new Error('Private key not found for this wallet.');
+    throw new Error(translateNow('Private key not found for this wallet.'));
   }
 
   return {
@@ -1070,7 +1090,7 @@ export async function checkAmbassadorSlugAvailability(slug: string) {
   const normalizedSlug = normalizeAmbassadorSlug(slug);
 
   if (!isValidAmbassadorSlug(normalizedSlug)) {
-    throw new Error('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.');
+    throw new Error(translateNow('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.'));
   }
 
   const slugHash = buildAmbassadorSlugHash(normalizedSlug);
@@ -1078,7 +1098,7 @@ export async function checkAmbassadorSlugAvailability(slug: string) {
   const takenOnChain = readTupleBoolean(await contract.isSlugTaken(slugHash).call());
 
   if (takenOnChain) {
-    throw new Error('Slug is already taken on-chain.');
+    throw new Error(translateNow('Slug is already taken on-chain.'));
   }
 
   const payload = await fetchJsonOrThrow<{ ok?: boolean; available?: boolean; slug?: string }>(
@@ -1090,7 +1110,7 @@ export async function checkAmbassadorSlugAvailability(slug: string) {
   ).catch(() => null);
 
   if (payload && !payload.available) {
-    throw new Error('Slug is already taken in ambassador backend.');
+    throw new Error(translateNow('Slug is already taken in ambassador backend.'));
   }
 
   return {
@@ -1110,14 +1130,14 @@ export async function registerAmbassadorWithOptions(
   const normalizedSlug = normalizeAmbassadorSlug(slug);
 
   if (!isValidAmbassadorSlug(normalizedSlug)) {
-    throw new Error('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.');
+    throw new Error(translateNow('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.'));
   }
 
   const { wallet, privateKey } = await getSigningWalletContext();
   const existing = await lookupAmbassadorOnChain(wallet.address, { force: true });
 
   if (existing) {
-    throw new Error('This wallet is already registered as ambassador.');
+    throw new Error(translateNow('This wallet is already registered as ambassador.'));
   }
 
   await checkAmbassadorSlugAvailability(normalizedSlug);
@@ -1139,7 +1159,7 @@ export async function registerAmbassadorWithOptions(
   const txId = extractTxid(result);
 
   if (!txId) {
-    throw new Error('Registration transaction sent but txid was not returned.');
+    throw new Error(translateNow('Registration transaction sent but txid was not returned.'));
   }
 
   const completed = await fetchJsonOrThrow<{
@@ -1235,14 +1255,14 @@ export async function estimateAmbassadorRegistration(
   const normalizedSlug = normalizeAmbassadorSlug(slug);
 
   if (!isValidAmbassadorSlug(normalizedSlug)) {
-    throw new Error('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.');
+    throw new Error(translateNow('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.'));
   }
 
   const { wallet, privateKey } = await getSigningWalletContext();
   const existing = await lookupAmbassadorOnChain(wallet.address, { force: true });
 
   if (existing) {
-    throw new Error('This wallet is already registered as ambassador.');
+    throw new Error(translateNow('This wallet is already registered as ambassador.'));
   }
 
   await checkAmbassadorSlugAvailability(normalizedSlug);
@@ -1301,11 +1321,11 @@ export async function getAmbassadorRegistrationEnergyQuote(input: {
   const slug = normalizeAmbassadorSlug(input.slug);
 
   if (!wallet) {
-    throw new Error('Wallet is missing.');
+    throw new Error(translateNow('Wallet is missing.'));
   }
 
   if (!isValidAmbassadorSlug(slug)) {
-    throw new Error('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.');
+    throw new Error(translateNow('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.'));
   }
 
   const payload = await fetchJsonOrThrow<{
@@ -1326,7 +1346,7 @@ export async function getAmbassadorRegistrationEnergyQuote(input: {
   const result = payload?.result;
 
   if (!result?.paymentAddress || !result?.amountTrx) {
-    throw new Error('Energy rental quote is unavailable.');
+    throw new Error(translateNow('Energy rental quote is unavailable.'));
   }
 
   return {
@@ -1353,15 +1373,15 @@ export async function confirmAmbassadorRegistrationEnergy(input: {
   const paymentTxId = String(input.paymentTxId || '').trim();
 
   if (!wallet) {
-    throw new Error('Wallet is missing.');
+    throw new Error(translateNow('Wallet is missing.'));
   }
 
   if (!isValidAmbassadorSlug(slug)) {
-    throw new Error('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.');
+    throw new Error(translateNow('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.'));
   }
 
   if (!paymentTxId) {
-    throw new Error('Energy rental payment txid is missing.');
+    throw new Error(translateNow('Energy rental payment txid is missing.'));
   }
 
   const payload = await fetchJsonOrThrow<{
@@ -1394,7 +1414,7 @@ export async function withdrawAmbassadorRewards(): Promise<AmbassadorWithdrawalR
   const txId = extractTxid(result);
 
   if (!txId) {
-    throw new Error('Withdrawal transaction sent but txid was not returned.');
+    throw new Error(translateNow('Withdrawal transaction sent but txid was not returned.'));
   }
 
   await fetchJsonOrThrow(buildWalletApiUrl('/ambassador/withdrawal/confirm'), {
@@ -1462,14 +1482,14 @@ export async function estimateAmbassadorWithdrawal(): Promise<AmbassadorWithdraw
   const profile = await lookupAmbassadorOnChain(wallet.address, { force: true });
 
   if (!profile) {
-    throw new Error('This wallet is not registered as ambassador.');
+    throw new Error(translateNow('This wallet is not registered as ambassador.'));
   }
 
   const cabinet = await loadAmbassadorCabinet(profile).catch(() => null);
   const claimableRewardsSun = normalizeSunInteger(cabinet?.summary?.claimable_rewards_sun);
 
   if (BigInt(claimableRewardsSun) <= 0n) {
-    throw new Error('No on-chain rewards are available for withdrawal yet.');
+    throw new Error(translateNow('No on-chain rewards are available for withdrawal yet.'));
   }
 
   const tronWeb = createTronWeb(privateKey, wallet.address);
@@ -1513,7 +1533,7 @@ export async function replayAmbassadorPendingRewards(walletAddress: string) {
   const wallet = normalizeAddress(walletAddress);
 
   if (!wallet) {
-    throw new Error('Wallet is missing.');
+    throw new Error(translateNow('Wallet is missing.'));
   }
 
   const payload = await fetchJsonOrThrow<{ ok?: boolean; result?: unknown }>(
@@ -1582,7 +1602,7 @@ async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<Am
       profile: null,
       cabinet: null,
       status: 'no-wallet',
-      message: 'Import or create a wallet to use ambassador flows.',
+      message: translateNow('Import or create a wallet to use ambassador flows.'),
     };
   }
 
@@ -1598,8 +1618,9 @@ async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<Am
       profile: null,
       cabinet: null,
       status: 'watch-only',
-      message:
-        'Watch-only wallets are not available for ambassador registration or cabinet actions. Select a seed phrase or private-key wallet.',
+      message: translateNow(
+        'Watch-only wallets are not available for ambassador registration or cabinet actions. Select a seed phrase or private-key wallet.'
+      ),
     };
   }
 
@@ -1608,7 +1629,7 @@ async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<Am
   try {
     onChainProfile = await lookupAmbassadorOnChain(wallet.address, { force: options?.force });
   } catch (error) {
-    console.error('[4TEEN] ambassador on-chain lookup failed', error);
+    console.warn('[4TEEN] ambassador on-chain lookup failed', error);
     return {
       wallet,
       signingWalletAvailable,
@@ -1617,7 +1638,7 @@ async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<Am
       profile: null,
       cabinet: null,
       status: 'unavailable',
-      message: 'Could not verify ambassador status on-chain. Try again in a moment.',
+      message: translateNow('Could not verify ambassador status on-chain. Try again in a moment.'),
     };
   }
 
@@ -1630,7 +1651,7 @@ async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<Am
       profile: null,
       cabinet: null,
       status: 'register',
-      message: 'This wallet is not registered as an ambassador yet.',
+      message: translateNow('This wallet is not registered as an ambassador yet.'),
     };
   }
 
@@ -1657,7 +1678,9 @@ async function readAmbassadorSnapshot(options?: { force?: boolean }): Promise<Am
     profile,
     cabinet,
     status: 'cabinet',
-    message: cabinet ? '' : 'Ambassador profile found, but cabinet data is temporarily unavailable.',
+    message: cabinet
+      ? ''
+      : translateNow('Ambassador profile found, but cabinet data is temporarily unavailable.'),
   };
 }
 
@@ -1720,7 +1743,7 @@ export async function clearAmbassadorCaches(): Promise<void> {
       await AsyncStorage.multiRemove(keysToRemove);
     }
   } catch (error) {
-    console.error('Failed to clear ambassador caches:', error);
+    console.warn('Failed to clear ambassador caches:', error);
     throw error;
   }
 }
@@ -1728,7 +1751,7 @@ export async function clearAmbassadorCaches(): Promise<void> {
 export async function getBuyerAmbassadorAddress(buyerWallet: string) {
   const buyer = normalizeAddress(buyerWallet);
   if (!buyer) {
-    throw new Error('Buyer wallet is missing.');
+    throw new Error(translateNow('Buyer wallet is missing.'));
   }
 
   const tronWeb = createTronWeb();

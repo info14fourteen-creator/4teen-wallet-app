@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 
 import { getInstallReferrerAsync } from '../../modules/install-referrer';
 import { FOURTEEN_API_BASE_URL } from '../config/tron';
+import { translateNow } from '../i18n';
 
 const REFERRAL_QUERY_PARAM = 'r';
 const REFERRAL_STORAGE_KEY = 'fourteen_referral_record';
@@ -183,7 +184,7 @@ export function formatReferralExpiry(expiresAt: number) {
     return '—';
   }
 
-  return new Date(expiresAt).toLocaleDateString('en-GB', {
+  return new Date(expiresAt).toLocaleDateString(undefined, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -327,7 +328,7 @@ export async function submitReferralAttribution(input: {
   const buyerWallet = String(input.buyerWallet || '').trim();
 
   if (!txHash || !buyerWallet) {
-    throw new Error('Attribution payload is incomplete.');
+    throw new Error(translateNow('Attribution payload is incomplete.'));
   }
 
   const referral = await getStoredReferral();
@@ -371,7 +372,9 @@ export async function submitReferralAttribution(input: {
       typeof (data as { error?: unknown }).error === 'string' &&
       (data as { error: string }).error.trim()
         ? (data as { error: string }).error.trim()
-        : `Attribution request failed with status ${response.status}`;
+        : translateNow('Attribution request failed with status {{status}}', {
+            status: String(response.status),
+          });
 
     throw new Error(message);
   }

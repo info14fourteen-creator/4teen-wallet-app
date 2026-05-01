@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
 
   stageCompact: {
     justifyContent: 'flex-start',
-    paddingTop: spacing[2],
+    paddingTop: 0,
     minHeight: 320,
   },
 
