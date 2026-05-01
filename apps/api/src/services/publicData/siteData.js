@@ -3,8 +3,14 @@ const crypto = require('crypto');
 const env = require('../../config/env');
 const { pool } = require('../../db/pool');
 const { ensureTelegramAirdropTables, PLATFORM_TELEGRAM } = require('../airdrop/telegramClaims');
+const {
+  getAmbassadorAllocationWalletResources,
+  hasEnoughAmbassadorAllocationResources
+} = require('../ambassador/resourceGate');
+const { getGasStationRuntimeState } = require('../gasstation/gasStation');
 const { proxyRequest } = require('../proxy/apiProxy');
 
+const SITE_SNAPSHOT_AMBASSADOR = 'ambassador_summary_v1';
 const SITE_SNAPSHOT_AIRDROP = 'airdrop_summary_v1';
 const SITE_SNAPSHOT_MARKET_PRICE = 'market_price_v1';
 const SITE_PUBLIC_SCHEMA_LOCK_KEY = 14014042;
@@ -13,6 +19,8 @@ const AIRDROP_TOKEN_DECIMALS = 6;
 const AIRDROP_TOTAL_ALLOCATION_RAW = BigInt(1_500_000) * BigInt(10 ** AIRDROP_TOKEN_DECIMALS);
 const AIRDROP_ISSUE_TS = 1763865465;
 const AIRDROP_VAULT_CONTRACT = env.AIRDROP_VAULT_CONTRACT || 'TV6eXKWCsZ15c3Svz39mRQWtBsqvNNBwpQ';
+const FOURTEEN_CONTROLLER_CONTRACT =
+  env.FOURTEEN_CONTROLLER_CONTRACT || 'TF8yhohRfMxsdVRr7fFrYLh5fxK8sAFkeZ';
 const FOURTEEN_TOKEN_CONTRACT = env.FOURTEEN_TOKEN_CONTRACT || 'TMLXiCW2ZAkvjmn79ZXa4vdHX5BE3n9x4A';
 
 const AIRDROP_WAVE_TIMES = [
@@ -574,6 +582,173 @@ async function buildAirdropDbFootprint() {
   };
 }
 
+async function buildAmbassadorDbFootprint() {
+  const [purchasesResult, withdrawalsResult, ambassadorsResult] = await Promise.all([
+    pool.query(`
+      SELECT
+        COUNT(*) FILTER (
+          WHERE resolved_ambassador_wallet IS NOT NULL
+            AND status IN ('processed', 'attributed')
+        )::INT AS purchases_total,
+        COUNT(*) FILTER (
+          WHERE resolved_ambassador_wallet IS NOT NULL
+            AND (status = 'processed' OR controller_processed = true)
+        )::INT AS purchases_processed,
+        COUNT(*) FILTER (
+          WHERE resolved_ambassador_wallet IS NOT NULL
+            AND status = 'attributed'
+            AND COALESCE(controller_processed, false) = false
+        )::INT AS purchases_pending,
+        COUNT(DISTINCT lower(resolved_ambassador_wallet)) FILTER (
+          WHERE resolved_ambassador_wallet IS NOT NULL
+            AND status IN ('processed', 'attributed')
+        )::INT AS ambassadors_with_purchases,
+        COUNT(DISTINCT lower(buyer_wallet)) FILTER (
+          WHERE resolved_ambassador_wallet IS NOT NULL
+            AND status IN ('processed', 'attributed')
+        )::INT AS buyers_total,
+        MAX(token_block_time) AS latest_purchase_at
+      FROM purchases
+    `),
+    pool.query(`
+      SELECT
+        COUNT(*)::INT AS withdrawals_count,
+        MAX(block_time) AS latest_withdrawal_at
+      FROM ambassador_reward_withdrawals
+    `),
+    pool.query(`
+      SELECT
+        COUNT(*)::INT AS profiles_total,
+        COUNT(*) FILTER (WHERE exists_on_chain = true)::INT AS profiles_on_chain,
+        COUNT(*) FILTER (WHERE exists_on_chain = true AND active = true)::INT AS profiles_active
+      FROM ambassadors
+    `)
+  ]);
+
+  const purchases = purchasesResult.rows[0] || {};
+  const withdrawals = withdrawalsResult.rows[0] || {};
+  const ambassadors = ambassadorsResult.rows[0] || {};
+
+  return {
+    purchasesTotal: Number(purchases.purchases_total || 0),
+    purchasesProcessed: Number(purchases.purchases_processed || 0),
+    purchasesPending: Number(purchases.purchases_pending || 0),
+    ambassadorsWithPurchases: Number(purchases.ambassadors_with_purchases || 0),
+    buyersTotal: Number(purchases.buyers_total || 0),
+    latestPurchaseAt: purchases.latest_purchase_at
+      ? new Date(purchases.latest_purchase_at).getTime()
+      : 0,
+    withdrawalsCount: Number(withdrawals.withdrawals_count || 0),
+    latestWithdrawalAt: withdrawals.latest_withdrawal_at
+      ? new Date(withdrawals.latest_withdrawal_at).getTime()
+      : 0,
+    profilesTotal: Number(ambassadors.profiles_total || 0),
+    profilesOnChain: Number(ambassadors.profiles_on_chain || 0),
+    profilesActive: Number(ambassadors.profiles_active || 0)
+  };
+}
+
+async function buildAmbassadorRuntime() {
+  const [resourceState, resources, runtime] = await Promise.all([
+    hasEnoughAmbassadorAllocationResources().catch(() => null),
+    getAmbassadorAllocationWalletResources().catch(() => null),
+    getGasStationRuntimeState().catch(() => null)
+  ]);
+
+  return {
+    operatorWallet: String(env.OPERATOR_WALLET || '').trim() || null,
+    requirements: {
+      requiredEnergy: Number(env.AMBASSADOR_ALLOCATION_REQUIRED_ENERGY || 0),
+      requiredBandwidth: Number(env.AMBASSADOR_ALLOCATION_REQUIRED_BANDWIDTH || 0),
+      minEnergyFloor: Number(env.AMBASSADOR_ALLOCATION_MIN_ENERGY_FLOOR || 0),
+      minBandwidthFloor: Number(env.AMBASSADOR_ALLOCATION_MIN_BANDWIDTH_FLOOR || 0)
+    },
+    resourceState,
+    resources,
+    runtime,
+    readyNow: Boolean(resourceState?.hasEnough)
+  };
+}
+
+async function buildAmbassadorSnapshot() {
+  const [systemStatsHex, systemBalancesHex, dbFootprint, allocationRuntime] = await Promise.all([
+    triggerConstant('getSystemStats()', FOURTEEN_CONTROLLER_CONTRACT),
+    triggerConstant('getSystemBalances()', FOURTEEN_CONTROLLER_CONTRACT),
+    buildAmbassadorDbFootprint(),
+    buildAmbassadorRuntime()
+  ]);
+
+  const [
+    ambassadorsCountWord,
+    activeAmbassadorsCountWord,
+    boundBuyersCountWord,
+    trackedVolumeWord,
+    rewardsAccruedWord,
+    rewardsClaimedWord
+  ] = splitWords(systemStatsHex);
+
+  const [
+    controllerBalanceWord,
+    ownerAvailableBalanceWord,
+    reservedRewardsWord,
+    unallocatedPurchaseFundsWord
+  ] = splitWords(systemBalancesHex);
+
+  const trackedVolumeRaw = hexToBigInt(trackedVolumeWord);
+  const rewardsAccruedRaw = hexToBigInt(rewardsAccruedWord);
+  const rewardsClaimedRaw = hexToBigInt(rewardsClaimedWord);
+  const controllerBalanceRaw = hexToBigInt(controllerBalanceWord);
+  const ownerAvailableBalanceRaw = hexToBigInt(ownerAvailableBalanceWord);
+  const reservedRewardsRaw = hexToBigInt(reservedRewardsWord);
+  const unallocatedPurchaseFundsRaw = hexToBigInt(unallocatedPurchaseFundsWord);
+
+  return {
+    contractAddress: FOURTEEN_CONTROLLER_CONTRACT,
+    loadedAt: new Date().toISOString(),
+    levels: [
+      { key: 'bronze', label: 'Bronze', buyersRange: '0-9 buyers', rewardPercent: 10 },
+      { key: 'silver', label: 'Silver', buyersRange: '10-99 buyers', rewardPercent: 25 },
+      { key: 'gold', label: 'Gold', buyersRange: '100-999 buyers', rewardPercent: 50 },
+      { key: 'platinum', label: 'Platinum', buyersRange: '1000+ buyers', rewardPercent: 75 }
+    ],
+    system: {
+      ambassadorsCount: Number(hexToBigInt(ambassadorsCountWord)),
+      activeAmbassadorsCount: Number(hexToBigInt(activeAmbassadorsCountWord)),
+      boundBuyersCount: Number(hexToBigInt(boundBuyersCountWord)),
+      trackedVolumeRaw: trackedVolumeRaw.toString(),
+      trackedVolumeDisplay: formatTokenAmount(trackedVolumeRaw),
+      rewardsAccruedRaw: rewardsAccruedRaw.toString(),
+      rewardsAccruedDisplay: formatTokenAmount(rewardsAccruedRaw),
+      rewardsClaimedRaw: rewardsClaimedRaw.toString(),
+      rewardsClaimedDisplay: formatTokenAmount(rewardsClaimedRaw),
+      controllerBalanceRaw: controllerBalanceRaw.toString(),
+      controllerBalanceDisplay: formatTokenAmount(controllerBalanceRaw),
+      ownerAvailableBalanceRaw: ownerAvailableBalanceRaw.toString(),
+      ownerAvailableBalanceDisplay: formatTokenAmount(ownerAvailableBalanceRaw),
+      reservedRewardsRaw: reservedRewardsRaw.toString(),
+      reservedRewardsDisplay: formatTokenAmount(reservedRewardsRaw),
+      unallocatedPurchaseFundsRaw: unallocatedPurchaseFundsRaw.toString(),
+      unallocatedPurchaseFundsDisplay: formatTokenAmount(unallocatedPurchaseFundsRaw)
+    },
+    db: {
+      purchasesTotal: dbFootprint.purchasesTotal,
+      purchasesProcessed: dbFootprint.purchasesProcessed,
+      purchasesPending: dbFootprint.purchasesPending,
+      ambassadorsWithPurchases: dbFootprint.ambassadorsWithPurchases,
+      buyersTotal: dbFootprint.buyersTotal,
+      withdrawalsCount: dbFootprint.withdrawalsCount,
+      profilesTotal: dbFootprint.profilesTotal,
+      profilesOnChain: dbFootprint.profilesOnChain,
+      profilesActive: dbFootprint.profilesActive,
+      latestPurchaseAt: dbFootprint.latestPurchaseAt,
+      latestPurchaseLabel: formatTimestampLabel(dbFootprint.latestPurchaseAt),
+      latestWithdrawalAt: dbFootprint.latestWithdrawalAt,
+      latestWithdrawalLabel: formatTimestampLabel(dbFootprint.latestWithdrawalAt)
+    },
+    runtime: allocationRuntime
+  };
+}
+
 async function buildAirdropSnapshot() {
   const [operatorHex, currentWaveHex, nextWaveHex, waveInfoHex, availableNowHex, latestEvent, dbFootprint] =
     await Promise.all([
@@ -668,6 +843,15 @@ async function getPublicMarketPriceSnapshot(options = {}) {
   });
 }
 
+async function getPublicAmbassadorSnapshot(options = {}) {
+  return getCachedOrRefresh({
+    snapshotKey: SITE_SNAPSHOT_AMBASSADOR,
+    ttlSeconds: options.ttlSeconds || env.SITE_PUBLIC_AMBASSADOR_TTL_SECONDS || 120,
+    source: 'ambassador_live',
+    build: buildAmbassadorSnapshot
+  });
+}
+
 async function getPublicAirdropSnapshot(options = {}) {
   return getCachedOrRefresh({
     snapshotKey: SITE_SNAPSHOT_AIRDROP,
@@ -678,8 +862,9 @@ async function getPublicAirdropSnapshot(options = {}) {
 }
 
 async function getPublicSiteSummary() {
-  const [airdrop, marketPrice] = await Promise.all([
+  const [airdrop, ambassador, marketPrice] = await Promise.all([
     getPublicAirdropSnapshot(),
+    getPublicAmbassadorSnapshot(),
     getPublicMarketPriceSnapshot()
   ]);
 
@@ -687,13 +872,15 @@ async function getPublicSiteSummary() {
     ok: true,
     updatedAt: new Date().toISOString(),
     airdrop,
+    ambassador,
     marketPrice
   };
 }
 
 async function refreshPublicSiteData() {
-  const [airdrop, marketPrice] = await Promise.allSettled([
+  const [airdrop, ambassador, marketPrice] = await Promise.allSettled([
     getPublicAirdropSnapshot({ ttlSeconds: 120 }),
+    getPublicAmbassadorSnapshot({ ttlSeconds: 120 }),
     getPublicMarketPriceSnapshot({ ttlSeconds: 120 })
   ]);
 
@@ -702,6 +889,10 @@ async function refreshPublicSiteData() {
       airdrop.status === 'fulfilled'
         ? { ok: true, stale: airdrop.value.stale, fetchedAt: airdrop.value.fetchedAt }
         : { ok: false, error: airdrop.reason instanceof Error ? airdrop.reason.message : String(airdrop.reason) },
+    ambassador:
+      ambassador.status === 'fulfilled'
+        ? { ok: true, stale: ambassador.value.stale, fetchedAt: ambassador.value.fetchedAt }
+        : { ok: false, error: ambassador.reason instanceof Error ? ambassador.reason.message : String(ambassador.reason) },
     marketPrice:
       marketPrice.status === 'fulfilled'
         ? { ok: true, stale: marketPrice.value.stale, fetchedAt: marketPrice.value.fetchedAt }
@@ -712,6 +903,7 @@ async function refreshPublicSiteData() {
 module.exports = {
   ensureSiteSnapshotTable,
   getPublicAirdropSnapshot,
+  getPublicAmbassadorSnapshot,
   getPublicMarketPriceSnapshot,
   getPublicSiteSummary,
   refreshPublicSiteData

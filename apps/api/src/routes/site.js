@@ -3,6 +3,7 @@ const express = require('express');
 const env = require('../config/env');
 const {
   getPublicAirdropSnapshot,
+  getPublicAmbassadorSnapshot,
   getPublicMarketPriceSnapshot,
   getPublicSiteSummary,
   refreshPublicSiteData
@@ -85,6 +86,19 @@ router.get('/airdrop', async (_req, res) => {
     return res.status(500).json({
       ok: false,
       error: error instanceof Error ? error.message : 'Failed to load public airdrop snapshot'
+    });
+  }
+});
+
+router.get('/ambassador', async (_req, res) => {
+  try {
+    const result = await getPublicAmbassadorSnapshot();
+    setPublicCache(res, env.SITE_PUBLIC_AMBASSADOR_TTL_SECONDS);
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : 'Failed to load public ambassador snapshot'
     });
   }
 });
