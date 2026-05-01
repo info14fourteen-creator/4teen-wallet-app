@@ -7,6 +7,7 @@ const ambassadorRouter = require('./routes/ambassador');
 const resourcesRouter = require('./routes/resources');
 const gasStationRouter = require('./routes/gasstation');
 const airdropRouter = require('./routes/airdrop');
+const opsRouter = require('./routes/ops');
 
 const app = express();
 
@@ -53,5 +54,6 @@ app.use('/resources', resourcesRouter);
 app.use('/gasstation', gasStationRouter);
 app.use('/ambassador', ambassadorRouter);
 app.use('/airdrop', airdropRouter);
+app.use('/ops', opsRouter);
 
 module.exports = app;

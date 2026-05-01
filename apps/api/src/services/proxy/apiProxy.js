@@ -1,4 +1,5 @@
 const env = require('../../config/env');
+const { recordOpsEvent, resolveOpsEvent } = require('../ops/events');
 
 const TRONSCAN_BASE_URL = 'https://apilist.tronscanapi.com/api';
 const CMC_PRO_BASE_URL = 'https://pro-api.coinmarketcap.com';
@@ -36,6 +37,12 @@ const keyState = {
   cmc: createKeyState(keyPools.cmc.length)
 };
 
+const exhaustedPoolFlags = {
+  trongrid: false,
+  tronscan: false,
+  cmc: false
+};
+
 function buildKeyPool(values) {
   return Array.from(
     new Set(
@@ -51,6 +58,68 @@ function createKeyState(size) {
     nextIndex: 0,
     cooldownUntil: Array.from({ length: size }, () => 0)
   };
+}
+
+function getKeyLabel(poolName, index) {
+  return `${poolName}#${index + 1}`;
+}
+
+function getPoolCooldownSnapshot(poolName) {
+  const keys = keyPools[poolName] || [];
+  const state = keyState[poolName] || createKeyState(0);
+  const now = Date.now();
+  const cooldowns = keys.map((_, index) => {
+    const retryAt = Number(state.cooldownUntil[index] || 0);
+    return {
+      label: getKeyLabel(poolName, index),
+      retryAt: retryAt > now ? new Date(retryAt).toISOString() : null,
+      retryInSeconds: retryAt > now ? Math.ceil((retryAt - now) / 1000) : 0,
+      coolingDown: retryAt > now
+    };
+  });
+
+  return {
+    total: keys.length,
+    available: cooldowns.filter((item) => !item.coolingDown).length,
+    coolingDown: cooldowns.filter((item) => item.coolingDown).length,
+    nextIndex: Number(state.nextIndex || 0),
+    cooldowns
+  };
+}
+
+async function notifyPoolExhausted(poolName, retrySeconds) {
+  if (exhaustedPoolFlags[poolName]) {
+    return;
+  }
+
+  exhaustedPoolFlags[poolName] = true;
+
+  await recordOpsEvent({
+    source: 'proxy',
+    category: 'keys',
+    type: 'key_pool_exhausted',
+    severity: 'error',
+    title: `${poolName} key pool exhausted`,
+    message: `All ${poolName} keys are cooling down. Retry after ${retrySeconds}s.`,
+    fingerprint: `proxy:${poolName}:key_pool_exhausted`,
+    details: getPoolCooldownSnapshot(poolName)
+  }).catch(() => null);
+}
+
+async function notifyPoolRecovered(poolName) {
+  if (!exhaustedPoolFlags[poolName]) {
+    return;
+  }
+
+  exhaustedPoolFlags[poolName] = false;
+
+  await resolveOpsEvent({
+    source: 'proxy',
+    category: 'keys',
+    type: 'key_pool_exhausted',
+    fingerprint: `proxy:${poolName}:key_pool_exhausted`,
+    message: `${poolName} key pool recovered.`
+  }).catch(() => null);
 }
 
 function getTargetBase(provider) {
@@ -159,6 +228,7 @@ async function proxyRequest({ provider, path, query, method = 'GET', body }) {
     const retrySeconds = Math.ceil(Math.max(0, (nextAvailableAt || now) - now) / 1000);
     const error = new Error(`All ${poolName} keys are cooling down. Retry after ${retrySeconds}s.`);
     error.status = 429;
+    void notifyPoolExhausted(poolName, retrySeconds);
     throw error;
   }
 
@@ -177,6 +247,7 @@ async function proxyRequest({ provider, path, query, method = 'GET', body }) {
 
       state.nextIndex = (index + 1) % keys.length;
       state.cooldownUntil[index] = 0;
+      void notifyPoolRecovered(poolName);
       return result;
     } catch (error) {
       lastError = error;
@@ -253,6 +324,13 @@ async function handleProxyRequest(req, res, provider, path) {
 }
 
 module.exports = {
+  getProxyKeyPoolRuntimeState() {
+    return {
+      trongrid: getPoolCooldownSnapshot('trongrid'),
+      tronscan: getPoolCooldownSnapshot('tronscan'),
+      cmc: getPoolCooldownSnapshot('cmc')
+    };
+  },
   handleProxyRequest,
   proxyRequest
 };
