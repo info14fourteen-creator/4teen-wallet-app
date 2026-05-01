@@ -600,7 +600,11 @@ async function ensureAdminTelegramWebhook() {
         commands: BOT_COMMANDS
       }).catch(() => null);
 
-      if (normalizeValue(info?.url) === expectedUrl) {
+      const allowedUpdates = Array.isArray(info?.allowed_updates) ? info.allowed_updates : [];
+      const needsAllowedUpdatesRefresh =
+        !allowedUpdates.includes('message') || !allowedUpdates.includes('callback_query');
+
+      if (normalizeValue(info?.url) === expectedUrl && !needsAllowedUpdatesRefresh) {
         return {
           ok: true,
           url: expectedUrl,
