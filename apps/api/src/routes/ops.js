@@ -59,10 +59,26 @@ router.get('/health', async (_req, res) => {
       error: error.message
     }));
 
+    const adminBot = bootstrap
+      ? {
+          enabled: bootstrap.enabled !== false,
+          ok: bootstrap.ok === true,
+          synced: bootstrap.synced === true,
+          warning: bootstrap.warning || null,
+          error: bootstrap.error || null
+        }
+      : {
+          enabled: false,
+          ok: false,
+          synced: false,
+          warning: null,
+          error: null
+        };
+
     return res.json({
       ok: true,
-      webhookUrl: getExpectedWebhookUrl() || null,
-      adminBot: bootstrap
+      webhookConfigured: Boolean(getExpectedWebhookUrl()),
+      adminBot
     });
   } catch (error) {
     return res.status(error.status || 500).json({
