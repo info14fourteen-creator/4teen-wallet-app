@@ -1,26 +1,30 @@
 {
-  "generatedAt": "2026-05-02T23:30:58.692Z",
+  "generatedAt": "2026-05-02T23:39:25.079Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "9bd28ccb508fccf9cb1b799f62222248209a33e0",
-    "shortHash": "9bd28cc",
-    "subject": "Improve bot locale switching quality",
+    "hash": "f915f2bbd5477c686b459706f39f0dfb07781e5e",
+    "shortHash": "f915f2b",
+    "subject": "Normalize Telegram oga voice files for transcription",
     "author": "info14fourteen-creator",
-    "date": "2026-05-03T04:30:41+05:00"
+    "date": "2026-05-03T04:39:14+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/src/services/ops/telegramAdminBot.js"
+    "M\tapps/api/src/services/ops/openai.js"
   ],
   "activeFiles": [
     {
       "file": ".github/scripts/ops-remote-runner.mjs",
-      "count": 6
+      "count": 5
     },
     {
       "file": "apps/api/src/services/ops/telegramAdminBot.js",
       "count": 3
+    },
+    {
+      "file": "apps/api/src/services/ops/openai.js",
+      "count": 2
     },
     {
       "file": "apps/api/clock.js",
@@ -100,10 +104,6 @@
     },
     {
       "file": "apps/api/src/services/ops/monitor.js",
-      "count": 1
-    },
-    {
-      "file": "apps/api/src/services/ops/openai.js",
       "count": 1
     },
     {

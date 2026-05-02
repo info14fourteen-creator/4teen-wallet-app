@@ -1,18 +1,19 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-05-02T23:30:58.692Z
+Generated: 2026-05-02T23:39:25.078Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 9bd28ccb508fccf9cb1b799f62222248209a33e0
-Short commit: 9bd28cc
-Commit subject: Improve bot locale switching quality
+Last commit: f915f2bbd5477c686b459706f39f0dfb07781e5e
+Short commit: f915f2b
+Commit subject: Normalize Telegram oga voice files for transcription
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T04:30:41+05:00
+Commit date: 2026-05-03T04:39:14+05:00
 
 ## Most frequently changed files in last 20 commits
 
-- 6x :: .github/scripts/ops-remote-runner.mjs
+- 5x :: .github/scripts/ops-remote-runner.mjs
 - 3x :: apps/api/src/services/ops/telegramAdminBot.js
+- 2x :: apps/api/src/services/ops/openai.js
 - 1x :: apps/api/clock.js
 - 1x :: apps/api/package.json
 - 1x :: apps/api/Procfile
@@ -33,7 +34,6 @@ Commit date: 2026-05-03T04:30:41+05:00
 - 1x :: apps/api/src/services/ops/githubOidc.js
 - 1x :: apps/api/src/services/ops/githubRemoteRunner.js
 - 1x :: apps/api/src/services/ops/monitor.js
-- 1x :: apps/api/src/services/ops/openai.js
 - 1x :: apps/api/src/services/ops/remoteApplyPlan.js
 - 1x :: apps/api/src/services/ops/remoteRunner.js
 - 1x :: apps/api/src/services/ops/resourceSignals.js

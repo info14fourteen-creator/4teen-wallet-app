@@ -1,13 +1,13 @@
 # 4teen-wallet-app — WALLET CORE
 
-Generated: 2026-05-02T23:30:58.691Z
+Generated: 2026-05-02T23:39:25.078Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 9bd28ccb508fccf9cb1b799f62222248209a33e0
-Short commit: 9bd28cc
-Commit subject: Improve bot locale switching quality
+Last commit: f915f2bbd5477c686b459706f39f0dfb07781e5e
+Short commit: f915f2b
+Commit subject: Normalize Telegram oga voice files for transcription
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T04:30:41+05:00
+Commit date: 2026-05-03T04:39:14+05:00
 
 ## Included files
 
