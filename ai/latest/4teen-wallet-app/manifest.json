@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-05-02T23:17:18.599Z",
+  "generatedAt": "2026-05-02T23:30:58.692Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "92b3596c3072b60dd47b29d0d7f7aa54f237e84c",
-    "shortHash": "92b3596",
-    "subject": "Fix bot locale flow and audio intake",
+    "hash": "9bd28ccb508fccf9cb1b799f62222248209a33e0",
+    "shortHash": "9bd28cc",
+    "subject": "Improve bot locale switching quality",
     "author": "info14fourteen-creator",
-    "date": "2026-05-03T04:17:03+05:00"
+    "date": "2026-05-03T04:30:41+05:00"
   },
   "changedFiles": [
     "M\tapps/api/src/services/ops/telegramAdminBot.js"
@@ -16,11 +16,11 @@
   "activeFiles": [
     {
       "file": ".github/scripts/ops-remote-runner.mjs",
-      "count": 7
+      "count": 6
     },
     {
       "file": "apps/api/src/services/ops/telegramAdminBot.js",
-      "count": 2
+      "count": 3
     },
     {
       "file": "apps/api/clock.js",

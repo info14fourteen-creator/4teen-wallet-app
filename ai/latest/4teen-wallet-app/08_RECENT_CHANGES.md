@@ -1,13 +1,13 @@
 # 4teen-wallet-app — RECENT CHANGES
 
-Generated: 2026-05-02T23:17:18.599Z
+Generated: 2026-05-02T23:30:58.692Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 92b3596c3072b60dd47b29d0d7f7aa54f237e84c
-Short commit: 92b3596
-Commit subject: Fix bot locale flow and audio intake
+Last commit: 9bd28ccb508fccf9cb1b799f62222248209a33e0
+Short commit: 9bd28cc
+Commit subject: Improve bot locale switching quality
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T04:17:03+05:00
+Commit date: 2026-05-03T04:30:41+05:00
 
 ## Files changed in last commit
 
@@ -15,6 +15,8 @@ Commit date: 2026-05-03T04:17:03+05:00
 
 ## Recent commits
 
+- 9bd28cc | 2026-05-03 | Improve bot locale switching quality
+- d560980 | 2026-05-02 | chore: update wallet AI bundle [skip ci]
 - 92b3596 | 2026-05-03 | Fix bot locale flow and audio intake
 - a58df59 | 2026-05-02 | chore: update wallet AI bundle [skip ci]
 - 4356c82 | 2026-05-03 | Trigger wallet deploy verification
@@ -23,5 +25,3 @@ Commit date: 2026-05-03T04:17:03+05:00
 - fbc5196 | 2026-05-02 | chore: update wallet AI bundle [skip ci]
 - b237e1c | 2026-05-03 | Update pnpm lockfile for ops runner
 - cd56b68 | 2026-05-02 | chore: update wallet AI bundle [skip ci]
-- a18df0b | 2026-05-03 | Trigger wallet runner v103 apply smoke
-- 3ae91b4 | 2026-05-02 | chore: update wallet AI bundle [skip ci]
