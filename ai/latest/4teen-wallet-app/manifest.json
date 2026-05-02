@@ -1,18 +1,17 @@
 {
-  "generatedAt": "2026-05-02T19:33:46.799Z",
+  "generatedAt": "2026-05-02T19:42:54.803Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "2ecedb18145afdb922f67fa42444d0f19a8a29a0",
-    "shortHash": "2ecedb1",
-    "subject": "Switch ops runner to OIDC control-plane auth",
+    "hash": "8a44f35840e8bd6b345d48099622c72c41009d1a",
+    "shortHash": "8a44f35",
+    "subject": "Preserve dotted paths in ops runner diff parsing",
     "author": "info14fourteen-creator",
-    "date": "2026-05-03T00:33:35+05:00"
+    "date": "2026-05-03T00:42:42+05:00"
   },
   "changedFiles": [
-    "M\t.github/scripts/ops-remote-runner.mjs",
-    "M\t.github/workflows/ops-remote-runner.yml"
+    "M\t.github/scripts/ops-remote-runner.mjs"
   ],
   "activeFiles": [
     {
@@ -20,51 +19,19 @@
       "count": 5
     },
     {
-      "file": "apps/mobile/src/config/app-version.ts",
-      "count": 4
-    },
-    {
       "file": "scripts/ops-remote-runner.mjs",
       "count": 4
     },
     {
-      "file": "apps/api/src/routes/ops.js",
-      "count": 3
-    },
-    {
-      "file": "apps/api/src/services/ops/events.js",
-      "count": 3
-    },
-    {
-      "file": "apps/api/src/services/ops/telegramAdminBot.js",
-      "count": 3
-    },
-    {
       "file": ".github/scripts/ops-remote-runner.mjs",
-      "count": 2
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/src/config/app-version.ts",
+      "count": 3
     },
     {
       "file": "apps/mobile/app.json",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/_layout.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/about.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/language.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/ui-lab.tsx",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/unlock.tsx",
       "count": 2
     },
     {
@@ -72,68 +39,100 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/screenshots/airdrop-site-2026-05-01/airdrop-facebook-youtube-cards.png",
+      "file": "release/RELEASE_READINESS_STATUS.md",
       "count": 2
     },
     {
-      "file": "apps/mobile/screenshots/airdrop-site-2026-05-01/airdrop-info-expanded.png",
+      "file": "release/STORE_FIELD_PACK.md",
       "count": 2
     },
     {
-      "file": "apps/mobile/screenshots/airdrop-site-2026-05-01/airdrop-overview-telegram-available.png",
+      "file": "release/STORE_METADATA.md",
       "count": 2
     },
     {
-      "file": "apps/mobile/screenshots/airdrop-site-2026-05-01/airdrop-social-rollout-cards.png",
+      "file": "release/STORE_RELEASE_CHECKLIST.md",
       "count": 2
     },
     {
-      "file": "apps/mobile/screenshots/airdrop-site-2026-05-01/telegram-web-login-screen.png",
-      "count": 2
+      "file": ".gitignore",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/about-screen.png",
-      "count": 2
+      "file": "apps/api/clock.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/address-book-screen.png",
-      "count": 2
+      "file": "apps/api/package.json",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/airdrop-screen.png",
-      "count": 2
+      "file": "apps/api/scripts/export-knowledge-base.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/ambassador-program-screen.png",
-      "count": 2
+      "file": "apps/api/scripts/export-product-notes.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/appearance-screen.png",
-      "count": 2
+      "file": "apps/api/scripts/export-repo-map.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/authentication-method-screen.png",
-      "count": 2
+      "file": "apps/api/scripts/sync-knowledge-base.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/buy-screen.png",
-      "count": 2
+      "file": "apps/api/src/app.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/create-wallet-screen.png",
-      "count": 2
+      "file": "apps/api/src/config/env.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/currency-screen.png",
-      "count": 2
+      "file": "apps/api/src/routes/appVersion.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/import-private-key-screen.png",
-      "count": 2
+      "file": "apps/api/src/routes/ops.js",
+      "count": 1
     },
     {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/import-seed-screen.png",
-      "count": 2
+      "file": "apps/api/src/services/gasstation/gasStation.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/liquidity/execution.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/codexJobs.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/events.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/knowledgeBase.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/openai.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/productNotes.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/store.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/tasks.js",
+      "count": 1
     }
   ],
   "todoCount": 10,
