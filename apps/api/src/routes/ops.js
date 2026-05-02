@@ -16,8 +16,11 @@ const {
   listProductNotes
 } = require('../services/ops/productNotes');
 const {
+  buildTaskWorkOrder,
+  buildTaskWorkOrdersMarkdown,
   buildTasksMarkdown,
   createTask,
+  getTaskById,
   listTasks,
   updateTaskStatus
 } = require('../services/ops/tasks');
@@ -25,6 +28,19 @@ const {
   listCodexJobs,
   runCodexJobForTask
 } = require('../services/ops/codexJobs');
+const {
+  cancelExecutionRequest,
+  claimExecutionRequest,
+  confirmExecutionRequestByCode,
+  finishExecutionRequest,
+  getExecutionRequestById,
+  issueExecutionRequest,
+  listExecutionRequests,
+  normalizeActionType,
+  normalizeRepoKey
+} = require('../services/ops/executionRequests');
+const { generateApplyPlan, validateChanges } = require('../services/ops/remoteApplyPlan');
+const { verifyGithubActionsOidcToken } = require('../services/ops/githubOidc');
 const {
   bootstrapAdminBotEnv,
   getExpectedWebhookUrl,
@@ -116,26 +132,126 @@ function readAdminToken(req) {
   );
 }
 
-function requireAdminToken(req, res, next) {
+function readBearerToken(req) {
+  const authHeader = normalizeValue(req.headers.authorization);
+  if (!authHeader.toLowerCase().startsWith('bearer ')) {
+    return '';
+  }
+
+  return normalizeValue(authHeader.slice(7));
+}
+
+async function resolveOpsAuth(req, options = {}) {
   const expected = normalizeValue(env.ADMIN_SYNC_TOKEN);
+  const receivedAdminToken = readAdminToken(req);
+  if (expected && receivedAdminToken && receivedAdminToken === expected) {
+    return {
+      kind: 'admin'
+    };
+  }
+
+  if (options.allowGithubRunner) {
+    return verifyGithubActionsOidcToken(readBearerToken(req), {
+      repoKey: options.expectedRepoKey || ''
+    });
+  }
 
   if (!expected) {
-    return res.status(503).json({
-      ok: false,
-      error: 'ADMIN_SYNC_TOKEN is not configured'
-    });
+    const error = new Error('ADMIN_SYNC_TOKEN is not configured');
+    error.status = 503;
+    throw error;
   }
 
-  const received = readAdminToken(req);
+  const error = new Error('Unauthorized');
+  error.status = 401;
+  throw error;
+}
 
-  if (!received || received !== expected) {
-    return res.status(401).json({
-      ok: false,
-      error: 'Unauthorized'
-    });
+function requireOpsAuth(options = {}) {
+  return async (req, res, next) => {
+    try {
+      req.opsAuth = await resolveOpsAuth(req, options);
+      return next();
+    } catch (error) {
+      return res.status(error.status || 500).json({
+        ok: false,
+        error: error.message
+      });
+    }
+  };
+}
+
+const requireAdminToken = requireOpsAuth();
+
+function sanitizeRunnerFileSnapshots(input) {
+  const items = Array.isArray(input) ? input : [];
+  return items.slice(0, 8).map((item) => ({
+    path: sanitizeText(item?.path, 240).replace(/^\/+/, ''),
+    content: String(item?.content || '').slice(0, 40_000)
+  }));
+}
+
+function ensureRunnerCanAccessExecutionRequest(req, executionRequest) {
+  if (!executionRequest) {
+    const error = new Error('Execution request not found');
+    error.status = 404;
+    throw error;
   }
 
-  return next();
+  if (req.opsAuth?.kind !== 'github-runner') {
+    return;
+  }
+
+  if (normalizeRepoKey(executionRequest.repo_key) !== normalizeRepoKey(req.opsAuth.repoKey)) {
+    const error = new Error('GitHub runner cannot access a different repository request');
+    error.status = 403;
+    throw error;
+  }
+
+  if (normalizeActionType(executionRequest.action_type) === 'apply' && normalizeValue(executionRequest.status) !== 'running') {
+    const error = new Error('Execution request is not in running state');
+    error.status = 409;
+    throw error;
+  }
+}
+
+function buildRunnerConfigForExecutionRequest(executionRequest) {
+  const repoKey = normalizeRepoKey(executionRequest?.repo_key);
+  const actionType = normalizeActionType(executionRequest?.action_type);
+  const config = {
+    repoKey,
+    actionType,
+    github: {
+      owner: normalizeValue(env.GITHUB_REMOTE_OWNER) || 'info14fourteen-creator',
+      walletRepo: normalizeValue(env.GITHUB_WALLET_REPO) || '4teen-wallet-app',
+      websiteRepo: normalizeValue(env.GITHUB_WEBSITE_REPO) || '4teen-website'
+    }
+  };
+
+  if (repoKey === 'wallet-app' && (actionType === 'deploy' || actionType === 'restart')) {
+    const appName = normalizeValue(env.OPS_WALLET_HEROKU_APP_NAME) || 'fourteen-wallet-api';
+    config.heroku = {
+      configured: Boolean(
+        normalizeValue(env.OPS_REMOTE_HEROKU_API_KEY) &&
+          normalizeValue(env.OPS_REMOTE_HEROKU_EMAIL) &&
+          appName
+      ),
+      appName,
+      email: normalizeValue(env.OPS_REMOTE_HEROKU_EMAIL) || null,
+      apiKey: normalizeValue(env.OPS_REMOTE_HEROKU_API_KEY) || null,
+      gitUrl: appName ? `https://git.heroku.com/${appName}.git` : null,
+      deploySubdir: 'apps/api'
+    };
+  }
+
+  if (repoKey === 'website' && actionType === 'deploy') {
+    config.cloudflare = {
+      configured: Boolean(normalizeValue(env.OPS_REMOTE_CLOUDFLARE_API_TOKEN)),
+      apiToken: normalizeValue(env.OPS_REMOTE_CLOUDFLARE_API_TOKEN) || null
+    };
+  }
+
+  return config;
 }
 
 router.get('/health', async (_req, res) => {
@@ -213,11 +329,31 @@ router.post('/telegram/webhook/:secret', async (req, res) => {
       });
     }
 
-    const result = await handleAdminTelegramWebhookUpdate(req.body || {});
-    return res.json({
+    const update = req.body || {};
+    res.json({
       ok: true,
-      result
+      accepted: true
     });
+
+    Promise.resolve()
+      .then(() => handleAdminTelegramWebhookUpdate(update))
+      .catch(async (error) => {
+        await recordOpsEvent({
+          source: 'ops-bot',
+          category: 'webhook',
+          type: 'webhook_failure',
+          severity: 'error',
+          title: 'Admin bot webhook handler failed',
+          message: error.message,
+          fingerprint: 'ops-bot:webhook_failure'
+        }).catch(() => null);
+        console.error('[ops-bot] webhook_failure', {
+          error: error.message,
+          updateId: update?.update_id || null
+        });
+      });
+
+    return;
   } catch (error) {
     await recordOpsEvent({
       source: 'ops-bot',
@@ -496,11 +632,301 @@ router.get('/tasks/export', requireAdminToken, async (_req, res) => {
   }
 });
 
+router.get('/tasks/:id/work-order', requireAdminToken, async (req, res) => {
+  try {
+    const task = await getTaskById(req.params.id);
+    if (!task) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Task not found'
+      });
+    }
+
+    return res.json({
+      ok: true,
+      item: buildTaskWorkOrder(task)
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.get('/work-orders/export', requireAdminToken, async (_req, res) => {
+  try {
+    const tasks = await listTasks(100, {
+      includeDone: true
+    });
+
+    return res.json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      items: tasks.map((task) => buildTaskWorkOrder(task)),
+      markdown: buildTaskWorkOrdersMarkdown(tasks)
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
 router.post('/tasks/:id/codex-run', requireAdminToken, async (req, res) => {
   try {
     const result = await runCodexJobForTask(req.params.id, {
       source: sanitizeText(req.body?.source, 60) || 'ops-api',
       createdByChatId: sanitizeText(req.body?.createdByChatId, 80) || null
+    });
+
+    return res.json({
+      ok: true,
+      result
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/tasks/:id/execution-request', requireAdminToken, async (req, res) => {
+  try {
+    const result = await issueExecutionRequest({
+      taskId: req.params.id,
+      repoKey: sanitizeText(req.body?.repoKey, 60),
+      actionType: sanitizeText(req.body?.actionType, 40),
+      requestedByChatId: sanitizeText(req.body?.requestedByChatId, 80),
+      requestedByUserId: sanitizeText(req.body?.requestedByUserId, 80),
+      requestedMessage: sanitizeText(req.body?.requestedMessage, 1_000),
+      details: sanitizeJsonValue(req.body?.details, 0)
+    });
+
+    return res.json({
+      ok: true,
+      result
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.get('/execution-requests', requireAdminToken, async (req, res) => {
+  try {
+    const items = await listExecutionRequests(Number(req.query.limit || 20), {
+      status: sanitizeText(req.query.status, 40) || null,
+      repoKey: normalizeRepoKey(req.query.repoKey),
+      actionType: sanitizeText(req.query.actionType, 40) || null
+    });
+
+    return res.json({
+      ok: true,
+      items
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/execution-requests/confirm', requireAdminToken, async (req, res) => {
+  try {
+    const result = await confirmExecutionRequestByCode({
+      chatId: sanitizeText(req.body?.chatId, 80),
+      code: sanitizeText(req.body?.code, 20)
+    });
+
+    return res.json({
+      ok: true,
+      result
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/execution-requests/claim', requireOpsAuth({
+  allowGithubRunner: true
+}), async (req, res) => {
+  try {
+    const requestedRepoKey =
+      req.opsAuth?.kind === 'github-runner'
+        ? normalizeRepoKey(req.opsAuth.repoKey)
+        : sanitizeText(req.body?.repoKey, 60);
+    const result = await claimExecutionRequest({
+      repoKey: requestedRepoKey,
+      actionType: sanitizeText(req.body?.actionType, 40),
+      runnerId: sanitizeText(req.body?.runnerId, 120)
+    });
+
+    return res.json({
+      ok: true,
+      result
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.get('/execution-requests/:id/work-order', requireOpsAuth({
+  allowGithubRunner: true
+}), async (req, res) => {
+  try {
+    const executionRequest = await getExecutionRequestById(req.params.id);
+    ensureRunnerCanAccessExecutionRequest(req, executionRequest);
+
+    const task = await getTaskById(executionRequest.task_id);
+    if (!task) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Task not found'
+      });
+    }
+
+    return res.json({
+      ok: true,
+      item: buildTaskWorkOrder(task),
+      request: executionRequest
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.get('/execution-requests/:id/runner-config', requireOpsAuth({
+  allowGithubRunner: true
+}), async (req, res) => {
+  try {
+    const executionRequest = await getExecutionRequestById(req.params.id);
+    ensureRunnerCanAccessExecutionRequest(req, executionRequest);
+
+    return res.json({
+      ok: true,
+      result: buildRunnerConfigForExecutionRequest(executionRequest),
+      request: executionRequest
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/execution-requests/:id/apply-plan', requireOpsAuth({
+  allowGithubRunner: true
+}), async (req, res) => {
+  try {
+    const executionRequest = await getExecutionRequestById(req.params.id);
+    ensureRunnerCanAccessExecutionRequest(req, executionRequest);
+
+    if (normalizeActionType(executionRequest.action_type) !== 'apply') {
+      return res.status(422).json({
+        ok: false,
+        error: 'Execution request is not an apply request'
+      });
+    }
+
+    const task = await getTaskById(executionRequest.task_id);
+    if (!task) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Task not found'
+      });
+    }
+
+    const workOrder = buildTaskWorkOrder(task);
+    const fileSnapshots = sanitizeRunnerFileSnapshots(req.body?.fileSnapshots).filter(
+      (item) => item.path && item.content
+    );
+
+    if (!fileSnapshots.length) {
+      return res.status(422).json({
+        ok: false,
+        error: 'fileSnapshots are required'
+      });
+    }
+
+    const plan = await generateApplyPlan(executionRequest.repo_key, workOrder, fileSnapshots);
+    if (normalizeValue(plan?.outcome) === 'apply') {
+      try {
+        validateChanges(plan, fileSnapshots.map((item) => item.path));
+      } catch (error) {
+        return res.json({
+          ok: true,
+          result: {
+            outcome: 'blocked',
+            summary: 'Server rejected unsafe patch plan',
+            blockedReason: error.message,
+            commitMessage: normalizeValue(plan?.commitMessage) || '',
+            verificationHints: Array.isArray(plan?.verificationHints) ? plan.verificationHints : [],
+            changes: []
+          }
+        });
+      }
+    }
+
+    return res.json({
+      ok: true,
+      result: plan
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/execution-requests/:id/finish', requireOpsAuth({
+  allowGithubRunner: true
+}), async (req, res) => {
+  try {
+    const executionRequest = await getExecutionRequestById(req.params.id);
+    ensureRunnerCanAccessExecutionRequest(req, executionRequest);
+
+    const result = await finishExecutionRequest(req.params.id, {
+      status: sanitizeText(req.body?.status, 40),
+      runnerId: sanitizeText(req.body?.runnerId, 120),
+      summary: sanitizeText(req.body?.summary, 500),
+      resultMessage: sanitizeText(req.body?.resultMessage, 2_000),
+      details: sanitizeJsonValue(req.body?.details, 0)
+    });
+
+    return res.json({
+      ok: true,
+      result
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.post('/execution-requests/:id/cancel', requireAdminToken, async (req, res) => {
+  try {
+    const result = await cancelExecutionRequest({
+      requestId: req.params.id,
+      chatId: sanitizeText(req.body?.chatId, 80)
     });
 
     return res.json({

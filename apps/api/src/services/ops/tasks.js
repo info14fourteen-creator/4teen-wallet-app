@@ -9,6 +9,17 @@ function normalizeJson(value) {
   return value == null ? null : JSON.stringify(value);
 }
 
+function parseJson(value, fallback = null) {
+  if (value == null) return fallback;
+  if (typeof value === 'object') return value;
+
+  try {
+    return JSON.parse(String(value));
+  } catch (_) {
+    return fallback;
+  }
+}
+
 function normalizeTaskType(value) {
   const safe = normalizeValue(value).toLowerCase();
   if (['bug', 'ux', 'infra', 'feature', 'content', 'ops', 'task'].includes(safe)) {
@@ -304,7 +315,101 @@ function buildTasksMarkdown(tasks) {
   return lines.join('\n');
 }
 
+function buildTaskWorkOrder(task) {
+  if (!task) {
+    return null;
+  }
+
+  const details = parseJson(task.details_json, {});
+  const codexOutcome = normalizeValue(details?.codexOutcome);
+  const repoFindings = Array.isArray(details?.repoFindings) ? details.repoFindings : [];
+  const proposedFiles = Array.isArray(details?.proposedFiles) ? details.proposedFiles : [];
+  const implementationSteps = Array.isArray(details?.implementationSteps) ? details.implementationSteps : [];
+  const tests = Array.isArray(details?.tests) ? details.tests : [];
+
+  return {
+    taskId: Number(task.id || 0),
+    title: normalizeValue(task.title) || 'Untitled task',
+    status: normalizeTaskStatus(task.status),
+    taskType: normalizeTaskType(task.task_type),
+    priority: normalizePriority(task.priority),
+    readyToImplement: codexOutcome === 'done' || normalizeTaskStatus(task.status) === 'done',
+    codexOutcome: codexOutcome || null,
+    summary: normalizeValue(task.body) || 'No details provided',
+    repoFindings,
+    proposedFiles,
+    implementationSteps,
+    tests
+  };
+}
+
+function buildTaskWorkOrdersMarkdown(tasks) {
+  const lines = [
+    '# Codex Work Orders',
+    '',
+    '> Generated from `ops_tasks`.',
+    ''
+  ];
+
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    lines.push('No work orders right now.');
+    lines.push('');
+    return lines.join('\n');
+  }
+
+  for (const task of tasks) {
+    const workOrder = buildTaskWorkOrder(task);
+    lines.push(`## #${workOrder.taskId} ${workOrder.title}`);
+    lines.push(`- status: ${workOrder.status}`);
+    lines.push(`- type: ${workOrder.taskType}`);
+    lines.push(`- priority: ${workOrder.priority}`);
+    lines.push(`- readyToImplement: ${workOrder.readyToImplement ? 'yes' : 'no'}`);
+    if (workOrder.codexOutcome) {
+      lines.push(`- codexOutcome: ${workOrder.codexOutcome}`);
+    }
+    lines.push('');
+    lines.push(workOrder.summary);
+    lines.push('');
+
+    if (workOrder.repoFindings.length) {
+      lines.push('### Repo Findings');
+      workOrder.repoFindings.forEach((item) => {
+        lines.push(`- ${normalizeValue(item?.file || item)}`);
+      });
+      lines.push('');
+    }
+
+    if (workOrder.proposedFiles.length) {
+      lines.push('### Proposed Files');
+      workOrder.proposedFiles.forEach((item) => {
+        lines.push(`- ${normalizeValue(item)}`);
+      });
+      lines.push('');
+    }
+
+    if (workOrder.implementationSteps.length) {
+      lines.push('### Implementation Steps');
+      workOrder.implementationSteps.forEach((item, index) => {
+        lines.push(`${index + 1}. ${normalizeValue(item)}`);
+      });
+      lines.push('');
+    }
+
+    if (workOrder.tests.length) {
+      lines.push('### Tests');
+      workOrder.tests.forEach((item) => {
+        lines.push(`- ${normalizeValue(item)}`);
+      });
+      lines.push('');
+    }
+  }
+
+  return lines.join('\n');
+}
+
 module.exports = {
+  buildTaskWorkOrder,
+  buildTaskWorkOrdersMarkdown,
   buildTasksMarkdown,
   createTask,
   createTaskFromOpsEvent,

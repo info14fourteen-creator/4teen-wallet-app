@@ -1,10 +1,9 @@
 const env = require('../../config/env');
 const { getWalletSnapshot } = require('../proxy/walletSnapshot');
 const { getEnergyResalePackage } = require('../gasstation/energyResale');
-const { hasEnoughAirdropResources } = require('../airdrop/telegramBot');
-const { hasEnoughAmbassadorAllocationResources } = require('../ambassador/replayQueue');
 const { recordOpsEvent, resolveOpsEvent } = require('./events');
 const { getRuntimeState, setRuntimeState } = require('./store');
+const { getAirdropResourceSignal, getAmbassadorResourceSignal } = require('./resourceSignals');
 
 const SCREENERS_STATE_KEY = 'screeners.last_run';
 const SCREENERS_MIN_INTERVAL_MS = 15 * 60 * 1000;
@@ -177,54 +176,92 @@ async function runAmbassadorEnergyQuoteFlow() {
 }
 
 async function runTelegramAirdropFlow() {
-  const resourceState = await hasEnoughAirdropResources();
+  const resourceState = await getAirdropResourceSignal();
   const energyAvailable = Number(resourceState?.energyAvailable || 0);
   const bandwidthAvailable = Number(resourceState?.bandwidthAvailable || 0);
+  const probe = resourceState?._probe || {};
+  const freshness = probe.stale ? ' по кэшу' : '';
 
   if (!resourceState || !isValidTronAddress(resourceState.walletAddress)) {
-    throw new Error('Airdrop wallet state is unavailable');
+    if (probe.rateLimited) {
+      return {
+        status: 'warn',
+        summary: 'Airdrop probe поставлен на паузу после 429. Жду cooldown и не долблю провайдеров повторно.',
+        recommendation: 'Бот держит паузу, чтобы не насиловать проект. Если нужно, смотрим последний clock/runtime-state.',
+        meta: {
+          probe
+        }
+      };
+    }
+
+    throw new Error(probe.lastError || 'Airdrop wallet state is unavailable');
   }
 
   if (resourceState.hasEnough === false) {
     return {
       status: 'warn',
-      summary: `Airdrop flow под давлением: energy ${energyAvailable}, bandwidth ${bandwidthAvailable}.`,
+      summary: `Airdrop flow${freshness} под давлением: energy ${energyAvailable}, bandwidth ${bandwidthAvailable}.`,
       recommendation: 'Пополните ресурсы airdrop-кошелька, иначе Telegram claim начнут вставать в очередь или падать.',
-      meta: resourceState
+      meta: {
+        ...resourceState,
+        probe
+      }
     };
   }
 
   return {
     status: 'ok',
-    summary: `Airdrop flow держится: energy ${energyAvailable}, bandwidth ${bandwidthAvailable}.`,
+    summary: `Airdrop flow${freshness} держится: energy ${energyAvailable}, bandwidth ${bandwidthAvailable}.`,
     recommendation: 'Если этот тест позже пожелтеет, пользователи первыми это заметят на Telegram airdrop.',
-    meta: resourceState
+    meta: {
+      ...resourceState,
+      probe
+    }
   };
 }
 
 async function runAmbassadorAllocationFlow() {
-  const resourceState = await hasEnoughAmbassadorAllocationResources();
+  const resourceState = await getAmbassadorResourceSignal();
   const energyAvailable = Number(resourceState?.energyAvailable || 0);
   const bandwidthAvailable = Number(resourceState?.bandwidthAvailable || 0);
+  const probe = resourceState?._probe || {};
+  const freshness = probe.stale ? ' по кэшу' : '';
 
   if (!resourceState || !isValidTronAddress(resourceState.walletAddress)) {
-    throw new Error('Ambassador allocation state is unavailable');
+    if (probe.rateLimited) {
+      return {
+        status: 'warn',
+        summary: 'Ambassador probe поставлен на паузу после 429. Жду cooldown и не долблю ресурсы повторно.',
+        recommendation: 'Бот бережёт провайдеров и проект. Для живой картины можно открыть последний runtime-state/clock.',
+        meta: {
+          probe
+        }
+      };
+    }
+
+    throw new Error(probe.lastError || 'Ambassador allocation state is unavailable');
   }
 
   if (resourceState.hasEnough === false) {
     return {
       status: 'warn',
-      summary: `Ambassador allocation под давлением: energy ${energyAvailable}, bandwidth ${bandwidthAvailable}.`,
+      summary: `Ambassador allocation${freshness} под давлением: energy ${energyAvailable}, bandwidth ${bandwidthAvailable}.`,
       recommendation: 'Проверьте operator wallet, иначе аллокации и replay для ambassador начнут откладываться.',
-      meta: resourceState
+      meta: {
+        ...resourceState,
+        probe
+      }
     };
   }
 
   return {
     status: 'ok',
-    summary: `Ambassador allocation держится: energy ${energyAvailable}, bandwidth ${bandwidthAvailable}.`,
+    summary: `Ambassador allocation${freshness} держится: energy ${energyAvailable}, bandwidth ${bandwidthAvailable}.`,
     recommendation: 'Если этот тест пожелтеет, покупки будут проходить, а аллокации могут залипать уже в фоне.',
-    meta: resourceState
+    meta: {
+      ...resourceState,
+      probe
+    }
   };
 }
 

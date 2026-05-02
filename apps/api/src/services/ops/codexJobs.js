@@ -380,8 +380,10 @@ async function runCodexJobForTask(taskId, options = {}) {
         codexJobId: updatedJob?.id || job.id,
         codexOutcome: parsed.outcome,
         codexModel: getCodexModel(),
+        implementationSteps: parsed.implementationSteps || [],
         proposedFiles: parsed.proposedFiles || [],
-        repoFindings: parsed.repoFindings || []
+        repoFindings: parsed.repoFindings || [],
+        tests: parsed.tests || []
       }
     });
 

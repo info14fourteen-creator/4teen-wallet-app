@@ -2,8 +2,6 @@ const crypto = require('crypto');
 const { ProxyAgent, fetch: undiciFetch } = require('undici');
 const env = require('../../config/env');
 const { tronWeb } = require('../tron/client');
-const { getWalletSnapshot } = require('../proxy/walletSnapshot');
-const { recordOpsEvent, resolveOpsEvent } = require('../ops/events');
 
 const SUN = 1_000_000;
 const MIN_OPERATOR_RESERVE_SUN = 2 * SUN;
@@ -19,16 +17,6 @@ const ROTATABLE_ERROR_PATTERN =
   /(rate|limit|too many|forbidden|403|429|insufficient|balance|inventory|quota|busy|timeout|network|fetch failed)/i;
 
 let gasStationCredentialCursor = 0;
-const gasStationCredentialState = new Map();
-
-function updateCredentialState(label, patch) {
-  const safeLabel = String(label || 'unknown').trim() || 'unknown';
-  const current = gasStationCredentialState.get(safeLabel) || {};
-  gasStationCredentialState.set(safeLabel, {
-    ...current,
-    ...patch
-  });
-}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -498,17 +486,6 @@ function getGasStationCredentials() {
   return credentials;
 }
 
-function getGasStationCredentialRuntimeState() {
-  const credentials = getGasStationCredentials();
-  return {
-    cursor: gasStationCredentialCursor,
-    credentials: credentials.map((credential) => ({
-      label: credential.label,
-      state: gasStationCredentialState.get(credential.label) || {}
-    }))
-  };
-}
-
 function createGasStationClient(credential) {
   return new GasStationClient({
     ...credential,
@@ -556,39 +533,11 @@ async function withGasStationClientPool(operation) {
     try {
       const result = await operation(client);
       gasStationCredentialCursor = (index + 1) % credentials.length;
-      updateCredentialState(client.label, {
-        lastSuccessAt: new Date().toISOString(),
-        lastErrorAt: null,
-        lastErrorMessage: null
-      });
-      void resolveOpsEvent({
-        source: 'gasstation',
-        category: 'keys',
-        type: 'credential_pool_failed',
-        fingerprint: 'gasstation:credential_pool_failed',
-        message: 'GasStation credential pool recovered.'
-      });
       return result;
     } catch (error) {
       errors.push(`${client.label}: ${error.message}`);
-      updateCredentialState(client.label, {
-        lastErrorAt: new Date().toISOString(),
-        lastErrorMessage: error.message
-      });
 
       if (!isRotatableGasStationError(error) || i === credentials.length - 1) {
-        if (i === credentials.length - 1) {
-          void recordOpsEvent({
-            source: 'gasstation',
-            category: 'keys',
-            type: 'credential_pool_failed',
-            severity: 'error',
-            title: 'All GasStation credentials failed',
-            message: errors.join('; '),
-            fingerprint: 'gasstation:credential_pool_failed',
-            details: getGasStationCredentialRuntimeState()
-          });
-        }
         throw error;
       }
     }
@@ -626,27 +575,9 @@ async function waitForOrderSuccess(client, requestId, { attempts = 20, delayMs =
 
 async function getWalletState(walletAddress) {
   const safeWallet = assertNonEmpty(walletAddress, 'walletAddress');
-  const [accountResult, resourcesResult, balanceResult] = await Promise.allSettled([
-    tronWeb.trx.getAccount(safeWallet),
-    tronWeb.trx.getAccountResources(safeWallet),
-    tronWeb.trx.getBalance(safeWallet)
-  ]);
-
-  const account = accountResult.status === 'fulfilled' ? accountResult.value : null;
-  const resources = resourcesResult.status === 'fulfilled' ? resourcesResult.value : null;
-  let balanceSun =
-    balanceResult.status === 'fulfilled'
-      ? Number(balanceResult.value || 0)
-      : NaN;
-
-  if (!Number.isFinite(balanceSun)) {
-    const snapshot = await getWalletSnapshot(safeWallet).catch(() => null);
-    balanceSun = Number(snapshot?.trx?.balanceTrx || 0) * SUN;
-  }
-
-  if (!Number.isFinite(balanceSun) || balanceSun < 0) {
-    balanceSun = 0;
-  }
+  const account = await tronWeb.trx.getAccount(safeWallet);
+  const resources = await tronWeb.trx.getAccountResources(safeWallet);
+  const balanceSun = Number(await tronWeb.trx.getBalance(safeWallet) || 0);
 
   const freeNetLimit = Number(account?.freeNetLimit || 0);
   const freeNetUsed = Number(account?.freeNetUsed || 0);
@@ -957,19 +888,6 @@ function scheduleGasStationReplenishment(client, costAmountSun, context = {}) {
         purpose: context.purpose || null,
         paymentTxid: context.paymentTxid || null,
         error: error.message
-      });
-      void recordOpsEvent({
-        source: 'gasstation',
-        category: 'replenish',
-        type: 'background_replenish_failed',
-        severity: 'warning',
-        title: 'GasStation background replenish failed',
-        message: error.message,
-        fingerprint: `gasstation:background_replenish_failed:${context.purpose || 'general'}`,
-        details: {
-          purpose: context.purpose || null,
-          paymentTxid: context.paymentTxid || null
-        }
       });
       return null;
     }
@@ -1363,50 +1281,37 @@ async function rentResourcesForWallet({
 }
 
 async function getGasStationRuntimeState() {
-  const [operator, airdropControl] = await Promise.all([
-    getOperatorState().catch(() => null),
-    getAirdropControlState().catch(() => null)
-  ]);
-
   if (!String(env.GASSTATION_ENABLED).toLowerCase().includes('true')) {
     return {
       enabled: false,
-      operator,
-      airdropControl,
+      operator: await getOperatorState().catch(() => null),
+      airdropControl: await getAirdropControlState().catch(() => null),
       gasStation: null
     };
   }
 
-  try {
-    return await withGasStationClientPool(async (client) => {
-      const gasBalance = await client.getBalance().catch(() => null);
+  return withGasStationClientPool(async (client) => {
+    const [operator, airdropControl, gasBalance] = await Promise.all([
+      getOperatorState().catch(() => null),
+      getAirdropControlState().catch(() => null),
+      client.getBalance().catch(() => null)
+    ]);
 
-      return {
-        enabled: true,
-        operator,
-        airdropControl,
-        gasStation: {
-          account: client.label,
-          depositAddress: String(gasBalance?.deposit_address || env.GASSTATION_DEPOSIT_ADDRESS || '').trim() || null,
-          balanceSun: toSun(gasBalance?.balance || 0),
-          balanceTrx: fromSun(toSun(gasBalance?.balance || 0))
-        },
-        gasStationError: null
-      };
-    });
-  } catch (error) {
     return {
       enabled: true,
       operator,
       airdropControl,
-      gasStation: null,
-      gasStationError: normalizeRequestError(error)
+      gasStation: {
+        account: client.label,
+        depositAddress: String(gasBalance?.deposit_address || env.GASSTATION_DEPOSIT_ADDRESS || '').trim() || null,
+        balanceSun: toSun(gasBalance?.balance || 0),
+        balanceTrx: fromSun(toSun(gasBalance?.balance || 0))
+      }
     };
-  }
+  });
 }
 
 module.exports = {
-  getGasStationCredentialRuntimeState,
   getGasStationCredentials,
   ensureOperatorResources,
   getGasStationRuntimeState,

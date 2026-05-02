@@ -3,6 +3,17 @@ const { fetch } = require('undici');
 const env = require('../../config/env');
 const { pool } = require('../../db/pool');
 const { listCodexJobs, runCodexJobForTask } = require('./codexJobs');
+const {
+  cancelExecutionRequest,
+  confirmExecutionRequestByCode,
+  findLatestCompletedApplyRequest,
+  findLatestPendingConfirmationByChat,
+  inferRepoKeyFromTask,
+  issueExecutionRequest,
+  listExecutionRequests,
+  normalizeActionType,
+  normalizeRepoKey
+} = require('./executionRequests');
 const { getKnowledgeBaseStatus } = require('./knowledgeBase');
 const {
   createTaskFromOpsEvent,
@@ -35,6 +46,8 @@ const BOT_MESSAGE_HISTORY_LIMIT = 80;
 const SUPPORTED_SCREENS = new Set([
   'summary',
   'overview',
+  'engineer',
+  'run',
   'screen',
   'health',
   'events',
@@ -50,6 +63,8 @@ const SUPPORTED_SCREENS = new Set([
 const BOT_COMMANDS = [
   { command: 'menu', description: 'Открыть главное меню' },
   { command: 'summary', description: 'Показать AI-сводку по ситуации' },
+  { command: 'run', description: 'Показать запуск задач и code-run' },
+  { command: 'engineer', description: 'Открыть инженерный режим' },
   { command: 'ask', description: 'Задать вопрос по живым данным' },
   { command: 'screen', description: 'Проверить реальные app-flow' },
   { command: 'health', description: 'Понять, что сейчас болит' },
@@ -60,6 +75,12 @@ const BOT_COMMANDS = [
   { command: 'notes', description: 'Посмотреть backlog следующей версии' },
   { command: 'tasks', description: 'Посмотреть рабочие задачи' },
   { command: 'codex', description: 'Запустить Codex job по задаче' },
+  { command: 'execute', description: 'Подготовить кодовую задачу к исполнению' },
+  { command: 'confirm', description: 'Подтвердить исполнение 6-значным кодом' },
+  { command: 'publish', description: 'Подготовить push/deploy после кода' },
+  { command: 'deploy', description: 'Подготовить деплой после кода' },
+  { command: 'restart', description: 'Подготовить рестарт после деплоя' },
+  { command: 'cancelrun', description: 'Отменить запрос на исполнение' },
   { command: 'note', description: 'Добавить идею или правку в backlog' },
   { command: 'take', description: 'Взять задачу в работу' },
   { command: 'done', description: 'Закрыть задачу' },
@@ -77,6 +98,43 @@ let webhookEnsurePromise = null;
 
 function normalizeValue(value) {
   return String(value || '').trim();
+}
+
+function logTelegramTrace(stage, payload = {}) {
+  const safePayload = Object.fromEntries(
+    Object.entries(payload || {}).map(([key, value]) => {
+      if (value == null) {
+        return [key, value];
+      }
+
+      if (typeof value === 'string') {
+        return [key, shortenText(value.replace(/\s+/g, ' ').trim(), 220)];
+      }
+
+      if (Array.isArray(value)) {
+        return [key, value.slice(0, 8)];
+      }
+
+      if (typeof value === 'object') {
+        return [key, JSON.parse(JSON.stringify(value))];
+      }
+
+      return [key, value];
+    })
+  );
+
+  console.log(`[ops-bot] ${stage}`, safePayload);
+}
+
+function parseJson(value, fallback = null) {
+  if (value == null) return fallback;
+  if (typeof value === 'object') return value;
+
+  try {
+    return JSON.parse(String(value));
+  } catch (_) {
+    return fallback;
+  }
 }
 
 function normalizeCommand(text) {
@@ -823,6 +881,50 @@ function taskStatusMeta(task) {
   };
 }
 
+function isAdvancedScreen(screen) {
+  return new Set(['engineer', 'screen', 'health', 'keys', 'queues', 'knowledge', 'jobs', 'notes', 'targets']).has(
+    normalizeValue(screen)
+  );
+}
+
+function buildClockWalletOpsSummary(clockPayload) {
+  const app = clockPayload?.app || {};
+  const claims = app.telegramClaimsProcessed;
+  const wallets = app.ambassadorWalletsProcessed;
+  const failed = app.ambassadorWalletsFailed;
+
+  if (claims == null && wallets == null) {
+    return 'данные по wallet workers ещё не записаны';
+  }
+
+  return `claims ${claims ?? 'n/a'} • ambassador wallets ${wallets ?? 'n/a'} • failed ${failed ?? 'n/a'}`;
+}
+
+function buildClockSiteSummary(clockPayload) {
+  const site = clockPayload?.site || {};
+  const total = Number(site.total || 0);
+  const ok = Number(site.ok || 0);
+  const stale = Number(site.stale || 0);
+  const failed = Number(site.failed || 0);
+
+  if (total <= 0) {
+    return 'сайтовый refresh ещё не зафиксирован';
+  }
+
+  return `${total} endpoints • ok ${ok} • stale ${stale} • fail ${failed}`;
+}
+
+function listClockSiteIssues(clockPayload) {
+  const endpoints = Array.isArray(clockPayload?.site?.endpoints) ? clockPayload.site.endpoints : [];
+  return endpoints
+    .filter((item) => !item?.ok || item?.stale)
+    .slice(0, 4)
+    .map((item) => {
+      const status = !item?.ok ? 'fail' : 'stale';
+      return `${normalizeValue(item?.key) || 'unknown'} (${status})`;
+    });
+}
+
 function buildMenuMarkup(currentScreen) {
   const safeScreen = SUPPORTED_SCREENS.has(currentScreen) ? currentScreen : DEFAULT_SCREEN;
   const refreshRow = [{ text: '🔄 Обновить', callback_data: `${CALLBACK_PREFIX}refresh:${safeScreen}` }];
@@ -830,36 +932,45 @@ function buildMenuMarkup(currentScreen) {
     safeScreen === 'screen'
       ? [[{ text: '🧪 Прогнать скринер сейчас', callback_data: `${CALLBACK_PREFIX}rerun:screen` }]]
       : [];
+  const advancedRows = isAdvancedScreen(safeScreen)
+    ? [
+        [
+          { text: '🧪 Скринер', callback_data: `${CALLBACK_PREFIX}screen:screen` },
+          { text: '🩺 Здоровье', callback_data: `${CALLBACK_PREFIX}screen:health` }
+        ],
+        [
+          { text: '🔑 Ключи', callback_data: `${CALLBACK_PREFIX}screen:keys` },
+          { text: '📦 Очереди', callback_data: `${CALLBACK_PREFIX}screen:queues` }
+        ],
+        [
+          { text: '🤖 Jobs', callback_data: `${CALLBACK_PREFIX}screen:jobs` },
+          { text: '📚 Knowledge', callback_data: `${CALLBACK_PREFIX}screen:knowledge` }
+        ],
+        [
+          { text: '📝 План', callback_data: `${CALLBACK_PREFIX}screen:notes` },
+          { text: '👥 Чаты', callback_data: `${CALLBACK_PREFIX}screen:targets` }
+        ]
+      ]
+    : [];
 
   return {
     inline_keyboard: [
       [
         { text: '🧠 Summary', callback_data: `${CALLBACK_PREFIX}screen:summary` },
-        { text: '🏠 Ops', callback_data: `${CALLBACK_PREFIX}screen:overview` }
+        { text: '🏠 Founder', callback_data: `${CALLBACK_PREFIX}screen:overview` }
       ],
       [
-        { text: '🧪 Скринер', callback_data: `${CALLBACK_PREFIX}screen:screen` }
-      ],
-      [
-        { text: '🚨 События', callback_data: `${CALLBACK_PREFIX}screen:events` },
+        { text: '🚨 Problems', callback_data: `${CALLBACK_PREFIX}screen:events` },
         { text: '💬 Feedback', callback_data: `${CALLBACK_PREFIX}screen:feedback` }
       ],
       [
         { text: '🧾 Tasks', callback_data: `${CALLBACK_PREFIX}screen:tasks` },
-        { text: '📚 Knowledge', callback_data: `${CALLBACK_PREFIX}screen:knowledge` },
-        { text: '📝 План', callback_data: `${CALLBACK_PREFIX}screen:notes` }
+        { text: '🚀 Run', callback_data: `${CALLBACK_PREFIX}screen:run` }
       ],
       [
-        { text: '🤖 Jobs', callback_data: `${CALLBACK_PREFIX}screen:jobs` }
+        { text: '🛠 Engineer', callback_data: `${CALLBACK_PREFIX}screen:engineer` }
       ],
-      [
-        { text: '🩺 Здоровье', callback_data: `${CALLBACK_PREFIX}screen:health` },
-        { text: '🔑 Ключи', callback_data: `${CALLBACK_PREFIX}screen:keys` },
-        { text: '📦 Очереди', callback_data: `${CALLBACK_PREFIX}screen:queues` }
-      ],
-      [
-        { text: '👥 Чаты', callback_data: `${CALLBACK_PREFIX}screen:targets` }
-      ],
+      ...advancedRows,
       ...rerunRows,
       refreshRow
     ]
@@ -867,8 +978,7 @@ function buildMenuMarkup(currentScreen) {
 }
 
 async function collectOverviewData() {
-  const { hasEnoughAirdropResources } = getAirdropService();
-  const { hasEnoughAmbassadorAllocationResources } = getAmbassadorService();
+  const { getAirdropResourceSignal, getAmbassadorResourceSignal } = require('./resourceSignals');
   const gasStationService = getGasStationService();
   const proxyService = getProxyService();
   const { getSyntheticScreenerSnapshot } = getScreenerService();
@@ -889,8 +999,8 @@ async function collectOverviewData() {
   const [dbOk, clockState, airdropState, ambassadorState, gasState, events, screeners, recentEvents, notes, tasks] = await Promise.all([
     pool.query('SELECT 1').then(() => true).catch(() => false),
     getRuntimeState('clock.heartbeat').catch(() => null),
-    hasEnoughAirdropResources().catch(() => null),
-    hasEnoughAmbassadorAllocationResources().catch(() => null),
+    getAirdropResourceSignal().catch(() => null),
+    getAmbassadorResourceSignal().catch(() => null),
     getGasStationRuntimeState().catch(() => null),
     listRecentEvents(6, { onlyOpen: true }).catch(() => []),
     getSyntheticScreenerSnapshot().catch(() => null),
@@ -918,6 +1028,23 @@ async function collectOverviewData() {
     keyPools: getProxyKeyPoolRuntimeState(),
     gasPool: getGasStationCredentialRuntimeState()
   };
+}
+
+function formatProbeMode(resourceState) {
+  const probe = resourceState?._probe || null;
+  if (!probe) {
+    return '';
+  }
+
+  if (probe.rateLimited) {
+    return ' · probe paused after 429';
+  }
+
+  if (probe.stale) {
+    return ' · cached';
+  }
+
+  return '';
 }
 
 function formatTargets(targets) {
@@ -1076,6 +1203,31 @@ async function buildOverviewText() {
   ].join('\n');
 }
 
+async function buildEngineerText() {
+  const data = await collectOverviewData();
+  const clockPayload = data.clockState?.value_json || {};
+  const siteIssues = listClockSiteIssues(clockPayload);
+  const anyKeyPressure =
+    Number(data.keyPools?.trongrid?.coolingDown || 0) > 0 ||
+    Number(data.keyPools?.tronscan?.coolingDown || 0) > 0 ||
+    Number(data.keyPools?.cmc?.coolingDown || 0) > 0;
+
+  return [
+    buildHeader('🛠 Engineer View', 'Здесь уже не founder-картинка, а инженерный разрез по системам.'),
+    `🕒 Clock сейчас смешанный: wallet workers + site snapshot refresh (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at)})`,
+    `⚙️ Wallet workers: ${buildClockWalletOpsSummary(clockPayload)}`,
+    `🌐 Site refresh внутри clock: ${buildClockSiteSummary(clockPayload)}`,
+    `${statusIcon(data.dbOk)} База: ${data.dbOk ? 'ok' : 'падает'}`,
+    `${statusIcon(Number(data.screeners?.summary?.fail || 0) === 0, Number(data.screeners?.summary?.fail || 0) > 0)} Screeners: ${buildScreenerStateSummary(data.screeners)}`,
+    `${statusIcon(!anyKeyPressure, anyKeyPressure)} Provider keys: ${anyKeyPressure ? 'есть cooldown/pressure' : 'без явного pressure'}`,
+    '',
+    'Что это значит:',
+    '1. Шум вокруг clock не только про кошелёк. Там реально сидит и сайтовый refresh.',
+    '2. Если в clock всё зелёное, а сайт шумит, это ещё не значит, что mobile/app-flow болит.',
+    ...(siteIssues.length ? ['', `Сейчас по site-refresh выделяются: ${siteIssues.join(', ')}`] : [])
+  ].join('\n');
+}
+
 async function buildScreenerText() {
   const { getSyntheticScreenerSnapshot } = getScreenerService();
   const snapshot = await getSyntheticScreenerSnapshot().catch(() => null);
@@ -1131,10 +1283,10 @@ async function buildHealthText() {
     } (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at)})`,
     `${statusIcon(data.airdropState?.hasEnough === true, data.airdropState?.hasEnough === false)} Airdrop wallet ${shortenAddress(
       data.airdropState?.walletAddress
-    )}: energy ${Number(data.airdropState?.energyAvailable || 0)}, bandwidth ${Number(data.airdropState?.bandwidthAvailable || 0)}`,
+    )}: energy ${Number(data.airdropState?.energyAvailable || 0)}, bandwidth ${Number(data.airdropState?.bandwidthAvailable || 0)}${formatProbeMode(data.airdropState)}`,
     `${statusIcon(data.ambassadorState?.hasEnough === true, data.ambassadorState?.hasEnough === false)} Operator wallet ${shortenAddress(
       data.ambassadorState?.walletAddress
-    )}: energy ${Number(data.ambassadorState?.energyAvailable || 0)}, bandwidth ${Number(data.ambassadorState?.bandwidthAvailable || 0)}`,
+    )}: energy ${Number(data.ambassadorState?.energyAvailable || 0)}, bandwidth ${Number(data.ambassadorState?.bandwidthAvailable || 0)}${formatProbeMode(data.ambassadorState)}`,
     `${statusIcon(gasStationEnabled && !gasStationWarn, gasStationWarn || !gasStationEnabled)} GasStation: ${
       gasStationEnabled ? (gasStationWarn ? 'включён, но баланс сейчас не дочитался' : 'включён') : 'выключен'
     }`,
@@ -1358,6 +1510,40 @@ async function buildJobsText() {
   ].join('\n');
 }
 
+async function buildRunText() {
+  const [tasks, awaitingConfirmation, confirmed, running, jobs] = await Promise.all([
+    listTasks(20, { includeDone: false }).catch(() => []),
+    listExecutionRequests(6, { status: 'awaiting_confirmation' }).catch(() => []),
+    listExecutionRequests(6, { status: 'confirmed' }).catch(() => []),
+    listExecutionRequests(6, { status: 'running' }).catch(() => []),
+    listCodexJobs(4).catch(() => [])
+  ]);
+
+  const readyForCodex = tasks.filter((task) => normalizeValue(task?.status) === 'ready_for_codex').length;
+  const inProgress = tasks.filter((task) => normalizeValue(task?.status) === 'in_progress').length;
+  const blocked = tasks.filter((task) => normalizeValue(task?.status) === 'blocked').length;
+  const latestJob = jobs[0] || null;
+
+  return [
+    buildHeader('🚀 Run & Delivery', 'Здесь путь от задачи до реального code-run, а не просто список тикетов.'),
+    `🧾 Открытых задач: ${tasks.length} • ready_for_codex ${readyForCodex} • in_progress ${inProgress} • blocked ${blocked}`,
+    `🔐 Ждут 6-значного подтверждения: ${awaitingConfirmation.length}`,
+    `⏳ Подтверждены и ждут runner: ${confirmed.length}`,
+    `🛠 Сейчас выполняются: ${running.length}`,
+    latestJob
+      ? `🤖 Последний Codex job: #${latestJob.id} • task #${Number(latestJob.task_id || 0)} • ${normalizeValue(latestJob.status) || 'unknown'}`
+      : '🤖 Codex jobs пока не запускались.',
+    '',
+    'Как пользоваться без командной каши:',
+    '1. Просто напишите: выполни задачу 12 в приложении.',
+    '2. Повторите 6 цифр.',
+    '3. Потом, если всё ок: запушь задачу 12 или задеплой задачу 12.',
+    '',
+    'Важно:',
+    'Runner у вас уже умеет apply/publish, а deploy всё ещё должен вести себя осторожно и может честно уйти в blocked.'
+  ].join('\n');
+}
+
 async function buildKnowledgeText() {
   const status = await getKnowledgeBaseStatus().catch(() => null);
 
@@ -1404,18 +1590,22 @@ async function buildQueuesText() {
   const { clockState, events } = await collectOverviewData();
 
   const clockPayload = clockState?.value_json || {};
-  const processed = clockPayload?.processed ?? 'n/a';
-  const ambassadorProcessed = clockPayload?.ambassadorProcessed?.totalWallets ?? 'n/a';
-  const ambassadorFailed = clockPayload?.ambassadorProcessed?.failed ?? 'n/a';
+  const walletSummary = buildClockWalletOpsSummary(clockPayload);
+  const siteSummary = buildClockSiteSummary(clockPayload);
+  const siteIssues = listClockSiteIssues(clockPayload);
 
   return [
-    buildHeader('📦 Очереди и фоновые задачи', 'Полезно, когда нужно понять, всё ли движется или что-то застряло.'),
-    `✈️ Telegram claims за последний tick: ${processed}`,
-    `🧩 Ambassador wallets за последний tick: ${ambassadorProcessed}`,
-    `⚠️ Ambassador ошибок в последнем tick: ${ambassadorFailed}`,
+    buildHeader('📦 Очереди и фоновые задачи', 'Здесь я уже отдельно показываю wallet work и сайтовый шум, чтобы не путать одно с другим.'),
+    `⚙️ Wallet workers за последний tick: ${walletSummary}`,
+    `🌐 Site snapshot refresh в том же clock: ${siteSummary}`,
     `🚨 Открытых событий сейчас: ${events.length}`,
     '',
-    'Если тут цифры растут, а события не закрываются:',
+    'Важно:',
+    '1. Этот clock смешанный: он обслуживает и wallet background work, и сайтовые snapshots.',
+    '2. Поэтому часть шума здесь реально относится к сайту, а не к mobile/app-flow.',
+    ...(siteIssues.length ? [`3. Сейчас сайтовый хвост: ${siteIssues.join(', ')}`] : ['3. Явного сайтового хвоста в последнем tick не видно.']),
+    '',
+    'Если wallet-цифры растут, а события не закрываются:',
     '1. Смотри раздел «События».',
     '2. Потом «Здоровье».',
     '3. Обычно корень проблемы там, а не в самой очереди.'
@@ -1443,6 +1633,8 @@ async function buildTargetsText() {
 
 async function buildScreenText(screen, options = {}) {
   if (screen === 'summary') return buildSummaryText(options);
+  if (screen === 'engineer') return buildEngineerText();
+  if (screen === 'run') return buildRunText();
   if (screen === 'screen') return buildScreenerText();
   if (screen === 'health') return buildHealthText();
   if (screen === 'events') return buildEventsText();
@@ -1699,6 +1891,109 @@ function detectTaskPrefilter(text) {
   };
 }
 
+function extractConfirmationCode(text) {
+  const safe = normalizeValue(text);
+  if (!safe) {
+    return '';
+  }
+
+  const direct = safe.match(/^(?:\/confirm\s+)?(\d{6})$/i);
+  if (direct?.[1]) {
+    return direct[1];
+  }
+
+  const embedded = safe.match(/\b(?:code|код)\D*(\d{6})\b/i);
+  if (embedded?.[1]) {
+    return embedded[1];
+  }
+
+  return '';
+}
+
+function buildRepoLabel(repoKey) {
+  return normalizeRepoKey(repoKey) === 'website' ? 'сайт' : 'приложение';
+}
+
+function buildActionLabel(actionType) {
+  const safe = normalizeActionType(actionType);
+  if (safe === 'publish') return 'push ветки';
+  if (safe === 'deploy') return 'деплой';
+  if (safe === 'restart') return 'рестарт';
+  return 'исполнение кода';
+}
+
+function detectExecutionRequestPrefilter(text) {
+  const safe = normalizeValue(text);
+  const lower = safe.toLowerCase();
+  const taskId = extractTaskIdFromNaturalText(safe);
+
+  if (!taskId) {
+    return null;
+  }
+
+  const wantsExecute =
+    /\b(execute|run|apply|implement|ship|commit|deploy|fix|edit|change|code|выполни|запусти|примени|внеси|исправь|измени|поменяй|задеплой|закоммить)\b/i.test(
+      lower
+    );
+
+  if (!wantsExecute) {
+    return null;
+  }
+
+  const repoKey = normalizeRepoKey(safe);
+  return {
+    taskId,
+    repoKey
+  };
+}
+
+function detectExecutionCancelIntent(text) {
+  const safe = normalizeValue(text).toLowerCase();
+  if (!safe) {
+    return false;
+  }
+
+  return /\b(cancel run|cancel execute|cancel code|отмени запуск|отмени исполнение|отмени код|отмена кода|сбрось код)\b/i.test(
+    safe
+  );
+}
+
+function detectPostExecutionRequestPrefilter(text) {
+  const safe = normalizeValue(text);
+  const lower = safe.toLowerCase();
+  const taskId = extractTaskIdFromNaturalText(safe);
+
+  if (!taskId) {
+    return null;
+  }
+
+  const actionPatterns = [
+    {
+      actionType: 'deploy',
+      matches: /\b(deploy|release|ship|задепл|выпусти|релиз)\b/i
+    },
+    {
+      actionType: 'restart',
+      matches: /\b(restart|reboot|перезапуск|рестарт|перегрузи)\b/i
+    },
+    {
+      actionType: 'publish',
+      matches: /\b(push|publish|branch|пуш|запуш|опубликуй|ветк)\b/i
+    }
+  ];
+
+  const matched = actionPatterns.find((item) => item.matches.test(lower));
+  if (!matched) {
+    return null;
+  }
+
+  return {
+    taskId,
+    actionType: matched.actionType,
+    repoKey: normalizeRepoKey(safe)
+  };
+}
+
 async function updateTaskFromOwnerCommand(message, status, options = {}) {
   const chatId = normalizeValue(message?.chat?.id);
   const ownerOnly = await isOwnerMessage(message);
@@ -1753,6 +2048,296 @@ async function updateTaskFromOwnerCommand(message, status, options = {}) {
   };
 }
 
+async function startExecutionRequestFromOwner(message, options = {}) {
+  const chatId = normalizeValue(message?.chat?.id);
+  const ownerOnly = await isOwnerMessage(message);
+  const isPrivate = normalizeValue(message?.chat?.type) === 'private';
+
+  if (!ownerOnly || !isPrivate) {
+    await reply(chatId, '⛔ Запускать кодовые задачи я даю только owner-аккаунту в личке.');
+    return { ok: false, unauthorized: true };
+  }
+
+  const args = options?.taskId
+    ? {
+        taskId: Number(options.taskId || 0),
+        body: normalizeValue(options.repoKey)
+      }
+    : parseTaskCommandArgs(extractCommandArgs(message?.text));
+
+  if (!Number.isFinite(args.taskId) || args.taskId <= 0) {
+    await reply(
+      chatId,
+      '🛠️ Укажите задачу для исполнения.\n\nПримеры:\n/execute 12 app\n/execute 14 website\nили просто: выполни задачу 12 в приложении'
+    );
+    return { ok: true, promptShown: true };
+  }
+
+  let task = await getTaskById(args.taskId);
+  if (!task) {
+    await reply(chatId, `⚠️ Задача #${args.taskId} не найдена.`);
+    return { ok: false, notFound: true };
+  }
+
+  const requestedRepoKey = normalizeRepoKey(options?.repoKey || args.body);
+  const progressMessage = await sendProgressMessage(
+    chatId,
+    `🛠️ Готовлю задачу #${args.taskId} к реальному исполнению в repo. Сначала проверю, что у неё есть grounded work order...`
+  );
+
+  try {
+    const taskDetails = parseJson(task?.details_json, {});
+    const hasWorkOrder =
+      normalizeValue(taskDetails?.codexOutcome) === 'done' ||
+      (Array.isArray(taskDetails?.proposedFiles) && taskDetails.proposedFiles.length > 0);
+
+    let codexRan = false;
+    if (!hasWorkOrder) {
+      const codexResult = await runCodexJobForTask(task.id, {
+        source: 'telegram-execute',
+        createdByChatId: chatId
+      });
+      task = codexResult?.task || (await getTaskById(task.id)) || task;
+      codexRan = true;
+
+      if (normalizeValue(codexResult?.result?.outcome) !== 'done') {
+        await finalizeProgressMessage(
+          progressMessage,
+          [
+            `⚠️ Сначала прогнал Codex по задаче #${task.id}, но он не собрал надёжный work order.`,
+            normalizeValue(codexResult?.result?.blockerReason) ? `Блокер: ${normalizeValue(codexResult.result.blockerReason)}` : '',
+            'Сначала поправьте формулировку задачи или дайте больше контекста, потом повторим запуск.'
+          ]
+            .filter(Boolean)
+            .join('\n')
+        );
+        return { ok: false, blocked: true };
+      }
+    }
+
+    const issued = await issueExecutionRequest({
+      taskId: task.id,
+      repoKey: requestedRepoKey || inferRepoKeyFromTask(task),
+      requestedByChatId: chatId,
+      requestedByUserId: normalizeValue(message?.from?.id),
+      requestedMessage: normalizeValue(message?.text),
+      details: {
+        via: 'telegram',
+        telegramMessageId: message?.message_id || null
+      }
+    });
+
+    if (issued.alreadyActive) {
+      await finalizeProgressMessage(
+        progressMessage,
+        [
+          `⏳ Для задачи #${task.id} уже есть активный запрос на исполнение.`,
+          `Repo: ${buildRepoLabel(issued.repoKey)}`,
+          `Статус: ${normalizeValue(issued.request?.status) || 'unknown'}`,
+          'Новый код подтверждения не нужен, пока этот запрос не завершён или не отменён.'
+        ].join('\n')
+      );
+      return {
+        ok: true,
+        alreadyActive: true,
+        requestId: issued.request?.id || null
+      };
+    }
+
+    await finalizeProgressMessage(
+      progressMessage,
+      [
+        codexRan ? `🤖 Сначала добрал work order для задачи #${task.id}, теперь она готова к исполнению.` : `🛠️ Подготовил задачу #${task.id} к исполнению.`,
+        `Repo: ${buildRepoLabel(issued.repoKey)}`,
+        `Задача: ${normalizeValue(task.title) || `#${task.id}`}`,
+        '',
+        `Для подтверждения напишите только этот код: ${issued.confirmationCode}`,
+        `Если передумаете, просто напишите: отмена кода`
+      ].join('\n')
+    );
+
+    return {
+      ok: true,
+      requested: true,
+      requestId: issued.request?.id || null
+    };
+  } catch (error) {
+    await finalizeProgressMessage(
+      progressMessage,
+      `⚠️ Не получилось подготовить задачу #${args.taskId} к исполнению: ${normalizeValue(error.message) || 'unknown error'}`
+    );
+    return { ok: false, error: error.message };
+  }
+}
+
+async function confirmExecutionRequestFromOwner(message, explicitCode = '') {
+  const chatId = normalizeValue(message?.chat?.id);
+  const ownerOnly = await isOwnerMessage(message);
+  const isPrivate = normalizeValue(message?.chat?.type) === 'private';
+
+  if (!ownerOnly || !isPrivate) {
+    await reply(chatId, '⛔ Подтверждать кодовые задачи я даю только owner-аккаунту в личке.');
+    return { ok: false, unauthorized: true };
+  }
+
+  const code = explicitCode || extractConfirmationCode(message?.text);
+  if (!code) {
+    await reply(chatId, '🔐 Пришлите 6-значный код подтверждения. Например: 381042');
+    return { ok: true, promptShown: true };
+  }
+
+  const result = await confirmExecutionRequestByCode({
+    chatId,
+    code
+  });
+
+  if (!result.confirmed) {
+    await reply(
+      chatId,
+      '⚠️ Такой код не нашёлся. Возможно, он истёк или вы уже подтвердили другой запуск. Если нужно, просто попросите подготовить задачу ещё раз.'
+    );
+    return { ok: false, invalidCode: true };
+  }
+
+  await reply(
+    chatId,
+    [
+      `✅ Подтвердил ${buildActionLabel(result?.request?.action_type)} для задачи #${Number(result?.task?.id || result?.request?.task_id || 0)}`,
+      `Repo: ${buildRepoLabel(result?.request?.repo_key)}`,
+      'Запрос ушёл в очередь runner-а. Как только он заберёт задачу, статус пойдёт в работу.'
+    ].join('\n')
+  );
+
+  return {
+    ok: true,
+    confirmed: true,
+    requestId: result?.request?.id || null
+  };
+}
+
+async function cancelExecutionRequestFromOwner(message, options = {}) {
+  const chatId = normalizeValue(message?.chat?.id);
+  const ownerOnly = await isOwnerMessage(message);
+  const isPrivate = normalizeValue(message?.chat?.type) === 'private';
+
+  if (!ownerOnly || !isPrivate) {
+    await reply(chatId, '⛔ Отменять кодовые запуски я даю только owner-аккаунту в личке.');
+    return { ok: false, unauthorized: true };
+  }
+
+  const requestId = Number(options?.requestId || extractCommandArgs(message?.text) || 0);
+  const canceled = await cancelExecutionRequest({
+    requestId: Number.isFinite(requestId) && requestId > 0 ? requestId : null,
+    chatId
+  }).catch(() => null);
+
+  if (!canceled) {
+    await reply(chatId, 'ℹ️ Сейчас не вижу активного запроса на исполнение, который можно отменить.');
+    return { ok: true, nothingToCancel: true };
+  }
+
+  await reply(
+    chatId,
+    [
+      `🛑 Отменил запрос на исполнение #${canceled.id}`,
+      `Repo: ${buildRepoLabel(canceled.repo_key)}`,
+      `Task: #${Number(canceled.task_id || 0)}`
+    ].join('\n')
+  );
+
+  return {
+    ok: true,
+    canceled: true,
+    requestId: canceled.id
+  };
+}
+
+async function startPostExecutionRequestFromOwner(message, options = {}) {
+  const chatId = normalizeValue(message?.chat?.id);
+  const ownerOnly = await isOwnerMessage(message);
+  const isPrivate = normalizeValue(message?.chat?.type) === 'private';
+  const actionType = normalizeActionType(options?.actionType);
+
+  if (!ownerOnly || !isPrivate) {
+    await reply(chatId, '⛔ Готовить push/deploy я даю только owner-аккаунту в личке.');
+    return { ok: false, unauthorized: true };
+  }
+
+  const args = parseTaskCommandArgs(extractCommandArgs(message?.text));
+  const taskId = Number(options?.taskId || args.taskId || 0);
+  if (!Number.isFinite(taskId) || taskId <= 0) {
+    await reply(
+      chatId,
+      '🚀 Укажите задачу.\n\nПримеры:\n/publish 12 app\n/deploy 12 website\nили просто: задеплой задачу 12'
+    );
+    return { ok: true, promptShown: true };
+  }
+
+  const task = await getTaskById(taskId);
+  if (!task) {
+    await reply(chatId, `⚠️ Задача #${taskId} не найдена.`);
+    return { ok: false, notFound: true };
+  }
+
+  const requestedRepoKey = normalizeRepoKey(options?.repoKey || args.body);
+  const lastApply = await findLatestCompletedApplyRequest(taskId, requestedRepoKey || inferRepoKeyFromTask(task));
+  if (!lastApply) {
+    await reply(
+      chatId,
+      [
+        `⚠️ Для задачи #${taskId} пока нет завершённого code-run, после которого можно делать ${buildActionLabel(actionType)}.`,
+        'Сначала запустите исполнение кода, подтвердите его 6-значным кодом и дождитесь коммита.'
+      ].join('\n')
+    );
+    return { ok: false, missingApply: true };
+  }
+
+  const repoKey = normalizeRepoKey(requestedRepoKey || lastApply.repo_key || inferRepoKeyFromTask(task));
+  const issued = await issueExecutionRequest({
+    taskId,
+    repoKey,
+    actionType,
+    requestedByChatId: chatId,
+    requestedByUserId: normalizeValue(message?.from?.id),
+    requestedMessage: normalizeValue(message?.text),
+    details: {
+      via: 'telegram',
+      afterExecutionRequestId: lastApply.id,
+      telegramMessageId: message?.message_id || null
+    }
+  });
+
+  if (issued.alreadyActive) {
+    await reply(
+      chatId,
+      [
+        `⏳ Для задачи #${taskId} уже есть активный запрос на ${buildActionLabel(actionType)}.`,
+        `Repo: ${buildRepoLabel(repoKey)}`,
+        `Статус: ${normalizeValue(issued.request?.status) || 'unknown'}`
+      ].join('\n')
+    );
+    return { ok: true, alreadyActive: true };
+  }
+
+  await reply(
+    chatId,
+    [
+      `🚀 Подготовил ${buildActionLabel(actionType)} для задачи #${taskId}`,
+      `Repo: ${buildRepoLabel(repoKey)}`,
+      '',
+      `Для подтверждения напишите только этот код: ${issued.confirmationCode}`,
+      'Это отдельное подтверждение, чтобы не выпускать изменения в один шаг.'
+    ].join('\n')
+  );
+
+  return {
+    ok: true,
+    requested: true,
+    actionType,
+    requestId: issued.request?.id || null
+  };
+}
+
 async function handleOwnerPrefilter(message) {
   const chatId = normalizeValue(message?.chat?.id);
   const rawText = normalizeValue(message?.text);
@@ -1768,6 +2353,12 @@ async function handleOwnerPrefilter(message) {
   const localeRequest = detectLocaleRequest(rawText);
   if (localeRequest) {
     const nextLocale = await setChatLocale(chatId, localeRequest);
+    logTelegramTrace('owner_prefilter.locale', {
+      chatId,
+      messageId: message?.message_id || null,
+      locale: nextLocale,
+      text: rawText
+    });
     await reply(
       chatId,
       nextLocale === 'en'
@@ -1785,8 +2376,43 @@ async function handleOwnerPrefilter(message) {
     };
   }
 
+  const pendingConfirmation = await findLatestPendingConfirmationByChat(chatId).catch(() => null);
+  const confirmationCode = extractConfirmationCode(rawText);
+  if (pendingConfirmation && confirmationCode) {
+    logTelegramTrace('owner_prefilter.confirm_code', {
+      chatId,
+      messageId: message?.message_id || null,
+      requestId: pendingConfirmation?.id || null
+    });
+    const result = await confirmExecutionRequestFromOwner(message, confirmationCode);
+    return {
+      matched: true,
+      result
+    };
+  }
+
+  if (pendingConfirmation && detectExecutionCancelIntent(rawText)) {
+    logTelegramTrace('owner_prefilter.cancel_execution', {
+      chatId,
+      messageId: message?.message_id || null,
+      requestId: pendingConfirmation?.id || null
+    });
+    const result = await cancelExecutionRequestFromOwner(message);
+    return {
+      matched: true,
+      result
+    };
+  }
+
   const taskAction = detectTaskPrefilter(rawText);
   if (taskAction) {
+    logTelegramTrace('owner_prefilter.task_action', {
+      chatId,
+      messageId: message?.message_id || null,
+      taskId: taskAction.taskId,
+      status: taskAction.status,
+      text: rawText
+    });
     const syntheticMessage = {
       ...message,
       text: `/prefilter ${taskAction.taskId}${taskAction.body ? ` ${taskAction.body}` : ''}`
@@ -1796,6 +2422,39 @@ async function handleOwnerPrefilter(message) {
       usageText: taskAction.usageText
     });
 
+    return {
+      matched: true,
+      result
+    };
+  }
+
+  const postExecutionAction = detectPostExecutionRequestPrefilter(rawText);
+  if (postExecutionAction) {
+    logTelegramTrace('owner_prefilter.post_execution', {
+      chatId,
+      messageId: message?.message_id || null,
+      taskId: postExecutionAction.taskId,
+      actionType: postExecutionAction.actionType,
+      repoKey: postExecutionAction.repoKey,
+      text: rawText
+    });
+    const result = await startPostExecutionRequestFromOwner(message, postExecutionAction);
+    return {
+      matched: true,
+      result
+    };
+  }
+
+  const executionAction = detectExecutionRequestPrefilter(rawText);
+  if (executionAction) {
+    logTelegramTrace('owner_prefilter.execution', {
+      chatId,
+      messageId: message?.message_id || null,
+      taskId: executionAction.taskId,
+      repoKey: executionAction.repoKey,
+      text: rawText
+    });
+    const result = await startExecutionRequestFromOwner(message, executionAction);
     return {
       matched: true,
       result
@@ -1874,7 +2533,7 @@ async function runCodexTaskFromOwner(message) {
   }
 }
 
-async function answerOwnerQuestion(message, question) {
+async function answerOwnerQuestion(message, question, options = {}) {
   const chatId = normalizeValue(message?.chat?.id);
   const ownerOnly = await isOwnerMessage(message);
   const isPrivate = normalizeValue(message?.chat?.type) === 'private';
@@ -1916,7 +2575,7 @@ async function answerOwnerQuestion(message, question) {
   );
 
   try {
-    const data = await collectOverviewData();
+    const data = options?.preloadedData || (await collectOverviewData());
     const answer = await answerOpsQuestion(
       safeQuestion,
       {
@@ -2024,6 +2683,16 @@ async function handleOwnerInboxText(message) {
     screeners: data.screeners
   });
 
+  logTelegramTrace('owner_inbox.route', {
+    chatId,
+    messageId: message?.message_id || null,
+    text: rawText,
+    mode: route?.mode || 'unknown',
+    intent: route?.intent || 'unknown',
+    fallbackReason: route?.fallbackReason || null,
+    title: route?.title || null
+  });
+
   if (normalizeValue(route?.mode) === 'fallback' && normalizeValue(route?.fallbackReason)) {
     await recordBotEvent({
       category: 'openai',
@@ -2126,7 +2795,9 @@ async function handleOwnerInboxText(message) {
     };
   }
 
-  return answerOwnerQuestion(message, rawText);
+  return answerOwnerQuestion(message, rawText, {
+    preloadedData: data
+  });
 }
 
 async function handleVoiceNote(message) {
@@ -2232,6 +2903,14 @@ async function handleCommand(message) {
   }
 
   await touchTelegramTarget(chatId, message?.from?.id).catch(() => null);
+  logTelegramTrace('message.command_entry', {
+    chatId,
+    messageId: message?.message_id || null,
+    fromId: normalizeValue(message?.from?.id),
+    chatType: normalizeValue(message?.chat?.type),
+    command: command || '(plain-text)',
+    text: rawText
+  });
 
   if (command === '/start') {
     const owner = await getOwnerTelegramTarget();
@@ -2282,6 +2961,8 @@ async function handleCommand(message) {
         'Основное:',
         '/menu — открыть меню',
         '/summary — короткая AI-сводка',
+        '/run — текущий путь от задачи до code-run',
+        '/engineer — инженерный разрез по системам',
         '/ask — задать вопрос по серверу, ключам, feedback и backlog',
         '/screen — проверить реальные app-flow',
         '/health — быстро понять, что болит',
@@ -2292,6 +2973,12 @@ async function handleCommand(message) {
         '/notes — backlog следующей версии',
         '/tasks — рабочие задачи',
         '/codex 12 — прогнать Codex по задаче',
+        '/execute 12 app — подготовить реальное исполнение кода',
+        '/publish 12 app — подготовить push ветки',
+        '/deploy 12 app — подготовить деплой',
+        '/restart 12 app — подготовить рестарт',
+        '/confirm 381042 — подтвердить запуск 6-значным кодом',
+        '/cancelrun — отменить активный запрос на исполнение',
         '/note текст — добавить идею или правку в backlog',
         '/take 12 — взять задачу в работу',
         '/done 12 — закрыть задачу',
@@ -2317,6 +3004,16 @@ async function handleCommand(message) {
 
   if (command === '/summary') {
     await sendScreen(chatId, 'summary', { force: true });
+    return { ok: true };
+  }
+
+  if (command === '/run') {
+    await sendScreen(chatId, 'run');
+    return { ok: true };
+  }
+
+  if (command === '/engineer') {
+    await sendScreen(chatId, 'engineer');
     return { ok: true };
   }
 
@@ -2372,6 +3069,36 @@ async function handleCommand(message) {
 
   if (command === '/codex') {
     return runCodexTaskFromOwner(message);
+  }
+
+  if (command === '/execute') {
+    return startExecutionRequestFromOwner(message);
+  }
+
+  if (command === '/publish') {
+    return startPostExecutionRequestFromOwner(message, {
+      actionType: 'publish'
+    });
+  }
+
+  if (command === '/deploy') {
+    return startPostExecutionRequestFromOwner(message, {
+      actionType: 'deploy'
+    });
+  }
+
+  if (command === '/restart') {
+    return startPostExecutionRequestFromOwner(message, {
+      actionType: 'restart'
+    });
+  }
+
+  if (command === '/confirm') {
+    return confirmExecutionRequestFromOwner(message);
+  }
+
+  if (command === '/cancelrun') {
+    return cancelExecutionRequestFromOwner(message);
   }
 
   if (command === '/note') {
@@ -2580,6 +3307,17 @@ async function handleAdminTelegramWebhookUpdate(update) {
   const message = update?.message;
   const callbackQuery = update?.callback_query;
 
+  logTelegramTrace('webhook.update_received', {
+    updateId: update?.update_id || null,
+    hasMessage: Boolean(message),
+    hasCallback: Boolean(callbackQuery),
+    chatId: normalizeValue(message?.chat?.id || callbackQuery?.message?.chat?.id),
+    chatType: normalizeValue(message?.chat?.type || callbackQuery?.message?.chat?.type),
+    messageId: message?.message_id || callbackQuery?.message?.message_id || null,
+    text: normalizeValue(message?.text),
+    callbackData: normalizeValue(callbackQuery?.data)
+  });
+
   if (callbackQuery?.data) {
     return handleCallbackQuery(callbackQuery);
   }
@@ -2589,6 +3327,10 @@ async function handleAdminTelegramWebhookUpdate(update) {
   }
 
   if (!message?.text) {
+    logTelegramTrace('webhook.ignored_non_text', {
+      updateId: update?.update_id || null,
+      chatId: normalizeValue(message?.chat?.id)
+    });
     return {
       ok: true,
       ignored: true

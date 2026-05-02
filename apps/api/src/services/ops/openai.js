@@ -309,6 +309,24 @@ function buildRouterFallback(message) {
   const safe = normalizeValue(message);
   const lower = safe.toLowerCase();
 
+  if (
+    /\b(смени|сменить|переключ|отвечай|ответь|respond|reply|clear|очист|почист|удали|архив|закрой|возьми|верни|запуш|задепл|перезапус|перегруз|выполни|запусти|проверь|перепроверь|глянь|посмотри|check|recheck|look)\b/.test(
+      lower
+    )
+  ) {
+    return {
+      mode: 'fallback',
+      intent: 'question',
+      title: null,
+      noteType: null,
+      priority: null,
+      severity: null,
+      answerText: null,
+      eventMessage: null,
+      fallbackReason: 'Heuristic: control-like founder message'
+    };
+  }
+
   if (/^\s*(что|почему|как|где|когда|кто)\b|[?？]$/.test(lower)) {
     return {
       mode: 'fallback',
@@ -507,7 +525,7 @@ async function routeOwnerMessage(message, context) {
             {
               type: 'input_text',
               text:
-                'You are routing private founder messages for a crypto wallet ops assistant. Classify each message into one intent only: question, product_note, or incident_report. Use the provided context to decide. product_note means save into backlog for the next release. incident_report means create/update an ops event because the founder is flagging a live problem. question means answer from the live data. Return concise Russian answerText only when it helps the UX.'
+                'You are routing private founder messages for a crypto wallet ops assistant. Classify each message into one intent only: question, product_note, or incident_report. Be conservative with incident_report: use it only when the founder is clearly flagging a live outage, broken production behavior, or a current operational incident that should become an ops event right now. Prefer question for ordinary chat, commands, status checks, requests to investigate, requests to check or re-check something, or vague complaints. Prefer product_note only when the founder is clearly asking to change a future release, UX, content, or backlog item. product_note means save into backlog for the next release. incident_report means create/update an ops event because the founder is flagging a live problem. question means answer from the live data. Return concise Russian answerText only when it helps the UX.'
             }
           ]
         },
@@ -542,7 +560,7 @@ async function routeOwnerMessage(message, context) {
       throw new Error('Owner message router returned empty payload');
     }
 
-    return {
+    const result = {
       mode: 'openai',
       intent: normalizeValue(parsed.intent) || fallback.intent,
       title: normalizeValue(parsed.title) || null,
@@ -552,6 +570,23 @@ async function routeOwnerMessage(message, context) {
       answerText: normalizeValue(parsed.answerText) || null,
       eventMessage: normalizeValue(parsed.eventMessage) || null
     };
+
+    if (
+      fallback.intent === 'question' &&
+      result.intent === 'incident_report' &&
+      /control-like founder message|question-like message/.test(normalizeValue(fallback.fallbackReason))
+    ) {
+      return {
+        ...result,
+        mode: 'openai_guarded',
+        intent: 'question',
+        title: null,
+        severity: null,
+        eventMessage: null
+      };
+    }
+
+    return result;
   } catch (error) {
     return {
       ...fallback,

@@ -1,11 +1,11 @@
 const { pool } = require('../../db/pool');
-const { hasEnoughAirdropResources } = require('../airdrop/telegramBot');
-const { hasEnoughAmbassadorAllocationResources } = require('../ambassador/replayQueue');
 const { getGasStationRuntimeState } = require('../gasstation/gasStation');
 const { recordOpsEvent, resolveOpsEvent } = require('./events');
 const { getRuntimeState } = require('./store');
 const { runSyntheticScreeners } = require('./screeners');
 const { bootstrapAdminBotEnv } = require('./telegramAdminBot');
+const { processOneRemoteExecutionRequest } = require('./remoteRunner');
+const { getAirdropResourceSignal, getAmbassadorResourceSignal } = require('./resourceSignals');
 
 const MONITOR_INTERVAL_MS = 5 * 60 * 1000;
 const CLOCK_STALE_MS = 70 * 60 * 1000;
@@ -69,7 +69,7 @@ async function runMonitorTick(trigger) {
     }).catch(() => null);
   }
 
-  const airdropResources = await hasEnoughAirdropResources().catch(() => null);
+  const airdropResources = await getAirdropResourceSignal().catch(() => null);
   if (airdropResources && !airdropResources.hasEnough) {
     await recordOpsEvent({
       source: 'airdrop',
@@ -91,7 +91,7 @@ async function runMonitorTick(trigger) {
     }).catch(() => null);
   }
 
-  const ambassadorResources = await hasEnoughAmbassadorAllocationResources().catch(() => null);
+  const ambassadorResources = await getAmbassadorResourceSignal().catch(() => null);
   if (ambassadorResources && !ambassadorResources.hasEnough) {
     await recordOpsEvent({
       source: 'ambassador',
@@ -134,6 +134,21 @@ async function runMonitorTick(trigger) {
       fingerprint: 'gasstation:operator_balance_low',
       message: 'Operator wallet balance recovered.'
     }).catch(() => null);
+  }
+
+  if (String(process.env.OPS_REMOTE_HEROKU_RUNNER_ENABLED || '').trim().toLowerCase() === 'true') {
+    await processOneRemoteExecutionRequest()
+      .then((result) => {
+        if (result?.requestId) {
+          console.info('[ops-monitor] remote runner tick', result);
+        }
+      })
+      .catch((error) => {
+        console.error('[ops-monitor] remote runner failed', {
+          trigger,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      });
   }
 }
 

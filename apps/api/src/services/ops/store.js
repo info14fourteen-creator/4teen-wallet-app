@@ -168,6 +168,41 @@ async function ensureOpsTables() {
       CREATE INDEX IF NOT EXISTS idx_ops_codex_jobs_recent
         ON ops_codex_jobs (task_id, updated_at DESC, id DESC)
     `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ops_execution_requests (
+        id BIGSERIAL PRIMARY KEY,
+        task_id BIGINT NOT NULL,
+        repo_key TEXT NOT NULL,
+        action_type TEXT NOT NULL DEFAULT 'apply',
+        status TEXT NOT NULL DEFAULT 'awaiting_confirmation',
+        requested_by_chat_id TEXT,
+        requested_by_user_id TEXT,
+        runner_id TEXT,
+        confirmation_code_hash TEXT,
+        confirmation_expires_at TIMESTAMPTZ,
+        requested_message TEXT,
+        summary TEXT,
+        result_message TEXT,
+        details_json JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        confirmed_at TIMESTAMPTZ,
+        started_at TIMESTAMPTZ,
+        finished_at TIMESTAMPTZ,
+        canceled_at TIMESTAMPTZ
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_ops_execution_requests_recent
+        ON ops_execution_requests (status, repo_key, updated_at DESC, id DESC)
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_ops_execution_requests_task
+        ON ops_execution_requests (task_id, created_at DESC, id DESC)
+    `);
   })().catch((error) => {
     ensureOpsTablesPromise = null;
     throw error;
