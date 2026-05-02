@@ -1,31 +1,23 @@
 {
-  "generatedAt": "2026-05-02T19:04:33.920Z",
+  "generatedAt": "2026-05-02T19:33:46.799Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "438029d4f25d5f81db6d24b733108f32ec2df1c5",
-    "shortHash": "438029d",
-    "subject": "Add GitHub ops remote runner workflow",
+    "hash": "2ecedb18145afdb922f67fa42444d0f19a8a29a0",
+    "shortHash": "2ecedb1",
+    "subject": "Switch ops runner to OIDC control-plane auth",
     "author": "info14fourteen-creator",
-    "date": "2026-05-03T00:04:11+05:00"
+    "date": "2026-05-03T00:33:35+05:00"
   },
   "changedFiles": [
-    "A\t.github/scripts/ops-remote-runner.mjs",
+    "M\t.github/scripts/ops-remote-runner.mjs",
     "M\t.github/workflows/ops-remote-runner.yml"
   ],
   "activeFiles": [
     {
-      "file": "apps/api/src/services/ops/telegramAdminBot.js",
-      "count": 5
-    },
-    {
       "file": ".github/workflows/ops-remote-runner.yml",
-      "count": 4
-    },
-    {
-      "file": "apps/api/src/services/ops/events.js",
-      "count": 4
+      "count": 5
     },
     {
       "file": "apps/mobile/src/config/app-version.ts",
@@ -38,6 +30,18 @@
     {
       "file": "apps/api/src/routes/ops.js",
       "count": 3
+    },
+    {
+      "file": "apps/api/src/services/ops/events.js",
+      "count": 3
+    },
+    {
+      "file": "apps/api/src/services/ops/telegramAdminBot.js",
+      "count": 3
+    },
+    {
+      "file": ".github/scripts/ops-remote-runner.mjs",
+      "count": 2
     },
     {
       "file": "apps/mobile/app.json",
@@ -129,10 +133,6 @@
     },
     {
       "file": "apps/mobile/screenshots/ui-audit-2026-05-01/import-seed-screen.png",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/import-wallet-screen.png",
       "count": 2
     }
   ],

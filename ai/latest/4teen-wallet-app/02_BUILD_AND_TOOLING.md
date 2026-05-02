@@ -1,13 +1,13 @@
 # 4teen-wallet-app — BUILD AND TOOLING
 
-Generated: 2026-05-02T19:04:33.919Z
+Generated: 2026-05-02T19:33:46.798Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 438029d4f25d5f81db6d24b733108f32ec2df1c5
-Short commit: 438029d
-Commit subject: Add GitHub ops remote runner workflow
+Last commit: 2ecedb18145afdb922f67fa42444d0f19a8a29a0
+Short commit: 2ecedb1
+Commit subject: Switch ops runner to OIDC control-plane auth
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T00:04:11+05:00
+Commit date: 2026-05-03T00:33:35+05:00
 
 ## Included files
 
@@ -170,6 +170,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
   pull-requests: write
 
 concurrency:
@@ -198,34 +199,12 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Mask runtime secrets
-        env:
-          ADMIN_SYNC_TOKEN: ${{ secrets.ADMIN_SYNC_TOKEN || github.event.client_payload.adminToken }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || github.event.client_payload.openAiApiKey }}
-          OPENAI_ORG_ID: ${{ secrets.OPENAI_ORG_ID || github.event.client_payload.openAiOrgId }}
-          OPENAI_PROJECT_ID: ${{ secrets.OPENAI_PROJECT_ID || github.event.client_payload.openAiProjectId }}
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY || github.event.client_payload.herokuApiKey }}
-          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL || github.event.client_payload.herokuEmail }}
-        run: |
-          for value in "$ADMIN_SYNC_TOKEN" "$OPENAI_API_KEY" "$OPENAI_ORG_ID" "$OPENAI_PROJECT_ID" "$HEROKU_API_KEY" "$HEROKU_EMAIL"; do
-            if [ -n "$value" ]; then
-              echo "::add-mask::$value"
-            fi
-          done
-
       - name: Process one confirmed request
         env:
-          ADMIN_SYNC_TOKEN: ${{ secrets.ADMIN_SYNC_TOKEN || github.event.client_payload.adminToken }}
-          OPS_EXPORT_BASE_URL: ${{ secrets.OPS_EXPORT_BASE_URL || github.event.client_payload.opsBaseUrl }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || github.event.client_payload.openAiApiKey }}
-          OPENAI_ORG_ID: ${{ secrets.OPENAI_ORG_ID || github.event.client_payload.openAiOrgId }}
-          OPENAI_PROJECT_ID: ${{ secrets.OPENAI_PROJECT_ID || github.event.client_payload.openAiProjectId }}
-          OPENAI_CODEX_MODEL: ${{ secrets.OPENAI_CODEX_MODEL || github.event.client_payload.openAiCodexModel }}
+          OPS_EXPORT_BASE_URL: ${{ vars.OPS_EXPORT_BASE_URL || github.event.client_payload.opsBaseUrl || 'https://fourteen-wallet-api-7af291023d36.herokuapp.com' }}
+          OPS_GITHUB_OIDC_AUDIENCE: ${{ vars.OPS_GITHUB_OIDC_AUDIENCE || '4teen-ops-runner' }}
           OPS_EXECUTOR_RUNNER_ID: github-actions-wallet-app
           GITHUB_TOKEN: ${{ github.token }}
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY || github.event.client_payload.herokuApiKey }}
-          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL || github.event.client_payload.herokuEmail }}
-          OPS_WALLET_HEROKU_APP_NAME: ${{ secrets.OPS_WALLET_HEROKU_APP_NAME || github.event.client_payload.herokuAppName }}
         run: node .github/scripts/ops-remote-runner.mjs
 ```
 
