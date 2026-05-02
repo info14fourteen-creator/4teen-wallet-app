@@ -158,6 +158,10 @@ function isEnglish(locale) {
   return normalizeLocale(locale) === 'en';
 }
 
+function pickLocale(locale, ruText, enText) {
+  return isEnglish(locale) ? enText : ruText;
+}
+
 function buildChatLocaleKey(chatId) {
   return `${BOT_LOCALE_PREFIX}:${normalizeValue(chatId)}`;
 }
@@ -204,6 +208,60 @@ function detectLocaleRequest(text) {
   }
 
   return '';
+}
+
+function detectAudioMimeType(filePath, fallbackMimeType = '') {
+  const safePath = normalizeValue(filePath).toLowerCase();
+  const safeMimeType = normalizeValue(fallbackMimeType).toLowerCase();
+
+  if (safeMimeType) {
+    return safeMimeType;
+  }
+
+  if (safePath.endsWith('.ogg') || safePath.endsWith('.oga')) return 'audio/ogg';
+  if (safePath.endsWith('.mp3')) return 'audio/mpeg';
+  if (safePath.endsWith('.m4a')) return 'audio/mp4';
+  if (safePath.endsWith('.mp4')) return 'video/mp4';
+  if (safePath.endsWith('.wav')) return 'audio/wav';
+  if (safePath.endsWith('.webm')) return 'audio/webm';
+  return 'audio/ogg';
+}
+
+function extractAudioAttachment(message) {
+  if (message?.voice?.file_id) {
+    return {
+      fileId: normalizeValue(message.voice.file_id),
+      kind: 'voice',
+      mimeType: normalizeValue(message.voice.mime_type) || 'audio/ogg'
+    };
+  }
+
+  if (message?.audio?.file_id) {
+    return {
+      fileId: normalizeValue(message.audio.file_id),
+      kind: 'audio',
+      mimeType: normalizeValue(message.audio.mime_type)
+    };
+  }
+
+  if (message?.video_note?.file_id) {
+    return {
+      fileId: normalizeValue(message.video_note.file_id),
+      kind: 'video_note',
+      mimeType: 'video/mp4'
+    };
+  }
+
+  const document = message?.document;
+  if (document?.file_id && /^audio\//i.test(normalizeValue(document?.mime_type))) {
+    return {
+      fileId: normalizeValue(document.file_id),
+      kind: 'document_audio',
+      mimeType: normalizeValue(document.mime_type)
+    };
+  }
+
+  return null;
 }
 
 function isClearIntent(text) {
@@ -925,30 +983,31 @@ function listClockSiteIssues(clockPayload) {
     });
 }
 
-function buildMenuMarkup(currentScreen) {
+function buildMenuMarkup(currentScreen, options = {}) {
   const safeScreen = SUPPORTED_SCREENS.has(currentScreen) ? currentScreen : DEFAULT_SCREEN;
-  const refreshRow = [{ text: '🔄 Обновить', callback_data: `${CALLBACK_PREFIX}refresh:${safeScreen}` }];
+  const locale = normalizeLocale(options?.locale);
+  const refreshRow = [{ text: pickLocale(locale, '🔄 Обновить', '🔄 Refresh'), callback_data: `${CALLBACK_PREFIX}refresh:${safeScreen}` }];
   const rerunRows =
     safeScreen === 'screen'
-      ? [[{ text: '🧪 Прогнать скринер сейчас', callback_data: `${CALLBACK_PREFIX}rerun:screen` }]]
+      ? [[{ text: pickLocale(locale, '🧪 Прогнать скринер сейчас', '🧪 Run screener now'), callback_data: `${CALLBACK_PREFIX}rerun:screen` }]]
       : [];
   const advancedRows = isAdvancedScreen(safeScreen)
     ? [
         [
-          { text: '🧪 Скринер', callback_data: `${CALLBACK_PREFIX}screen:screen` },
-          { text: '🩺 Здоровье', callback_data: `${CALLBACK_PREFIX}screen:health` }
+          { text: pickLocale(locale, '🧪 Скринер', '🧪 Screeners'), callback_data: `${CALLBACK_PREFIX}screen:screen` },
+          { text: pickLocale(locale, '🩺 Здоровье', '🩺 Health'), callback_data: `${CALLBACK_PREFIX}screen:health` }
         ],
         [
-          { text: '🔑 Ключи', callback_data: `${CALLBACK_PREFIX}screen:keys` },
-          { text: '📦 Очереди', callback_data: `${CALLBACK_PREFIX}screen:queues` }
+          { text: pickLocale(locale, '🔑 Ключи', '🔑 Keys'), callback_data: `${CALLBACK_PREFIX}screen:keys` },
+          { text: pickLocale(locale, '📦 Очереди', '📦 Queues'), callback_data: `${CALLBACK_PREFIX}screen:queues` }
         ],
         [
           { text: '🤖 Jobs', callback_data: `${CALLBACK_PREFIX}screen:jobs` },
           { text: '📚 Knowledge', callback_data: `${CALLBACK_PREFIX}screen:knowledge` }
         ],
         [
-          { text: '📝 План', callback_data: `${CALLBACK_PREFIX}screen:notes` },
-          { text: '👥 Чаты', callback_data: `${CALLBACK_PREFIX}screen:targets` }
+          { text: pickLocale(locale, '📝 План', '📝 Notes'), callback_data: `${CALLBACK_PREFIX}screen:notes` },
+          { text: pickLocale(locale, '👥 Чаты', '👥 Targets'), callback_data: `${CALLBACK_PREFIX}screen:targets` }
         ]
       ]
     : [];
@@ -957,18 +1016,18 @@ function buildMenuMarkup(currentScreen) {
     inline_keyboard: [
       [
         { text: '🧠 Summary', callback_data: `${CALLBACK_PREFIX}screen:summary` },
-        { text: '🏠 Founder', callback_data: `${CALLBACK_PREFIX}screen:overview` }
+        { text: pickLocale(locale, '🏠 Founder', '🏠 Founder'), callback_data: `${CALLBACK_PREFIX}screen:overview` }
       ],
       [
-        { text: '🚨 Problems', callback_data: `${CALLBACK_PREFIX}screen:events` },
+        { text: pickLocale(locale, '🚨 Проблемы', '🚨 Problems'), callback_data: `${CALLBACK_PREFIX}screen:events` },
         { text: '💬 Feedback', callback_data: `${CALLBACK_PREFIX}screen:feedback` }
       ],
       [
-        { text: '🧾 Tasks', callback_data: `${CALLBACK_PREFIX}screen:tasks` },
+        { text: pickLocale(locale, '🧾 Задачи', '🧾 Tasks'), callback_data: `${CALLBACK_PREFIX}screen:tasks` },
         { text: '🚀 Run', callback_data: `${CALLBACK_PREFIX}screen:run` }
       ],
       [
-        { text: '🛠 Engineer', callback_data: `${CALLBACK_PREFIX}screen:engineer` }
+        { text: pickLocale(locale, '🛠 Engineer', '🛠 Engineer'), callback_data: `${CALLBACK_PREFIX}screen:engineer` }
       ],
       ...advancedRows,
       ...rerunRows,
@@ -1160,7 +1219,9 @@ async function buildSummaryText(options = {}) {
   ].join('\n');
 }
 
-async function buildOverviewText() {
+async function buildOverviewText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
+  const english = isEnglish(locale);
   const data = await collectOverviewData();
   const clockPayload = data.clockState?.value_json || {};
   const openEvents = Array.isArray(data.events) ? data.events.length : 0;
@@ -1173,21 +1234,21 @@ async function buildOverviewText() {
 
   return [
     buildHeader(
-      '🏠 4TEEN Ops',
-      'Коротко и по-человечески: вот что вижу прямо сейчас.'
+      pickLocale(locale, '🏠 4TEEN Ops', '🏠 4TEEN Ops'),
+      pickLocale(locale, 'Коротко и по-человечески: вот что вижу прямо сейчас.', 'Short and human: this is what I see right now.')
     ),
-    `${statusIcon(data.dbOk)} API и база: ${data.dbOk ? 'живы' : 'есть проблема с базой'}`,
+    `${statusIcon(data.dbOk)} ${pickLocale(locale, 'API и база', 'API and database')}: ${data.dbOk ? pickLocale(locale, 'живы', 'healthy') : pickLocale(locale, 'есть проблема с базой', 'database issue detected')}`,
     `${statusIcon(clockPayload?.status === 'ok', clockPayload?.status !== 'ok')} Clock: ${
-      clockPayload?.status === 'ok' ? 'работает' : 'надо проверить'
+      clockPayload?.status === 'ok' ? pickLocale(locale, 'работает', 'running') : pickLocale(locale, 'надо проверить', 'needs attention')
     } (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at)})`,
-    `${statusIcon(!airdropWarn, airdropWarn)} Airdrop wallet: ${
-      airdropWarn ? 'ресурсов не хватает' : 'по ресурсам всё ок'
+    `${statusIcon(!airdropWarn, airdropWarn)} ${pickLocale(locale, 'Airdrop wallet', 'Airdrop wallet')}: ${
+      airdropWarn ? pickLocale(locale, 'ресурсов не хватает', 'not enough resources') : pickLocale(locale, 'по ресурсам всё ок', 'resources look fine')
     }`,
-    `${statusIcon(!ambassadorWarn, ambassadorWarn)} Operator wallet: ${
-      ambassadorWarn ? 'ресурсов не хватает для ambassador flow' : 'по ресурсам всё ок'
+    `${statusIcon(!ambassadorWarn, ambassadorWarn)} ${pickLocale(locale, 'Operator wallet', 'Operator wallet')}: ${
+      ambassadorWarn ? pickLocale(locale, 'ресурсов не хватает для ambassador flow', 'not enough resources for ambassador flow') : pickLocale(locale, 'по ресурсам всё ок', 'resources look fine')
     }`,
-    `${statusIcon(!anyKeysWarn, anyKeysWarn)} Ключи провайдеров: ${
-      anyKeysWarn ? 'часть ключей под давлением' : 'запас нормальный'
+    `${statusIcon(!anyKeysWarn, anyKeysWarn)} ${pickLocale(locale, 'Ключи провайдеров', 'Provider keys')}: ${
+      anyKeysWarn ? pickLocale(locale, 'часть ключей под давлением', 'some keys are under pressure') : pickLocale(locale, 'запас нормальный', 'pool looks healthy')
     }`,
     `${screenerStatusIcon(
       Number(data.screeners?.summary?.fail || 0) > 0
@@ -1195,15 +1256,28 @@ async function buildOverviewText() {
         : Number(data.screeners?.summary?.warn || 0) > 0
           ? 'warn'
           : 'ok'
-    )} Реальные app-flow: ${buildScreenerStateSummary(data.screeners)}`,
-    `${openEvents > 0 ? '🟠' : '🟢'} Открытых событий: ${openEvents}`,
+    )} ${pickLocale(locale, 'Реальные app-flow', 'Real app flows')}: ${buildScreenerStateSummary(data.screeners)}`,
+    `${openEvents > 0 ? '🟠' : '🟢'} ${pickLocale(locale, 'Открытых событий', 'Open events')}: ${openEvents}`,
     '',
-    'Что я бы рекомендовал сейчас:',
-    ...buildRecommendationLines(data)
+    pickLocale(locale, 'Что я бы рекомендовал сейчас:', 'What I would do next:'),
+    ...(english
+      ? [
+          data.dbOk ? '1. Database is fine.' : '1. Database needs attention first.',
+          clockPayload?.status === 'ok' ? '2. Clock heartbeat is fresh.' : '2. Check the clock worker first.',
+          airdropWarn ? '3. Top up resources for the airdrop wallet.' : '3. Airdrop wallet resources are okay.',
+          ambassadorWarn ? '4. Top up operator resources for ambassador flow.' : '4. Operator wallet resources are okay.',
+          Number(data.screeners?.summary?.fail || 0) > 0
+            ? '5. One or more real app flows are failing. Open Screeners.'
+            : Number(data.screeners?.summary?.warn || 0) > 0
+              ? '5. Some flows are under pressure. Screeners are worth checking now.'
+              : '5. No urgent red actions right now.'
+        ]
+      : buildRecommendationLines(data))
   ].join('\n');
 }
 
-async function buildEngineerText() {
+async function buildEngineerText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const data = await collectOverviewData();
   const clockPayload = data.clockState?.value_json || {};
   const siteIssues = listClockSiteIssues(clockPayload);
@@ -1213,22 +1287,23 @@ async function buildEngineerText() {
     Number(data.keyPools?.cmc?.coolingDown || 0) > 0;
 
   return [
-    buildHeader('🛠 Engineer View', 'Здесь уже не founder-картинка, а инженерный разрез по системам.'),
-    `🕒 Clock сейчас смешанный: wallet workers + site snapshot refresh (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at)})`,
-    `⚙️ Wallet workers: ${buildClockWalletOpsSummary(clockPayload)}`,
-    `🌐 Site refresh внутри clock: ${buildClockSiteSummary(clockPayload)}`,
-    `${statusIcon(data.dbOk)} База: ${data.dbOk ? 'ok' : 'падает'}`,
+    buildHeader(pickLocale(locale, '🛠 Engineer View', '🛠 Engineer View'), pickLocale(locale, 'Здесь уже не founder-картинка, а инженерный разрез по системам.', 'This is the engineering cut, not the founder summary.')),
+    `🕒 ${pickLocale(locale, 'Clock сейчас смешанный: wallet workers + site snapshot refresh', 'Clock is mixed right now: wallet workers + site snapshot refresh')} (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at)})`,
+    `⚙️ ${pickLocale(locale, 'Wallet workers', 'Wallet workers')}: ${buildClockWalletOpsSummary(clockPayload)}`,
+    `🌐 ${pickLocale(locale, 'Site refresh внутри clock', 'Site refresh inside clock')}: ${buildClockSiteSummary(clockPayload)}`,
+    `${statusIcon(data.dbOk)} ${pickLocale(locale, 'База', 'Database')}: ${data.dbOk ? 'ok' : pickLocale(locale, 'падает', 'failing')}`,
     `${statusIcon(Number(data.screeners?.summary?.fail || 0) === 0, Number(data.screeners?.summary?.fail || 0) > 0)} Screeners: ${buildScreenerStateSummary(data.screeners)}`,
-    `${statusIcon(!anyKeyPressure, anyKeyPressure)} Provider keys: ${anyKeyPressure ? 'есть cooldown/pressure' : 'без явного pressure'}`,
+    `${statusIcon(!anyKeyPressure, anyKeyPressure)} ${pickLocale(locale, 'Provider keys', 'Provider keys')}: ${anyKeyPressure ? pickLocale(locale, 'есть cooldown/pressure', 'cooldown/pressure is present') : pickLocale(locale, 'без явного pressure', 'no visible pressure')}`,
     '',
-    'Что это значит:',
-    '1. Шум вокруг clock не только про кошелёк. Там реально сидит и сайтовый refresh.',
-    '2. Если в clock всё зелёное, а сайт шумит, это ещё не значит, что mobile/app-flow болит.',
-    ...(siteIssues.length ? ['', `Сейчас по site-refresh выделяются: ${siteIssues.join(', ')}`] : [])
+    pickLocale(locale, 'Что это значит:', 'What this means:'),
+    pickLocale(locale, '1. Шум вокруг clock не только про кошелёк. Там реально сидит и сайтовый refresh.', '1. Clock noise is not only about the wallet. Site refresh really lives there too.'),
+    pickLocale(locale, '2. Если в clock всё зелёное, а сайт шумит, это ещё не значит, что mobile/app-flow болит.', '2. If clock looks green but the website is noisy, that does not automatically mean the app flow is unhealthy.'),
+    ...(siteIssues.length ? ['', `${pickLocale(locale, 'Сейчас по site-refresh выделяются', 'Site refresh issues right now')}: ${siteIssues.join(', ')}`] : [])
   ].join('\n');
 }
 
-async function buildScreenerText() {
+async function buildScreenerText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const { getSyntheticScreenerSnapshot } = getScreenerService();
   const snapshot = await getSyntheticScreenerSnapshot().catch(() => null);
   const items = Array.isArray(snapshot?.items) ? snapshot.items : [];
@@ -1238,16 +1313,16 @@ async function buildScreenerText() {
   if (!items.length) {
     return [
       buildHeader('🧪 Реальный скринер', 'Это проверка глазами пользователя, а не просто healthcheck сервера.'),
-      '⚪ Скринер ещё не запускался.',
+      pickLocale(locale, '⚪ Скринер ещё не запускался.', '⚪ Screeners have not run yet.'),
       '',
-      'Нажмите кнопку «Прогнать скринер сейчас», и я проверю ключевые app-flow.'
+      pickLocale(locale, 'Нажмите кнопку «Прогнать скринер сейчас», и я проверю ключевые app-flow.', 'Press “Run screener now” and I will check the key app flows.')
     ].join('\n');
   }
 
   return [
-    buildHeader('🧪 Реальный скринер', 'Показываю, проходят ли ключевые сценарии приложения целиком.'),
-    `Последний прогон: ${checkedAt}`,
-    `Итог: ${buildScreenerStateSummary(snapshot)}`,
+    buildHeader(pickLocale(locale, '🧪 Реальный скринер', '🧪 Real screeners'), pickLocale(locale, 'Показываю, проходят ли ключевые сценарии приложения целиком.', 'This shows whether the key user flows actually pass end-to-end.')),
+    `${pickLocale(locale, 'Последний прогон', 'Last run')}: ${checkedAt}`,
+    `${pickLocale(locale, 'Итог', 'Result')}: ${buildScreenerStateSummary(snapshot)}`,
     '',
     ...items.map((item) => {
       const meta = item?.meta && typeof item.meta === 'object' ? item.meta : null;
@@ -1255,18 +1330,19 @@ async function buildScreenerText() {
       return [
         `${screenerStatusIcon(item.status)} ${normalizeValue(item.label)}${address}`,
         normalizeValue(item.summary),
-        `Что это значит: ${normalizeValue(item.recommendation) || 'Это один из сценариев, который пользователь чувствует сразу.'}`
+        `${pickLocale(locale, 'Что это значит', 'What this means')}: ${normalizeValue(item.recommendation) || pickLocale(locale, 'Это один из сценариев, который пользователь чувствует сразу.', 'This is one of the flows users feel immediately.')}`
       ].join('\n');
     }),
     '',
-    'Как читать экран:',
-    '1. Красный — сценарий уже сломан.',
-    '2. Оранжевый — ещё живо, но пользователь скоро почувствует деградацию.',
-    '3. Зелёный — путь проходит целиком.'
+    pickLocale(locale, 'Как читать экран:', 'How to read this screen:'),
+    pickLocale(locale, '1. Красный — сценарий уже сломан.', '1. Red means the flow is already broken.'),
+    pickLocale(locale, '2. Оранжевый — ещё живо, но пользователь скоро почувствует деградацию.', '2. Orange means the flow still works, but users will feel degradation soon.'),
+    pickLocale(locale, '3. Зелёный — путь проходит целиком.', '3. Green means the whole path passes.')
   ].join('\n');
 }
 
-async function buildHealthText() {
+async function buildHealthText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const data = await collectOverviewData();
   const clockPayload = data.clockState?.value_json || {};
   const operator = data.gasState?.operator || null;
@@ -1276,10 +1352,10 @@ async function buildHealthText() {
   const gasStationError = shortenText(data.gasState?.gasStationError, 140);
 
   return [
-    buildHeader('🩺 Здоровье системы', 'Не технично, а по сути: где спокойно, а где уже больно.'),
-    `${statusIcon(data.dbOk)} База данных: ${data.dbOk ? 'отвечает' : 'не отвечает'}`,
+    buildHeader(pickLocale(locale, '🩺 Здоровье системы', '🩺 System health'), pickLocale(locale, 'Не технично, а по сути: где спокойно, а где уже больно.', 'High signal only: where things are calm and where they already hurt.')),
+    `${statusIcon(data.dbOk)} ${pickLocale(locale, 'База данных', 'Database')}: ${data.dbOk ? pickLocale(locale, 'отвечает', 'responding') : pickLocale(locale, 'не отвечает', 'not responding')}`,
     `${statusIcon(clockPayload?.status === 'ok', clockPayload?.status !== 'ok')} Clock: ${
-      clockPayload?.status === 'ok' ? 'тикнул нормально' : 'нужна проверка'
+      clockPayload?.status === 'ok' ? pickLocale(locale, 'тикнул нормально', 'heartbeat is healthy') : pickLocale(locale, 'нужна проверка', 'needs checking')
     } (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at)})`,
     `${statusIcon(data.airdropState?.hasEnough === true, data.airdropState?.hasEnough === false)} Airdrop wallet ${shortenAddress(
       data.airdropState?.walletAddress
@@ -1288,21 +1364,26 @@ async function buildHealthText() {
       data.ambassadorState?.walletAddress
     )}: energy ${Number(data.ambassadorState?.energyAvailable || 0)}, bandwidth ${Number(data.ambassadorState?.bandwidthAvailable || 0)}${formatProbeMode(data.ambassadorState)}`,
     `${statusIcon(gasStationEnabled && !gasStationWarn, gasStationWarn || !gasStationEnabled)} GasStation: ${
-      gasStationEnabled ? (gasStationWarn ? 'включён, но баланс сейчас не дочитался' : 'включён') : 'выключен'
+      gasStationEnabled ? (gasStationWarn ? pickLocale(locale, 'включён, но баланс сейчас не дочитался', 'enabled, but the balance could not be read') : pickLocale(locale, 'включён', 'enabled')) : pickLocale(locale, 'выключен', 'disabled')
     }`,
     operator
       ? `💰 Operator TRX: ${operator.balanceTrx} TRX`
-      : '💰 Operator TRX: не удалось прочитать',
+      : pickLocale(locale, '💰 Operator TRX: не удалось прочитать', '💰 Operator TRX: could not be read'),
     gasStation
-      ? `🏦 Баланс GasStation: ${gasStation.balanceTrx} TRX на аккаунте ${normalizeValue(gasStation.account) || '—'}`
-      : `🏦 Баланс GasStation: не удалось прочитать${gasStationError ? ` (${gasStationError})` : ''}`,
+      ? `${pickLocale(locale, '🏦 Баланс GasStation', '🏦 GasStation balance')}: ${gasStation.balanceTrx} TRX ${pickLocale(locale, 'на аккаунте', 'on account')} ${normalizeValue(gasStation.account) || '—'}`
+      : `${pickLocale(locale, '🏦 Баланс GasStation: не удалось прочитать', '🏦 GasStation balance: could not be read')}${gasStationError ? ` (${gasStationError})` : ''}`,
     '',
-    'Подсказка:',
-    ...buildRecommendationLines(data)
+    pickLocale(locale, 'Подсказка:', 'Quick advice:'),
+    ...(isEnglish(locale) ? [
+      data.airdropState?.hasEnough === false ? '1. Airdrop wallet needs resources.' : '1. Airdrop wallet is okay.',
+      data.ambassadorState?.hasEnough === false ? '2. Operator wallet needs resources for ambassador flow.' : '2. Operator wallet is okay.',
+      gasStationWarn ? '3. GasStation metrics need a re-check.' : '3. GasStation metrics are readable.'
+    ] : buildRecommendationLines(data))
   ].join('\n');
 }
 
-async function buildKeysText() {
+async function buildKeysText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const { keyPools, gasPool } = await collectOverviewData();
 
   const gasLines = Array.isArray(gasPool?.credentials)
@@ -1318,7 +1399,7 @@ async function buildKeysText() {
     : [];
 
   return [
-    buildHeader('🔑 Ключи и лимиты', 'Сюда удобно смотреть, когда приложение внезапно начинает тупить из-за провайдеров.'),
+    buildHeader(pickLocale(locale, '🔑 Ключи и лимиты', '🔑 Keys and limits'), pickLocale(locale, 'Сюда удобно смотреть, когда приложение внезапно начинает тупить из-за провайдеров.', 'Open this first when the app starts degrading because of providers.')),
     formatKeyPoolLine('trongrid', keyPools.trongrid),
     formatKeyPoolLine('tronscan', keyPools.tronscan),
     formatKeyPoolLine('cmc', keyPools.cmc),
@@ -1326,29 +1407,30 @@ async function buildKeysText() {
     'GasStation credentials:',
     ...(gasLines.length ? gasLines : ['• пока не вижу настроенных credential-ов']),
     '',
-    'Если здесь краснеет:',
-    '1. Сначала проверь лимиты и cooldown.',
-    '2. Потом посмотри, не умер ли один конкретный ключ/credential.',
-    '3. Если красное держится долго, значит запасных ключей мало.'
+    pickLocale(locale, 'Если здесь краснеет:', 'If this goes red:'),
+    pickLocale(locale, '1. Сначала проверь лимиты и cooldown.', '1. Check limits and cooldown first.'),
+    pickLocale(locale, '2. Потом посмотри, не умер ли один конкретный ключ/credential.', '2. Then check whether one specific key or credential died.'),
+    pickLocale(locale, '3. Если красное держится долго, значит запасных ключей мало.', '3. If the warning stays for long, your spare pool is too small.')
   ].join('\n');
 }
 
-async function buildEventsText() {
+async function buildEventsText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const events = await listRecentEvents(8, { onlyOpen: true }).catch(() => []);
 
   if (!events.length) {
     return [
       buildHeader('🚨 Активные события', 'Сейчас тут пусто, и это хороший знак.'),
-      '🟢 Открытых проблем не вижу.'
+      pickLocale(locale, '🟢 Открытых проблем не вижу.', '🟢 No open problems right now.')
     ].join('\n');
   }
 
   return [
-    buildHeader('🚨 Активные события', 'Самое важное сверху. Без сухого лога, только суть.'),
+    buildHeader(pickLocale(locale, '🚨 Активные события', '🚨 Active events'), pickLocale(locale, 'Самое важное сверху. Без сухого лога, только суть.', 'The most important issues first. No dry logs, just signal.')),
     ...events.map((event) => {
       const icon = severityIcon(event.severity);
       const count = Number(event.count || 0);
-      return `${icon} ${event.title}\nИсточник: ${normalizeValue(event.source)} • повторов: ${count}\n${buildEventRecommendation(event)}`;
+      return `${icon} ${event.title}\n${pickLocale(locale, 'Источник', 'Source')}: ${normalizeValue(event.source)} • ${pickLocale(locale, 'повторов', 'repeats')}: ${count}\n${buildEventRecommendation(event)}`;
     })
   ].join('\n');
 }
@@ -1747,8 +1829,14 @@ async function finalizeProgressMessage(progressMessage, text) {
 
 async function sendScreen(chatId, screen, options = {}) {
   const safeScreen = SUPPORTED_SCREENS.has(screen) ? screen : DEFAULT_SCREEN;
-  const text = await buildScreenText(safeScreen, options);
-  const replyMarkup = buildMenuMarkup(safeScreen);
+  const locale = normalizeLocale(options?.locale || (await getChatLocale(chatId)));
+  const text = await buildScreenText(safeScreen, {
+    ...options,
+    locale
+  });
+  const replyMarkup = buildMenuMarkup(safeScreen, {
+    locale
+  });
 
   if (options.editMessageId) {
     try {
@@ -2658,6 +2746,8 @@ async function handleOwnerInboxText(message) {
   const ownerOnly = await isOwnerMessage(message);
   const isPrivate = normalizeValue(message?.chat?.type) === 'private';
   const rawText = normalizeValue(message?.text);
+  const locale = await getChatLocale(chatId);
+  const english = isEnglish(locale);
 
   if (!ownerOnly || !isPrivate || !rawText) {
     return {
@@ -2718,13 +2808,13 @@ async function handleOwnerInboxText(message) {
     await reply(
       chatId,
       [
-        '📝 Сохранил в план следующей версии',
-        route?.answerText || 'Вижу это как задачу на релиз, а не как просто сообщение в чат.',
-        `Заголовок: ${normalizeValue(stored.note?.title) || normalizeValue(stored.structured?.title)}`,
-        `Тип: ${normalizeValue(stored.note?.note_type || stored.structured?.noteType)} • приоритет: ${normalizeValue(stored.note?.priority || stored.structured?.priority)}`,
+        english ? '📝 Saved it into the next release plan' : '📝 Сохранил в план следующей версии',
+        route?.answerText || (english ? 'I see this as release work, not just a casual chat message.' : 'Вижу это как задачу на релиз, а не как просто сообщение в чат.'),
+        `${english ? 'Title' : 'Заголовок'}: ${normalizeValue(stored.note?.title) || normalizeValue(stored.structured?.title)}`,
+        `${english ? 'Type' : 'Тип'}: ${normalizeValue(stored.note?.note_type || stored.structured?.noteType)} • ${english ? 'priority' : 'приоритет'}: ${normalizeValue(stored.note?.priority || stored.structured?.priority)}`,
         taskResult?.task?.id ? `Task: #${taskResult.task.id} • статус ${normalizeValue(taskResult.task.status)}` : '',
         '',
-        'Если хотите, потом можно открыть /tasks и двигать это как обычную задачу.'
+        english ? 'You can open /tasks later and move it like a normal task.' : 'Если хотите, потом можно открыть /tasks и двигать это как обычную задачу.'
       ].join('\n')
     );
 
@@ -2740,7 +2830,7 @@ async function handleOwnerInboxText(message) {
 
     const progressMessage = await sendProgressMessage(
       chatId,
-      '🚨 Фиксирую это как сигнал о проблеме и быстро проверяю соседние данные...'
+      english ? '🚨 Treating this as an incident signal and checking nearby data...' : '🚨 Фиксирую это как сигнал о проблеме и быстро проверяю соседние данные...'
     );
 
     const eventResult = await recordBotEvent({
@@ -2779,13 +2869,13 @@ async function handleOwnerInboxText(message) {
     await finalizeProgressMessage(
       progressMessage,
       [
-        '🚨 Зафиксировал как инцидент',
-        route?.answerText || 'Вижу это как живую проблему, а не просто заметку на потом.',
+        english ? '🚨 Logged it as an incident' : '🚨 Зафиксировал как инцидент',
+        route?.answerText || (english ? 'I see this as a live problem, not just a note for later.' : 'Вижу это как живую проблему, а не просто заметку на потом.'),
         taskResult?.task?.id ? `Task: #${taskResult.task.id} • статус ${normalizeValue(taskResult.task.status)}` : '',
         '',
-        normalizeValue(answer?.answer) || 'Пока без деталей.',
+        normalizeValue(answer?.answer) || (english ? 'No extra details yet.' : 'Пока без деталей.'),
         '',
-        `Режим: ${normalizeValue(answer?.mode) === 'openai' ? 'GPT-анализ' : 'надёжный fallback'}`
+        `${english ? 'Mode' : 'Режим'}: ${normalizeValue(answer?.mode) === 'openai' ? (english ? 'GPT analysis' : 'GPT-анализ') : (english ? 'reliable fallback' : 'надёжный fallback')}`
       ].join('\n')
     );
 
@@ -2802,9 +2892,11 @@ async function handleOwnerInboxText(message) {
 
 async function handleVoiceNote(message) {
   const chatId = normalizeValue(message?.chat?.id);
-  const voice = message?.voice;
+  const attachment = extractAudioAttachment(message);
+  const locale = await getChatLocale(chatId);
+  const english = isEnglish(locale);
 
-  if (!chatId || !voice?.file_id) {
+  if (!chatId || !attachment?.fileId) {
     return {
       ok: false,
       ignored: true
@@ -2815,7 +2907,7 @@ async function handleVoiceNote(message) {
   const isPrivate = normalizeValue(message?.chat?.type) === 'private';
 
   if (!ownerOnly || !isPrivate) {
-    await reply(chatId, '🎤 Голосовые заметки в backlog я принимаю только от owner-а в личном чате.');
+    await reply(chatId, english ? '🎤 I only accept voice notes into the backlog from the owner in the private chat.' : '🎤 Голосовые заметки в backlog я принимаю только от owner-а в личном чате.');
     return {
       ok: false,
       unauthorized: true
@@ -2824,15 +2916,20 @@ async function handleVoiceNote(message) {
 
   const progressMessage = await sendProgressMessage(
     chatId,
-    '🎤 Слушаю заметку, превращаю её в текст и складываю в план следующей версии...'
+    english
+      ? '🎤 Listening, turning this note into text, and saving it into the next release plan...'
+      : '🎤 Слушаю заметку, превращаю её в текст и складываю в план следующей версии...'
   );
 
   try {
-    const file = await downloadTelegramFileBuffer(voice.file_id);
+    const file = await downloadTelegramFileBuffer(attachment.fileId);
+    const mimeType = detectAudioMimeType(file.filePath, attachment.mimeType);
     const transcription = await transcribeAudioBuffer(file.buffer, {
       fileName: file.filePath.split('/').pop() || 'voice-note.ogg',
-      mimeType: 'audio/ogg',
-      prompt: 'Founder product note for the next wallet release. Return clean Russian text.'
+      mimeType,
+      prompt: english
+        ? 'Founder product note for the next wallet release. Return clean text in the original language.'
+        : 'Founder product note for the next wallet release. Return clean text in the original language.'
     });
     const stored = await storeOwnerProductNote(transcription.text, {
       source: 'telegram-voice',
@@ -2849,13 +2946,13 @@ async function handleVoiceNote(message) {
     await finalizeProgressMessage(
       progressMessage,
       [
-        '🎤 Сохранил голосовую заметку в план',
-        `Заголовок: ${normalizeValue(stored.note?.title) || normalizeValue(stored.structured?.title)}`,
-        `Тип: ${normalizeValue(stored.note?.note_type || stored.structured?.noteType)} • приоритет: ${normalizeValue(stored.note?.priority || stored.structured?.priority)}`,
+        english ? '🎤 Saved the voice note into the plan' : '🎤 Сохранил голосовую заметку в план',
+        `${english ? 'Title' : 'Заголовок'}: ${normalizeValue(stored.note?.title) || normalizeValue(stored.structured?.title)}`,
+        `${english ? 'Type' : 'Тип'}: ${normalizeValue(stored.note?.note_type || stored.structured?.noteType)} • ${english ? 'priority' : 'приоритет'}: ${normalizeValue(stored.note?.priority || stored.structured?.priority)}`,
         taskResult?.task?.id ? `Task: #${taskResult.task.id} • статус ${normalizeValue(taskResult.task.status)}` : '',
-        `Текст: ${shortenText(transcription.text, 260)}`,
+        `${english ? 'Text' : 'Текст'}: ${shortenText(transcription.text, 260)}`,
         '',
-        'Откройте /tasks, если хотите увидеть это как рабочую задачу.'
+        english ? 'Open /tasks if you want to see it as a working task.' : 'Откройте /tasks, если хотите увидеть это как рабочую задачу.'
       ].join('\n')
     );
 
@@ -2874,14 +2971,16 @@ async function handleVoiceNote(message) {
       fingerprint: `ops-bot:voice_note_failed:${normalizeValue(message?.from?.id) || 'unknown'}`,
       details: {
         chatId,
-        telegramFileId: normalizeValue(voice.file_id),
+        telegramFileId: normalizeValue(attachment.fileId),
         telegramMessageId: message?.message_id || null
       }
     });
 
     await finalizeProgressMessage(
       progressMessage,
-      '⚠️ Голосовую заметку не получилось обработать. Попробуйте ещё раз или пришлите мысль текстом через /note.'
+      english
+        ? '⚠️ I could not process this voice note. Please try again or send the idea as text.'
+        : '⚠️ Голосовую заметку не получилось обработать. Попробуйте ещё раз или пришлите мысль текстом через /note.'
     );
     return {
       ok: false,
@@ -3268,21 +3367,23 @@ async function handleCallbackQuery(callbackQuery) {
 
   const [, action, rawScreen] = data.split(':');
   const screen = SUPPORTED_SCREENS.has(rawScreen) ? rawScreen : DEFAULT_SCREEN;
+  const locale = await getChatLocale(chatId);
 
   await answerTelegramCallback(
     callbackQuery?.id,
     action === 'refresh'
-      ? 'Обновляю картину...'
+      ? pickLocale(locale, 'Обновляю картину...', 'Refreshing...')
       : action === 'rerun'
-        ? 'Гоняю реальные сценарии...'
-        : 'Открываю раздел...'
+        ? pickLocale(locale, 'Гоняю реальные сценарии...', 'Running real scenarios...')
+        : pickLocale(locale, 'Открываю раздел...', 'Opening the section...')
   ).catch(() => null);
 
   if (action === 'rerun') {
     const { runSyntheticScreeners } = getScreenerService();
     await runSyntheticScreeners('telegram', { force: true }).catch(() => null);
     await sendScreen(chatId, 'screen', {
-      editMessageId: messageId
+      editMessageId: messageId,
+      locale
     });
 
     return {
@@ -3294,7 +3395,8 @@ async function handleCallbackQuery(callbackQuery) {
 
   await sendScreen(chatId, screen, {
     editMessageId: messageId,
-    force: screen === 'summary'
+    force: screen === 'summary',
+    locale
   });
 
   return {
@@ -3322,7 +3424,7 @@ async function handleAdminTelegramWebhookUpdate(update) {
     return handleCallbackQuery(callbackQuery);
   }
 
-  if (message?.voice?.file_id) {
+  if (extractAudioAttachment(message)?.fileId) {
     return handleVoiceNote(message);
   }
 
