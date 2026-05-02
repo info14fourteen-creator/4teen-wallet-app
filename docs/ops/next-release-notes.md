@@ -8,3 +8,5 @@ Refresh it from production notes with:
 cd apps/api
 ADMIN_SYNC_TOKEN=... npm run export:product-notes
 ```
+
+Wallet OIDC smoke test verified via remote runner.
