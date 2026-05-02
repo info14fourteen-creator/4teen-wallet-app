@@ -55,7 +55,7 @@ function renderLabelAccessory({
   variant: ScreenBrowVariant;
   defaultChevronName: 'chevron-right' | 'chevron-down' | 'chevron-up';
 }) {
-  if (labelAccessory) {
+  if (labelAccessory !== undefined) {
     return labelAccessory;
   }
 

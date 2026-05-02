@@ -426,7 +426,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
 
     router.push('/send');
   };
-  const goWallet = () => router.replace(hasWallet ? '/wallet' : '/create-wallet');
+  const goWallet = () => router.replace(hasWallet ? '/wallet' : '/wallet-access');
   const goWalletFromFooter = () => {
     playFirstAnimationThen(
       {

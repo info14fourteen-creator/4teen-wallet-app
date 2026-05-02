@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { useNotice } from '../src/notice/notice-provider';
 import {
@@ -15,10 +15,13 @@ import { colors, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { ProductScreen } from '../src/ui/product-shell';
 import { ToggleOffIcon, ToggleOnIcon } from '../src/ui/ui-icons';
+import { useWalletSession } from '../src/wallet/wallet-session';
 
 export default function LanguageScreen() {
+  const router = useRouter();
   const notice = useNotice();
   const { setLanguage, t } = useI18n();
+  const { hasWallet } = useWalletSession();
   const [selectedLanguage, setSelectedLanguage] = useState<AppLanguageCode>(getCachedLanguage());
   const [saving, setSaving] = useState(false);
   const [infoExpanded, setInfoExpanded] = useState(false);
@@ -67,6 +70,7 @@ export default function LanguageScreen() {
     <ProductScreen
       eyebrow={t('LANGUAGE')}
       browVariant="back"
+      onBackPress={!hasWallet ? () => router.replace('/wallet-access') : undefined}
       headerInfo={{
         title: t('Choose app language'),
         text: t(

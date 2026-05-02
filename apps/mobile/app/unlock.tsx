@@ -11,9 +11,60 @@ import {
   getBiometricsStatus,
   verifyPasscode,
 } from '../src/security/local-auth';
+import { releaseLockOverlay } from '../src/security/lock-overlay';
 import { useWalletSession } from '../src/wallet/wallet-session';
-import { BackspaceIcon, BioLoginIcon } from '../src/ui/ui-icons';
+import { BackspaceIcon } from '../src/ui/ui-icons';
+import LottieIcon from '../src/ui/lottie-icon';
 import NumericKeypad from '../src/ui/numeric-keypad';
+
+const UNLOCK_BIOMETRIC_FINGERPRINT_SOURCE = require('../assets/icons/ui/unlock_biometric_fingerprint.json');
+const UNLOCK_BIOMETRIC_FACEID_SOURCE = require('../assets/icons/ui/unlock_biometric_faceid.json');
+
+function UnlockBiometricLoopButton({
+  disabled,
+  onPress,
+}: {
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const [activeIcon, setActiveIcon] = useState<'fingerprint' | 'faceid'>('fingerprint');
+  const [playToken, setPlayToken] = useState(1);
+
+  useEffect(() => {
+    setActiveIcon('fingerprint');
+    setPlayToken(1);
+  }, []);
+
+  const handleAnimationFinish = useCallback((isCancelled: boolean) => {
+    if (isCancelled) {
+      return;
+    }
+
+    setActiveIcon((current) => (current === 'fingerprint' ? 'faceid' : 'fingerprint'));
+    setPlayToken((current) => current + 1);
+  }, []);
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={styles.specialKey}
+      onPress={onPress}
+      disabled={disabled}
+    >
+      <LottieIcon
+        key={activeIcon}
+        source={
+          activeIcon === 'fingerprint'
+            ? UNLOCK_BIOMETRIC_FINGERPRINT_SOURCE
+            : UNLOCK_BIOMETRIC_FACEID_SOURCE
+        }
+        size={24}
+        playToken={playToken}
+        onAnimationFinish={handleAnimationFinish}
+      />
+    </TouchableOpacity>
+  );
+}
 
 export default function UnlockScreen() {
   const router = useRouter();
@@ -28,6 +79,7 @@ export default function UnlockScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricsLabel, setBiometricsLabel] = useState(translateNow('Biometrics'));
   const [biometricsLoaded, setBiometricsLoaded] = useState(false);
+  const [autoUnlockPending, setAutoUnlockPending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const loadBiometricsState = useCallback(async () => {
@@ -53,6 +105,7 @@ export default function UnlockScreen() {
       setPasscodeError('');
       setPasscodeOpen(false);
       setBiometricsLoaded(false);
+      setAutoUnlockPending(true);
       void loadBiometricsState();
     }, [loadBiometricsState])
   );
@@ -91,6 +144,7 @@ export default function UnlockScreen() {
     if (submitting) return;
 
     if (!biometricAvailable || !biometricsEnabled) {
+      setAutoUnlockPending(false);
       if (openPasscodeOnFallback) {
         setPasscodeError('');
         setPasscodeDigits('');
@@ -120,6 +174,7 @@ export default function UnlockScreen() {
       setPasscodeDigits('');
       setPasscodeOpen(true);
     }
+    setAutoUnlockPending(false);
   }, [biometricAvailable, biometricsEnabled, router, submitting, t, triggerNavigationIntro]);
 
   useEffect(() => {
@@ -127,12 +182,24 @@ export default function UnlockScreen() {
 
     initialUnlockRequestedRef.current = true;
     if (biometricAvailable && biometricsEnabled) {
+      setAutoUnlockPending(true);
       void requestBiometricUnlock(true);
       return;
     }
 
+    setAutoUnlockPending(false);
     setPasscodeOpen(true);
   }, [biometricAvailable, biometricsEnabled, biometricsLoaded, requestBiometricUnlock]);
+
+  useEffect(() => {
+    const frameId = requestAnimationFrame(() => {
+      releaseLockOverlay();
+    });
+
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, []);
 
   const handleDigitPress = useCallback(
     (digit: string) => {
@@ -183,14 +250,10 @@ export default function UnlockScreen() {
 
   const backspaceIcon = <BackspaceIcon width={22} height={22} />;
   const bioSlot = canUseBiometrics ? (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      style={styles.specialKey}
-      onPress={() => void requestBiometricUnlock(false)}
+    <UnlockBiometricLoopButton
       disabled={submitting}
-    >
-      <BioLoginIcon width={22} height={22} />
-    </TouchableOpacity>
+      onPress={() => void requestBiometricUnlock(false)}
+    />
   ) : null;
 
   const dots = Array.from({ length: 6 }, (_, index) => (
@@ -245,7 +308,7 @@ export default function UnlockScreen() {
                 </TouchableOpacity>
               ) : null}
             </>
-          ) : biometricsLoaded ? (
+          ) : biometricsLoaded && !autoUnlockPending ? (
             <View style={styles.actionStack}>
               {canUseBiometrics ? (
                 <TouchableOpacity

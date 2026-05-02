@@ -22,8 +22,11 @@ import { ui } from '../src/theme/ui';
 import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenBrow from '../src/ui/screen-brow';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
+import { useWalletSession } from '../src/wallet/wallet-session';
+import LottieIcon from '../src/ui/lottie-icon';
 
 const AUTO_INTERVAL = 5200;
+const UI_LAB_LANGUAGE_GLOBE_SOURCE = require('../assets/icons/ui/ui_lab_language_globe.json');
 
 type SegmentTone = 'normal' | 'orange' | 'green' | 'red';
 
@@ -96,6 +99,7 @@ const slides: Slide[] = [
 export default function UiLab() {
   const router = useRouter();
   const { t } = useI18n();
+  const { hasWallet } = useWalletSession();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const { width, height } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
@@ -267,7 +271,17 @@ export default function UiLab() {
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={[styles.screen, { paddingHorizontal: dynamic.horizontalPadding }]}>
         <View style={[styles.top, { gap: 0, marginTop: navInsets.top }]}>
-          <ScreenBrow label={t('4TEEN WALLET')} variant="back" />
+          <ScreenBrow
+            label={t('WALLET ACCESS')}
+            variant={hasWallet ? 'back' : 'linkIcon'}
+            labelAccessory={hasWallet ? undefined : null}
+            rightIcon={
+              !hasWallet ? (
+                <LottieIcon source={UI_LAB_LANGUAGE_GLOBE_SOURCE} size={22} loop />
+              ) : undefined
+            }
+            onRightPress={!hasWallet ? () => router.push('/language') : undefined}
+          />
           <Text
             style={[
               styles.title,

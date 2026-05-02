@@ -23,6 +23,7 @@ import { useNavigationInsets } from './navigation';
 export function ProductScreen({
   eyebrow,
   browVariant = 'back',
+  onBackPress,
   children,
   refreshControl,
   bottomInsetExtra,
@@ -36,6 +37,7 @@ export function ProductScreen({
 }: {
   eyebrow: string;
   browVariant?: 'plain' | 'back' | 'backLink';
+  onBackPress?: () => void;
   children: ReactNode;
   refreshControl?: ReactElement<RefreshControlProps>;
   bottomInsetExtra?: number;
@@ -85,6 +87,7 @@ export function ProductScreen({
             <ScreenBrow
               label={eyebrow}
               variant={browVariant}
+              onBackPress={onBackPress}
               onLabelPress={browLabelPress ?? headerInfo?.onToggle}
               labelAccessory={
                 browLabelAccessory ??
@@ -117,6 +120,7 @@ export function ProductScreen({
             <ScreenBrow
               label={eyebrow}
               variant={browVariant}
+              onBackPress={onBackPress}
               onLabelPress={browLabelPress ?? headerInfo?.onToggle}
               labelAccessory={
                 browLabelAccessory ??

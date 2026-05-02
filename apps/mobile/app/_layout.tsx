@@ -6,7 +6,7 @@ import * as Linking from 'expo-linking';
 import { useFonts } from 'expo-font';
 import { Sora_600SemiBold, Sora_700Bold } from '@expo-google-fonts/sora';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AppState } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { Buffer } from 'buffer';
 import process from 'process';
@@ -19,6 +19,8 @@ import { NavigationChrome } from '../src/ui/navigation';
 import { shouldRenderSharedNavigation } from '../src/ui/navigation-routes';
 import { captureDeferredReferral, captureReferralFromUrl } from '../src/services/referral';
 import { getAutoLockDelayMs, getAutoLockMode, hasPasscode } from '../src/security/local-auth';
+import { subscribeLockOverlayRelease } from '../src/security/lock-overlay';
+import { getActiveWallet } from '../src/services/wallet/storage';
 
 void SplashScreen.preventAutoHideAsync().catch(() => null);
 
@@ -30,6 +32,34 @@ if (!(globalThis as any).process) {
   (globalThis as any).process = process;
 }
 
+const WALLET_REQUIRED_ROUTES = new Set([
+  '/wallet',
+  '/wallets',
+  '/wallet-manager',
+  '/token-details',
+  '/send',
+  '/send-confirm',
+  '/swap',
+  '/swap-confirm',
+  '/buy',
+  '/buy-confirm',
+  '/airdrop',
+  '/ambassador-program',
+  '/ambassador-confirm',
+  '/ambassador-withdraw-confirm',
+  '/unlock-timeline',
+  '/liquidity-controller',
+  '/liquidity-confirm',
+  '/manage-crypto',
+  '/add-custom-token',
+  '/select-wallet',
+  '/connections',
+]);
+
+function routeRequiresWallet(pathname: string) {
+  return WALLET_REQUIRED_ROUTES.has(String(pathname || '').trim());
+}
+
 function LayoutContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -38,13 +68,63 @@ function LayoutContent() {
   const notice = useNotice();
   const { hasWallet } = useWalletSession();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [resumeShieldVisible, setResumeShieldVisible] = useState(false);
   const showSharedNavigation = shouldRenderSharedNavigation(pathname, rootSegment, { hasWallet });
   const backgroundedAtRef = useRef<number | null>(null);
+  const protectedAppRef = useRef(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void hasPasscode()
+      .then((value) => {
+        if (mounted) {
+          protectedAppRef.current = value;
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          protectedAppRef.current = false;
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    return subscribeLockOverlayRelease(() => {
+      setResumeShieldVisible(false);
+    });
+  }, []);
 
   useEffect(() => {
     setMenuOpen(false);
     notice.hideNotice();
   }, [notice, pathname]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!routeRequiresWallet(pathname)) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void (async () => {
+      const activeWallet = await getActiveWallet().catch(() => null);
+
+      if (!cancelled && !activeWallet) {
+        router.replace('/wallet-access');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasWallet, pathname, router]);
 
   useEffect(() => {
     let mounted = true;
@@ -84,8 +164,10 @@ function LayoutContent() {
 
         void (async () => {
           const protectedApp = await hasPasscode().catch(() => false);
+          protectedAppRef.current = protectedApp;
 
           if (!protectedApp) {
+            setResumeShieldVisible(false);
             return;
           }
 
@@ -93,6 +175,7 @@ function LayoutContent() {
           const autoLockDelayMs = getAutoLockDelayMs(autoLockMode);
 
           if (autoLockDelayMs === null) {
+            setResumeShieldVisible(false);
             return;
           }
 
@@ -103,14 +186,21 @@ function LayoutContent() {
 
           if (!isUnlockRoute && !isPasscodeSetupRoute && !isScanRoute && elapsed >= autoLockDelayMs) {
             router.replace('/unlock');
+            return;
           }
+
+          setResumeShieldVisible(false);
         })();
 
         return;
       }
 
-      if (nextState === 'background') {
+      if (nextState === 'inactive' || nextState === 'background') {
         backgroundedAtRef.current = Date.now();
+
+        if (protectedAppRef.current && pathname !== '/unlock') {
+          setResumeShieldVisible(true);
+        }
       }
     });
 
@@ -154,6 +244,7 @@ function LayoutContent() {
           onCloseMenu={() => setMenuOpen(false)}
         />
       ) : null}
+      {resumeShieldVisible ? <View pointerEvents="none" style={styles.resumeShield} /> : null}
       <StatusBar style="light" />
     </>
   );
@@ -189,3 +280,11 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  resumeShield: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgb(10,10,10)',
+    zIndex: 1000,
+  },
+});

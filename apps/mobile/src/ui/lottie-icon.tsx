@@ -75,7 +75,7 @@ export default function LottieIcon({
     <LottieView
       ref={ref}
       source={source as any}
-      autoPlay={false}
+      autoPlay={Boolean(loop) && !playToken && typeof staticFrame !== 'number' && typeof progress !== 'number'}
       loop={loop}
       onAnimationFinish={onAnimationFinish}
       progress={typeof staticFrame === 'number' ? undefined : progress}

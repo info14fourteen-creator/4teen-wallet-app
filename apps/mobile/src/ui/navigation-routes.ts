@@ -38,6 +38,10 @@ export function shouldRenderSharedNavigation(
     return hasWallet;
   }
 
+  if (safePathname === '/language') {
+    return hasWallet;
+  }
+
   if (ROUTES_WITHOUT_SHARED_NAVIGATION.has(safePathname)) return false;
   if (ROUTES_WITH_LOCAL_NAVIGATION.has(safePathname)) return false;
   if (rootSegment && ROOT_SEGMENTS_WITHOUT_SHARED_NAVIGATION.has(rootSegment)) return false;
