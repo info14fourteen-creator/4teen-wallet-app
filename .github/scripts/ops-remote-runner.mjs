@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 // This line is intentionally harmless and can be nudged to wake the workflow.
 // Another harmless wake-up marker for deploy smoke.
 // Wake-up marker for v103 end-to-end wallet apply verification.
+// Wake-up marker after pnpm lockfile sync.
 const REPO_KEY = 'wallet-app';
 const RUNNER_ID = process.env.OPS_EXECUTOR_RUNNER_ID || 'github-actions-wallet-app';
 const DEFAULT_BASE_URL = 'https://fourteen-wallet-api-7af291023d36.herokuapp.com';
