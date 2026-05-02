@@ -1,30 +1,31 @@
 {
-  "generatedAt": "2026-05-02T23:39:25.079Z",
+  "generatedAt": "2026-05-02T23:54:24.390Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "f915f2bbd5477c686b459706f39f0dfb07781e5e",
-    "shortHash": "f915f2b",
-    "subject": "Normalize Telegram oga voice files for transcription",
+    "hash": "ae1585443030e2d61f978880350193b11221f194",
+    "shortHash": "ae15854",
+    "subject": "Route voice transcriptions through AI router",
     "author": "info14fourteen-creator",
-    "date": "2026-05-03T04:39:14+05:00"
+    "date": "2026-05-03T04:54:12+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/src/services/ops/openai.js"
+    "M\tapps/api/src/services/ops/openai.js",
+    "M\tapps/api/src/services/ops/telegramAdminBot.js"
   ],
   "activeFiles": [
     {
       "file": ".github/scripts/ops-remote-runner.mjs",
-      "count": 5
+      "count": 4
     },
     {
       "file": "apps/api/src/services/ops/telegramAdminBot.js",
-      "count": 3
+      "count": 4
     },
     {
       "file": "apps/api/src/services/ops/openai.js",
-      "count": 2
+      "count": 3
     },
     {
       "file": "apps/api/clock.js",

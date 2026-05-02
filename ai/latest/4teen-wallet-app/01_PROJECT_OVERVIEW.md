@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-05-02T23:39:25.077Z
+Generated: 2026-05-02T23:54:24.388Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: f915f2bbd5477c686b459706f39f0dfb07781e5e
-Short commit: f915f2b
-Commit subject: Normalize Telegram oga voice files for transcription
+Last commit: ae1585443030e2d61f978880350193b11221f194
+Short commit: ae15854
+Commit subject: Route voice transcriptions through AI router
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T04:39:14+05:00
+Commit date: 2026-05-03T04:54:12+05:00
 
 ## Curated project tree
 

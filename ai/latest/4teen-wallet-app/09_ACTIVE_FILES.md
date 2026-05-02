@@ -1,19 +1,19 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-05-02T23:39:25.078Z
+Generated: 2026-05-02T23:54:24.390Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: f915f2bbd5477c686b459706f39f0dfb07781e5e
-Short commit: f915f2b
-Commit subject: Normalize Telegram oga voice files for transcription
+Last commit: ae1585443030e2d61f978880350193b11221f194
+Short commit: ae15854
+Commit subject: Route voice transcriptions through AI router
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T04:39:14+05:00
+Commit date: 2026-05-03T04:54:12+05:00
 
 ## Most frequently changed files in last 20 commits
 
-- 5x :: .github/scripts/ops-remote-runner.mjs
-- 3x :: apps/api/src/services/ops/telegramAdminBot.js
-- 2x :: apps/api/src/services/ops/openai.js
+- 4x :: .github/scripts/ops-remote-runner.mjs
+- 4x :: apps/api/src/services/ops/telegramAdminBot.js
+- 3x :: apps/api/src/services/ops/openai.js
 - 1x :: apps/api/clock.js
 - 1x :: apps/api/package.json
 - 1x :: apps/api/Procfile
