@@ -234,6 +234,10 @@ function branchName(taskId) {
   return `codex/ops-task-${taskId}`;
 }
 
+function getWorkOrderTaskId(workOrder) {
+  return Number(workOrder?.taskId || workOrder?.id || 0);
+}
+
 function checkoutBranch(taskId) {
   const branch = branchName(taskId);
   run('git', ['checkout', '-B', branch], { stdio: 'inherit' });
@@ -378,9 +382,13 @@ async function handleApply(claimed) {
   if (!workOrder?.readyToImplement) {
     throw new Error('Task does not have a ready work order yet');
   }
+  const taskId = getWorkOrderTaskId(workOrder);
+  if (!Number.isFinite(taskId) || taskId <= 0) {
+    throw new Error('Work order is missing a valid task id');
+  }
 
   ensureGitIdentity();
-  checkoutBranch(workOrder.taskId);
+  checkoutBranch(taskId);
 
   const contextFiles = [];
   for (const repoPath of uniquePaths(workOrder)) {
@@ -402,10 +410,10 @@ async function handleApply(claimed) {
   }
 
   const checks = verifyWalletChanges(files);
-  const pushed = commitAndPush(workOrder.taskId, implementation.commitMessage);
+  const pushed = commitAndPush(taskId, implementation.commitMessage);
 
   return {
-    summary: normalizeValue(implementation.summary) || `Implemented task #${workOrder.taskId}`,
+    summary: normalizeValue(implementation.summary) || `Implemented task #${taskId}`,
     resultMessage: [
       `Branch: ${pushed.branch}`,
       `Commit: ${pushed.commitSha}`,
