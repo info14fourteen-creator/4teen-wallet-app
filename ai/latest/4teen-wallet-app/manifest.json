@@ -1,52 +1,22 @@
 {
-  "generatedAt": "2026-05-02T22:10:14.206Z",
+  "generatedAt": "2026-05-02T22:13:42.932Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "9976cd9d975a80f9fb7e1a40ab0d7d54082f28de",
-    "shortHash": "9976cd9",
-    "subject": "Sync wallet API ops control plane",
+    "hash": "a18df0bdeb0064f7e3eeb38251664a3edae32765",
+    "shortHash": "a18df0b",
+    "subject": "Trigger wallet runner v103 apply smoke",
     "author": "info14fourteen-creator",
-    "date": "2026-05-03T03:09:35+05:00"
+    "date": "2026-05-03T03:13:19+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/Procfile",
-    "M\tapps/api/clock.js",
-    "M\tapps/api/package-lock.json",
-    "M\tapps/api/package.json",
-    "D\tapps/api/scripts/export-knowledge-base.js",
-    "D\tapps/api/scripts/export-product-notes.js",
-    "D\tapps/api/scripts/export-repo-map.js",
-    "D\tapps/api/scripts/sync-knowledge-base.js",
-    "M\tapps/api/src/app.js",
-    "M\tapps/api/src/config/env.js",
-    "D\tapps/api/src/routes/appVersion.js",
-    "M\tapps/api/src/routes/ops.js",
-    "A\tapps/api/src/routes/site.js",
-    "M\tapps/api/src/services/airdrop/telegramClaims.js",
-    "M\tapps/api/src/services/gasstation/gasStation.js",
-    "D\tapps/api/src/services/liquidity/execution.js",
-    "M\tapps/api/src/services/ops/codexJobs.js",
-    "A\tapps/api/src/services/ops/executionRequests.js",
-    "A\tapps/api/src/services/ops/githubOidc.js",
-    "A\tapps/api/src/services/ops/githubRemoteRunner.js",
-    "M\tapps/api/src/services/ops/monitor.js",
-    "M\tapps/api/src/services/ops/openai.js",
-    "A\tapps/api/src/services/ops/remoteApplyPlan.js",
-    "A\tapps/api/src/services/ops/remoteRunner.js",
-    "A\tapps/api/src/services/ops/resourceSignals.js",
-    "M\tapps/api/src/services/ops/screeners.js",
-    "M\tapps/api/src/services/ops/store.js",
-    "M\tapps/api/src/services/ops/tasks.js",
-    "M\tapps/api/src/services/ops/telegramAdminBot.js",
-    "M\tapps/api/src/services/proxy/apiProxy.js",
-    "A\tapps/api/src/services/publicData/siteData.js"
+    "M\t.github/scripts/ops-remote-runner.mjs"
   ],
   "activeFiles": [
     {
       "file": ".github/scripts/ops-remote-runner.mjs",
-      "count": 7
+      "count": 8
     },
     {
       "file": ".github/workflows/ops-remote-runner.yml",
