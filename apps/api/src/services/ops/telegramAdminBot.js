@@ -3044,8 +3044,8 @@ async function handleVoiceNote(message) {
   const progressMessage = await sendProgressMessage(
     chatId,
     english
-      ? '🎤 Listening, turning this note into text, and saving it into the next release plan...'
-      : '🎤 Слушаю заметку, превращаю её в текст и складываю в план следующей версии...'
+      ? '🎤 Listening, turning this into text, and figuring out whether it is a question, an incident, or a release note...'
+      : '🎤 Слушаю заметку, превращаю её в текст и понимаю, это вопрос, инцидент или заметка на релиз...'
   );
 
   try {
@@ -3058,6 +3058,155 @@ async function handleVoiceNote(message) {
         ? 'Founder product note for the next wallet release. Return clean text in the original language.'
         : 'Founder product note for the next wallet release. Return clean text in the original language.'
     });
+    const data = await collectOverviewData();
+    const route = await routeOwnerMessage(transcription.text, {
+      health: {
+        dbOk: data.dbOk,
+        clockStatus: data.clockState?.value_json?.status || 'unknown'
+      },
+      keyPools: data.keyPools,
+      gasState: data.gasState,
+      airdropState: data.airdropState,
+      ambassadorState: data.ambassadorState,
+      events: data.events,
+      feedback: data.feedback,
+      notes: data.notes,
+      tasks: data.tasks,
+      screeners: data.screeners
+    });
+
+    logTelegramTrace('voice_note.route', {
+      chatId,
+      messageId: message?.message_id || null,
+      text: transcription.text,
+      mode: route?.mode || 'unknown',
+      intent: route?.intent || 'unknown',
+      fallbackReason: route?.fallbackReason || null,
+      title: route?.title || null
+    });
+
+    if (normalizeValue(route?.mode) === 'fallback' && normalizeValue(route?.fallbackReason)) {
+      await recordBotEvent({
+        category: 'openai',
+        type: 'voice_router_fallback',
+        severity: 'warning',
+        title: 'Voice router fell back to heuristics',
+        message: normalizeValue(route.fallbackReason),
+        fingerprint: `ops-bot:voice_router_fallback:${normalizeValue(route.fallbackReason)}`
+      });
+    }
+
+    if (normalizeValue(route?.intent) === 'incident_report') {
+      const title = normalizeValue(route?.title) || shortenText(transcription.text, 100) || 'Owner voice incident report';
+      const severity = normalizeValue(route?.severity) || 'warning';
+
+      const eventResult = await recordBotEvent({
+        category: 'owner-input',
+        type: 'owner_flagged_issue',
+        severity,
+        title,
+        message: normalizeValue(route?.eventMessage) || transcription.text,
+        fingerprint: `ops-bot:owner_voice_issue:${title.toLowerCase()}`,
+        details: {
+          chatId,
+          telegramMessageId: message?.message_id || null,
+          transcriptText: shortenText(transcription.text, 400),
+          filePath: file.filePath
+        }
+      });
+      const taskResult = await createTaskFromOpsEvent(eventResult?.event, {
+        source: 'owner-voice-incident',
+        createdByChatId: chatId
+      }).catch(() => null);
+
+      const answer = await answerOpsQuestion(transcription.text, {
+        health: {
+          dbOk: data.dbOk,
+          clockStatus: data.clockState?.value_json?.status || 'unknown'
+        },
+        keyPools: data.keyPools,
+        gasState: data.gasState,
+        airdropState: data.airdropState,
+        ambassadorState: data.ambassadorState,
+        events: data.events,
+        feedback: data.feedback,
+        notes: data.notes,
+        tasks: data.tasks,
+        screeners: data.screeners
+      }, {
+        locale
+      });
+
+      await finalizeProgressMessage(
+        progressMessage,
+        [
+          english ? '🎤 Treated the voice note as an incident' : '🎤 Разобрал голосовую как инцидент',
+          `${english ? 'Transcript' : 'Текст'}: ${shortenText(transcription.text, 220)}`,
+          route?.answerText || (english ? 'I see this as a live problem, not just a release note.' : 'Вижу это как живую проблему, а не просто заметку на релиз.'),
+          taskResult?.task?.id ? `Task: #${taskResult.task.id} • ${english ? 'status' : 'статус'} ${normalizeValue(taskResult.task.status)}` : '',
+          '',
+          normalizeValue(answer?.answer) || (english ? 'No extra details yet.' : 'Пока без деталей.'),
+          '',
+          `${english ? 'Mode' : 'Режим'}: ${normalizeValue(answer?.mode) === 'openai' ? (english ? 'GPT analysis' : 'GPT-анализ') : (english ? 'reliable fallback' : 'надёжный fallback')}`
+        ].filter(Boolean).join('\n')
+      );
+
+      return {
+        ok: true,
+        routed: 'incident_report',
+        transcript: transcription.text
+      };
+    }
+
+    if (normalizeValue(route?.intent) === 'question') {
+      const answer = await answerOpsQuestion(transcription.text, {
+        health: {
+          dbOk: data.dbOk,
+          clockStatus: data.clockState?.value_json?.status || 'unknown'
+        },
+        keyPools: data.keyPools,
+        gasState: data.gasState,
+        airdropState: data.airdropState,
+        ambassadorState: data.ambassadorState,
+        events: data.events,
+        feedback: data.feedback,
+        notes: data.notes,
+        tasks: data.tasks,
+        screeners: data.screeners
+      }, {
+        locale
+      });
+
+      if (normalizeValue(answer?.mode) === 'fallback' && normalizeValue(answer?.fallbackReason)) {
+        await recordBotEvent({
+          category: 'openai',
+          type: 'voice_question_fallback',
+          severity: 'warning',
+          title: 'Voice question fell back to deterministic mode',
+          message: normalizeValue(answer.fallbackReason),
+          fingerprint: `ops-bot:voice_question_fallback:${normalizeValue(answer.fallbackReason)}`
+        });
+      }
+
+      await finalizeProgressMessage(
+        progressMessage,
+        [
+          english ? '🎤 Treated the voice note as a question' : '🎤 Разобрал голосовую как вопрос',
+          `${english ? 'Transcript' : 'Текст'}: ${shortenText(transcription.text, 220)}`,
+          '',
+          normalizeValue(answer?.answer) || (english ? 'I could not build the answer yet.' : 'Пока не получилось собрать ответ.'),
+          '',
+          `${english ? 'Mode' : 'Режим'}: ${normalizeValue(answer?.mode) === 'openai' ? (english ? 'GPT analysis' : 'GPT-анализ') : (english ? 'reliable fallback' : 'надёжный fallback')}`
+        ].join('\n')
+      );
+
+      return {
+        ok: true,
+        routed: 'question',
+        transcript: transcription.text
+      };
+    }
+
     const stored = await storeOwnerProductNote(transcription.text, {
       source: 'telegram-voice',
       transcriptText: transcription.text,
@@ -3076,7 +3225,7 @@ async function handleVoiceNote(message) {
         english ? '🎤 Saved the voice note into the plan' : '🎤 Сохранил голосовую заметку в план',
         `${english ? 'Title' : 'Заголовок'}: ${normalizeValue(stored.note?.title) || normalizeValue(stored.structured?.title)}`,
         `${english ? 'Type' : 'Тип'}: ${normalizeValue(stored.note?.note_type || stored.structured?.noteType)} • ${english ? 'priority' : 'приоритет'}: ${normalizeValue(stored.note?.priority || stored.structured?.priority)}`,
-        taskResult?.task?.id ? `Task: #${taskResult.task.id} • статус ${normalizeValue(taskResult.task.status)}` : '',
+        taskResult?.task?.id ? `Task: #${taskResult.task.id} • ${english ? 'status' : 'статус'} ${normalizeValue(taskResult.task.status)}` : '',
         `${english ? 'Text' : 'Текст'}: ${shortenText(transcription.text, 260)}`,
         '',
         english ? 'Open /tasks if you want to see it as a working task.' : 'Откройте /tasks, если хотите увидеть это как рабочую задачу.'
