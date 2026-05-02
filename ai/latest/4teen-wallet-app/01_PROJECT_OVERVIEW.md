@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-05-02T13:38:06.793Z
+Generated: 2026-05-02T16:29:18.518Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 20bc7c9b30cead26d723ade1add46516278477a8
-Short commit: 20bc7c9
-Commit subject: Bump mobile release package to 1.0.1
-Commit author: info14fourteen-creator
-Commit date: 2026-05-02T18:37:51+05:00
+Last commit: d830267c987529a933f14439d66fb31cac331c7b
+Short commit: d830267
+Commit subject: Add ops remote runner workflow
+Commit author: 4TEEN Ops Runner
+Commit date: 2026-05-02T21:28:05+05:00
 
 ## Curated project tree
 
@@ -16,6 +16,7 @@ Commit date: 2026-05-02T18:37:51+05:00
   - workflows/
     - build-wallet-ai-bundle.yml
     - ci.yml
+    - ops-remote-runner.yml
 - apps/
   - api/
     - scripts/
@@ -248,8 +249,6 @@ Commit date: 2026-05-02T18:37:51+05:00
           - full_access_btn.svg
           - history_btn.svg
           - home_footer_menu_btn_onclick.svg
-          - home_footer_menu_btn.svg
-          - import_private_key_visibility_toggle.json
     - app.json
 - docs/
   - ai-snapshots/
@@ -263,6 +262,7 @@ Commit date: 2026-05-02T18:37:51+05:00
     - repo-map.md
 - scripts/
   - build-wallet-ai-bundles.mjs
+  - ops-remote-runner.mjs
 - package.json
 ```
 

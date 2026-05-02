@@ -1,28 +1,23 @@
 {
-  "generatedAt": "2026-05-02T13:38:06.795Z",
+  "generatedAt": "2026-05-02T16:29:18.519Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "20bc7c9b30cead26d723ade1add46516278477a8",
-    "shortHash": "20bc7c9",
-    "subject": "Bump mobile release package to 1.0.1",
-    "author": "info14fourteen-creator",
-    "date": "2026-05-02T18:37:51+05:00"
+    "hash": "d830267c987529a933f14439d66fb31cac331c7b",
+    "shortHash": "d830267",
+    "subject": "Add ops remote runner workflow",
+    "author": "4TEEN Ops Runner",
+    "date": "2026-05-02T21:28:05+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app.json",
-    "M\tapps/mobile/package.json",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\trelease/RELEASE_READINESS_STATUS.md",
-    "M\trelease/STORE_FIELD_PACK.md",
-    "M\trelease/STORE_METADATA.md",
-    "M\trelease/STORE_RELEASE_CHECKLIST.md"
+    "A\t.github/workflows/ops-remote-runner.yml",
+    "A\tscripts/ops-remote-runner.mjs"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 10
+      "count": 9
     },
     {
       "file": "apps/api/src/services/ops/telegramAdminBot.js",
@@ -38,46 +33,6 @@
     },
     {
       "file": "apps/mobile/app/settings.tsx",
-      "count": 5
-    },
-    {
-      "file": "apps/mobile/app/_layout.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/buy.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/send.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/swap.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/token-details.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/unlock.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/wallet.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app/wallets.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/package.json",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/src/ui/footer-nav.tsx",
       "count": 4
     },
     {
@@ -85,43 +40,19 @@
       "count": 3
     },
     {
+      "file": "apps/mobile/app/_layout.tsx",
+      "count": 3
+    },
+    {
       "file": "apps/mobile/app/about.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/app/airdrop.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/authentication-method.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/backup-private-key.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/create-wallet.tsx",
+      "file": "apps/mobile/app/buy.tsx",
       "count": 3
     },
     {
       "file": "apps/mobile/app/currency.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/export-mnemonic.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/import-private-key.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/import-seed.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/import-watch-only.tsx",
       "count": 3
     },
     {
@@ -137,8 +68,72 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/ui-lab.tsx",
+      "file": "apps/mobile/app/send.tsx",
       "count": 3
+    },
+    {
+      "file": "apps/mobile/app/swap.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/token-details.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/unlock-timeline.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/unlock.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/wallet.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/wallets.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/package.json",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/src/ui/footer-nav.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/src/ui/selected-wallet-switcher.tsx",
+      "count": 3
+    },
+    {
+      "file": "apps/api/clock.js",
+      "count": 2
+    },
+    {
+      "file": "apps/api/src/app.js",
+      "count": 2
+    },
+    {
+      "file": "apps/api/src/config/env.js",
+      "count": 2
+    },
+    {
+      "file": "apps/api/src/services/gasstation/gasStation.js",
+      "count": 2
+    },
+    {
+      "file": "apps/api/src/services/ops/monitor.js",
+      "count": 2
+    },
+    {
+      "file": "apps/api/src/services/ops/store.js",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/add-custom-token.tsx",
+      "count": 2
     }
   ],
   "todoCount": 10,
@@ -166,7 +161,9 @@
     "package.json",
     ".github/workflows/build-wallet-ai-bundle.yml",
     ".github/workflows/ci.yml",
+    ".github/workflows/ops-remote-runner.yml",
     "scripts/build-wallet-ai-bundles.mjs",
+    "scripts/ops-remote-runner.mjs",
     "apps/api/clock.js",
     "apps/api/package.json",
     "apps/api/scripts/export-knowledge-base.js",
@@ -373,9 +370,7 @@
     "apps/mobile/assets/icons/ui/footer_menu.svg",
     "apps/mobile/assets/icons/ui/full_access_btn.svg",
     "apps/mobile/assets/icons/ui/history_btn.svg",
-    "apps/mobile/assets/icons/ui/home_footer_menu_btn_onclick.svg",
-    "apps/mobile/assets/icons/ui/home_footer_menu_btn.svg",
-    "apps/mobile/assets/icons/ui/import_private_key_visibility_toggle.json"
+    "apps/mobile/assets/icons/ui/home_footer_menu_btn_onclick.svg"
   ],
   "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
   "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"
