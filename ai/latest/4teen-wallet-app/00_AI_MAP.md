@@ -1,13 +1,13 @@
 # 4teen-wallet-app — AI MAP
 
-Generated: 2026-05-02T19:42:54.799Z
+Generated: 2026-05-02T19:52:26.314Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 8a44f35840e8bd6b345d48099622c72c41009d1a
-Short commit: 8a44f35
-Commit subject: Preserve dotted paths in ops runner diff parsing
+Last commit: df3770a3b53b9d1a2789beb1e19560cda9757027
+Short commit: df3770a
+Commit subject: Trigger ops runner on workflow changes
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T00:42:42+05:00
+Commit date: 2026-05-03T00:52:09+05:00
 
 ## Snapshot files
 
