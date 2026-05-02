@@ -4,6 +4,9 @@ on:
   repository_dispatch:
     types:
       - ops-execution-request
+  workflow_dispatch:
+  schedule:
+    - cron: '*/10 * * * *'
 
 permissions:
   contents: write
@@ -17,11 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OPS_REPO_KEY: wallet-app
-      OPS_REQUEST_ID: ${{ github.event.client_payload.requestId }}
-      OPS_TASK_ID: ${{ github.event.client_payload.taskId }}
-      OPS_ACTION_TYPE: ${{ github.event.client_payload.actionType }}
-      OPS_BASE_URL: ${{ github.event.client_payload.opsBaseUrl }}
-      OPS_RUNNER_TOKEN: ${{ github.event.client_payload.runnerToken }}
+      OPS_BASE_URL: https://fourteen-wallet-api-7af291023d36.herokuapp.com
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
