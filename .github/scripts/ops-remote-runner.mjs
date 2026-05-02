@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -138,6 +139,11 @@ async function claimNextRequest() {
 async function fetchRequestWorkOrder(requestId) {
   const payload = await requestControl(`/ops/execution-requests/${encodeURIComponent(requestId)}/work-order`);
   return payload?.item || null;
+}
+
+async function fetchRunnerConfig(requestId) {
+  const payload = await requestControl(`/ops/execution-requests/${encodeURIComponent(requestId)}/runner-config`);
+  return payload?.result || null;
 }
 
 async function requestServerApplyPlan(requestId, fileSnapshots) {
@@ -304,6 +310,85 @@ function gitCommitAndPush(branchName, commitMessage) {
   };
 }
 
+function collectFilesMatchingDiff(baseRef, branchName, pathspecs = []) {
+  const args = ['diff', '--name-only', `${baseRef}...${branchName}`];
+  if (pathspecs.length) {
+    args.push('--', ...pathspecs);
+  }
+
+  return run('git', args)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+async function createWalletDeployTree() {
+  const apiDir = path.resolve(process.cwd(), 'apps/api');
+  const deployDir = await fs.mkdtemp(path.join(os.tmpdir(), '4teen-wallet-heroku-'));
+  await fs.cp(apiDir, deployDir, {
+    recursive: true
+  });
+  await fs.writeFile(path.join(deployDir, 'Procfile'), 'web: npm start\nclock: node clock.js\n', 'utf8');
+  return deployDir;
+}
+
+async function pushDeployTreeToHeroku(deployDir, options = {}) {
+  const appName = normalizeValue(options?.appName);
+  const apiKey = normalizeValue(options?.apiKey);
+  const gitUrl = normalizeValue(options?.gitUrl) || `https://git.heroku.com/${appName}.git`;
+  if (!appName || !apiKey) {
+    throw new Error('Missing Heroku deploy credentials');
+  }
+
+  run('git', ['init', '-b', 'main'], { cwd: deployDir });
+  run('git', ['config', 'user.name', '4TEEN Ops Runner'], { cwd: deployDir });
+  run('git', ['config', 'user.email', 'ops-runner@4teen.me'], { cwd: deployDir });
+  const askpassPath = path.join(deployDir, '.git', 'ops-heroku-askpass.sh');
+  await fs.writeFile(
+    askpassPath,
+    '#!/bin/sh\ncase "$1" in\n  *Username*) echo "heroku" ;;\n  *Password*) echo "$HEROKU_API_KEY" ;;\n  *) echo "" ;;\nesac\n',
+    'utf8'
+  );
+  await fs.chmod(askpassPath, 0o700);
+  run('git', ['add', '--all'], { cwd: deployDir });
+  run('git', ['commit', '-m', `ops: deploy ${appName}`], { cwd: deployDir });
+  run('git', ['push', '--force', gitUrl, 'HEAD:main'], {
+    cwd: deployDir,
+    env: {
+      HEROKU_API_KEY: apiKey,
+      GIT_ASKPASS: askpassPath,
+      GIT_TERMINAL_PROMPT: '0'
+    }
+  });
+}
+
+async function restartHerokuApp(config) {
+  const heroku = config?.heroku || {};
+  const appName = normalizeValue(heroku.appName);
+  const apiKey = normalizeValue(heroku.apiKey);
+  const email = normalizeValue(heroku.email);
+  if (!appName || !apiKey || !email) {
+    throw new Error('Missing Heroku restart credentials');
+  }
+
+  const response = await fetch(`https://api.heroku.com/apps/${encodeURIComponent(appName)}/dynos`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/vnd.heroku+json; version=3',
+      Authorization: `Bearer ${apiKey}`,
+      'Heroku-Account-Email': email,
+      'User-Agent': '4teen-ops-runner'
+    }
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(text || `Heroku restart failed with status ${response.status}`);
+  }
+
+  return appName;
+}
+
 async function findOrCreateDraftPr(branchName, taskId, taskTitle) {
   const token = getEnv('GITHUB_TOKEN', { required: true });
   const repository = getEnv('GITHUB_REPOSITORY', { required: true });
@@ -439,21 +524,73 @@ async function processPublish(request) {
   };
 }
 
-async function processDeploy() {
+async function processDeploy(request) {
+  const config = await fetchRunnerConfig(request.id);
+  if (!config?.heroku?.configured) {
+    return {
+      status: 'blocked',
+      summary: 'Heroku deploy credentials are not configured',
+      resultMessage: 'Control plane did not provide a usable Heroku deploy config for wallet-app.'
+    };
+  }
+
+  const branchName = `codex/ops-task-${Number(request.task_id || 0)}`;
+  if (!remoteBranchExists(branchName)) {
+    return {
+      status: 'blocked',
+      summary: 'Branch is not available for deploy step',
+      resultMessage: `Remote branch ${branchName} does not exist yet. Run apply first.`
+    };
+  }
+
+  ensureTaskBranch(branchName);
+  const backendChanges = collectFilesMatchingDiff(`origin/${DEFAULT_BRANCH}`, branchName, ['apps/api']);
+  if (!backendChanges.length) {
+    return {
+      status: 'blocked',
+      summary: 'No backend changes to deploy',
+      resultMessage:
+        'This branch does not change apps/api, so there is nothing meaningful to send to Heroku. GitHub changes are saved, but Heroku deploy is skipped.'
+    };
+  }
+
+  const deployDir = await createWalletDeployTree();
+  await pushDeployTreeToHeroku(deployDir, config.heroku);
+
   return {
-    status: 'blocked',
-    summary: 'Wallet deploy is still intentionally blocked',
-    resultMessage:
-      'The production wallet backend still deploys from a separate Heroku source tree, so auto-deploy from this monorepo runner stays blocked until that bridge is unified.'
+    status: 'done',
+    summary: 'Wallet backend deploy completed',
+    resultMessage: [
+      `Heroku app: ${normalizeValue(config?.heroku?.appName)}`,
+      `Branch: ${branchName}`,
+      `Backend files: ${backendChanges.join(', ')}`
+    ].join('\n'),
+    details: {
+      branchName,
+      backendChanges,
+      herokuApp: normalizeValue(config?.heroku?.appName)
+    }
   };
 }
 
-async function processRestart() {
+async function processRestart(request) {
+  const config = await fetchRunnerConfig(request.id);
+  if (!config?.heroku?.configured) {
+    return {
+      status: 'blocked',
+      summary: 'Heroku restart credentials are not configured',
+      resultMessage: 'Control plane did not provide a usable Heroku restart config for wallet-app.'
+    };
+  }
+
+  const appName = await restartHerokuApp(config);
   return {
-    status: 'blocked',
-    summary: 'Wallet restart is handled outside the GitHub runner for now',
-    resultMessage:
-      'Code apply/publish now run remotely through GitHub Actions. Runtime restart is still controlled from the server side until the release bridge is unified.'
+    status: 'done',
+    summary: 'Wallet dynos restarted',
+    resultMessage: `Restart requested for Heroku app ${appName}.`,
+    details: {
+      herokuApp: appName
+    }
   };
 }
 
