@@ -1,13 +1,13 @@
 # 4teen-wallet-app — BUILD AND TOOLING
 
-Generated: 2026-05-02T16:49:16.390Z
+Generated: 2026-05-02T19:04:33.919Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 04305fea417bba61a129f65f8d9e94488d882f2c
-Short commit: 04305fe
-Commit subject: Handle legacy work order ids in ops runner
-Commit author: 4TEEN Ops Runner
-Commit date: 2026-05-02T21:49:04+05:00
+Last commit: 438029d4f25d5f81db6d24b733108f32ec2df1c5
+Short commit: 438029d
+Commit subject: Add GitHub ops remote runner workflow
+Commit author: info14fourteen-creator
+Commit date: 2026-05-03T00:04:11+05:00
 
 ## Included files
 
@@ -161,27 +161,26 @@ jobs:
 name: Ops Remote Runner
 
 on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
   repository_dispatch:
     types:
       - ops-execution-request
-  workflow_dispatch:
-  schedule:
-    - cron: '*/10 * * * *'
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
-  group: ops-remote-runner-${{ github.event.client_payload.requestId || github.run_id }}
+  group: ops-remote-runner-wallet-app
   cancel-in-progress: false
 
 jobs:
-  run-request:
+  run:
+    if: github.event_name != 'repository_dispatch' || github.event.client_payload.repoKey == 'wallet-app'
     runs-on: ubuntu-latest
-    env:
-      OPS_REPO_KEY: wallet-app
-      OPS_BASE_URL: https://fourteen-wallet-api-7af291023d36.herokuapp.com
-      GITHUB_TOKEN: ${{ github.token }}
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -191,18 +190,43 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
+        run: corepack enable
 
-      - name: Install dependencies
+      - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run ops request
-        run: node scripts/ops-remote-runner.mjs
+      - name: Mask runtime secrets
+        env:
+          ADMIN_SYNC_TOKEN: ${{ secrets.ADMIN_SYNC_TOKEN || github.event.client_payload.adminToken }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || github.event.client_payload.openAiApiKey }}
+          OPENAI_ORG_ID: ${{ secrets.OPENAI_ORG_ID || github.event.client_payload.openAiOrgId }}
+          OPENAI_PROJECT_ID: ${{ secrets.OPENAI_PROJECT_ID || github.event.client_payload.openAiProjectId }}
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY || github.event.client_payload.herokuApiKey }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL || github.event.client_payload.herokuEmail }}
+        run: |
+          for value in "$ADMIN_SYNC_TOKEN" "$OPENAI_API_KEY" "$OPENAI_ORG_ID" "$OPENAI_PROJECT_ID" "$HEROKU_API_KEY" "$HEROKU_EMAIL"; do
+            if [ -n "$value" ]; then
+              echo "::add-mask::$value"
+            fi
+          done
+
+      - name: Process one confirmed request
+        env:
+          ADMIN_SYNC_TOKEN: ${{ secrets.ADMIN_SYNC_TOKEN || github.event.client_payload.adminToken }}
+          OPS_EXPORT_BASE_URL: ${{ secrets.OPS_EXPORT_BASE_URL || github.event.client_payload.opsBaseUrl }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || github.event.client_payload.openAiApiKey }}
+          OPENAI_ORG_ID: ${{ secrets.OPENAI_ORG_ID || github.event.client_payload.openAiOrgId }}
+          OPENAI_PROJECT_ID: ${{ secrets.OPENAI_PROJECT_ID || github.event.client_payload.openAiProjectId }}
+          OPENAI_CODEX_MODEL: ${{ secrets.OPENAI_CODEX_MODEL || github.event.client_payload.openAiCodexModel }}
+          OPS_EXECUTOR_RUNNER_ID: github-actions-wallet-app
+          GITHUB_TOKEN: ${{ github.token }}
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY || github.event.client_payload.herokuApiKey }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL || github.event.client_payload.herokuEmail }}
+          OPS_WALLET_HEROKU_APP_NAME: ${{ secrets.OPS_WALLET_HEROKU_APP_NAME || github.event.client_payload.herokuAppName }}
+        run: node .github/scripts/ops-remote-runner.mjs
 ```
 
 ---

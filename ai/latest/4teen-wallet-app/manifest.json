@@ -1,17 +1,18 @@
 {
-  "generatedAt": "2026-05-02T16:49:16.391Z",
+  "generatedAt": "2026-05-02T19:04:33.920Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "04305fea417bba61a129f65f8d9e94488d882f2c",
-    "shortHash": "04305fe",
-    "subject": "Handle legacy work order ids in ops runner",
-    "author": "4TEEN Ops Runner",
-    "date": "2026-05-02T21:49:04+05:00"
+    "hash": "438029d4f25d5f81db6d24b733108f32ec2df1c5",
+    "shortHash": "438029d",
+    "subject": "Add GitHub ops remote runner workflow",
+    "author": "info14fourteen-creator",
+    "date": "2026-05-03T00:04:11+05:00"
   },
   "changedFiles": [
-    "M\tscripts/ops-remote-runner.mjs"
+    "A\t.github/scripts/ops-remote-runner.mjs",
+    "M\t.github/workflows/ops-remote-runner.yml"
   ],
   "activeFiles": [
     {
@@ -19,11 +20,7 @@
       "count": 5
     },
     {
-      "file": "apps/mobile/src/config/app-version.ts",
-      "count": 5
-    },
-    {
-      "file": "apps/api/src/routes/ops.js",
+      "file": ".github/workflows/ops-remote-runner.yml",
       "count": 4
     },
     {
@@ -31,11 +28,15 @@
       "count": 4
     },
     {
+      "file": "apps/mobile/src/config/app-version.ts",
+      "count": 4
+    },
+    {
       "file": "scripts/ops-remote-runner.mjs",
       "count": 4
     },
     {
-      "file": ".github/workflows/ops-remote-runner.yml",
+      "file": "apps/api/src/routes/ops.js",
       "count": 3
     },
     {
@@ -163,6 +164,7 @@
     ".github/workflows/ops-remote-runner.yml",
     "scripts/build-wallet-ai-bundles.mjs",
     "scripts/ops-remote-runner.mjs",
+    ".github/scripts/ops-remote-runner.mjs",
     "apps/api/clock.js",
     "apps/api/package.json",
     "apps/api/scripts/export-knowledge-base.js",
@@ -368,8 +370,7 @@
     "apps/mobile/assets/icons/ui/earn_footer_menu_btn.svg",
     "apps/mobile/assets/icons/ui/footer_menu.svg",
     "apps/mobile/assets/icons/ui/full_access_btn.svg",
-    "apps/mobile/assets/icons/ui/history_btn.svg",
-    "apps/mobile/assets/icons/ui/home_footer_menu_btn_onclick.svg"
+    "apps/mobile/assets/icons/ui/history_btn.svg"
   ],
   "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
   "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"

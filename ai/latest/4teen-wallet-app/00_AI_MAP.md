@@ -1,13 +1,13 @@
 # 4teen-wallet-app — AI MAP
 
-Generated: 2026-05-02T16:49:16.387Z
+Generated: 2026-05-02T19:04:33.917Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 04305fea417bba61a129f65f8d9e94488d882f2c
-Short commit: 04305fe
-Commit subject: Handle legacy work order ids in ops runner
-Commit author: 4TEEN Ops Runner
-Commit date: 2026-05-02T21:49:04+05:00
+Last commit: 438029d4f25d5f81db6d24b733108f32ec2df1c5
+Short commit: 438029d
+Commit subject: Add GitHub ops remote runner workflow
+Commit author: info14fourteen-creator
+Commit date: 2026-05-03T00:04:11+05:00
 
 ## Snapshot files
 
@@ -27,6 +27,8 @@ Commit date: 2026-05-02T21:49:04+05:00
 
 ```txt
 - .github/
+  - scripts/
+    - ops-remote-runner.mjs
   - workflows/
     - build-wallet-ai-bundle.yml
     - ci.yml
@@ -262,7 +264,6 @@ Commit date: 2026-05-02T21:49:04+05:00
           - footer_menu.svg
           - full_access_btn.svg
           - history_btn.svg
-          - home_footer_menu_btn_onclick.svg
     - app.json
 - docs/
   - ai-snapshots/
