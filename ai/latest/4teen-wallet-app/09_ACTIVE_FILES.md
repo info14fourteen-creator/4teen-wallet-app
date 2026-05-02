@@ -1,43 +1,43 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-05-02T16:29:18.519Z
+Generated: 2026-05-02T16:35:51.909Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: d830267c987529a933f14439d66fb31cac331c7b
-Short commit: d830267
-Commit subject: Add ops remote runner workflow
+Last commit: 5462c041d23c7494e09adcf16525fabc91cada5a
+Short commit: 5462c04
+Commit subject: Bootstrap ops runner from control plane
 Commit author: 4TEEN Ops Runner
-Commit date: 2026-05-02T21:28:05+05:00
+Commit date: 2026-05-02T21:35:39+05:00
 
 ## Most frequently changed files in last 20 commits
 
-- 9x :: apps/mobile/src/config/app-version.ts
+- 7x :: apps/mobile/src/config/app-version.ts
 - 6x :: apps/api/src/services/ops/telegramAdminBot.js
 - 5x :: apps/api/src/routes/ops.js
 - 5x :: apps/api/src/services/ops/events.js
-- 4x :: apps/mobile/app/settings.tsx
-- 3x :: apps/mobile/app.json
 - 3x :: apps/mobile/app/_layout.tsx
 - 3x :: apps/mobile/app/about.tsx
-- 3x :: apps/mobile/app/buy.tsx
-- 3x :: apps/mobile/app/currency.tsx
 - 3x :: apps/mobile/app/language.tsx
-- 3x :: apps/mobile/app/manage-crypto.tsx
-- 3x :: apps/mobile/app/select-wallet.tsx
-- 3x :: apps/mobile/app/send.tsx
-- 3x :: apps/mobile/app/swap.tsx
-- 3x :: apps/mobile/app/token-details.tsx
-- 3x :: apps/mobile/app/unlock-timeline.tsx
 - 3x :: apps/mobile/app/unlock.tsx
-- 3x :: apps/mobile/app/wallet.tsx
-- 3x :: apps/mobile/app/wallets.tsx
-- 3x :: apps/mobile/package.json
 - 3x :: apps/mobile/src/ui/footer-nav.tsx
-- 3x :: apps/mobile/src/ui/selected-wallet-switcher.tsx
+- 2x :: .github/workflows/ops-remote-runner.yml
 - 2x :: apps/api/clock.js
 - 2x :: apps/api/src/app.js
 - 2x :: apps/api/src/config/env.js
 - 2x :: apps/api/src/services/gasstation/gasStation.js
 - 2x :: apps/api/src/services/ops/monitor.js
 - 2x :: apps/api/src/services/ops/store.js
+- 2x :: apps/mobile/app.json
 - 2x :: apps/mobile/app/add-custom-token.tsx
+- 2x :: apps/mobile/app/address-book.tsx
+- 2x :: apps/mobile/app/airdrop.tsx
+- 2x :: apps/mobile/app/ambassador-confirm.tsx
+- 2x :: apps/mobile/app/ambassador-withdraw-confirm.tsx
+- 2x :: apps/mobile/app/authentication-method.tsx
+- 2x :: apps/mobile/app/backup-private-key.tsx
+- 2x :: apps/mobile/app/browser.tsx
+- 2x :: apps/mobile/app/buy-confirm.tsx
+- 2x :: apps/mobile/app/buy.tsx
+- 2x :: apps/mobile/app/confirm-passcode.tsx
+- 2x :: apps/mobile/app/create-passcode.tsx
+- 2x :: apps/mobile/app/create-wallet.tsx

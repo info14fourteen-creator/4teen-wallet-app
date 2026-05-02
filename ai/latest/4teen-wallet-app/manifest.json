@@ -1,23 +1,23 @@
 {
-  "generatedAt": "2026-05-02T16:29:18.519Z",
+  "generatedAt": "2026-05-02T16:35:51.909Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "d830267c987529a933f14439d66fb31cac331c7b",
-    "shortHash": "d830267",
-    "subject": "Add ops remote runner workflow",
+    "hash": "5462c041d23c7494e09adcf16525fabc91cada5a",
+    "shortHash": "5462c04",
+    "subject": "Bootstrap ops runner from control plane",
     "author": "4TEEN Ops Runner",
-    "date": "2026-05-02T21:28:05+05:00"
+    "date": "2026-05-02T21:35:39+05:00"
   },
   "changedFiles": [
-    "A\t.github/workflows/ops-remote-runner.yml",
-    "A\tscripts/ops-remote-runner.mjs"
+    "M\t.github/workflows/ops-remote-runner.yml",
+    "M\tscripts/ops-remote-runner.mjs"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 9
+      "count": 7
     },
     {
       "file": "apps/api/src/services/ops/telegramAdminBot.js",
@@ -32,14 +32,6 @@
       "count": 5
     },
     {
-      "file": "apps/mobile/app/settings.tsx",
-      "count": 4
-    },
-    {
-      "file": "apps/mobile/app.json",
-      "count": 3
-    },
-    {
       "file": "apps/mobile/app/_layout.tsx",
       "count": 3
     },
@@ -48,39 +40,7 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/buy.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/currency.tsx",
-      "count": 3
-    },
-    {
       "file": "apps/mobile/app/language.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/manage-crypto.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/select-wallet.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/send.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/swap.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/token-details.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/unlock-timeline.tsx",
       "count": 3
     },
     {
@@ -88,24 +48,12 @@
       "count": 3
     },
     {
-      "file": "apps/mobile/app/wallet.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/wallets.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/package.json",
-      "count": 3
-    },
-    {
       "file": "apps/mobile/src/ui/footer-nav.tsx",
       "count": 3
     },
     {
-      "file": "apps/mobile/src/ui/selected-wallet-switcher.tsx",
-      "count": 3
+      "file": ".github/workflows/ops-remote-runner.yml",
+      "count": 2
     },
     {
       "file": "apps/api/clock.js",
@@ -132,7 +80,59 @@
       "count": 2
     },
     {
+      "file": "apps/mobile/app.json",
+      "count": 2
+    },
+    {
       "file": "apps/mobile/app/add-custom-token.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/address-book.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/airdrop.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/ambassador-confirm.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/authentication-method.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/backup-private-key.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/browser.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/buy-confirm.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/buy.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/confirm-passcode.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/create-passcode.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/create-wallet.tsx",
       "count": 2
     }
   ],
