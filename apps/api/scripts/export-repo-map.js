@@ -1,3 +1,4 @@
+// Runner smoke-test: harmless comment for infra validation.
 const fs = require('fs/promises');
 const path = require('path');
 
