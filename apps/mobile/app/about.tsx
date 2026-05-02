@@ -1,9 +1,5 @@
-import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ProductScreen } from '../src/ui/product-shell';
@@ -17,35 +13,38 @@ import {
   getVersionDisplayString,
 } from '../src/config/app-version';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
+import LottieIcon from '../src/ui/lottie-icon';
 import { useNotice } from '../src/notice/notice-provider';
 import { submitAppFeedback } from '../src/services/feedback';
 import { checkForAppUpdate } from '../src/services/app-release';
 
 import LogoWhite from '../assets/icons/ui/logo_white.svg';
 
-import DiscordIcon from '../assets/icons/ui/socials/discord_social.svg';
-import FacebookIcon from '../assets/icons/ui/socials/facebook_social.svg';
-import GithubIcon from '../assets/icons/ui/socials/github_social.svg';
-import InstagramIcon from '../assets/icons/ui/socials/instagram_social.svg';
-import TelegramIcon from '../assets/icons/ui/socials/telegram_social.svg';
-import ThreadsIcon from '../assets/icons/ui/socials/threads_social.svg';
-import TiktokIcon from '../assets/icons/ui/socials/tiktok_social.svg';
-import WhatsappIcon from '../assets/icons/ui/socials/whatsapp_social.svg';
-import XIcon from '../assets/icons/ui/socials/x_social.svg';
-import YoutubeIcon from '../assets/icons/ui/socials/youtube_social.svg';
+const TELEGRAM_SOCIAL_HOVER_SOURCE = require('../assets/icons/ui/socials/lottie/telegram_social_hover.json');
+const DISCORD_SOCIAL_HOVER_SOURCE = require('../assets/icons/ui/socials/lottie/discord_social_hover.json');
+const X_SOCIAL_HOVER_SOURCE = require('../assets/icons/ui/socials/lottie/x_social_hover.json');
+const FACEBOOK_SOCIAL_HOVER_SOURCE = require('../assets/icons/ui/socials/lottie/facebook_social_hover.json');
+const INSTAGRAM_SOCIAL_HOVER_SOURCE = require('../assets/icons/ui/socials/lottie/instagram_social_hover.json');
+const THREADS_SOCIAL_HOVER_SOURCE = require('../assets/icons/ui/socials/lottie/threads_social_hover.json');
+const TIKTOK_SOCIAL_HOVER_SOURCE = require('../assets/icons/ui/socials/lottie/tiktok_social_hover.json');
+const YOUTUBE_SOCIAL_HOVER_SOURCE = require('../assets/icons/ui/socials/lottie/youtube_social_hover.json');
+const WHATSAPP_SOCIAL_HOVER_SOURCE = require('../assets/icons/ui/socials/lottie/whatsapp_social_hover.json');
+const GITHUB_SOCIAL_HOVER_SOURCE = require('../assets/icons/ui/socials/lottie/github_social_hover.json');
 
 const socials = [
-  { Icon: TelegramIcon, label: 'Telegram', url: 'https://t.me/fourteentoken' },
-  { Icon: DiscordIcon, label: 'Discord', url: 'https://discord.gg/jWZF6KzPCB' },
-  { Icon: XIcon, label: 'X', url: 'https://x.com/4teen_me' },
-  { Icon: FacebookIcon, label: 'Facebook', url: 'https://facebook.com/Fourteentoken' },
-  { Icon: InstagramIcon, label: 'Instagram', url: 'https://instagram.com/fourteentoken' },
-  { Icon: ThreadsIcon, label: 'Threads', url: 'https://www.threads.com/@fourteentoken' },
-  { Icon: TiktokIcon, label: 'TikTok', url: 'https://www.tiktok.com/@4teentoken' },
-  { Icon: YoutubeIcon, label: 'YouTube', url: 'https://www.youtube.com/@4teentoken' },
-  { Icon: WhatsappIcon, label: 'WhatsApp', url: 'https://wa.me/16462178070' },
-  { Icon: GithubIcon, label: 'GitHub', url: 'https://github.com/info14fourteen-creator' },
+  { source: TELEGRAM_SOCIAL_HOVER_SOURCE, label: 'Telegram', url: 'https://t.me/fourteentoken', durationMs: 1500 },
+  { source: DISCORD_SOCIAL_HOVER_SOURCE, label: 'Discord', url: 'https://discord.gg/jWZF6KzPCB', durationMs: 1500 },
+  { source: X_SOCIAL_HOVER_SOURCE, label: 'X', url: 'https://x.com/4teen_me', durationMs: 1000 },
+  { source: FACEBOOK_SOCIAL_HOVER_SOURCE, label: 'Facebook', url: 'https://facebook.com/Fourteentoken', durationMs: 1500 },
+  { source: INSTAGRAM_SOCIAL_HOVER_SOURCE, label: 'Instagram', url: 'https://instagram.com/fourteentoken', durationMs: 1500 },
+  { source: THREADS_SOCIAL_HOVER_SOURCE, label: 'Threads', url: 'https://www.threads.com/@fourteentoken', durationMs: 2000 },
+  { source: TIKTOK_SOCIAL_HOVER_SOURCE, label: 'TikTok', url: 'https://www.tiktok.com/@4teentoken', durationMs: 1500 },
+  { source: YOUTUBE_SOCIAL_HOVER_SOURCE, label: 'YouTube', url: 'https://www.youtube.com/@4teentoken', durationMs: 500 },
+  { source: WHATSAPP_SOCIAL_HOVER_SOURCE, label: 'WhatsApp', url: 'https://wa.me/16462178070', durationMs: 1500 },
+  { source: GITHUB_SOCIAL_HOVER_SOURCE, label: 'GitHub', url: 'https://github.com/info14fourteen-creator', durationMs: 1500 },
 ];
+
+const SOCIAL_NAVIGATION_FALLBACK_BUFFER_MS = 120;
 
 export default function AboutScreen() {
   const router = useRouter();
@@ -136,22 +135,106 @@ export default function AboutScreen() {
 
       <View style={styles.socialCard}>
         <View style={styles.socialGrid}>
-          {socials.map(({ Icon, label, url }) => (
-            <TouchableOpacity
+          {socials.map(({ source, label, url, durationMs }) => (
+            <SocialLinkButton
               key={label}
-              activeOpacity={0.85}
-              style={styles.socialItem}
-              onPress={() => void openInAppBrowser(router, url)}
-            >
-              <View style={styles.socialIconWrap}>
-                <Icon width={28} height={28} />
-              </View>
-              <Text style={ui.socialLabel}>{label}</Text>
-            </TouchableOpacity>
+              label={label}
+              source={source}
+              url={url}
+              durationMs={durationMs}
+              onOpen={async (nextUrl) => {
+                await openInAppBrowser(router, nextUrl);
+              }}
+            />
           ))}
         </View>
       </View>
     </ProductScreen>
+  );
+}
+
+function SocialLinkButton({
+  label,
+  source,
+  url,
+  durationMs,
+  onOpen,
+}: {
+  label: string;
+  source: object | number;
+  url: string;
+  durationMs: number;
+  onOpen: (url: string) => Promise<void>;
+}) {
+  const [playToken, setPlayToken] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearFallbackTimer = useCallback(() => {
+    if (!fallbackTimerRef.current) return;
+    clearTimeout(fallbackTimerRef.current);
+    fallbackTimerRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      clearFallbackTimer();
+    };
+  }, [clearFallbackTimer]);
+
+  const finishPress = useCallback(async () => {
+    if (!busyRef.current) return;
+
+    busyRef.current = false;
+    clearFallbackTimer();
+
+    try {
+      await onOpen(url);
+    } finally {
+      if (mountedRef.current) {
+        setBusy(false);
+      }
+    }
+  }, [clearFallbackTimer, onOpen, url]);
+
+  const handlePress = useCallback(() => {
+    if (busyRef.current) return;
+
+    busyRef.current = true;
+    setBusy(true);
+    setPlayToken((current) => current + 1);
+    clearFallbackTimer();
+    fallbackTimerRef.current = setTimeout(() => {
+      void finishPress();
+    }, durationMs + SOCIAL_NAVIGATION_FALLBACK_BUFFER_MS);
+  }, [clearFallbackTimer, durationMs, finishPress]);
+
+  const handleAnimationFinish = useCallback((isCancelled: boolean) => {
+    if (isCancelled) return;
+    void finishPress();
+  }, [finishPress]);
+
+  return (
+    <TouchableOpacity
+      activeOpacity={busy ? 1 : 0.85}
+      disabled={busy}
+      style={[styles.socialItem, busy && styles.socialItemBusy]}
+      onPress={handlePress}
+    >
+      <View style={styles.socialIconWrap}>
+        <LottieIcon
+          source={source}
+          size={30}
+          staticFrame={0}
+          playToken={playToken}
+          onAnimationFinish={handleAnimationFinish}
+        />
+      </View>
+      <Text style={ui.socialLabel}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -255,6 +338,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     gap: 6,
+  },
+
+  socialItemBusy: {
+    opacity: 0.96,
   },
 
   socialIconWrap: {
