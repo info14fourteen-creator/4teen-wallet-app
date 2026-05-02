@@ -342,7 +342,7 @@ function buildRouterFallback(message) {
     };
   }
 
-  if (/^\s*(что|почему|как|где|когда|кто)\b|[?？]$/.test(lower)) {
+  if (/(^\s*(что|почему|как|где|когда|кто)\b|\b(что|почему|как|где|когда|кто)\b.*\b(дела|статус|происходит|нового|у нас)\b|[?？]$)/.test(lower)) {
     return {
       mode: 'fallback',
       intent: 'question',
