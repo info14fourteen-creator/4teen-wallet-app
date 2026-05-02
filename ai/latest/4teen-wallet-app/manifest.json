@@ -1,17 +1,47 @@
 {
-  "generatedAt": "2026-05-02T22:04:19.457Z",
+  "generatedAt": "2026-05-02T22:10:14.206Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "b0c7d1b1927909ff310f751a919c3700d8e62013",
-    "shortHash": "b0c7d1b",
-    "subject": "Trigger wallet deploy smoke",
+    "hash": "9976cd9d975a80f9fb7e1a40ab0d7d54082f28de",
+    "shortHash": "9976cd9",
+    "subject": "Sync wallet API ops control plane",
     "author": "info14fourteen-creator",
-    "date": "2026-05-03T03:03:57+05:00"
+    "date": "2026-05-03T03:09:35+05:00"
   },
   "changedFiles": [
-    "M\t.github/scripts/ops-remote-runner.mjs"
+    "M\tapps/api/Procfile",
+    "M\tapps/api/clock.js",
+    "M\tapps/api/package-lock.json",
+    "M\tapps/api/package.json",
+    "D\tapps/api/scripts/export-knowledge-base.js",
+    "D\tapps/api/scripts/export-product-notes.js",
+    "D\tapps/api/scripts/export-repo-map.js",
+    "D\tapps/api/scripts/sync-knowledge-base.js",
+    "M\tapps/api/src/app.js",
+    "M\tapps/api/src/config/env.js",
+    "D\tapps/api/src/routes/appVersion.js",
+    "M\tapps/api/src/routes/ops.js",
+    "A\tapps/api/src/routes/site.js",
+    "M\tapps/api/src/services/airdrop/telegramClaims.js",
+    "M\tapps/api/src/services/gasstation/gasStation.js",
+    "D\tapps/api/src/services/liquidity/execution.js",
+    "M\tapps/api/src/services/ops/codexJobs.js",
+    "A\tapps/api/src/services/ops/executionRequests.js",
+    "A\tapps/api/src/services/ops/githubOidc.js",
+    "A\tapps/api/src/services/ops/githubRemoteRunner.js",
+    "M\tapps/api/src/services/ops/monitor.js",
+    "M\tapps/api/src/services/ops/openai.js",
+    "A\tapps/api/src/services/ops/remoteApplyPlan.js",
+    "A\tapps/api/src/services/ops/remoteRunner.js",
+    "A\tapps/api/src/services/ops/resourceSignals.js",
+    "M\tapps/api/src/services/ops/screeners.js",
+    "M\tapps/api/src/services/ops/store.js",
+    "M\tapps/api/src/services/ops/tasks.js",
+    "M\tapps/api/src/services/ops/telegramAdminBot.js",
+    "M\tapps/api/src/services/proxy/apiProxy.js",
+    "A\tapps/api/src/services/publicData/siteData.js"
   ],
   "activeFiles": [
     {
@@ -20,11 +50,119 @@
     },
     {
       "file": ".github/workflows/ops-remote-runner.yml",
-      "count": 4
+      "count": 3
     },
     {
-      "file": "scripts/ops-remote-runner.mjs",
-      "count": 2
+      "file": "apps/api/clock.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/package.json",
+      "count": 1
+    },
+    {
+      "file": "apps/api/Procfile",
+      "count": 1
+    },
+    {
+      "file": "apps/api/scripts/export-knowledge-base.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/scripts/export-product-notes.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/scripts/export-repo-map.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/scripts/sync-knowledge-base.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/app.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/config/env.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/routes/appVersion.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/routes/ops.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/routes/site.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/airdrop/telegramClaims.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/gasstation/gasStation.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/liquidity/execution.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/codexJobs.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/executionRequests.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/githubOidc.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/githubRemoteRunner.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/monitor.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/openai.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/remoteApplyPlan.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/remoteRunner.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/resourceSignals.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/screeners.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/store.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/tasks.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/telegramAdminBot.js",
+      "count": 1
     }
   ],
   "todoCount": 10,
@@ -58,10 +196,6 @@
     ".github/scripts/ops-remote-runner.mjs",
     "apps/api/clock.js",
     "apps/api/package.json",
-    "apps/api/scripts/export-knowledge-base.js",
-    "apps/api/scripts/export-product-notes.js",
-    "apps/api/scripts/export-repo-map.js",
-    "apps/api/scripts/sync-knowledge-base.js",
     "apps/api/server.js",
     "apps/api/src/app.js",
     "apps/api/src/config/env.js",
@@ -73,12 +207,12 @@
     "apps/api/src/db/queries/purchases.js",
     "apps/api/src/routes/airdrop.js",
     "apps/api/src/routes/ambassador.js",
-    "apps/api/src/routes/appVersion.js",
     "apps/api/src/routes/gasstation.js",
     "apps/api/src/routes/health.js",
     "apps/api/src/routes/ops.js",
     "apps/api/src/routes/proxy.js",
     "apps/api/src/routes/resources.js",
+    "apps/api/src/routes/site.js",
     "apps/api/src/routes/wallet.js",
     "apps/api/src/services/airdrop/telegramBot.js",
     "apps/api/src/services/airdrop/telegramClaims.js",
@@ -92,19 +226,25 @@
     "apps/api/src/services/gasstation/energyResale.js",
     "apps/api/src/services/gasstation/gasStation.js",
     "apps/api/src/services/gasstation/notifications.js",
-    "apps/api/src/services/liquidity/execution.js",
     "apps/api/src/services/ops/codexJobs.js",
     "apps/api/src/services/ops/events.js",
+    "apps/api/src/services/ops/executionRequests.js",
+    "apps/api/src/services/ops/githubOidc.js",
+    "apps/api/src/services/ops/githubRemoteRunner.js",
     "apps/api/src/services/ops/knowledgeBase.js",
     "apps/api/src/services/ops/monitor.js",
     "apps/api/src/services/ops/openai.js",
     "apps/api/src/services/ops/productNotes.js",
+    "apps/api/src/services/ops/remoteApplyPlan.js",
+    "apps/api/src/services/ops/remoteRunner.js",
+    "apps/api/src/services/ops/resourceSignals.js",
     "apps/api/src/services/ops/screeners.js",
     "apps/api/src/services/ops/store.js",
     "apps/api/src/services/ops/tasks.js",
     "apps/api/src/services/ops/telegramAdminBot.js",
     "apps/api/src/services/proxy/apiProxy.js",
     "apps/api/src/services/proxy/walletSnapshot.js",
+    "apps/api/src/services/publicData/siteData.js",
     "apps/api/src/services/tron/client.js",
     "apps/api/src/services/tron/payments.js",
     "apps/mobile/app.json",
@@ -259,9 +399,7 @@
     "apps/mobile/assets/icons/ui/decline_btn.svg",
     "apps/mobile/assets/icons/ui/earn_footer_menu_btn_onclick.svg",
     "apps/mobile/assets/icons/ui/earn_footer_menu_btn.svg",
-    "apps/mobile/assets/icons/ui/footer_menu.svg",
-    "apps/mobile/assets/icons/ui/full_access_btn.svg",
-    "apps/mobile/assets/icons/ui/history_btn.svg"
+    "apps/mobile/assets/icons/ui/footer_menu.svg"
   ],
   "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
   "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"

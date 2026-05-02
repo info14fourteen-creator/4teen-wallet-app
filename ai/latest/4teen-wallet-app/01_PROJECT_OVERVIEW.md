@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-05-02T22:04:19.455Z
+Generated: 2026-05-02T22:10:14.204Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: b0c7d1b1927909ff310f751a919c3700d8e62013
-Short commit: b0c7d1b
-Commit subject: Trigger wallet deploy smoke
+Last commit: 9976cd9d975a80f9fb7e1a40ab0d7d54082f28de
+Short commit: 9976cd9
+Commit subject: Sync wallet API ops control plane
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T03:03:57+05:00
+Commit date: 2026-05-03T03:09:35+05:00
 
 ## Curated project tree
 
@@ -21,11 +21,6 @@ Commit date: 2026-05-03T03:03:57+05:00
     - ops-remote-runner.yml
 - apps/
   - api/
-    - scripts/
-      - export-knowledge-base.js
-      - export-product-notes.js
-      - export-repo-map.js
-      - sync-knowledge-base.js
     - src/
       - config/
         - env.js
@@ -40,12 +35,12 @@ Commit date: 2026-05-03T03:03:57+05:00
       - routes/
         - airdrop.js
         - ambassador.js
-        - appVersion.js
         - gasstation.js
         - health.js
         - ops.js
         - proxy.js
         - resources.js
+        - site.js
         - wallet.js
       - services/
         - airdrop/
@@ -63,15 +58,19 @@ Commit date: 2026-05-03T03:03:57+05:00
           - energyResale.js
           - gasStation.js
           - notifications.js
-        - liquidity/
-          - execution.js
         - ops/
           - codexJobs.js
           - events.js
+          - executionRequests.js
+          - githubOidc.js
+          - githubRemoteRunner.js
           - knowledgeBase.js
           - monitor.js
           - openai.js
           - productNotes.js
+          - remoteApplyPlan.js
+          - remoteRunner.js
+          - resourceSignals.js
           - screeners.js
           - store.js
           - tasks.js
@@ -79,6 +78,8 @@ Commit date: 2026-05-03T03:03:57+05:00
         - proxy/
           - apiProxy.js
           - walletSnapshot.js
+        - publicData/
+          - siteData.js
         - tron/
           - client.js
           - payments.js
@@ -248,8 +249,6 @@ Commit date: 2026-05-03T03:03:57+05:00
           - earn_footer_menu_btn_onclick.svg
           - earn_footer_menu_btn.svg
           - footer_menu.svg
-          - full_access_btn.svg
-          - history_btn.svg
     - app.json
 - docs/
   - ai-snapshots/
