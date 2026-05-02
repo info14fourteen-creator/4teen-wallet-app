@@ -1,18 +1,18 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-05-02T22:17:40.220Z
+Generated: 2026-05-02T23:17:18.599Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 4356c82824912c8f374ad9050dd129df85993f12
-Short commit: 4356c82
-Commit subject: Trigger wallet deploy verification
+Last commit: 92b3596c3072b60dd47b29d0d7f7aa54f237e84c
+Short commit: 92b3596
+Commit subject: Fix bot locale flow and audio intake
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T03:17:26+05:00
+Commit date: 2026-05-03T04:17:03+05:00
 
 ## Most frequently changed files in last 20 commits
 
 - 7x :: .github/scripts/ops-remote-runner.mjs
-- 1x :: .github/workflows/ops-remote-runner.yml
+- 2x :: apps/api/src/services/ops/telegramAdminBot.js
 - 1x :: apps/api/clock.js
 - 1x :: apps/api/package.json
 - 1x :: apps/api/Procfile
@@ -40,4 +40,4 @@ Commit date: 2026-05-03T03:17:26+05:00
 - 1x :: apps/api/src/services/ops/screeners.js
 - 1x :: apps/api/src/services/ops/store.js
 - 1x :: apps/api/src/services/ops/tasks.js
-- 1x :: apps/api/src/services/ops/telegramAdminBot.js
+- 1x :: apps/api/src/services/proxy/apiProxy.js

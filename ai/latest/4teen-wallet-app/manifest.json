@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-05-02T22:17:40.220Z",
+  "generatedAt": "2026-05-02T23:17:18.599Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "4356c82824912c8f374ad9050dd129df85993f12",
-    "shortHash": "4356c82",
-    "subject": "Trigger wallet deploy verification",
+    "hash": "92b3596c3072b60dd47b29d0d7f7aa54f237e84c",
+    "shortHash": "92b3596",
+    "subject": "Fix bot locale flow and audio intake",
     "author": "info14fourteen-creator",
-    "date": "2026-05-03T03:17:26+05:00"
+    "date": "2026-05-03T04:17:03+05:00"
   },
   "changedFiles": [
-    "M\t.github/scripts/ops-remote-runner.mjs"
+    "M\tapps/api/src/services/ops/telegramAdminBot.js"
   ],
   "activeFiles": [
     {
@@ -19,8 +19,8 @@
       "count": 7
     },
     {
-      "file": ".github/workflows/ops-remote-runner.yml",
-      "count": 1
+      "file": "apps/api/src/services/ops/telegramAdminBot.js",
+      "count": 2
     },
     {
       "file": "apps/api/clock.js",
@@ -131,7 +131,7 @@
       "count": 1
     },
     {
-      "file": "apps/api/src/services/ops/telegramAdminBot.js",
+      "file": "apps/api/src/services/proxy/apiProxy.js",
       "count": 1
     }
   ],
