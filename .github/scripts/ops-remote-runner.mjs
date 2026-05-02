@@ -240,9 +240,9 @@ async function writeChanges(changes) {
 function collectChangedFiles() {
   return run('git', ['status', '--short'])
     .split('\n')
+    .map((line) => line.replace(/^\s*[A-Z?]{1,2}\s+/, ''))
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => line.slice(3).trim())
     .filter(Boolean);
 }
 
