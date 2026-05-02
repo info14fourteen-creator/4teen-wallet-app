@@ -2,6 +2,15 @@ const crypto = require('crypto');
 const { fetch } = require('undici');
 const env = require('../../config/env');
 const { pool } = require('../../db/pool');
+const { listCodexJobs, runCodexJobForTask } = require('./codexJobs');
+const { getKnowledgeBaseStatus } = require('./knowledgeBase');
+const {
+  createTaskFromOpsEvent,
+  createTaskFromProductNote,
+  getTaskById,
+  listTasks,
+  updateTaskStatus
+} = require('./tasks');
 const {
   ensureOpsTables,
   getOwnerTelegramTarget,
@@ -9,29 +18,55 @@ const {
   getTelegramTargetByChatId,
   listActiveTelegramTargets,
   listRecentEvents,
+  openOrIncrementEvent,
+  setRuntimeState,
   touchTelegramTarget,
   upsertTelegramTarget
 } = require('./store');
+const { answerOpsQuestion, generateOpsDigest, routeOwnerMessage, structureProductNote, transcribeAudioBuffer } = require('./openai');
+const { createProductNote, listProductNotes } = require('./productNotes');
 
 const TELEGRAM_API_BASE_URL = 'https://api.telegram.org';
 const CALLBACK_PREFIX = 'ops:';
-const DEFAULT_SCREEN = 'overview';
+const DEFAULT_SCREEN = 'summary';
+const BOT_MESSAGE_HISTORY_PREFIX = 'ops.telegram.bot_history';
+const BOT_LOCALE_PREFIX = 'ops.telegram.locale';
+const BOT_MESSAGE_HISTORY_LIMIT = 80;
 const SUPPORTED_SCREENS = new Set([
+  'summary',
   'overview',
   'screen',
   'health',
   'events',
   'feedback',
+  'knowledge',
+  'jobs',
   'keys',
+  'notes',
+  'tasks',
   'queues',
   'targets'
 ]);
 const BOT_COMMANDS = [
   { command: 'menu', description: 'Открыть главное меню' },
+  { command: 'summary', description: 'Показать AI-сводку по ситуации' },
+  { command: 'ask', description: 'Задать вопрос по живым данным' },
   { command: 'screen', description: 'Проверить реальные app-flow' },
   { command: 'health', description: 'Понять, что сейчас болит' },
   { command: 'events', description: 'Посмотреть активные проблемы' },
   { command: 'feedback', description: 'Посмотреть отзывы из кошелька' },
+  { command: 'kb', description: 'Проверить память бота по проекту' },
+  { command: 'jobs', description: 'Посмотреть последние Codex jobs' },
+  { command: 'notes', description: 'Посмотреть backlog следующей версии' },
+  { command: 'tasks', description: 'Посмотреть рабочие задачи' },
+  { command: 'codex', description: 'Запустить Codex job по задаче' },
+  { command: 'note', description: 'Добавить идею или правку в backlog' },
+  { command: 'take', description: 'Взять задачу в работу' },
+  { command: 'done', description: 'Закрыть задачу' },
+  { command: 'block', description: 'Пометить задачу как blocked' },
+  { command: 'todo', description: 'Вернуть задачу в ready_for_codex' },
+  { command: 'archive', description: 'Убрать задачу в архив' },
+  { command: 'clear', description: 'Почистить прошлые сообщения бота' },
   { command: 'keys', description: 'Проверить ключи и лимиты' },
   { command: 'queues', description: 'Посмотреть очереди и фоновые задачи' },
   { command: 'targets', description: 'Увидеть разрешённые чаты' },
@@ -55,6 +90,84 @@ function normalizeMenuIntent(text) {
   if (safe === 'меню' || safe === 'menu' || safe === '🏠 меню') return '/menu';
   if (safe === 'обновить' || safe === 'refresh' || safe === '🔄 обновить') return '/menu';
   return '';
+}
+
+function normalizeLocale(value) {
+  return String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'ru';
+}
+
+function isEnglish(locale) {
+  return normalizeLocale(locale) === 'en';
+}
+
+function buildChatLocaleKey(chatId) {
+  return `${BOT_LOCALE_PREFIX}:${normalizeValue(chatId)}`;
+}
+
+async function getChatLocale(chatId) {
+  const state = await getRuntimeState(buildChatLocaleKey(chatId)).catch(() => null);
+  return normalizeLocale(state?.value_json?.locale);
+}
+
+async function setChatLocale(chatId, locale) {
+  const safeChatId = normalizeValue(chatId);
+  if (!safeChatId) {
+    return 'ru';
+  }
+
+  const nextLocale = normalizeLocale(locale);
+  await setRuntimeState(buildChatLocaleKey(safeChatId), {
+    locale: nextLocale,
+    updatedAt: new Date().toISOString()
+  }).catch(() => null);
+  return nextLocale;
+}
+
+function detectLocaleRequest(text) {
+  const safe = normalizeValue(text);
+  const lower = safe.toLowerCase();
+
+  if (!lower) {
+    return '';
+  }
+
+  const mentionsEnglish = /\benglish\b|англ/i.test(lower);
+  const mentionsRussian = /\brussian\b|русск/i.test(lower);
+  const directLocaleOnly = /^(english|eng|en|англ(ийский)?|russian|ru|русский)$/i.test(safe);
+  const languageAction =
+    /язык|language|reply|respond|responses|answers|answer|отвеч|ответ|пиши|говори|смени|сменить|переключ|switch|use\s+english|use\s+russian|на\s+англ|на\s+рус/i.test(lower);
+
+  if (mentionsEnglish && (directLocaleOnly || languageAction)) {
+    return 'en';
+  }
+
+  if (mentionsRussian && (directLocaleOnly || languageAction)) {
+    return 'ru';
+  }
+
+  return '';
+}
+
+function isClearIntent(text) {
+  const safe = normalizeValue(text).toLowerCase();
+  if (!safe) return false;
+
+  return [
+    '/clear',
+    'clear',
+    'clear chat',
+    'clear history',
+    'очистить',
+    'очисти',
+    'почистить чат',
+    'почисти чат',
+    'удали сообщения',
+    'удали прошлые сообщения'
+  ].includes(safe);
+}
+
+function buildBotHistoryKey(chatId) {
+  return `${BOT_MESSAGE_HISTORY_PREFIX}:${normalizeValue(chatId)}`;
 }
 
 function getAirdropService() {
@@ -137,22 +250,28 @@ async function adminTelegramApi(method, body) {
 }
 
 async function sendTelegramMessage(chatId, text, replyMarkup) {
-  return adminTelegramApi('sendMessage', {
+  const message = await adminTelegramApi('sendMessage', {
     chat_id: chatId,
     text,
     reply_markup: replyMarkup || undefined,
     disable_web_page_preview: true
   });
+
+  await rememberBotMessage(chatId, message?.message_id).catch(() => null);
+  return message;
 }
 
 async function editTelegramMessage(chatId, messageId, text, replyMarkup) {
-  return adminTelegramApi('editMessageText', {
+  const message = await adminTelegramApi('editMessageText', {
     chat_id: chatId,
     message_id: messageId,
     text,
     reply_markup: replyMarkup || undefined,
     disable_web_page_preview: true
   });
+
+  await rememberBotMessage(chatId, message?.message_id || messageId).catch(() => null);
+  return message;
 }
 
 async function answerTelegramCallback(callbackQueryId, text) {
@@ -161,6 +280,115 @@ async function answerTelegramCallback(callbackQueryId, text) {
     text: text || undefined,
     show_alert: false
   });
+}
+
+async function deleteTelegramMessage(chatId, messageId) {
+  if (!normalizeValue(chatId) || !Number.isFinite(Number(messageId || 0))) {
+    return false;
+  }
+
+  return adminTelegramApi('deleteMessage', {
+    chat_id: chatId,
+    message_id: Number(messageId)
+  }).catch(() => false);
+}
+
+async function getTrackedBotMessages(chatId) {
+  const state = await getRuntimeState(buildBotHistoryKey(chatId)).catch(() => null);
+  const value = state?.value_json && typeof state.value_json === 'object' ? state.value_json : {};
+  const ids = Array.isArray(value.messageIds) ? value.messageIds : [];
+
+  return ids
+    .map((item) => Number(item || 0))
+    .filter((item) => Number.isFinite(item) && item > 0);
+}
+
+async function setTrackedBotMessages(chatId, messageIds) {
+  const ids = Array.from(
+    new Set(
+      (Array.isArray(messageIds) ? messageIds : [])
+        .map((item) => Number(item || 0))
+        .filter((item) => Number.isFinite(item) && item > 0)
+    )
+  ).slice(-BOT_MESSAGE_HISTORY_LIMIT);
+
+  return setRuntimeState(buildBotHistoryKey(chatId), {
+    messageIds: ids,
+    updatedAt: new Date().toISOString()
+  }).catch(() => null);
+}
+
+async function rememberBotMessage(chatId, messageId) {
+  const safeChatId = normalizeValue(chatId);
+  const safeMessageId = Number(messageId || 0);
+
+  if (!safeChatId || !Number.isFinite(safeMessageId) || safeMessageId <= 0) {
+    return null;
+  }
+
+  const existing = await getTrackedBotMessages(safeChatId);
+  existing.push(safeMessageId);
+  return setTrackedBotMessages(safeChatId, existing);
+}
+
+async function clearTrackedBotMessages(chatId, options = {}) {
+  const safeChatId = normalizeValue(chatId);
+  if (!safeChatId) {
+    return {
+      deleted: 0,
+      total: 0
+    };
+  }
+
+  const trackedIds = await getTrackedBotMessages(safeChatId);
+  const deleteRequestMessageId = Number(options?.deleteRequestMessageId || 0);
+  const idsToDelete = trackedIds.slice().sort((a, b) => b - a);
+  let deleted = 0;
+
+  for (const messageId of idsToDelete) {
+    const ok = await deleteTelegramMessage(safeChatId, messageId);
+    if (ok) {
+      deleted += 1;
+    }
+  }
+
+  if (Number.isFinite(deleteRequestMessageId) && deleteRequestMessageId > 0) {
+    await deleteTelegramMessage(safeChatId, deleteRequestMessageId).catch(() => false);
+  }
+
+  await setTrackedBotMessages(safeChatId, []);
+
+  return {
+    deleted,
+    total: trackedIds.length
+  };
+}
+
+async function downloadTelegramFileBuffer(fileId) {
+  const file = await adminTelegramApi('getFile', {
+    file_id: normalizeValue(fileId)
+  });
+  const filePath = normalizeValue(file?.file_path);
+
+  if (!filePath) {
+    const error = new Error('Telegram did not return file_path for voice message');
+    error.status = 502;
+    throw error;
+  }
+
+  const response = await fetch(`${TELEGRAM_API_BASE_URL}/file/bot${getAdminBotToken()}/${filePath}`);
+
+  if (!response.ok) {
+    const error = new Error(`Telegram file download failed with status ${response.status}`);
+    error.status = response.status || 502;
+    throw error;
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  return {
+    buffer: Buffer.from(arrayBuffer),
+    filePath
+  };
 }
 
 async function broadcastAdminMessage(text) {
@@ -190,6 +418,15 @@ async function broadcastAdminMessage(text) {
   }
 
   return results;
+}
+
+async function broadcastLiquidityDailyReport(result) {
+  const text = buildLiquidityDailyReportText(result);
+  if (!text) {
+    return [];
+  }
+
+  return broadcastAdminMessage(text);
 }
 
 async function claimOwnerIfPossible(message) {
@@ -246,6 +483,29 @@ async function isAuthorizedMessage(message) {
 
   const owner = await getOwnerTelegramTarget();
   return Boolean(owner && owner.telegram_user_id && userId && owner.telegram_user_id === userId);
+}
+
+async function isOwnerMessage(message) {
+  const owner = await getOwnerTelegramTarget();
+  const ownerUserId = normalizeValue(owner?.telegram_user_id);
+  const ownerChatId = normalizeValue(owner?.chat_id);
+  const userId = normalizeValue(message?.from?.id);
+  const chatId = normalizeValue(message?.chat?.id);
+
+  return Boolean(ownerUserId && userId && ownerUserId === userId && (!ownerChatId || ownerChatId === chatId));
+}
+
+async function recordBotEvent(input) {
+  return openOrIncrementEvent({
+    source: 'ops-bot',
+    category: normalizeValue(input?.category) || 'bot',
+    type: normalizeValue(input?.type) || 'event',
+    severity: normalizeValue(input?.severity) || 'warning',
+    title: normalizeValue(input?.title) || 'Ops bot event',
+    message: normalizeValue(input?.message) || 'No message provided',
+    details: input?.details || null,
+    fingerprint: normalizeValue(input?.fingerprint) || null
+  }).catch(() => null);
 }
 
 function formatRelativeMinutes(timestamp) {
@@ -418,6 +678,16 @@ function buildHeader(title, subtitle) {
   return `${title}\n${subtitle}`;
 }
 
+function formatSunAsTrx(value) {
+  const sun = Number(value || 0);
+  if (!Number.isFinite(sun)) {
+    return '0';
+  }
+
+  const trx = sun / 1_000_000;
+  return trx.toFixed(6).replace(/\.?0+$/, '');
+}
+
 function shortenText(value, maxLength = 160) {
   const safe = normalizeValue(value).replace(/\s+/g, ' ');
   if (safe.length <= maxLength) {
@@ -425,6 +695,132 @@ function shortenText(value, maxLength = 160) {
   }
 
   return `${safe.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function shortenId(value) {
+  const safe = normalizeValue(value);
+  if (!safe) return '—';
+  if (safe.length <= 14) return safe;
+  return `${safe.slice(0, 8)}...${safe.slice(-4)}`;
+}
+
+function buildLiquidityDailyReportText(result) {
+  const safe = result && typeof result === 'object' ? result : {};
+  const resources = safe.resources && typeof safe.resources === 'object' ? safe.resources : {};
+  const plan = resources.plan && typeof resources.plan === 'object' ? resources.plan : {};
+  const before = resources.before && typeof resources.before === 'object' ? resources.before : {};
+  const after = resources.after && typeof resources.after === 'object' ? resources.after : {};
+  const rented = resources.rented === true;
+  const success = safe.ok === true;
+  const attempted = safe.attempted === true;
+
+  if (!attempted) {
+    return '';
+  }
+
+  return [
+    success ? '💧 Daily liquidity pass completed' : '🚨 Daily liquidity pass failed',
+    `День: ${normalizeValue(safe.today) || 'unknown'}`,
+    `Статус: ${normalizeValue(safe.status) || (success ? 'success' : 'failed')}`,
+    `Кошелёк: ${shortenAddress(safe.wallet)}`,
+    rented
+      ? `Ресурсы: арендовал energy ${Number(plan.shortEnergy || 0)} и bandwidth ${Number(plan.shortBandwidth || 0)}`
+      : 'Ресурсы: дополнительная аренда не понадобилась',
+    Number(before.balanceSun || 0) > 0 || Number(after.balanceSun || 0) > 0
+      ? `TRX: было ${formatSunAsTrx(before.balanceSun)} -> стало ${formatSunAsTrx(after.balanceSun)}`
+      : '',
+    Number(before.availableEnergy || 0) > 0 || Number(after.availableEnergy || 0) > 0
+      ? `Energy: было ${Number(before.availableEnergy || 0)} -> стало ${Number(after.availableEnergy || 0)}`
+      : '',
+    Number(before.availableBandwidth || 0) > 0 || Number(after.availableBandwidth || 0) > 0
+      ? `Bandwidth: было ${Number(before.availableBandwidth || 0)} -> стало ${Number(after.availableBandwidth || 0)}`
+      : '',
+    normalizeValue(safe.txid) ? `TX: ${safe.txid}` : '',
+    normalizeValue(safe.tronscanUrl) ? `Tronscan: ${safe.tronscanUrl}` : '',
+    normalizeValue(safe.error) ? `Ошибка: ${normalizeValue(safe.error)}` : ''
+  ].filter(Boolean).join('\n');
+}
+
+function extractCommandArgs(text) {
+  const safe = normalizeValue(text);
+  const firstSpace = safe.indexOf(' ');
+  if (firstSpace < 0) {
+    return '';
+  }
+
+  return safe.slice(firstSpace + 1).trim();
+}
+
+function summaryStatusIcon(status) {
+  const safe = normalizeValue(status).toLowerCase();
+  if (safe === 'red') return '🔴';
+  if (safe === 'orange') return '🟠';
+  if (safe === 'yellow') return '🟡';
+  return '🟢';
+}
+
+function summaryGroupIcon(severity) {
+  const safe = normalizeValue(severity).toLowerCase();
+  if (safe === 'critical') return '🔴';
+  if (safe === 'attention') return '🟠';
+  if (safe === 'product') return '💬';
+  return '🟢';
+}
+
+function productNoteMeta(note) {
+  const noteType = normalizeValue(note?.note_type || note?.noteType).toLowerCase();
+  const priority = normalizeValue(note?.priority).toLowerCase();
+
+  const typeIconMap = {
+    change: '🛠️',
+    bug: '🐞',
+    ux: '🎯',
+    feature: '✨',
+    content: '📝',
+    infra: '🏗️',
+    voice_memo: '🎤'
+  };
+
+  const priorityIconMap = {
+    low: '⚪',
+    normal: '🟢',
+    high: '🟠',
+    critical: '🔴'
+  };
+
+  return {
+    typeLabel: noteType || 'change',
+    typeIcon: typeIconMap[noteType] || '📝',
+    priorityIcon: priorityIconMap[priority] || '🟢'
+  };
+}
+
+function taskStatusMeta(task) {
+  const status = normalizeValue(task?.status).toLowerCase();
+  const priority = normalizeValue(task?.priority).toLowerCase();
+  const type = normalizeValue(task?.task_type || task?.taskType).toLowerCase();
+  const statusIconMap = {
+    new: '🆕',
+    triaged: '🧭',
+    ready_for_codex: '🤖',
+    in_progress: '🛠️',
+    blocked: '⛔',
+    done: '✅',
+    archived: '🗃️'
+  };
+  const priorityIconMap = {
+    low: '⚪',
+    normal: '🟢',
+    high: '🟠',
+    critical: '🔴'
+  };
+
+  return {
+    status,
+    type: type || 'task',
+    statusIcon: statusIconMap[status] || '📝',
+    priorityIcon: priorityIconMap[priority] || '🟢'
+  };
 }
 
 function buildMenuMarkup(currentScreen) {
@@ -438,12 +834,23 @@ function buildMenuMarkup(currentScreen) {
   return {
     inline_keyboard: [
       [
-        { text: '🏠 Сводка', callback_data: `${CALLBACK_PREFIX}screen:overview` },
+        { text: '🧠 Summary', callback_data: `${CALLBACK_PREFIX}screen:summary` },
+        { text: '🏠 Ops', callback_data: `${CALLBACK_PREFIX}screen:overview` }
+      ],
+      [
         { text: '🧪 Скринер', callback_data: `${CALLBACK_PREFIX}screen:screen` }
       ],
       [
         { text: '🚨 События', callback_data: `${CALLBACK_PREFIX}screen:events` },
         { text: '💬 Feedback', callback_data: `${CALLBACK_PREFIX}screen:feedback` }
+      ],
+      [
+        { text: '🧾 Tasks', callback_data: `${CALLBACK_PREFIX}screen:tasks` },
+        { text: '📚 Knowledge', callback_data: `${CALLBACK_PREFIX}screen:knowledge` },
+        { text: '📝 План', callback_data: `${CALLBACK_PREFIX}screen:notes` }
+      ],
+      [
+        { text: '🤖 Jobs', callback_data: `${CALLBACK_PREFIX}screen:jobs` }
       ],
       [
         { text: '🩺 Здоровье', callback_data: `${CALLBACK_PREFIX}screen:health` },
@@ -462,18 +869,34 @@ function buildMenuMarkup(currentScreen) {
 async function collectOverviewData() {
   const { hasEnoughAirdropResources } = getAirdropService();
   const { hasEnoughAmbassadorAllocationResources } = getAmbassadorService();
-  const { getGasStationRuntimeState, getGasStationCredentialRuntimeState } = getGasStationService();
-  const { getProxyKeyPoolRuntimeState } = getProxyService();
+  const gasStationService = getGasStationService();
+  const proxyService = getProxyService();
   const { getSyntheticScreenerSnapshot } = getScreenerService();
+  const getGasStationRuntimeState = gasStationService.getGasStationRuntimeState;
+  const getGasStationCredentialRuntimeState =
+    typeof gasStationService.getGasStationCredentialRuntimeState === 'function'
+      ? gasStationService.getGasStationCredentialRuntimeState
+      : async () => ({ credentials: [] });
+  const getProxyKeyPoolRuntimeState =
+    typeof proxyService.getProxyKeyPoolRuntimeState === 'function'
+      ? proxyService.getProxyKeyPoolRuntimeState
+      : () => ({
+          trongrid: { available: 0, total: 0, coolingDown: 0 },
+          tronscan: { available: 0, total: 0, coolingDown: 0 },
+          cmc: { available: 0, total: 0, coolingDown: 0 }
+        });
 
-  const [dbOk, clockState, airdropState, ambassadorState, gasState, events, screeners] = await Promise.all([
+  const [dbOk, clockState, airdropState, ambassadorState, gasState, events, screeners, recentEvents, notes, tasks] = await Promise.all([
     pool.query('SELECT 1').then(() => true).catch(() => false),
     getRuntimeState('clock.heartbeat').catch(() => null),
     hasEnoughAirdropResources().catch(() => null),
     hasEnoughAmbassadorAllocationResources().catch(() => null),
     getGasStationRuntimeState().catch(() => null),
     listRecentEvents(6, { onlyOpen: true }).catch(() => []),
-    getSyntheticScreenerSnapshot().catch(() => null)
+    getSyntheticScreenerSnapshot().catch(() => null),
+    listRecentEvents(20, { onlyOpen: false }).catch(() => []),
+    listProductNotes(8, { onlyOpen: true }).catch(() => []),
+    listTasks(8, { includeDone: false }).catch(() => [])
   ]);
 
   return {
@@ -483,6 +906,14 @@ async function collectOverviewData() {
     ambassadorState,
     gasState,
     events,
+    recentEvents,
+    feedback: recentEvents.filter(
+      (event) =>
+        normalizeValue(event?.source) === 'app-feedback' &&
+        normalizeValue(event?.category) === 'feedback'
+    ),
+    notes,
+    tasks,
     screeners,
     keyPools: getProxyKeyPoolRuntimeState(),
     gasPool: getGasStationCredentialRuntimeState()
@@ -537,6 +968,69 @@ function buildRecommendationLines(data) {
   }
 
   return lines;
+}
+
+async function buildSummaryText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
+  const english = isEnglish(locale);
+  const data = await collectOverviewData();
+  const digest = await generateOpsDigest(
+    {
+      health: {
+        dbOk: data.dbOk,
+        airdropHasEnough: data.airdropState?.hasEnough !== false,
+        ambassadorHasEnough: data.ambassadorState?.hasEnough !== false,
+        clockStatus: data.clockState?.value_json?.status || 'unknown'
+      },
+      events: data.events,
+      feedback: data.feedback,
+      notes: data.notes,
+      screeners: data.screeners
+    },
+    {
+      force: options.force === true,
+      locale
+    }
+  );
+
+  if (normalizeValue(digest?.mode) === 'fallback' && normalizeValue(digest?.fallbackReason) && options.force) {
+    await recordBotEvent({
+      category: 'openai',
+      type: 'summary_fallback',
+      severity: 'warning',
+      title: 'AI summary fell back to deterministic mode',
+      message: normalizeValue(digest.fallbackReason),
+      fingerprint: `ops-bot:summary_fallback:${normalizeValue(digest.fallbackReason)}`
+    });
+  }
+
+  const groups = Array.isArray(digest?.groups) ? digest.groups : [];
+  const actions = Array.isArray(digest?.actions) ? digest.actions : [];
+
+  return [
+    buildHeader(
+      english ? '🧠 AI Summary' : '🧠 AI Summary',
+      english
+        ? 'Short executive view first, noisy raw signals second.'
+        : 'Короткая сводка вместо россыпи сигналов. Сначала суть, потом уже детали.'
+    ),
+    `${summaryStatusIcon(digest?.overallStatus)} ${normalizeValue(digest?.headline) || (english ? 'No summary yet.' : 'Пока без вывода.')}`,
+    `${english ? 'Mode' : 'Режим'}: ${normalizeValue(digest?.mode) === 'openai' ? (english ? 'GPT analysis' : 'GPT-анализ') : (english ? 'reliable fallback' : 'надёжный fallback')} • ${english ? 'updated' : 'обновлено'} ${formatRelativeMinutes(digest?.generatedAt)}`,
+    '',
+    ...groups.map((group) => {
+      const items = Array.isArray(group?.items) ? group.items.filter(Boolean) : [];
+      return [
+        `${summaryGroupIcon(group?.severity)} ${normalizeValue(group?.title) || (english ? 'Group' : 'Группа')}`,
+        normalizeValue(group?.summary) || (english ? 'No details.' : 'Без деталей.'),
+        ...(items.length ? items.map((item) => `• ${item}`) : [])
+      ].join('\n');
+    }),
+    '',
+    english ? 'What to do next:' : 'Что делать дальше:',
+    ...(actions.length
+      ? actions.map((item, index) => `${index + 1}. ${item}`)
+      : [english ? '1. Open the relevant section below for details.' : '1. Откройте детали по нужному разделу ниже.'])
+  ].join('\n');
 }
 
 async function buildOverviewText() {
@@ -625,6 +1119,9 @@ async function buildHealthText() {
   const clockPayload = data.clockState?.value_json || {};
   const operator = data.gasState?.operator || null;
   const gasStation = data.gasState?.gasStation || null;
+  const gasStationEnabled = Boolean(data.gasState?.enabled);
+  const gasStationWarn = gasStationEnabled && !gasStation;
+  const gasStationError = shortenText(data.gasState?.gasStationError, 140);
 
   return [
     buildHeader('🩺 Здоровье системы', 'Не технично, а по сути: где спокойно, а где уже больно.'),
@@ -638,15 +1135,15 @@ async function buildHealthText() {
     `${statusIcon(data.ambassadorState?.hasEnough === true, data.ambassadorState?.hasEnough === false)} Operator wallet ${shortenAddress(
       data.ambassadorState?.walletAddress
     )}: energy ${Number(data.ambassadorState?.energyAvailable || 0)}, bandwidth ${Number(data.ambassadorState?.bandwidthAvailable || 0)}`,
-    `${statusIcon(Boolean(data.gasState?.enabled), !data.gasState?.enabled)} GasStation: ${
-      data.gasState?.enabled ? 'включён' : 'выключен'
+    `${statusIcon(gasStationEnabled && !gasStationWarn, gasStationWarn || !gasStationEnabled)} GasStation: ${
+      gasStationEnabled ? (gasStationWarn ? 'включён, но баланс сейчас не дочитался' : 'включён') : 'выключен'
     }`,
     operator
       ? `💰 Operator TRX: ${operator.balanceTrx} TRX`
       : '💰 Operator TRX: не удалось прочитать',
     gasStation
       ? `🏦 Баланс GasStation: ${gasStation.balanceTrx} TRX на аккаунте ${normalizeValue(gasStation.account) || '—'}`
-      : '🏦 Баланс GasStation: не удалось прочитать',
+      : `🏦 Баланс GasStation: не удалось прочитать${gasStationError ? ` (${gasStationError})` : ''}`,
     '',
     'Подсказка:',
     ...buildRecommendationLines(data)
@@ -757,6 +1254,152 @@ async function buildFeedbackText() {
   ].join('\n');
 }
 
+async function buildNotesText() {
+  const notes = await listProductNotes(8, { onlyOpen: true }).catch(() => []);
+
+  if (!notes.length) {
+    return [
+      buildHeader('📝 План следующей версии', 'Сюда я складываю ваши идеи, фиксы и голосовые заметки.'),
+      'Пока пусто.',
+      '',
+      'Как быстро добавить:',
+      '1. Напишите /note и дальше текстом мысль.',
+      '2. Или пришлите голосовое в личку owner-чата, я превращу его в backlog item.'
+    ].join('\n');
+  }
+
+  return [
+    buildHeader('📝 План следующей версии', 'Это ваш живой backlog: что менять дальше, а не просто шум в чате.'),
+    `Открытых заметок: ${notes.length}`,
+    '',
+    ...notes.map((note) => {
+      const meta = productNoteMeta(note);
+      return [
+        `${meta.typeIcon} ${meta.priorityIcon} ${normalizeValue(note?.title) || 'Без названия'}`,
+        `Тип: ${meta.typeLabel} • статус: ${normalizeValue(note?.status) || 'open'} • обновлено ${formatRelativeMinutes(note?.updated_at)}`,
+        shortenText(note?.body, 220)
+      ].join('\n');
+    }),
+    '',
+    'Подсказка:',
+    'Если мысль прилетела голосом, просто отправьте её сюда. Я распознаю текст и сохраню как заметку.'
+  ].join('\n');
+}
+
+async function buildTasksText() {
+  const tasks = await listTasks(10, {
+    includeDone: false
+  }).catch(() => []);
+
+  if (!tasks.length) {
+    return [
+      buildHeader('🧾 Рабочие задачи', 'Здесь живут уже не мысли, а нормальные тикеты для движения вперёд.'),
+      'Сейчас открытых задач нет.',
+      '',
+      'Как они появляются:',
+      '1. Из ваших заметок и голосовых сообщений.',
+      '2. Из инцидентов, которые вы руками помечаете в личке.',
+      '3. Позже сюда можно будет слать и auto-task из feedback/monitor.'
+    ].join('\n');
+  }
+
+  return [
+    buildHeader('🧾 Рабочие задачи', 'Это уже operational/task board, а не просто backlog мыслей.'),
+    `Открытых задач: ${tasks.length}`,
+    '',
+    ...tasks.map((task) => {
+      const meta = taskStatusMeta(task);
+      return [
+        `${meta.statusIcon} ${meta.priorityIcon} #${task.id} ${normalizeValue(task?.title) || 'Без названия'}`,
+        `Статус: ${meta.status} • тип: ${meta.type} • обновлено ${formatRelativeMinutes(task?.updated_at)}`,
+        shortenText(task?.body, 220)
+      ].join('\n');
+    }),
+    '',
+    'Быстрые действия:',
+    '1. /take 123 — взять задачу в работу.',
+    '2. /done 123 — закрыть задачу.',
+    '3. /block 123 причина — пометить блокер.',
+    '4. /todo 123 — вернуть задачу в очередь для Codex.',
+    '5. /codex 123 — запустить Codex job по задаче.'
+  ].join('\n');
+}
+
+async function buildJobsText() {
+  const jobs = await listCodexJobs(8).catch(() => []);
+
+  if (!jobs.length) {
+    return [
+      buildHeader('🤖 Codex Jobs', 'Здесь видно, что уже гонялось через codex-слой.'),
+      'Пока ни одного job не запускали.',
+      '',
+      'Старт: /codex 12'
+    ].join('\n');
+  }
+
+  return [
+    buildHeader('🤖 Codex Jobs', 'Это не просто задача, а конкретный прогон codex-анализа по репо-контексту.'),
+    ...jobs.map((job) => {
+      const status = normalizeValue(job?.status) || 'unknown';
+      const icon =
+        status === 'done' ? '✅' :
+        status === 'blocked' ? '⛔' :
+        status === 'failed' ? '🔴' :
+        status === 'running' ? '🛠️' : '🕓';
+
+      return [
+        `${icon} Job #${job.id} -> Task #${Number(job.task_id || 0)}`,
+        `Статус: ${status} • модель: ${normalizeValue(job.model) || '—'} • обновлено ${formatRelativeMinutes(job.updated_at)}`,
+        normalizeValue(job.error_message)
+          ? `Ошибка: ${shortenText(job.error_message, 180)}`
+          : shortenText(job.response_text, 200) || 'Пока без текста результата.'
+      ].join('\n');
+    })
+  ].join('\n');
+}
+
+async function buildKnowledgeText() {
+  const status = await getKnowledgeBaseStatus().catch(() => null);
+
+  if (!status?.configured) {
+    return [
+      buildHeader('📚 Память бота', 'Это база знаний по проекту: доки, backlog и карта репо.'),
+      '⚪ OpenAI-слой для knowledge base пока не настроен.',
+      '',
+      'Когда он включён, бот может лучше отвечать на вопросы вроде:',
+      '1. Где это живёт в коде?',
+      '2. Что уже планировали на следующий релиз?',
+      '3. Какие экраны и маршруты связаны с проблемой?'
+    ].join('\n');
+  }
+
+  const includedFiles = Array.isArray(status?.includedFiles) ? status.includedFiles : [];
+  const summary = status?.summary || {};
+  const ready = normalizeValue(status?.fileStatus).toLowerCase() === 'completed';
+
+  return [
+    buildHeader('📚 Память бота', 'Здесь видно, что именно бот помнит о проекте помимо live-алертов.'),
+    `${ready ? '🟢' : '🟠'} Состояние индекса: ${normalizeValue(status?.fileStatus) || 'ещё не синхронизирован'}`,
+    `🗂️ Vector store: ${shortenId(status?.vectorStoreId)}`,
+    `🕒 Последняя синхронизация: ${status?.lastSyncedAt ? formatRelativeMinutes(status.lastSyncedAt) : 'ещё не было'}`,
+    `📄 Последний файл: ${normalizeValue(status?.lastFilename) || 'ещё не загружался'}`,
+    '',
+    'Что внутри сейчас:',
+    `1. Product notes: ${Number(summary.productNotes || 0)}`,
+    `2. Markdown docs: ${Number(summary.docs || 0)}`,
+    `3. Mobile screens: ${Number(summary.mobileScreens || 0)}`,
+    `4. API routes: ${Number(summary.apiRoutes || 0)}`,
+    `5. Ops services: ${Number(summary.opsServices || 0)}`,
+    `6. Tasks: ${Number(summary.tasks || 0)}`,
+    '',
+    includedFiles.length
+      ? `Последние включённые docs: ${includedFiles.slice(0, 4).map((item) => '/' + item).join(', ')}`
+      : 'Документных источников пока не зафиксировано в состоянии синка.',
+    '',
+    'Это не заменяет live-данные, а помогает боту помнить контекст проекта и релизов.'
+  ].join('\n');
+}
+
 async function buildQueuesText() {
   const { clockState, events } = await collectOverviewData();
 
@@ -798,11 +1441,16 @@ async function buildTargetsText() {
   ].join('\n');
 }
 
-async function buildScreenText(screen) {
+async function buildScreenText(screen, options = {}) {
+  if (screen === 'summary') return buildSummaryText(options);
   if (screen === 'screen') return buildScreenerText();
   if (screen === 'health') return buildHealthText();
   if (screen === 'events') return buildEventsText();
   if (screen === 'feedback') return buildFeedbackText();
+  if (screen === 'knowledge') return buildKnowledgeText();
+  if (screen === 'jobs') return buildJobsText();
+  if (screen === 'notes') return buildNotesText();
+  if (screen === 'tasks') return buildTasksText();
   if (screen === 'keys') return buildKeysText();
   if (screen === 'queues') return buildQueuesText();
   if (screen === 'targets') return buildTargetsText();
@@ -882,9 +1530,32 @@ async function reply(chatId, text) {
   await sendTelegramMessage(chatId, text);
 }
 
+async function sendProgressMessage(chatId, text) {
+  return sendTelegramMessage(chatId, text);
+}
+
+async function finalizeProgressMessage(progressMessage, text) {
+  const chatId = normalizeValue(progressMessage?.chat?.id);
+  const messageId = progressMessage?.message_id;
+
+  if (!chatId || !messageId) {
+    if (!chatId) {
+      return null;
+    }
+
+    return sendTelegramMessage(chatId, text);
+  }
+
+  try {
+    return await editTelegramMessage(chatId, messageId, text);
+  } catch (_) {
+    return sendTelegramMessage(chatId, text);
+  }
+}
+
 async function sendScreen(chatId, screen, options = {}) {
   const safeScreen = SUPPORTED_SCREENS.has(screen) ? screen : DEFAULT_SCREEN;
-  const text = await buildScreenText(safeScreen);
+  const text = await buildScreenText(safeScreen, options);
   const replyMarkup = buildMenuMarkup(safeScreen);
 
   if (options.editMessageId) {
@@ -914,9 +1585,644 @@ function resolveCommandFromText(text) {
   return normalizeCommand(text);
 }
 
+async function storeOwnerProductNote(rawText, options = {}) {
+  const structured = await structureProductNote(rawText);
+  const note = await createProductNote({
+    source: normalizeValue(options?.source) || 'telegram',
+    noteType: structured.noteType,
+    priority: structured.priority,
+    status: 'open',
+    title: structured.title,
+    body: structured.body,
+    transcriptText: normalizeValue(options?.transcriptText) || null,
+    targetRelease: structured.targetRelease,
+    createdByChatId: options?.chatId,
+    details: {
+      mode: structured.mode || 'fallback',
+      rawText: normalizeValue(rawText),
+      telegramMessageId: options?.messageId || null,
+      filePath: normalizeValue(options?.filePath) || null
+    }
+  });
+
+  return {
+    note,
+    structured
+  };
+}
+
+function parseTaskCommandArgs(rawArgs) {
+  const safe = normalizeValue(rawArgs);
+  if (!safe) {
+    return {
+      taskId: 0,
+      body: ''
+    };
+  }
+
+  const [rawId, ...rest] = safe.split(/\s+/);
+  return {
+    taskId: Number(rawId || 0),
+    body: rest.join(' ').trim()
+  };
+}
+
+function extractTaskIdFromNaturalText(text) {
+  const safe = normalizeValue(text);
+  const match = safe.match(/(?:зада\w*|task|#)\s*#?\s*(\d+)|#(\d+)\b|\b(\d{1,6})\b/i);
+  const rawId = match?.[1] || match?.[2] || match?.[3] || '';
+  const taskId = Number(rawId || 0);
+  return Number.isFinite(taskId) && taskId > 0 ? taskId : 0;
+}
+
+function detectTaskPrefilter(text) {
+  const safe = normalizeValue(text);
+  const lower = safe.toLowerCase();
+  const taskId = extractTaskIdFromNaturalText(safe);
+
+  if (!taskId) {
+    return null;
+  }
+
+  const patterns = [
+    {
+      status: 'archived',
+      usageText: 'Пример: /archive 12',
+      commandBody: '',
+      matches: /\b(delete|remove|archive|удали|удалить|архив|архивируй|скрой)\b/i
+    },
+    {
+      status: 'done',
+      usageText: 'Пример: /done 12',
+      commandBody: '',
+      matches: /\b(done|finish|finished|close|complete|закрой|закрыть|заверши|заверши|готово)\b/i
+    },
+    {
+      status: 'in_progress',
+      usageText: 'Пример: /take 12',
+      commandBody: '',
+      matches: /\b(take|start|work on|begin|возьми|в работу|начни)\b/i
+    },
+    {
+      status: 'ready_for_codex',
+      usageText: 'Пример: /todo 12',
+      commandBody: '',
+      matches: /\b(todo|queue|back to queue|return|верни|в очередь|назад в кодекс)\b/i
+    },
+    {
+      status: 'blocked',
+      usageText: 'Пример: /block 12 жду новый API key',
+      commandBody: lower,
+      matches: /\b(block|blocked|hold|stuck|блокер|заблокируй|зависло|стоп)\b/i
+    }
+  ];
+
+  const matched = patterns.find((item) => item.matches.test(lower));
+  if (!matched) {
+    return null;
+  }
+
+  const cleanedBody =
+    matched.status === 'blocked'
+      ? safe
+          .replace(matched.matches, ' ')
+          .replace(/(?:зада\w*|task|#)\s*#?\s*\d+/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+      : matched.commandBody;
+
+  return {
+    taskId,
+    status: matched.status,
+    usageText: matched.usageText,
+    body: cleanedBody
+  };
+}
+
+async function updateTaskFromOwnerCommand(message, status, options = {}) {
+  const chatId = normalizeValue(message?.chat?.id);
+  const ownerOnly = await isOwnerMessage(message);
+  const isPrivate = normalizeValue(message?.chat?.type) === 'private';
+
+  if (!ownerOnly || !isPrivate) {
+    await reply(chatId, '⛔ Менять статус задач я даю только owner-аккаунту в личке.');
+    return { ok: false, unauthorized: true };
+  }
+
+  const args = parseTaskCommandArgs(extractCommandArgs(message?.text));
+  if (!Number.isFinite(args.taskId) || args.taskId <= 0) {
+    await reply(chatId, options.usageText || 'Укажите id задачи после команды. Например: /done 12');
+    return { ok: true, promptShown: true };
+  }
+
+  const task = await getTaskById(args.taskId);
+  if (!task) {
+    await reply(chatId, `⚠️ Задача #${args.taskId} не найдена.`);
+    return { ok: false, notFound: true };
+  }
+
+  const updated = await updateTaskStatus(args.taskId, status, {
+    body: args.body || null,
+    details: {
+      via: 'telegram',
+      actorChatId: chatId,
+      telegramMessageId: message?.message_id || null
+    }
+  });
+
+  if (!updated) {
+    await reply(chatId, `⚠️ Не получилось обновить задачу #${args.taskId}.`);
+    return { ok: false };
+  }
+
+  const meta = taskStatusMeta(updated);
+  await reply(
+    chatId,
+    [
+      `${meta.statusIcon} Обновил задачу #${updated.id}`,
+      `Новый статус: ${meta.status}`,
+      `${meta.priorityIcon} ${normalizeValue(updated.title) || 'Без названия'}`,
+      args.body ? `Комментарий: ${args.body}` : ''
+    ].filter(Boolean).join('\n')
+  );
+
+  return {
+    ok: true,
+    updated: true,
+    taskId: updated.id
+  };
+}
+
+async function handleOwnerPrefilter(message) {
+  const chatId = normalizeValue(message?.chat?.id);
+  const rawText = normalizeValue(message?.text);
+  const ownerOnly = await isOwnerMessage(message);
+  const isPrivate = normalizeValue(message?.chat?.type) === 'private';
+
+  if (!ownerOnly || !isPrivate || !rawText) {
+    return {
+      matched: false
+    };
+  }
+
+  const localeRequest = detectLocaleRequest(rawText);
+  if (localeRequest) {
+    const nextLocale = await setChatLocale(chatId, localeRequest);
+    await reply(
+      chatId,
+      nextLocale === 'en'
+        ? '🇬🇧 I got it. I will answer in English now.'
+        : '🇷🇺 Принял. Дальше отвечаю по-русски.'
+    );
+
+    return {
+      matched: true,
+      result: {
+        ok: true,
+        localeChanged: true,
+        locale: nextLocale
+      }
+    };
+  }
+
+  const taskAction = detectTaskPrefilter(rawText);
+  if (taskAction) {
+    const syntheticMessage = {
+      ...message,
+      text: `/prefilter ${taskAction.taskId}${taskAction.body ? ` ${taskAction.body}` : ''}`
+    };
+
+    const result = await updateTaskFromOwnerCommand(syntheticMessage, taskAction.status, {
+      usageText: taskAction.usageText
+    });
+
+    return {
+      matched: true,
+      result
+    };
+  }
+
+  return {
+    matched: false
+  };
+}
+
+async function runCodexTaskFromOwner(message) {
+  const chatId = normalizeValue(message?.chat?.id);
+  const ownerOnly = await isOwnerMessage(message);
+  const isPrivate = normalizeValue(message?.chat?.type) === 'private';
+
+  if (!ownerOnly || !isPrivate) {
+    await reply(chatId, '⛔ Запускать Codex jobs я даю только owner-аккаунту в личке.');
+    return { ok: false, unauthorized: true };
+  }
+
+  const args = parseTaskCommandArgs(extractCommandArgs(message?.text));
+  if (!Number.isFinite(args.taskId) || args.taskId <= 0) {
+    await reply(chatId, 'Пример: /codex 12');
+    return { ok: true, promptShown: true };
+  }
+
+  const task = await getTaskById(args.taskId);
+  if (!task) {
+    await reply(chatId, `⚠️ Задача #${args.taskId} не найдена.`);
+    return { ok: false, notFound: true };
+  }
+
+  const progressMessage = await sendProgressMessage(
+    chatId,
+    `🤖 Запускаю Codex job по задаче #${args.taskId}. Смотрю на task, knowledge base и repo-контекст без выдумок...`
+  );
+
+  try {
+    const result = await runCodexJobForTask(args.taskId, {
+      source: 'telegram',
+      createdByChatId: chatId
+    });
+    const taskStatus = normalizeValue(result?.task?.status) || 'unknown';
+
+    await finalizeProgressMessage(
+      progressMessage,
+      [
+        `🤖 Codex job завершён для задачи #${args.taskId}`,
+        `Job: #${Number(result?.job?.id || 0)} • итоговый статус задачи: ${taskStatus}`,
+        '',
+        normalizeValue(result?.result?.summary) || 'Без summary.',
+        '',
+        Array.isArray(result?.result?.proposedFiles) && result.result.proposedFiles.length
+          ? `Файлы:\n${result.result.proposedFiles.map((item) => `- ${normalizeValue(item)}`).join('\n')}`
+          : '',
+        Array.isArray(result?.result?.implementationSteps) && result.result.implementationSteps.length
+          ? `Шаги:\n${result.result.implementationSteps.map((item, index) => `${index + 1}. ${normalizeValue(item)}`).join('\n')}`
+          : '',
+        normalizeValue(result?.result?.blockerReason) ? `Блокер: ${normalizeValue(result.result.blockerReason)}` : ''
+      ].filter(Boolean).join('\n')
+    );
+
+    return {
+      ok: true,
+      ran: true,
+      taskId: args.taskId,
+      jobId: result?.job?.id || null
+    };
+  } catch (error) {
+    await finalizeProgressMessage(
+      progressMessage,
+      `⚠️ Codex job по задаче #${args.taskId} не завершился: ${normalizeValue(error.message) || 'unknown error'}`
+    );
+    return { ok: false, error: error.message };
+  }
+}
+
+async function answerOwnerQuestion(message, question) {
+  const chatId = normalizeValue(message?.chat?.id);
+  const ownerOnly = await isOwnerMessage(message);
+  const isPrivate = normalizeValue(message?.chat?.type) === 'private';
+  const safeQuestion = normalizeValue(question);
+  const locale = await getChatLocale(chatId);
+  const english = isEnglish(locale);
+
+  if (!ownerOnly || !isPrivate) {
+    await reply(
+      chatId,
+      english
+        ? '⛔ I only answer internal AI questions from the owner in the private chat.'
+        : '⛔ Вопросы к AI по внутреннему состоянию приложения я принимаю только от owner-а в личном чате.'
+    );
+    return {
+      ok: false,
+      unauthorized: true
+    };
+  }
+
+  if (!safeQuestion) {
+    await reply(
+      chatId,
+      english
+        ? '🤖 After /ask just send your question.\n\nExample:\n/ask what is actually hurting the app right now?\n\nYou can also just send that as a normal message.'
+        : '🤖 После /ask просто напишите вопрос.\n\nПример:\n/ask что сейчас реально болит у приложения?\n\nИли можно просто прислать такой вопрос обычным сообщением.'
+    );
+    return {
+      ok: true,
+      promptShown: true
+    };
+  }
+
+  const progressMessage = await sendProgressMessage(
+    chatId,
+    english
+      ? '🤖 Looking through live data and project memory, pulling together a short answer...'
+      : '🤖 Смотрю на живые данные и память по проекту, собираю короткий ответ...'
+  );
+
+  try {
+    const data = await collectOverviewData();
+    const answer = await answerOpsQuestion(
+      safeQuestion,
+      {
+        health: {
+          dbOk: data.dbOk,
+          clockStatus: data.clockState?.value_json?.status || 'unknown'
+        },
+        keyPools: data.keyPools,
+        gasState: data.gasState,
+        airdropState: data.airdropState,
+        ambassadorState: data.ambassadorState,
+        events: data.events,
+        feedback: data.feedback,
+        notes: data.notes,
+        tasks: data.tasks,
+        screeners: data.screeners
+      },
+      {
+        locale
+      }
+    );
+
+    if (normalizeValue(answer?.mode) === 'fallback' && normalizeValue(answer?.fallbackReason)) {
+      await recordBotEvent({
+        category: 'openai',
+        type: 'question_fallback',
+        severity: 'warning',
+        title: 'AI answer fell back to deterministic mode',
+        message: normalizeValue(answer.fallbackReason),
+        fingerprint: `ops-bot:question_fallback:${normalizeValue(answer.fallbackReason)}`
+      });
+    }
+
+    await finalizeProgressMessage(
+      progressMessage,
+      [
+        english ? '🤖 Answered it as a question' : '🤖 Ответил как на вопрос',
+        `${english ? 'Request' : 'Запрос'}: ${shortenText(safeQuestion, 120)}`,
+        '',
+        normalizeValue(answer?.answer) || (english ? 'I could not build the answer yet.' : 'Пока не получилось собрать ответ.'),
+        '',
+        `${english ? 'Mode' : 'Режим'}: ${normalizeValue(answer?.mode) === 'openai' ? (english ? 'GPT analysis' : 'GPT-анализ') : (english ? 'reliable fallback' : 'надёжный fallback')}`
+      ].join('\n')
+    );
+
+    return {
+      ok: true,
+      answered: true,
+      mode: answer?.mode || 'fallback'
+    };
+  } catch (error) {
+    await recordBotEvent({
+      category: 'openai',
+      type: 'question_failed',
+      severity: 'error',
+      title: 'AI question could not be answered',
+      message: error.message,
+      fingerprint: `ops-bot:question_failed:${normalizeValue(message?.from?.id) || 'unknown'}`,
+      details: {
+        chatId,
+        telegramMessageId: message?.message_id || null,
+        question: shortenText(safeQuestion, 300)
+      }
+    });
+    await finalizeProgressMessage(
+      progressMessage,
+      english
+        ? '⚠️ I could not build the answer right now. Please try again in a minute.'
+        : '⚠️ Сейчас не получилось собрать ответ. Попробуйте ещё раз через минуту.'
+    );
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+}
+
+async function handleOwnerInboxText(message) {
+  const chatId = normalizeValue(message?.chat?.id);
+  const ownerOnly = await isOwnerMessage(message);
+  const isPrivate = normalizeValue(message?.chat?.type) === 'private';
+  const rawText = normalizeValue(message?.text);
+
+  if (!ownerOnly || !isPrivate || !rawText) {
+    return {
+      ok: false,
+      ignored: true
+    };
+  }
+
+  const data = await collectOverviewData();
+  const route = await routeOwnerMessage(rawText, {
+    health: {
+      dbOk: data.dbOk,
+      clockStatus: data.clockState?.value_json?.status || 'unknown'
+    },
+    keyPools: data.keyPools,
+    gasState: data.gasState,
+    airdropState: data.airdropState,
+    ambassadorState: data.ambassadorState,
+    events: data.events,
+    feedback: data.feedback,
+    notes: data.notes,
+    tasks: data.tasks,
+    screeners: data.screeners
+  });
+
+  if (normalizeValue(route?.mode) === 'fallback' && normalizeValue(route?.fallbackReason)) {
+    await recordBotEvent({
+      category: 'openai',
+      type: 'router_fallback',
+      severity: 'warning',
+      title: 'Owner inbox router fell back to heuristics',
+      message: normalizeValue(route.fallbackReason),
+      fingerprint: `ops-bot:router_fallback:${normalizeValue(route.fallbackReason)}`
+    });
+  }
+
+  if (normalizeValue(route?.intent) === 'product_note') {
+    const stored = await storeOwnerProductNote(rawText, {
+      source: 'telegram-inbox',
+      chatId,
+      messageId: message?.message_id
+    });
+    const taskResult = await createTaskFromProductNote(stored.note, {
+      source: 'telegram-inbox',
+      createdByChatId: chatId
+    }).catch(() => null);
+
+    await reply(
+      chatId,
+      [
+        '📝 Сохранил в план следующей версии',
+        route?.answerText || 'Вижу это как задачу на релиз, а не как просто сообщение в чат.',
+        `Заголовок: ${normalizeValue(stored.note?.title) || normalizeValue(stored.structured?.title)}`,
+        `Тип: ${normalizeValue(stored.note?.note_type || stored.structured?.noteType)} • приоритет: ${normalizeValue(stored.note?.priority || stored.structured?.priority)}`,
+        taskResult?.task?.id ? `Task: #${taskResult.task.id} • статус ${normalizeValue(taskResult.task.status)}` : '',
+        '',
+        'Если хотите, потом можно открыть /tasks и двигать это как обычную задачу.'
+      ].join('\n')
+    );
+
+    return {
+      ok: true,
+      routed: 'product_note'
+    };
+  }
+
+  if (normalizeValue(route?.intent) === 'incident_report') {
+    const title = normalizeValue(route?.title) || shortenText(rawText, 100) || 'Owner incident report';
+    const severity = normalizeValue(route?.severity) || 'warning';
+
+    const progressMessage = await sendProgressMessage(
+      chatId,
+      '🚨 Фиксирую это как сигнал о проблеме и быстро проверяю соседние данные...'
+    );
+
+    const eventResult = await recordBotEvent({
+      category: 'owner-input',
+      type: 'owner_flagged_issue',
+      severity,
+      title,
+      message: normalizeValue(route?.eventMessage) || rawText,
+      fingerprint: `ops-bot:owner_issue:${title.toLowerCase()}`,
+      details: {
+        chatId,
+        telegramMessageId: message?.message_id || null
+      }
+    });
+    const taskResult = await createTaskFromOpsEvent(eventResult?.event, {
+      source: 'owner-incident',
+      createdByChatId: chatId
+    }).catch(() => null);
+
+    const answer = await answerOpsQuestion(rawText, {
+      health: {
+        dbOk: data.dbOk,
+        clockStatus: data.clockState?.value_json?.status || 'unknown'
+      },
+      keyPools: data.keyPools,
+      gasState: data.gasState,
+      airdropState: data.airdropState,
+      ambassadorState: data.ambassadorState,
+      events: data.events,
+      feedback: data.feedback,
+      notes: data.notes,
+      tasks: data.tasks,
+      screeners: data.screeners
+    });
+
+    await finalizeProgressMessage(
+      progressMessage,
+      [
+        '🚨 Зафиксировал как инцидент',
+        route?.answerText || 'Вижу это как живую проблему, а не просто заметку на потом.',
+        taskResult?.task?.id ? `Task: #${taskResult.task.id} • статус ${normalizeValue(taskResult.task.status)}` : '',
+        '',
+        normalizeValue(answer?.answer) || 'Пока без деталей.',
+        '',
+        `Режим: ${normalizeValue(answer?.mode) === 'openai' ? 'GPT-анализ' : 'надёжный fallback'}`
+      ].join('\n')
+    );
+
+    return {
+      ok: true,
+      routed: 'incident_report'
+    };
+  }
+
+  return answerOwnerQuestion(message, rawText);
+}
+
+async function handleVoiceNote(message) {
+  const chatId = normalizeValue(message?.chat?.id);
+  const voice = message?.voice;
+
+  if (!chatId || !voice?.file_id) {
+    return {
+      ok: false,
+      ignored: true
+    };
+  }
+
+  const ownerOnly = await isOwnerMessage(message);
+  const isPrivate = normalizeValue(message?.chat?.type) === 'private';
+
+  if (!ownerOnly || !isPrivate) {
+    await reply(chatId, '🎤 Голосовые заметки в backlog я принимаю только от owner-а в личном чате.');
+    return {
+      ok: false,
+      unauthorized: true
+    };
+  }
+
+  const progressMessage = await sendProgressMessage(
+    chatId,
+    '🎤 Слушаю заметку, превращаю её в текст и складываю в план следующей версии...'
+  );
+
+  try {
+    const file = await downloadTelegramFileBuffer(voice.file_id);
+    const transcription = await transcribeAudioBuffer(file.buffer, {
+      fileName: file.filePath.split('/').pop() || 'voice-note.ogg',
+      mimeType: 'audio/ogg',
+      prompt: 'Founder product note for the next wallet release. Return clean Russian text.'
+    });
+    const stored = await storeOwnerProductNote(transcription.text, {
+      source: 'telegram-voice',
+      transcriptText: transcription.text,
+      chatId,
+      messageId: message?.message_id,
+      filePath: file.filePath
+    });
+    const taskResult = await createTaskFromProductNote(stored.note, {
+      source: 'telegram-voice',
+      createdByChatId: chatId
+    }).catch(() => null);
+
+    await finalizeProgressMessage(
+      progressMessage,
+      [
+        '🎤 Сохранил голосовую заметку в план',
+        `Заголовок: ${normalizeValue(stored.note?.title) || normalizeValue(stored.structured?.title)}`,
+        `Тип: ${normalizeValue(stored.note?.note_type || stored.structured?.noteType)} • приоритет: ${normalizeValue(stored.note?.priority || stored.structured?.priority)}`,
+        taskResult?.task?.id ? `Task: #${taskResult.task.id} • статус ${normalizeValue(taskResult.task.status)}` : '',
+        `Текст: ${shortenText(transcription.text, 260)}`,
+        '',
+        'Откройте /tasks, если хотите увидеть это как рабочую задачу.'
+      ].join('\n')
+    );
+
+    return {
+      ok: true,
+      stored: true,
+      noteId: stored.note?.id || null
+    };
+  } catch (error) {
+    await recordBotEvent({
+      category: 'openai',
+      type: 'voice_note_failed',
+      severity: 'error',
+      title: 'Voice note could not be processed',
+      message: error.message,
+      fingerprint: `ops-bot:voice_note_failed:${normalizeValue(message?.from?.id) || 'unknown'}`,
+      details: {
+        chatId,
+        telegramFileId: normalizeValue(voice.file_id),
+        telegramMessageId: message?.message_id || null
+      }
+    });
+
+    await finalizeProgressMessage(
+      progressMessage,
+      '⚠️ Голосовую заметку не получилось обработать. Попробуйте ещё раз или пришлите мысль текстом через /note.'
+    );
+    return {
+      ok: false,
+      error: error.message
+    };
+  }
+}
+
 async function handleCommand(message) {
   const chatId = normalizeValue(message?.chat?.id);
   const command = resolveCommandFromText(message?.text);
+  const rawText = normalizeValue(message?.text);
 
   if (!chatId) {
     return {
@@ -933,7 +2239,7 @@ async function handleCommand(message) {
       const claimed = await claimOwnerIfPossible(message);
 
       if (claimed.claimed) {
-        await sendScreen(chatId, 'overview');
+        await sendScreen(chatId, 'summary', { force: true });
 
         return { ok: true, claimedOwner: true };
       }
@@ -952,6 +2258,21 @@ async function handleCommand(message) {
     };
   }
 
+  if (command === '/clear' || isClearIntent(rawText)) {
+    const cleared = await clearTrackedBotMessages(chatId, {
+      deleteRequestMessageId: message?.message_id || null
+    });
+
+    await reply(
+      chatId,
+      [
+        '🧹 Почистил историю бота.',
+        `Удалил сообщений: ${Number(cleared.deleted || 0)} из ${Number(cleared.total || 0)}.`
+      ].join('\n')
+    );
+    return { ok: true, cleared: true };
+  }
+
   if (command === '/help') {
     await reply(
       chatId,
@@ -960,24 +2281,48 @@ async function handleCommand(message) {
         '',
         'Основное:',
         '/menu — открыть меню',
+        '/summary — короткая AI-сводка',
+        '/ask — задать вопрос по серверу, ключам, feedback и backlog',
         '/screen — проверить реальные app-flow',
         '/health — быстро понять, что болит',
         '/events — активные проблемы',
         '/feedback — отзывы из кошелька',
+        '/kb — память бота по проекту',
+        '/jobs — последние Codex jobs',
+        '/notes — backlog следующей версии',
+        '/tasks — рабочие задачи',
+        '/codex 12 — прогнать Codex по задаче',
+        '/note текст — добавить идею или правку в backlog',
+        '/take 12 — взять задачу в работу',
+        '/done 12 — закрыть задачу',
+        '/block 12 причина — пометить блокер',
+        '/todo 12 — вернуть задачу в очередь',
         '/keys — ключи и лимиты',
         '/queues — очереди и фоновые задачи',
         '/targets — куда бот пишет',
         '/allow_here — разрешить этот чат',
         '',
-        'Самый удобный путь: просто жмите кнопки в меню.'
+        'Бонус:',
+        '1. Голосовое в owner-личку я превращаю в заметку для следующей версии.',
+        '2. Любой обычный текст в owner-личке я сам пытаюсь понять: это вопрос, заметка в план или живой инцидент.'
       ].join('\n')
     );
     return { ok: true };
   }
 
   if (command === '/start' || command === '/menu') {
-    await sendScreen(chatId, 'overview');
+    await sendScreen(chatId, 'summary', { force: true });
     return { ok: true };
+  }
+
+  if (command === '/summary') {
+    await sendScreen(chatId, 'summary', { force: true });
+    return { ok: true };
+  }
+
+  if (command === '/ask') {
+    const args = extractCommandArgs(message?.text);
+    return answerOwnerQuestion(message, args);
   }
 
   if (command === '/health') {
@@ -1005,9 +2350,123 @@ async function handleCommand(message) {
     return { ok: true };
   }
 
+  if (command === '/kb') {
+    await sendScreen(chatId, 'knowledge');
+    return { ok: true };
+  }
+
+  if (command === '/notes') {
+    await sendScreen(chatId, 'notes');
+    return { ok: true };
+  }
+
+  if (command === '/tasks') {
+    await sendScreen(chatId, 'tasks');
+    return { ok: true };
+  }
+
+  if (command === '/jobs') {
+    await sendScreen(chatId, 'jobs');
+    return { ok: true };
+  }
+
+  if (command === '/codex') {
+    return runCodexTaskFromOwner(message);
+  }
+
+  if (command === '/note') {
+    const ownerOnly = await isOwnerMessage(message);
+    const args = extractCommandArgs(message?.text);
+
+    if (!ownerOnly) {
+      await reply(chatId, '⛔ Добавлять product-notes может только owner-аккаунт.');
+      return { ok: false };
+    }
+
+    if (!args) {
+      await reply(
+        chatId,
+        '📝 После /note просто напишите мысль текстом.\n\nПример:\n/note Сделать понятнее экран send и показать, почему не хватает energy.'
+      );
+      return { ok: true };
+    }
+
+      try {
+        const stored = await storeOwnerProductNote(args, {
+          source: 'telegram-text',
+          chatId,
+          messageId: message?.message_id
+        });
+        const taskResult = await createTaskFromProductNote(stored.note, {
+          source: 'telegram-text',
+          createdByChatId: chatId
+        }).catch(() => null);
+
+        await reply(
+          chatId,
+        [
+          '✅ Сохранил в backlog следующей версии.',
+          `Заголовок: ${normalizeValue(stored.note?.title) || normalizeValue(stored.structured?.title)}`,
+          `Тип: ${normalizeValue(stored.note?.note_type || stored.structured?.noteType)} • приоритет: ${normalizeValue(stored.note?.priority || stored.structured?.priority)}`,
+          `Суть: ${shortenText(stored.note?.body || stored.structured?.body, 220)}`,
+          taskResult?.task?.id ? `Task: #${taskResult.task.id} • статус ${normalizeValue(taskResult.task.status)}` : '',
+          '',
+          'Откройте /tasks, если хотите посмотреть список рабочих задач.'
+        ].join('\n')
+      );
+
+      return { ok: true, stored: true };
+    } catch (error) {
+      await recordBotEvent({
+        category: 'openai',
+        type: 'product_note_failed',
+        severity: 'error',
+        title: 'Product note could not be stored',
+        message: error.message,
+        fingerprint: `ops-bot:product_note_failed:${normalizeValue(message?.from?.id) || 'unknown'}`,
+        details: {
+          chatId,
+          telegramMessageId: message?.message_id || null
+        }
+      });
+      await reply(chatId, '⚠️ Не получилось сохранить заметку. Попробуйте ещё раз чуть позже.');
+      return { ok: false };
+    }
+  }
+
   if (command === '/queues') {
     await sendScreen(chatId, 'queues');
     return { ok: true };
+  }
+
+  if (command === '/take') {
+    return updateTaskFromOwnerCommand(message, 'in_progress', {
+      usageText: 'Пример: /take 12'
+    });
+  }
+
+  if (command === '/done') {
+    return updateTaskFromOwnerCommand(message, 'done', {
+      usageText: 'Пример: /done 12'
+    });
+  }
+
+  if (command === '/block') {
+    return updateTaskFromOwnerCommand(message, 'blocked', {
+      usageText: 'Пример: /block 12 жду новый API key'
+    });
+  }
+
+  if (command === '/todo') {
+    return updateTaskFromOwnerCommand(message, 'ready_for_codex', {
+      usageText: 'Пример: /todo 12'
+    });
+  }
+
+  if (command === '/archive') {
+    return updateTaskFromOwnerCommand(message, 'archived', {
+      usageText: 'Пример: /archive 12'
+    });
   }
 
   if (command === '/targets') {
@@ -1039,6 +2498,15 @@ async function handleCommand(message) {
       `✅ Чат добавлен для уведомлений.\n\nТеперь сюда можно слать алерты.\nМетка: ${normalizeValue(target?.label) || chatId}`
     );
     return { ok: true };
+  }
+
+  if (await isOwnerMessage(message) && normalizeValue(message?.chat?.type) === 'private' && !normalizeCommand(message?.text).startsWith('/')) {
+    const prefiltered = await handleOwnerPrefilter(message);
+    if (prefiltered.matched) {
+      return prefiltered.result;
+    }
+
+    return handleOwnerInboxText(message);
   }
 
   await reply(chatId, 'Не понял команду. Нажмите /menu, там удобнее.');
@@ -1098,7 +2566,8 @@ async function handleCallbackQuery(callbackQuery) {
   }
 
   await sendScreen(chatId, screen, {
-    editMessageId: messageId
+    editMessageId: messageId,
+    force: screen === 'summary'
   });
 
   return {
@@ -1115,6 +2584,10 @@ async function handleAdminTelegramWebhookUpdate(update) {
     return handleCallbackQuery(callbackQuery);
   }
 
+  if (message?.voice?.file_id) {
+    return handleVoiceNote(message);
+  }
+
   if (!message?.text) {
     return {
       ok: true,
@@ -1128,6 +2601,7 @@ async function handleAdminTelegramWebhookUpdate(update) {
 module.exports = {
   bootstrapAdminBotEnv,
   broadcastAdminMessage,
+  broadcastLiquidityDailyReport,
   ensureAdminTelegramWebhook,
   getExpectedWebhookUrl,
   handleAdminTelegramWebhookUpdate

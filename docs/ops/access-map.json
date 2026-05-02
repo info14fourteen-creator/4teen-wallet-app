@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-05-02T00:30:00Z",
+  "workspace": {
+    "path": "/Users/stanataev/4teen-wallet-app",
+    "branch": "main",
+    "commit": "1279df7"
+  },
+  "verifiedAccess": {
+    "originRead": true,
+    "herokuRemotePresent": true,
+    "herokuAppInfo": true,
+    "herokuConfigRead": true,
+    "herokuProcessRead": true,
+    "herokuDeployPathAvailable": true,
+    "originWriteVerified": false,
+    "crossRepoAccessVerified": false
+  },
+  "projects": [
+    {
+      "repoName": "4teen-wallet-app",
+      "localPath": "/Users/stanataev/4teen-wallet-app",
+      "originUrl": "https://github.com/info14fourteen-creator/4teen-wallet-app.git",
+      "defaultBranch": "main",
+      "herokuApp": "fourteen-wallet-api",
+      "herokuGitUrl": "https://git.heroku.com/fourteen-wallet-api.git",
+      "webUrl": "https://fourteen-wallet-api-7af291023d36.herokuapp.com/",
+      "region": "us",
+      "stack": "heroku-24",
+      "dynos": [
+        {
+          "name": "web",
+          "command": "pnpm --dir apps/api start",
+          "verifiedUp": true
+        },
+        {
+          "name": "clock",
+          "command": "node apps/api/clock.js",
+          "verifiedUp": true
+        }
+      ],
+      "docs": [
+        "/Users/stanataev/4teen-wallet-app/docs/ops/repo-map.md",
+        "/Users/stanataev/4teen-wallet-app/docs/ops/knowledge-base.md",
+        "/Users/stanataev/4teen-wallet-app/docs/ops/next-release-notes.md"
+      ]
+    }
+  ],
+  "minimumMissingForAutomation": [
+    "HEROKU_API_KEY",
+    "HEROKU_EMAIL",
+    "GitHub write access for target repos",
+    "Cross-project repo/app map",
+    "Branch policy for Codex changes",
+    "Production deploy policy"
+  ],
+  "recommendedRunnerFlow": [
+    "Read task from ops_tasks",
+    "Resolve target repo/app from access map",
+    "Create work branch or worktree",
+    "Apply code changes",
+    "Run verification",
+    "Deploy or open PR depending on policy",
+    "Write result back to Postgres"
+  ]
+}

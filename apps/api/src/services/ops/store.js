@@ -81,6 +81,93 @@ async function ensureOpsTables() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ops_product_notes (
+        id BIGSERIAL PRIMARY KEY,
+        source TEXT NOT NULL DEFAULT 'telegram',
+        note_type TEXT NOT NULL DEFAULT 'change',
+        status TEXT NOT NULL DEFAULT 'open',
+        priority TEXT NOT NULL DEFAULT 'normal',
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        transcript_text TEXT,
+        target_release TEXT,
+        created_by_chat_id TEXT,
+        details_json JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        resolved_at TIMESTAMPTZ
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_ops_product_notes_recent
+        ON ops_product_notes (updated_at DESC, id DESC)
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_ops_product_notes_open
+        ON ops_product_notes (status, resolved_at)
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ops_tasks (
+        id BIGSERIAL PRIMARY KEY,
+        source TEXT NOT NULL DEFAULT 'manual',
+        task_type TEXT NOT NULL DEFAULT 'task',
+        status TEXT NOT NULL DEFAULT 'new',
+        priority TEXT NOT NULL DEFAULT 'normal',
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        dedupe_key TEXT,
+        created_by_chat_id TEXT,
+        note_id BIGINT,
+        event_id BIGINT,
+        details_json JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        started_at TIMESTAMPTZ,
+        blocked_at TIMESTAMPTZ,
+        done_at TIMESTAMPTZ,
+        archived_at TIMESTAMPTZ
+      )
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_tasks_dedupe
+        ON ops_tasks (dedupe_key)
+        WHERE dedupe_key IS NOT NULL
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_ops_tasks_recent
+        ON ops_tasks (status, updated_at DESC, id DESC)
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ops_codex_jobs (
+        id BIGSERIAL PRIMARY KEY,
+        task_id BIGINT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'queued',
+        model TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'manual',
+        prompt_json JSONB,
+        response_text TEXT,
+        response_json JSONB,
+        error_message TEXT,
+        created_by_chat_id TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        started_at TIMESTAMPTZ,
+        finished_at TIMESTAMPTZ
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_ops_codex_jobs_recent
+        ON ops_codex_jobs (task_id, updated_at DESC, id DESC)
+    `);
   })().catch((error) => {
     ensureOpsTablesPromise = null;
     throw error;

@@ -9,7 +9,9 @@ const {
   enqueueAmbassadorReplayDrain,
   hasEnoughAmbassadorAllocationResources
 } = require('./src/services/ambassador/replayQueue');
+const { runLiquidityDaily } = require('./src/services/liquidity/execution');
 const { recordOpsEvent, resolveOpsEvent, writeOpsHeartbeat } = require('./src/services/ops/events');
+const { broadcastLiquidityDailyReport } = require('./src/services/ops/telegramAdminBot');
 
 const HOUR_MS = 60 * 60 * 1000;
 const START_DELAY_MS = 15 * 1000;
@@ -33,6 +35,15 @@ async function runTick(trigger) {
         error: error instanceof Error ? error.message : 'ambassador resource check failed'
       }));
     const ambassadorProcessed = await enqueueAmbassadorReplayDrain();
+    const liquidityDaily = await runLiquidityDaily({
+      now: new Date(),
+      trigger,
+    }).catch((error) => ({
+      attempted: true,
+      ok: false,
+      status: 'failed',
+      error: error instanceof Error ? error.message : 'liquidity daily failed'
+    }));
 
     await writeOpsHeartbeat('clock.heartbeat', {
       trigger,
@@ -42,7 +53,8 @@ async function runTick(trigger) {
       webhook,
       resourceState,
       ambassadorProcessed,
-      ambassadorResourceState
+      ambassadorResourceState,
+      liquidityDaily
     }).catch(() => null);
 
     if (webhook?.ok === false) {
@@ -108,6 +120,54 @@ async function runTick(trigger) {
       }).catch(() => null);
     }
 
+    if (liquidityDaily?.attempted && liquidityDaily?.ok === false) {
+      await recordOpsEvent({
+        source: 'clock',
+        category: 'liquidity',
+        type: 'liquidity_daily_failed',
+        severity: 'error',
+        title: 'Liquidity daily pass failed',
+        message: liquidityDaily.error || 'Liquidity daily execution failed.',
+        fingerprint: 'clock:liquidity_daily_failed',
+        details: liquidityDaily
+      }).catch(() => null);
+    } else if (liquidityDaily?.attempted && liquidityDaily?.ok === true) {
+      await resolveOpsEvent({
+        source: 'clock',
+        category: 'liquidity',
+        type: 'liquidity_daily_failed',
+        fingerprint: 'clock:liquidity_daily_failed',
+        message: 'Liquidity daily execution recovered.'
+      }).catch(() => null);
+    }
+
+    if (liquidityDaily?.attempted) {
+      try {
+        await broadcastLiquidityDailyReport(liquidityDaily);
+        await resolveOpsEvent({
+          source: 'clock',
+          category: 'telegram',
+          type: 'liquidity_daily_report_failed',
+          fingerprint: 'clock:liquidity_daily_report_failed',
+          message: 'Liquidity daily report delivery recovered.'
+        }).catch(() => null);
+      } catch (error) {
+        await recordOpsEvent({
+          source: 'clock',
+          category: 'telegram',
+          type: 'liquidity_daily_report_failed',
+          severity: 'warning',
+          title: 'Liquidity daily report could not be sent to Telegram',
+          message: error instanceof Error ? error.message : String(error),
+          fingerprint: 'clock:liquidity_daily_report_failed',
+          details: {
+            liquidityDaily,
+            error: error instanceof Error ? error.message : String(error)
+          }
+        }).catch(() => null);
+      }
+    }
+
     await resolveOpsEvent({
       source: 'clock',
       category: 'heartbeat',
@@ -122,7 +182,8 @@ async function runTick(trigger) {
       webhook,
       resourceState,
       ambassadorProcessed,
-      ambassadorResourceState
+      ambassadorResourceState,
+      liquidityDaily
     });
   } catch (error) {
     await writeOpsHeartbeat('clock.heartbeat', {

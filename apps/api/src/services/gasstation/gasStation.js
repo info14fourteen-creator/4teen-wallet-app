@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { ProxyAgent, fetch: undiciFetch } = require('undici');
 const env = require('../../config/env');
 const { tronWeb } = require('../tron/client');
+const { getWalletSnapshot } = require('../proxy/walletSnapshot');
 const { recordOpsEvent, resolveOpsEvent } = require('../ops/events');
 
 const SUN = 1_000_000;
@@ -625,9 +626,27 @@ async function waitForOrderSuccess(client, requestId, { attempts = 20, delayMs =
 
 async function getWalletState(walletAddress) {
   const safeWallet = assertNonEmpty(walletAddress, 'walletAddress');
-  const account = await tronWeb.trx.getAccount(safeWallet);
-  const resources = await tronWeb.trx.getAccountResources(safeWallet);
-  const balanceSun = Number(await tronWeb.trx.getBalance(safeWallet) || 0);
+  const [accountResult, resourcesResult, balanceResult] = await Promise.allSettled([
+    tronWeb.trx.getAccount(safeWallet),
+    tronWeb.trx.getAccountResources(safeWallet),
+    tronWeb.trx.getBalance(safeWallet)
+  ]);
+
+  const account = accountResult.status === 'fulfilled' ? accountResult.value : null;
+  const resources = resourcesResult.status === 'fulfilled' ? resourcesResult.value : null;
+  let balanceSun =
+    balanceResult.status === 'fulfilled'
+      ? Number(balanceResult.value || 0)
+      : NaN;
+
+  if (!Number.isFinite(balanceSun)) {
+    const snapshot = await getWalletSnapshot(safeWallet).catch(() => null);
+    balanceSun = Number(snapshot?.trx?.balanceTrx || 0) * SUN;
+  }
+
+  if (!Number.isFinite(balanceSun) || balanceSun < 0) {
+    balanceSun = 0;
+  }
 
   const freeNetLimit = Number(account?.freeNetLimit || 0);
   const freeNetUsed = Number(account?.freeNetUsed || 0);
@@ -1344,34 +1363,46 @@ async function rentResourcesForWallet({
 }
 
 async function getGasStationRuntimeState() {
+  const [operator, airdropControl] = await Promise.all([
+    getOperatorState().catch(() => null),
+    getAirdropControlState().catch(() => null)
+  ]);
+
   if (!String(env.GASSTATION_ENABLED).toLowerCase().includes('true')) {
     return {
       enabled: false,
-      operator: await getOperatorState().catch(() => null),
-      airdropControl: await getAirdropControlState().catch(() => null),
+      operator,
+      airdropControl,
       gasStation: null
     };
   }
 
-  return withGasStationClientPool(async (client) => {
-    const [operator, airdropControl, gasBalance] = await Promise.all([
-      getOperatorState().catch(() => null),
-      getAirdropControlState().catch(() => null),
-      client.getBalance().catch(() => null)
-    ]);
+  try {
+    return await withGasStationClientPool(async (client) => {
+      const gasBalance = await client.getBalance().catch(() => null);
 
+      return {
+        enabled: true,
+        operator,
+        airdropControl,
+        gasStation: {
+          account: client.label,
+          depositAddress: String(gasBalance?.deposit_address || env.GASSTATION_DEPOSIT_ADDRESS || '').trim() || null,
+          balanceSun: toSun(gasBalance?.balance || 0),
+          balanceTrx: fromSun(toSun(gasBalance?.balance || 0))
+        },
+        gasStationError: null
+      };
+    });
+  } catch (error) {
     return {
       enabled: true,
       operator,
       airdropControl,
-      gasStation: {
-        account: client.label,
-        depositAddress: String(gasBalance?.deposit_address || env.GASSTATION_DEPOSIT_ADDRESS || '').trim() || null,
-        balanceSun: toSun(gasBalance?.balance || 0),
-        balanceTrx: fromSun(toSun(gasBalance?.balance || 0))
-      }
+      gasStation: null,
+      gasStationError: normalizeRequestError(error)
     };
-  });
+  }
 }
 
 module.exports = {

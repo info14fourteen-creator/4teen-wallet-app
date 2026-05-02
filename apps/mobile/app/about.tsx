@@ -19,6 +19,7 @@ import {
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useNotice } from '../src/notice/notice-provider';
 import { submitAppFeedback } from '../src/services/feedback';
+import { checkForAppUpdate } from '../src/services/app-release';
 
 import LogoWhite from '../assets/icons/ui/logo_white.svg';
 
@@ -51,10 +52,15 @@ export default function AboutScreen() {
   const notice = useNotice();
   const { t } = useI18n();
 
-  const isLatestVersion = true;
+  const handleVersionUpdate = async () => {
+    const release = await checkForAppUpdate().catch(() => null);
 
-  const handleVersionUpdate = () => {
-    if (isLatestVersion) {
+    if (!release) {
+      void openInAppBrowser(router, 'https://4teen.me');
+      return;
+    }
+
+    if (!release.hasUpdate && !release.isBelowMinimum) {
       notice.showUpdateNotice(t('You are using the latest internal alpha build.'), 5000);
       return;
     }
@@ -64,7 +70,7 @@ export default function AboutScreen() {
       [
         {
           label: t('Open Website'),
-          onPress: () => void openInAppBrowser(router, 'https://4teen.me'),
+          onPress: () => void openInAppBrowser(router, release.updateUrl),
         },
       ],
       'update'

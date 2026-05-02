@@ -7,3 +7,12 @@ build
 .env.*
 .DS_Store
 coverage
+tmp
+.backup
+.ai-snapshots
+backups
+archive
+*.bak
+*.orig
+*.tmp
+*~

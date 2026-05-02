@@ -1,31 +1,68 @@
 {
   "expo": {
-    "name": "4TEEN Wallet",
+    "name": "4TEEN",
     "slug": "4teen-wallet",
+    "version": "1.0.0",
+    "description": "4TEEN Wallet. Ecosystem connector for direct buys, swaps, wallet access, and on-chain protocol flows.",
     "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#09090B"
+    },
     "plugins": [
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Allow 4TEEN Wallet to use Face ID."
+          "faceIDPermission": "Allow 4TEEN to use Face ID."
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow 4TEEN Wallet to access your camera to scan QR codes."
+          "cameraPermission": "Allow 4TEEN to access your camera to scan QR codes."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "android": {
-      "softwareKeyboardLayoutMode": "resize"
+      "package": "me.fourteen.wallet",
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.CAMERA"
+      ]
     },
     "ios": {
+      "bundleIdentifier": "me.fourteen.wallet",
+      "supportsTablet": true,
+      "icon": "./assets/images/icon.png",
       "infoPlist": {
-        "LSApplicationQueriesSchemes": ["tg"]
+        "CFBundleDisplayName": "4TEEN",
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [
+          "tg"
+        ]
       }
     },
-    "scheme": "fourteenwallet"
+    "scheme": "fourteenwallet",
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "79f43c88-b088-4947-9f42-9334ef42dafd"
+      }
+    }
   }
 }

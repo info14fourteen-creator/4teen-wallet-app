@@ -1,0 +1,14 @@
+.git
+node_modules
+.expo
+.turbo
+dist
+dist-*
+screenshots
+coverage
+tmp
+*.log
+*.bak
+*.orig
+*.tmp
+*~

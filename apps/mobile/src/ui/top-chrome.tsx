@@ -19,6 +19,7 @@ import { submitAppFeedback } from '../services/feedback';
 import { colors, fontFamilies, radius, spacing } from '../theme/tokens';
 import { getCompactVersionDisplayString } from '../config/app-version';
 import { openInAppBrowser } from '../utils/open-in-app-browser';
+import { checkForAppUpdate } from '../services/app-release';
 
 import LogoWhite from '../../assets/icons/ui/logo_white.svg';
 import { CloseIcon, InfoIcon, MenuIcon, ScanIcon, SearchIcon } from './ui-icons';
@@ -252,13 +253,28 @@ export function TopChrome() {
     notice.showSuccessNotice(t('Nice. At least somebody is happy.'), 3200);
   };
 
-  const handleVersionUpdate = () => {
-    const isLatestVersion = true;
-    if (isLatestVersion) {
-      // заглушка под твою нотификацию
+  const handleVersionUpdate = async () => {
+    const release = await checkForAppUpdate().catch(() => null);
+    if (!release) {
+      void openInAppBrowser(router, 'https://4teen.me');
       return;
     }
-    void openInAppBrowser(router, 'https://4teen.me');
+
+    if (!release.hasUpdate && !release.isBelowMinimum) {
+      notice.showUpdateNotice(t('You are using the latest internal alpha build.'), 5000);
+      return;
+    }
+
+    notice.showAckNotice(
+      t('A newer build is available.'),
+      [
+        {
+          label: t('Open Website'),
+          onPress: () => void openInAppBrowser(router, release.updateUrl),
+        },
+      ],
+      'update'
+    );
   };
 
   return (

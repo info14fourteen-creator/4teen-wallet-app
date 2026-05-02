@@ -8,6 +8,7 @@ const resourcesRouter = require('./routes/resources');
 const gasStationRouter = require('./routes/gasstation');
 const airdropRouter = require('./routes/airdrop');
 const opsRouter = require('./routes/ops');
+const appVersionRouter = require('./routes/appVersion');
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 
 app.use('/', healthRouter);
+app.use('/', appVersionRouter);
 app.use('/', proxyRouter);
 app.use('/wallet', walletRouter);
 app.use('/resources', resourcesRouter);

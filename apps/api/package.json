@@ -5,7 +5,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "lint": "node -c server.js && find src -name '*.js' -print0 | xargs -0 -n1 node -c"
+    "lint": "node -c server.js && find src scripts -name '*.js' -print0 | xargs -0 -n1 node -c",
+    "export:product-notes": "node scripts/export-product-notes.js",
+    "export:repo-map": "node scripts/export-repo-map.js",
+    "export:ops-knowledge": "node scripts/export-knowledge-base.js",
+    "sync:ops-knowledge": "node scripts/sync-knowledge-base.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

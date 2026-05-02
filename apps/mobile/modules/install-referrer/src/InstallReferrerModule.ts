@@ -1,5 +1,4 @@
-// eslint-disable-next-line import/no-unresolved
-import { requireOptionalNativeModule } from 'expo-modules-core';
+import { requireOptionalNativeModule } from 'expo';
 
 export type InstallReferrerPayload = {
   referrer: string | null;

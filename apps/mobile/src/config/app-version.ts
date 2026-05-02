@@ -1,14 +1,14 @@
 export const APP_VERSION = {
-  major: 0,
+  major: 1,
   minor: 0,
-  patch: 8,
-  channel: 'alpha',
-  iteration: 10,
+  patch: 0,
+  channel: 'release',
+  iteration: 1,
 };
 
 export const APP_BUILD = {
-  buildNumber: '202605020033',
-  generatedAtIso: '2026-05-01T19:33:28.658Z',
+  buildNumber: '202605020549',
+  generatedAtIso: '2026-05-02T00:49:43.825Z',
 };
 
 export function getVersionLabel() {
@@ -17,6 +17,10 @@ export function getVersionLabel() {
 
 export function getVersionString() {
   const { major, minor, patch, channel, iteration } = APP_VERSION;
+  if (channel === 'release' || channel === 'stable') {
+    return `${major}.${minor}.${patch}`;
+  }
+
   return `${major}.${minor}.${patch}-${channel}.${iteration}`;
 }
 

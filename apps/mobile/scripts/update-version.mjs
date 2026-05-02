@@ -76,6 +76,10 @@ export function getVersionLabel() {
 
 export function getVersionString() {
   const { major, minor, patch, channel, iteration } = APP_VERSION;
+  if (channel === 'release' || channel === 'stable') {
+    return \`${'${major}.${minor}.${patch}'}\`;
+  }
+
   return \`${'${major}.${minor}.${patch}-${channel}.${iteration}'}\`;
 }
 

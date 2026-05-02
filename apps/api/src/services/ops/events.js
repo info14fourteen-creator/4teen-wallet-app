@@ -38,6 +38,14 @@ function recommendationForEvent(event) {
     return 'Что делать: проверить GasStation credential-ы, лимиты и whitelist.';
   }
 
+  if (source === 'liquidity' && category === 'execution' && type === 'daily_failed') {
+    return 'Что делать: проверить manager wallet, GasStation rental и статус bootstrapAndExecute.';
+  }
+
+  if (source === 'clock' && category === 'liquidity' && type === 'liquidity_daily_failed') {
+    return 'Что делать: открыть heartbeat clock, посмотреть liquidityDaily и проверить manager wallet/resources.';
+  }
+
   if (source === 'clock' && category === 'heartbeat' && type === 'clock_stale') {
     return 'Что делать: проверить clock dyno и свежесть heartbeat.';
   }
