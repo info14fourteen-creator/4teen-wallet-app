@@ -20,15 +20,8 @@ jobs:
       OPS_REQUEST_ID: ${{ github.event.client_payload.requestId }}
       OPS_TASK_ID: ${{ github.event.client_payload.taskId }}
       OPS_ACTION_TYPE: ${{ github.event.client_payload.actionType }}
-      OPS_EXPORT_BASE_URL: ${{ secrets.OPS_EXPORT_BASE_URL }}
-      ADMIN_SYNC_TOKEN: ${{ secrets.ADMIN_SYNC_TOKEN }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      OPENAI_ORG_ID: ${{ secrets.OPENAI_ORG_ID }}
-      OPENAI_PROJECT_ID: ${{ secrets.OPENAI_PROJECT_ID }}
-      OPENAI_CODEX_MODEL: ${{ secrets.OPENAI_CODEX_MODEL }}
-      HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-      HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
-      HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+      OPS_BASE_URL: ${{ github.event.client_payload.opsBaseUrl }}
+      OPS_RUNNER_TOKEN: ${{ github.event.client_payload.runnerToken }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

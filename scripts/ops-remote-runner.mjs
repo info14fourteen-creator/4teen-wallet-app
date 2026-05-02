@@ -2,30 +2,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-const OPS_EXPORT_BASE_URL = normalizeValue(process.env.OPS_EXPORT_BASE_URL);
-const ADMIN_SYNC_TOKEN = normalizeValue(process.env.ADMIN_SYNC_TOKEN);
-const OPENAI_API_KEY = normalizeValue(process.env.OPENAI_API_KEY);
-const OPENAI_ORG_ID = normalizeValue(process.env.OPENAI_ORG_ID);
-const OPENAI_PROJECT_ID = normalizeValue(process.env.OPENAI_PROJECT_ID);
-const OPENAI_CODEX_MODEL = normalizeValue(process.env.OPENAI_CODEX_MODEL) || 'gpt-5-codex';
-const HEROKU_API_KEY = normalizeValue(process.env.HEROKU_API_KEY);
-const HEROKU_EMAIL = normalizeValue(process.env.HEROKU_EMAIL);
-const HEROKU_APP_NAME = normalizeValue(process.env.HEROKU_APP_NAME) || 'fourteen-wallet-api';
 const OPS_REPO_KEY = normalizeValue(process.env.OPS_REPO_KEY) || 'wallet-app';
 const REQUEST_ID = Number(process.env.OPS_REQUEST_ID || 0);
 const TASK_ID = Number(process.env.OPS_TASK_ID || 0);
 const ACTION_TYPE = normalizeValue(process.env.OPS_ACTION_TYPE) || 'apply';
+const OPS_BASE_URL = normalizeValue(process.env.OPS_BASE_URL).replace(/\/+$/, '');
+const OPS_RUNNER_TOKEN = normalizeValue(process.env.OPS_RUNNER_TOKEN);
 const DEFAULT_BRANCH = normalizeValue(process.env.GITHUB_REF_NAME) || 'main';
 const RUNNER_ID = `github-actions/${process.env.GITHUB_REPOSITORY || OPS_REPO_KEY}/${process.env.GITHUB_RUN_ID || 'manual'}`;
 
 function normalizeValue(value) {
   return String(value || '').trim();
-}
-
-function assertEnv(name, value) {
-  if (!normalizeValue(value)) {
-    throw new Error(`Missing required env: ${name}`);
-  }
 }
 
 function run(command, args, options = {}) {
@@ -42,58 +29,39 @@ function run(command, args, options = {}) {
   });
 }
 
-async function api(pathname, options = {}) {
-  assertEnv('OPS_EXPORT_BASE_URL', OPS_EXPORT_BASE_URL);
-  assertEnv('ADMIN_SYNC_TOKEN', ADMIN_SYNC_TOKEN);
-
-  const response = await fetch(`${OPS_EXPORT_BASE_URL}${pathname}`, {
-    method: options.method || 'GET',
+async function remoteApi(pathname, body = {}) {
+  const response = await fetch(`${OPS_BASE_URL}${pathname}`, {
+    method: 'POST',
     headers: {
-      Authorization: `Bearer ${ADMIN_SYNC_TOKEN}`,
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
+      'Content-Type': 'application/json'
     },
-    body: options.body == null ? undefined : JSON.stringify(options.body)
+    body: JSON.stringify(body)
   });
 
   const payload = await response.json().catch(() => null);
   if (!response.ok || payload?.ok === false) {
-    throw new Error(payload?.error || `Ops API request failed: ${response.status}`);
+    throw new Error(payload?.error || `Remote runner API failed: ${response.status}`);
   }
-
-  return payload;
-}
-
-async function claimRequest() {
-  const payload = await api('/ops/execution-requests/claim', {
-    method: 'POST',
-    body: {
-      requestId: REQUEST_ID || null,
-      repoKey: OPS_REPO_KEY,
-      actionType: ACTION_TYPE,
-      runnerId: RUNNER_ID
-    }
-  });
 
   return payload.result || null;
 }
 
-async function finishRequest(requestId, status, summary, resultMessage, details = {}) {
-  await api(`/ops/execution-requests/${requestId}/finish`, {
-    method: 'POST',
-    body: {
-      status,
-      runnerId: RUNNER_ID,
-      summary,
-      resultMessage,
-      details
-    }
+async function bootstrap() {
+  return remoteApi(`/ops/execution-requests/${REQUEST_ID}/bootstrap`, {
+    token: OPS_RUNNER_TOKEN,
+    runnerId: RUNNER_ID
   });
 }
 
-async function loadWorkOrder(taskId) {
-  const payload = await api(`/ops/tasks/${taskId}/work-order`);
-  return payload.item || null;
+async function finish(status, summary, resultMessage, details = {}) {
+  return remoteApi(`/ops/execution-requests/${REQUEST_ID}/finish-remote`, {
+    token: OPS_RUNNER_TOKEN,
+    runnerId: RUNNER_ID,
+    status,
+    summary,
+    resultMessage,
+    details
+  });
 }
 
 async function readFileIfPresent(relativePath, limit = 24_000) {
@@ -112,10 +80,8 @@ async function readFileIfPresent(relativePath, limit = 24_000) {
 function uniquePaths(workOrder) {
   const seen = new Set();
   const items = [];
-  const proposed = Array.isArray(workOrder?.proposedFiles) ? workOrder.proposedFiles : [];
-  const findings = Array.isArray(workOrder?.repoFindings) ? workOrder.repoFindings : [];
 
-  for (const value of proposed) {
+  for (const value of Array.isArray(workOrder?.proposedFiles) ? workOrder.proposedFiles : []) {
     const safe = normalizeValue(value);
     if (safe && !seen.has(safe)) {
       seen.add(safe);
@@ -123,7 +89,7 @@ function uniquePaths(workOrder) {
     }
   }
 
-  for (const finding of findings) {
+  for (const finding of Array.isArray(workOrder?.repoFindings) ? workOrder.repoFindings : []) {
     const safe = normalizeValue(finding?.file || finding);
     if (safe && !seen.has(safe)) {
       seen.add(safe);
@@ -135,7 +101,7 @@ function uniquePaths(workOrder) {
 }
 
 function buildPrompt(workOrder, contextFiles) {
-  const lines = [
+  return [
     'You are implementing a real code task inside the 4TEEN wallet repository.',
     'Return strict JSON only. No markdown fences, no commentary.',
     'Schema:',
@@ -152,23 +118,21 @@ function buildPrompt(workOrder, contextFiles) {
     '',
     'Repository context:',
     JSON.stringify(contextFiles, null, 2)
-  ];
-
-  return lines.join('\n');
+  ].join('\n');
 }
 
-function buildOpenAiHeaders() {
+function buildOpenAiHeaders(credentials) {
   const headers = {
-    Authorization: `Bearer ${OPENAI_API_KEY}`,
+    Authorization: `Bearer ${normalizeValue(credentials?.openaiApiKey)}`,
     'Content-Type': 'application/json'
   };
 
-  if (OPENAI_ORG_ID) {
-    headers['OpenAI-Organization'] = OPENAI_ORG_ID;
+  if (normalizeValue(credentials?.openaiOrgId)) {
+    headers['OpenAI-Organization'] = normalizeValue(credentials.openaiOrgId);
   }
 
-  if (OPENAI_PROJECT_ID) {
-    headers['OpenAI-Project'] = OPENAI_PROJECT_ID;
+  if (normalizeValue(credentials?.openaiProjectId)) {
+    headers['OpenAI-Project'] = normalizeValue(credentials.openaiProjectId);
   }
 
   return headers;
@@ -194,32 +158,34 @@ function extractResponseText(payload) {
 }
 
 function extractJson(text) {
-  const direct = normalizeValue(text);
-  if (!direct) {
+  const safe = normalizeValue(text);
+  if (!safe) {
     return null;
   }
 
   try {
-    return JSON.parse(direct);
+    return JSON.parse(safe);
   } catch (_) {
-    const start = direct.indexOf('{');
-    const end = direct.lastIndexOf('}');
+    const start = safe.indexOf('{');
+    const end = safe.lastIndexOf('}');
     if (start >= 0 && end > start) {
-      return JSON.parse(direct.slice(start, end + 1));
+      return JSON.parse(safe.slice(start, end + 1));
     }
   }
 
   return null;
 }
 
-async function generateImplementation(workOrder, contextFiles) {
-  assertEnv('OPENAI_API_KEY', OPENAI_API_KEY);
+async function generateImplementation(workOrder, contextFiles, credentials) {
+  if (!normalizeValue(credentials?.openaiApiKey)) {
+    throw new Error('Remote runner did not receive OpenAI credentials');
+  }
 
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
-    headers: buildOpenAiHeaders(),
+    headers: buildOpenAiHeaders(credentials),
     body: JSON.stringify({
-      model: OPENAI_CODEX_MODEL,
+      model: normalizeValue(credentials?.openaiCodexModel) || 'gpt-5-codex',
       reasoning: {
         effort: 'medium'
       },
@@ -229,7 +195,7 @@ async function generateImplementation(workOrder, contextFiles) {
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(payload?.error?.message || `OpenAI request failed with status ${response.status}`);
+    throw new Error(payload?.error?.message || `OpenAI request failed: ${response.status}`);
   }
 
   const parsed = extractJson(extractResponseText(payload));
@@ -266,9 +232,13 @@ function ensureGitIdentity() {
   run('git', ['config', 'user.email', 'ops-runner@4teen.me']);
 }
 
+function branchName(taskId) {
+  return `codex/ops-task-${taskId}`;
+}
+
 function checkoutBranch(taskId) {
-  const branch = `codex/ops-task-${taskId}`;
-  run('git', ['checkout', '-B', branch]);
+  const branch = branchName(taskId);
+  run('git', ['checkout', '-B', branch], { stdio: 'inherit' });
   return branch;
 }
 
@@ -299,15 +269,15 @@ function verifyWalletChanges(files) {
   return results;
 }
 
-function commitAndPush(taskId) {
-  const branch = `codex/ops-task-${taskId}`;
+function commitAndPush(taskId, commitMessage) {
+  const branch = branchName(taskId);
   run('git', ['add', '-A']);
-  const hasChanges = run('git', ['diff', '--cached', '--name-only']).trim();
-  if (!hasChanges) {
+  const staged = run('git', ['diff', '--cached', '--name-only']).trim();
+  if (!staged) {
     throw new Error('No staged changes to commit');
   }
 
-  run('git', ['commit', '-m', `feat: implement ops task #${taskId}`], {
+  run('git', ['commit', '-m', normalizeValue(commitMessage) || `feat: implement ops task #${taskId}`], {
     stdio: 'inherit'
   });
 
@@ -315,15 +285,14 @@ function commitAndPush(taskId) {
     stdio: 'inherit'
   });
 
-  const commitSha = run('git', ['rev-parse', 'HEAD']).trim();
   return {
     branch,
-    commitSha
+    commitSha: run('git', ['rev-parse', 'HEAD']).trim()
   };
 }
 
 function remoteBranchExists(taskId) {
-  const branch = `codex/ops-task-${taskId}`;
+  const branch = branchName(taskId);
   const output = run('git', ['ls-remote', '--heads', 'origin', branch]).trim();
   return {
     branch,
@@ -360,29 +329,41 @@ function inferDeployability(files) {
   };
 }
 
-function deployToHeroku(branch) {
-  assertEnv('HEROKU_API_KEY', HEROKU_API_KEY);
-  assertEnv('HEROKU_EMAIL', HEROKU_EMAIL);
-  assertEnv('HEROKU_APP_NAME', HEROKU_APP_NAME);
+function deployToHeroku(branch, credentials) {
+  const apiKey = normalizeValue(credentials?.herokuApiKey);
+  const email = normalizeValue(credentials?.herokuEmail);
+  const appName = normalizeValue(credentials?.herokuAppName) || 'fourteen-wallet-api';
 
-  const remoteUrl = `https://heroku:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git`;
+  if (!apiKey || !email) {
+    throw new Error('Remote runner did not receive Heroku deployment credentials');
+  }
+
+  const remoteUrl = `https://heroku:${apiKey}@git.heroku.com/${appName}.git`;
   run('git', ['push', '--force', remoteUrl, `${branch}:main`], {
     stdio: 'inherit',
     env: {
-      GIT_TERMINAL_PROMPT: '0'
+      GIT_TERMINAL_PROMPT: '0',
+      HEROKU_API_KEY: apiKey,
+      HEROKU_EMAIL: email
     }
   });
+
+  return appName;
 }
 
-async function restartHeroku() {
-  assertEnv('HEROKU_API_KEY', HEROKU_API_KEY);
-  assertEnv('HEROKU_APP_NAME', HEROKU_APP_NAME);
+async function restartHeroku(credentials) {
+  const apiKey = normalizeValue(credentials?.herokuApiKey);
+  const appName = normalizeValue(credentials?.herokuAppName) || 'fourteen-wallet-api';
 
-  const response = await fetch(`https://api.heroku.com/apps/${encodeURIComponent(HEROKU_APP_NAME)}/dynos`, {
+  if (!apiKey) {
+    throw new Error('Remote runner did not receive Heroku restart credentials');
+  }
+
+  const response = await fetch(`https://api.heroku.com/apps/${encodeURIComponent(appName)}/dynos`, {
     method: 'DELETE',
     headers: {
       Accept: 'application/vnd.heroku+json; version=3',
-      Authorization: `Bearer ${HEROKU_API_KEY}`
+      Authorization: `Bearer ${apiKey}`
     }
   });
 
@@ -390,10 +371,12 @@ async function restartHeroku() {
     const text = await response.text().catch(() => '');
     throw new Error(`Heroku restart failed with status ${response.status}${text ? `: ${text}` : ''}`);
   }
+
+  return appName;
 }
 
-async function handleApply(request) {
-  const workOrder = await loadWorkOrder(TASK_ID || request.task_id);
+async function handleApply(bootstrapResult) {
+  const workOrder = bootstrapResult?.workOrder;
   if (!workOrder?.readyToImplement) {
     throw new Error('Task does not have a ready work order yet');
   }
@@ -401,16 +384,15 @@ async function handleApply(request) {
   ensureGitIdentity();
   checkoutBranch(workOrder.taskId);
 
-  const repoPaths = uniquePaths(workOrder);
   const contextFiles = [];
-  for (const repoPath of repoPaths) {
+  for (const repoPath of uniquePaths(workOrder)) {
     const item = await readFileIfPresent(repoPath);
     if (item) {
       contextFiles.push(item);
     }
   }
 
-  const implementation = await generateImplementation(workOrder, contextFiles);
+  const implementation = await generateImplementation(workOrder, contextFiles, bootstrapResult?.credentials || {});
   if (implementation.blocked) {
     throw new Error(normalizeValue(implementation.reason) || 'Model reported blocked');
   }
@@ -422,7 +404,7 @@ async function handleApply(request) {
   }
 
   const checks = verifyWalletChanges(files);
-  const pushed = commitAndPush(workOrder.taskId);
+  const pushed = commitAndPush(workOrder.taskId, implementation.commitMessage);
 
   return {
     summary: normalizeValue(implementation.summary) || `Implemented task #${workOrder.taskId}`,
@@ -441,8 +423,8 @@ async function handleApply(request) {
   };
 }
 
-async function handlePublish(request) {
-  const taskId = TASK_ID || request.task_id;
+async function handlePublish(bootstrapResult) {
+  const taskId = TASK_ID || bootstrapResult?.request?.task_id;
   const remote = remoteBranchExists(taskId);
   if (!remote.exists) {
     throw new Error(`Branch ${remote.branch} is not on origin yet. Run apply first.`);
@@ -458,8 +440,8 @@ async function handlePublish(request) {
   };
 }
 
-async function handleDeploy(request) {
-  const taskId = TASK_ID || request.task_id;
+async function handleDeploy(bootstrapResult) {
+  const taskId = TASK_ID || bootstrapResult?.request?.task_id;
   const remote = remoteBranchExists(taskId);
   if (!remote.exists) {
     throw new Error(`Branch ${remote.branch} is not on origin yet. Apply the task first.`);
@@ -476,26 +458,25 @@ async function handleDeploy(request) {
     throw new Error(`Deploy blocked: ${deployability.reason}`);
   }
 
-  deployToHeroku(remote.branch);
+  const appName = deployToHeroku(remote.branch, bootstrapResult?.credentials || {});
   return {
-    summary: `Deployed ${remote.branch} to ${HEROKU_APP_NAME}`,
-    resultMessage: `Heroku app ${HEROKU_APP_NAME} was updated from ${remote.branch}.`,
+    summary: `Deployed ${remote.branch} to ${appName}`,
+    resultMessage: `Heroku app ${appName} was updated from ${remote.branch}.`,
     details: {
       branch: remote.branch,
-      herokuApp: HEROKU_APP_NAME,
+      herokuApp: appName,
       changedFiles: files
     }
   };
 }
 
-async function handleRestart(request) {
-  const taskId = TASK_ID || request.task_id;
-  await restartHeroku();
+async function handleRestart(bootstrapResult) {
+  const appName = await restartHeroku(bootstrapResult?.credentials || {});
   return {
-    summary: `Restarted ${HEROKU_APP_NAME} for task #${taskId}`,
-    resultMessage: `Heroku dynos for ${HEROKU_APP_NAME} were restarted.`,
+    summary: `Restarted ${appName} for task #${TASK_ID || bootstrapResult?.request?.task_id || 0}`,
+    resultMessage: `Heroku dynos for ${appName} were restarted.`,
     details: {
-      herokuApp: HEROKU_APP_NAME
+      herokuApp: appName
     }
   };
 }
@@ -504,49 +485,43 @@ async function main() {
   if (!Number.isFinite(REQUEST_ID) || REQUEST_ID <= 0) {
     throw new Error('Missing or invalid OPS_REQUEST_ID');
   }
-  assertEnv('OPS_ACTION_TYPE', ACTION_TYPE);
 
-  let claimed = null;
+  if (!OPS_BASE_URL || !OPS_RUNNER_TOKEN) {
+    throw new Error('Missing bootstrap payload for remote runner');
+  }
+
+  let bootstrapResult = null;
   try {
-    claimed = await claimRequest();
-    if (!claimed) {
-      console.log('No confirmed request was claimed. Exiting quietly.');
-      return;
-    }
-
-    if (Number(claimed.id || 0) !== REQUEST_ID) {
-      throw new Error(`Claimed request #${claimed.id} but expected #${REQUEST_ID}`);
+    bootstrapResult = await bootstrap();
+    if (!bootstrapResult?.request) {
+      throw new Error('Remote runner did not receive a claimed request');
     }
 
     let outcome;
     if (ACTION_TYPE === 'apply') {
-      outcome = await handleApply(claimed);
+      outcome = await handleApply(bootstrapResult);
     } else if (ACTION_TYPE === 'publish') {
-      outcome = await handlePublish(claimed);
+      outcome = await handlePublish(bootstrapResult);
     } else if (ACTION_TYPE === 'deploy') {
-      outcome = await handleDeploy(claimed);
+      outcome = await handleDeploy(bootstrapResult);
     } else if (ACTION_TYPE === 'restart') {
-      outcome = await handleRestart(claimed);
+      outcome = await handleRestart(bootstrapResult);
     } else {
       throw new Error(`Unsupported action type: ${ACTION_TYPE}`);
     }
 
-    await finishRequest(claimed.id, 'done', outcome.summary, outcome.resultMessage, outcome.details);
+    await finish('done', outcome.summary, outcome.resultMessage, outcome.details);
   } catch (error) {
     console.error(error);
-    if (claimed?.id) {
-      await finishRequest(
-        claimed.id,
-        'blocked',
-        `Remote runner blocked ${ACTION_TYPE} for task #${TASK_ID || claimed.task_id}`,
-        normalizeValue(error?.message) || 'Unknown runner failure',
-        {
-          actionType: ACTION_TYPE,
-          repoKey: OPS_REPO_KEY
-        }
-      ).catch(() => null);
-    }
-
+    await finish(
+      'blocked',
+      `Remote runner blocked ${ACTION_TYPE} for task #${TASK_ID || bootstrapResult?.request?.task_id || REQUEST_ID}`,
+      normalizeValue(error?.message) || 'Unknown runner failure',
+      {
+        actionType: ACTION_TYPE,
+        repoKey: OPS_REPO_KEY
+      }
+    ).catch(() => null);
     process.exitCode = 1;
   }
 }
