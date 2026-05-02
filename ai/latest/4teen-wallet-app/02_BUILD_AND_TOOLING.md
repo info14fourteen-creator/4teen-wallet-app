@@ -1,13 +1,13 @@
 # 4teen-wallet-app — BUILD AND TOOLING
 
-Generated: 2026-05-02T16:41:53.326Z
+Generated: 2026-05-02T16:49:16.390Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 784fc230a86fba8c97e83ee6594e3e37a07047b6
-Short commit: 784fc23
-Commit subject: Poll confirmed ops requests from control plane
+Last commit: 04305fea417bba61a129f65f8d9e94488d882f2c
+Short commit: 04305fe
+Commit subject: Handle legacy work order ids in ops runner
 Commit author: 4TEEN Ops Runner
-Commit date: 2026-05-02T21:41:39+05:00
+Commit date: 2026-05-02T21:49:04+05:00
 
 ## Included files
 
@@ -1229,6 +1229,10 @@ function branchName(taskId) {
   return `codex/ops-task-${taskId}`;
 }
 
+function getWorkOrderTaskId(workOrder) {
+  return Number(workOrder?.taskId || workOrder?.id || 0);
+}
+
 function checkoutBranch(taskId) {
   const branch = branchName(taskId);
   run('git', ['checkout', '-B', branch], { stdio: 'inherit' });
@@ -1373,9 +1377,13 @@ async function handleApply(claimed) {
   if (!workOrder?.readyToImplement) {
     throw new Error('Task does not have a ready work order yet');
   }
+  const taskId = getWorkOrderTaskId(workOrder);
+  if (!Number.isFinite(taskId) || taskId <= 0) {
+    throw new Error('Work order is missing a valid task id');
+  }
 
   ensureGitIdentity();
-  checkoutBranch(workOrder.taskId);
+  checkoutBranch(taskId);
 
   const contextFiles = [];
   for (const repoPath of uniquePaths(workOrder)) {
@@ -1397,10 +1405,10 @@ async function handleApply(claimed) {
   }
 
   const checks = verifyWalletChanges(files);
-  const pushed = commitAndPush(workOrder.taskId, implementation.commitMessage);
+  const pushed = commitAndPush(taskId, implementation.commitMessage);
 
   return {
-    summary: normalizeValue(implementation.summary) || `Implemented task #${workOrder.taskId}`,
+    summary: normalizeValue(implementation.summary) || `Implemented task #${taskId}`,
     resultMessage: [
       `Branch: ${pushed.branch}`,
       `Commit: ${pushed.commitSha}`,

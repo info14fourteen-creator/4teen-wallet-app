@@ -1,13 +1,13 @@
 # 4teen-wallet-app — CONFIG AND NATIVE
 
-Generated: 2026-05-02T16:41:53.326Z
+Generated: 2026-05-02T16:49:16.390Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 784fc230a86fba8c97e83ee6594e3e37a07047b6
-Short commit: 784fc23
-Commit subject: Poll confirmed ops requests from control plane
+Last commit: 04305fea417bba61a129f65f8d9e94488d882f2c
+Short commit: 04305fe
+Commit subject: Handle legacy work order ids in ops runner
 Commit author: 4TEEN Ops Runner
-Commit date: 2026-05-02T21:41:39+05:00
+Commit date: 2026-05-02T21:49:04+05:00
 
 ## Included files
 

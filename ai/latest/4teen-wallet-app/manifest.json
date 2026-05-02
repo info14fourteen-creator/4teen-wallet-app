@@ -1,67 +1,42 @@
 {
-  "generatedAt": "2026-05-02T16:41:53.327Z",
+  "generatedAt": "2026-05-02T16:49:16.391Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "784fc230a86fba8c97e83ee6594e3e37a07047b6",
-    "shortHash": "784fc23",
-    "subject": "Poll confirmed ops requests from control plane",
+    "hash": "04305fea417bba61a129f65f8d9e94488d882f2c",
+    "shortHash": "04305fe",
+    "subject": "Handle legacy work order ids in ops runner",
     "author": "4TEEN Ops Runner",
-    "date": "2026-05-02T21:41:39+05:00"
+    "date": "2026-05-02T21:49:04+05:00"
   },
   "changedFiles": [
-    "M\t.github/workflows/ops-remote-runner.yml",
     "M\tscripts/ops-remote-runner.mjs"
   ],
   "activeFiles": [
     {
       "file": "apps/api/src/services/ops/telegramAdminBot.js",
-      "count": 6
+      "count": 5
     },
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 6
+      "count": 5
     },
     {
       "file": "apps/api/src/routes/ops.js",
-      "count": 5
+      "count": 4
     },
     {
       "file": "apps/api/src/services/ops/events.js",
-      "count": 5
+      "count": 4
+    },
+    {
+      "file": "scripts/ops-remote-runner.mjs",
+      "count": 4
     },
     {
       "file": ".github/workflows/ops-remote-runner.yml",
       "count": 3
-    },
-    {
-      "file": "scripts/ops-remote-runner.mjs",
-      "count": 3
-    },
-    {
-      "file": "apps/api/clock.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/app.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/config/env.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/services/gasstation/gasStation.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/services/ops/monitor.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/services/ops/store.js",
-      "count": 2
     },
     {
       "file": "apps/mobile/app.json",
@@ -133,6 +108,30 @@
     },
     {
       "file": "apps/mobile/screenshots/ui-audit-2026-05-01/authentication-method-screen.png",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/buy-screen.png",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/create-wallet-screen.png",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/currency-screen.png",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/import-private-key-screen.png",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/import-seed-screen.png",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/import-wallet-screen.png",
       "count": 2
     }
   ],

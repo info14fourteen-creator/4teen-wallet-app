@@ -1,28 +1,22 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-05-02T16:41:53.327Z
+Generated: 2026-05-02T16:49:16.391Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 784fc230a86fba8c97e83ee6594e3e37a07047b6
-Short commit: 784fc23
-Commit subject: Poll confirmed ops requests from control plane
+Last commit: 04305fea417bba61a129f65f8d9e94488d882f2c
+Short commit: 04305fe
+Commit subject: Handle legacy work order ids in ops runner
 Commit author: 4TEEN Ops Runner
-Commit date: 2026-05-02T21:41:39+05:00
+Commit date: 2026-05-02T21:49:04+05:00
 
 ## Most frequently changed files in last 20 commits
 
-- 6x :: apps/api/src/services/ops/telegramAdminBot.js
-- 6x :: apps/mobile/src/config/app-version.ts
-- 5x :: apps/api/src/routes/ops.js
-- 5x :: apps/api/src/services/ops/events.js
+- 5x :: apps/api/src/services/ops/telegramAdminBot.js
+- 5x :: apps/mobile/src/config/app-version.ts
+- 4x :: apps/api/src/routes/ops.js
+- 4x :: apps/api/src/services/ops/events.js
+- 4x :: scripts/ops-remote-runner.mjs
 - 3x :: .github/workflows/ops-remote-runner.yml
-- 3x :: scripts/ops-remote-runner.mjs
-- 2x :: apps/api/clock.js
-- 2x :: apps/api/src/app.js
-- 2x :: apps/api/src/config/env.js
-- 2x :: apps/api/src/services/gasstation/gasStation.js
-- 2x :: apps/api/src/services/ops/monitor.js
-- 2x :: apps/api/src/services/ops/store.js
 - 2x :: apps/mobile/app.json
 - 2x :: apps/mobile/app/_layout.tsx
 - 2x :: apps/mobile/app/about.tsx
@@ -41,3 +35,9 @@ Commit date: 2026-05-02T21:41:39+05:00
 - 2x :: apps/mobile/screenshots/ui-audit-2026-05-01/ambassador-program-screen.png
 - 2x :: apps/mobile/screenshots/ui-audit-2026-05-01/appearance-screen.png
 - 2x :: apps/mobile/screenshots/ui-audit-2026-05-01/authentication-method-screen.png
+- 2x :: apps/mobile/screenshots/ui-audit-2026-05-01/buy-screen.png
+- 2x :: apps/mobile/screenshots/ui-audit-2026-05-01/create-wallet-screen.png
+- 2x :: apps/mobile/screenshots/ui-audit-2026-05-01/currency-screen.png
+- 2x :: apps/mobile/screenshots/ui-audit-2026-05-01/import-private-key-screen.png
+- 2x :: apps/mobile/screenshots/ui-audit-2026-05-01/import-seed-screen.png
+- 2x :: apps/mobile/screenshots/ui-audit-2026-05-01/import-wallet-screen.png
