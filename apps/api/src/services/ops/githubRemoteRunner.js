@@ -1,5 +1,6 @@
 const { fetch } = require('undici');
 const env = require('../../config/env');
+// Smoke test comment for runner v103
 
 function normalizeValue(value) {
   return String(value || '').trim();
