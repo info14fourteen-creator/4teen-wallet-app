@@ -44,6 +44,21 @@ function buildOpenAiHeaders(extra = {}) {
   return headers;
 }
 
+function normalizeTranscriptionFileName(fileName, mimeType) {
+  const safeFileName = normalizeValue(fileName) || 'voice-note.ogg';
+  const safeMimeType = normalizeValue(mimeType).toLowerCase();
+
+  if (/\.oga$/i.test(safeFileName)) {
+    return safeFileName.replace(/\.oga$/i, '.ogg');
+  }
+
+  if (!/\.[a-z0-9]+$/i.test(safeFileName) && safeMimeType === 'audio/ogg') {
+    return `${safeFileName}.ogg`;
+  }
+
+  return safeFileName;
+}
+
 function extractResponseText(payload) {
   if (typeof payload?.output_text === 'string' && payload.output_text.trim()) {
     return payload.output_text.trim();
@@ -934,8 +949,8 @@ async function answerOpsQuestion(question, context) {
 }
 
 async function transcribeAudioBuffer(buffer, options = {}) {
-  const fileName = normalizeValue(options?.fileName) || 'voice-note.ogg';
   const mimeType = normalizeValue(options?.mimeType) || 'audio/ogg';
+  const fileName = normalizeTranscriptionFileName(options?.fileName, mimeType);
   const formData = new FormData();
 
   formData.set('model', normalizeValue(env.OPENAI_TRANSCRIBE_MODEL) || 'gpt-4o-mini-transcribe');
