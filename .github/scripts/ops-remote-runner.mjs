@@ -4,10 +4,9 @@ import { spawnSync } from 'node:child_process';
 
 const REPO_KEY = 'wallet-app';
 const RUNNER_ID = process.env.OPS_EXECUTOR_RUNNER_ID || 'github-actions-wallet-app';
-const MODEL = process.env.OPENAI_CODEX_MODEL || 'gpt-5-codex';
-const OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_BASE_URL = 'https://fourteen-wallet-api-7af291023d36.herokuapp.com';
 const DEFAULT_BRANCH = process.env.GITHUB_REF_NAME || 'main';
+const DEFAULT_AUDIENCE = process.env.OPS_GITHUB_OIDC_AUDIENCE || '4teen-ops-runner';
 const MAX_ALLOWED_FILES = 6;
 const MAX_FILE_CHARS = 35_000;
 
@@ -58,13 +57,6 @@ function getBaseUrl() {
   return getEnv('OPS_EXPORT_BASE_URL') || DEFAULT_BASE_URL;
 }
 
-function getControlHeaders(extra = {}) {
-  return {
-    Authorization: `Bearer ${getEnv('ADMIN_SYNC_TOKEN', { required: true })}`,
-    ...extra
-  };
-}
-
 async function readJson(response) {
   try {
     return await response.json();
@@ -73,8 +65,46 @@ async function readJson(response) {
   }
 }
 
+let cachedControlToken = null;
+
+async function fetchGithubOidcToken() {
+  const requestUrl = getEnv('ACTIONS_ID_TOKEN_REQUEST_URL', { required: true });
+  const requestToken = getEnv('ACTIONS_ID_TOKEN_REQUEST_TOKEN', { required: true });
+  const separator = requestUrl.includes('?') ? '&' : '?';
+  const audience = encodeURIComponent(DEFAULT_AUDIENCE);
+  const response = await fetch(`${requestUrl}${separator}audience=${audience}`, {
+    headers: {
+      Authorization: `Bearer ${requestToken}`
+    }
+  });
+  const payload = await readJson(response);
+  if (!response.ok || !payload?.value) {
+    throw new Error(payload?.message || `Failed to fetch GitHub Actions OIDC token (${response.status})`);
+  }
+  return payload.value;
+}
+
+async function getControlToken() {
+  if (getEnv('ADMIN_SYNC_TOKEN')) {
+    return getEnv('ADMIN_SYNC_TOKEN');
+  }
+
+  if (!cachedControlToken) {
+    cachedControlToken = await fetchGithubOidcToken();
+  }
+
+  return cachedControlToken;
+}
+
 async function requestControl(pathname, init = {}) {
-  const response = await fetch(`${getBaseUrl().replace(/\/+$/, '')}${pathname}`, init);
+  const token = await getControlToken();
+  const response = await fetch(`${getBaseUrl().replace(/\/+$/, '')}${pathname}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(init.headers || {})
+    }
+  });
   const payload = await readJson(response);
   if (!response.ok || payload?.ok === false) {
     throw new Error(payload?.error || `Control plane request failed with status ${response.status}`);
@@ -86,9 +116,9 @@ async function claimNextRequest() {
   for (const actionType of ['apply', 'publish', 'deploy', 'restart']) {
     const payload = await requestControl('/ops/execution-requests/claim', {
       method: 'POST',
-      headers: getControlHeaders({
+      headers: {
         'Content-Type': 'application/json'
-      }),
+      },
       body: JSON.stringify({
         repoKey: REPO_KEY,
         actionType,
@@ -104,19 +134,30 @@ async function claimNextRequest() {
   return null;
 }
 
-async function fetchWorkOrder(taskId) {
-  const payload = await requestControl(`/ops/tasks/${encodeURIComponent(taskId)}/work-order`, {
-    headers: getControlHeaders()
-  });
+async function fetchRequestWorkOrder(requestId) {
+  const payload = await requestControl(`/ops/execution-requests/${encodeURIComponent(requestId)}/work-order`);
   return payload?.item || null;
+}
+
+async function requestServerApplyPlan(requestId, fileSnapshots) {
+  const payload = await requestControl(`/ops/execution-requests/${encodeURIComponent(requestId)}/apply-plan`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      fileSnapshots
+    })
+  });
+  return payload?.result || null;
 }
 
 async function finishRequest(requestId, status, summary, resultMessage, details = null) {
   return requestControl(`/ops/execution-requests/${encodeURIComponent(requestId)}/finish`, {
     method: 'POST',
-    headers: getControlHeaders({
+    headers: {
       'Content-Type': 'application/json'
-    }),
+    },
     body: JSON.stringify({
       status,
       summary,
@@ -169,144 +210,6 @@ async function loadCandidateFiles(workOrder) {
   }
 
   return existing;
-}
-
-function buildOpenAiHeaders() {
-  const headers = {
-    Authorization: `Bearer ${getEnv('OPENAI_API_KEY', { required: true })}`,
-    'Content-Type': 'application/json'
-  };
-
-  const orgId = getEnv('OPENAI_ORG_ID');
-  const projectId = getEnv('OPENAI_PROJECT_ID');
-  if (orgId) headers['OpenAI-Organization'] = orgId;
-  if (projectId) headers['OpenAI-Project'] = projectId;
-  return headers;
-}
-
-function extractResponseText(payload) {
-  if (!payload) return '';
-  if (typeof payload.output_text === 'string' && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
-
-  const parts = [];
-  const output = Array.isArray(payload.output) ? payload.output : [];
-  for (const item of output) {
-    const content = Array.isArray(item?.content) ? item.content : [];
-    for (const chunk of content) {
-      const text = normalizeValue(chunk?.text || chunk?.output_text);
-      if (text) parts.push(text);
-    }
-  }
-  return parts.join('\n').trim();
-}
-
-async function requestOpenAiJson(body) {
-  const response = await fetch(`${OPENAI_BASE_URL}/responses`, {
-    method: 'POST',
-    headers: buildOpenAiHeaders(),
-    body: JSON.stringify(body)
-  });
-
-  const payload = await readJson(response);
-  if (!response.ok) {
-    throw new Error(payload?.error?.message || `OpenAI request failed with status ${response.status}`);
-  }
-
-  return payload;
-}
-
-async function generateApplyPlan(workOrder, fileSnapshots) {
-  const schema = {
-    type: 'object',
-    additionalProperties: false,
-    required: ['outcome', 'summary', 'commitMessage', 'blockedReason', 'changes', 'verificationHints'],
-    properties: {
-      outcome: {
-        type: 'string',
-        enum: ['apply', 'blocked']
-      },
-      summary: {
-        type: 'string'
-      },
-      commitMessage: {
-        type: 'string'
-      },
-      blockedReason: {
-        anyOf: [{ type: 'string' }, { type: 'null' }]
-      },
-      verificationHints: {
-        type: 'array',
-        items: {
-          type: 'string'
-        }
-      },
-      changes: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['path', 'content', 'rationale'],
-          properties: {
-            path: { type: 'string' },
-            content: { type: 'string' },
-            rationale: { type: 'string' }
-          }
-        }
-      }
-    }
-  };
-
-  const payload = await requestOpenAiJson({
-    model: MODEL,
-    input: [
-      {
-        role: 'system',
-        content: [
-          {
-            type: 'input_text',
-            text:
-              'You are an exacting remote coding runner for a production wallet repository. Work only from the provided work order and file snapshots. Do not invent files, APIs, or architecture that are not visible in the supplied content. If the task is too ambiguous or the supplied files are not enough, return outcome=blocked with a precise blockedReason. When you do make changes, keep them minimal and production-grade. Return full updated file contents for changed files only.'
-          }
-        ]
-      },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text: JSON.stringify({
-              repoKey: REPO_KEY,
-              branchConvention: 'codex/ops-task-<taskId>',
-              workOrder,
-              allowedPaths: fileSnapshots.map((item) => item.path),
-              fileSnapshots
-            })
-          }
-        ]
-      }
-    ],
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'remote_runner_apply_result',
-        schema,
-        strict: true
-      }
-    },
-    reasoning: {
-      effort: 'medium'
-    },
-    max_output_tokens: 16000
-  });
-
-  const text = extractResponseText(payload);
-  if (!text) {
-    throw new Error('OpenAI returned empty apply plan');
-  }
-
-  return JSON.parse(text);
 }
 
 function validateChanges(plan, allowedPaths) {
@@ -446,30 +349,8 @@ async function findOrCreateDraftPr(branchName, taskId, taskTitle) {
   };
 }
 
-async function restartHerokuApp() {
-  const apiKey = getEnv('HEROKU_API_KEY', { required: true });
-  const email = getEnv('HEROKU_EMAIL', { required: true });
-  const appName = getEnv('OPS_WALLET_HEROKU_APP_NAME', { required: true });
-  const response = await fetch(`https://api.heroku.com/apps/${encodeURIComponent(appName)}/dynos`, {
-    method: 'DELETE',
-    headers: {
-      Accept: 'application/vnd.heroku+json; version=3',
-      Authorization: `Bearer ${apiKey}`,
-      'Heroku-Account-Email': email,
-      'User-Agent': '4teen-ops-runner'
-    }
-  });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(text || `Heroku restart failed with status ${response.status}`);
-  }
-
-  return appName;
-}
-
 async function processApply(request) {
-  const workOrder = await fetchWorkOrder(request.task_id);
+  const workOrder = await fetchRequestWorkOrder(request.id);
   if (!workOrder?.readyToImplement) {
     return {
       status: 'blocked',
@@ -490,12 +371,12 @@ async function processApply(request) {
   const branchName = `codex/ops-task-${Number(request.task_id || 0)}`;
   ensureTaskBranch(branchName);
 
-  const plan = await generateApplyPlan(workOrder, fileSnapshots);
+  const plan = await requestServerApplyPlan(request.id, fileSnapshots);
   if (normalizeValue(plan?.outcome) !== 'apply') {
     return {
       status: 'blocked',
-      summary: normalizeValue(plan?.summary) || 'Runner blocked by Codex plan',
-      resultMessage: normalizeValue(plan?.blockedReason) || 'Codex refused to generate a safe grounded patch.'
+      summary: normalizeValue(plan?.summary) || 'Runner blocked by server-side Codex plan',
+      resultMessage: normalizeValue(plan?.blockedReason) || 'Control plane refused to generate a safe grounded patch.'
     };
   }
 
@@ -544,7 +425,7 @@ async function processPublish(request) {
     };
   }
 
-  const workOrder = await fetchWorkOrder(request.task_id);
+  const workOrder = await fetchRequestWorkOrder(request.id);
   const pr = await findOrCreateDraftPr(branchName, request.task_id, workOrder?.title || `Task ${request.task_id}`);
   return {
     status: 'done',
@@ -557,34 +438,21 @@ async function processPublish(request) {
   };
 }
 
-async function processDeploy(request) {
-  const workOrder = await fetchWorkOrder(request.task_id);
-  const files = Array.isArray(workOrder?.proposedFiles) ? workOrder.proposedFiles : [];
-  const apiOnly = files.length > 0 && files.every((item) => normalizeValue(item).startsWith('apps/api/'));
-
-  if (!apiOnly) {
-    return {
-      status: 'blocked',
-      summary: 'Wallet deploy is not wired for this task type',
-      resultMessage:
-        'This wallet-app task is not API-only. Mobile app release automation is not wired into this runner yet, so deploying it automatically would be unsafe.'
-    };
-  }
-
+async function processDeploy() {
   return {
     status: 'blocked',
-    summary: 'Heroku deploy bridge is not unified with the monorepo yet',
+    summary: 'Wallet deploy is still intentionally blocked',
     resultMessage:
-      'The production Heroku app still runs from a separate API deploy source, not directly from this monorepo snapshot. Auto-deploy stays blocked until that deploy bridge is unified.'
+      'The production wallet backend still deploys from a separate Heroku source tree, so auto-deploy from this monorepo runner stays blocked until that bridge is unified.'
   };
 }
 
 async function processRestart() {
-  const appName = await restartHerokuApp();
   return {
-    status: 'done',
-    summary: 'Requested Heroku dyno restart',
-    resultMessage: `Restart requested for app ${appName}.`
+    status: 'blocked',
+    summary: 'Wallet restart is handled outside the GitHub runner for now',
+    resultMessage:
+      'Code apply/publish now run remotely through GitHub Actions. Runtime restart is still controlled from the server side until the release bridge is unified.'
   };
 }
 
