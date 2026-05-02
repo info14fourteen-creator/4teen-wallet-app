@@ -1,13 +1,13 @@
 # 4teen-wallet-app — AI MAP
 
-Generated: 2026-05-01T19:34:07.016Z
+Generated: 2026-05-02T00:50:14.698Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 1279df7db56fc6de3de999bac9d898edd66fb2d1
-Short commit: 1279df7
-Commit subject: Polish app flows, dictionaries, and ops updates
+Last commit: a7ee6bb468bf1e973c4b31b3bae0db9287621b9a
+Short commit: a7ee6bb
+Commit subject: Prepare release flows, ops bot, and store update checks
 Commit author: info14fourteen-creator
-Commit date: 2026-05-02T00:33:46+05:00
+Commit date: 2026-05-02T05:49:56+05:00
 
 ## Snapshot files
 
@@ -32,6 +32,11 @@ Commit date: 2026-05-02T00:33:46+05:00
     - ci.yml
 - apps/
   - api/
+    - scripts/
+      - export-knowledge-base.js
+      - export-product-notes.js
+      - export-repo-map.js
+      - sync-knowledge-base.js
     - src/
       - config/
         - env.js
@@ -46,6 +51,7 @@ Commit date: 2026-05-02T00:33:46+05:00
       - routes/
         - airdrop.js
         - ambassador.js
+        - appVersion.js
         - gasstation.js
         - health.js
         - ops.js
@@ -68,11 +74,18 @@ Commit date: 2026-05-02T00:33:46+05:00
           - energyResale.js
           - gasStation.js
           - notifications.js
+        - liquidity/
+          - execution.js
         - ops/
+          - codexJobs.js
           - events.js
+          - knowledgeBase.js
           - monitor.js
+          - openai.js
+          - productNotes.js
           - screeners.js
           - store.js
+          - tasks.js
           - telegramAdminBot.js
         - proxy/
           - apiProxy.js
@@ -251,27 +264,17 @@ Commit date: 2026-05-02T00:33:46+05:00
           - home_footer_menu_btn_onclick.svg
           - home_footer_menu_btn.svg
           - import_private_key_visibility_toggle.json
-          - info_btn.svg
-          - liquidity_qp_btn.svg
-          - logo_white.svg
-          - manage_full_btn.svg
-          - manage_new_btn.svg
-          - menu.svg
-          - more_btn.svg
-          - open_down_btn.svg
-          - open_right_btn.svg
-          - paste_btn.svg
-          - preferences_btn.svg
-          - qr_btn.svg
-          - receive_btn.svg
-          - remove_contact_btn.svg
-          - scan.svg
-          - search.svg
     - app.json
 - docs/
   - ai-snapshots/
     - 2026-04-09-wallet-home-wired.md
     - 2026-04-09-wallet-import-state.md
+  - ops/
+    - access-map.json
+    - access-map.md
+    - knowledge-base.md
+    - next-release-notes.md
+    - repo-map.md
 - scripts/
   - build-wallet-ai-bundles.mjs
 - package.json
