@@ -1084,29 +1084,14 @@ function toPercentLabel(rawValue, dividerValue) {
 }
 
 async function buildVerificationSnapshot() {
-  const [
-    totalSupplyHex,
-    previewPriceHex,
-    annualGrowthRateHex,
-    lastPriceUpdateHex,
-    priceUpdateIntervalHex,
-    tokenOwnerHex,
-    liquidityPoolHex,
-    airdropAddressHex,
-    controllerOwnerHex,
-    systemCountsHex,
-    systemRewardsHex,
-    systemBalancesHex,
-    liquidityControllerOwnerHex,
-    liquidityMinBalanceHex,
-    liquidityDailyPercentHex,
-    liquidityPercentDividerHex,
-    targetAHex,
-    targetBHex,
-    liquidityControllerBalanceRaw
-  ] = await Promise.all([
-    triggerConstant('totalSupply()', FOURTEEN_TOKEN_CONTRACT),
-    triggerConstant('previewFourteenCurrentPrice()', FOURTEEN_CONTROLLER_CONTRACT),
+  const [unlockSnapshot, liquiditySnapshot, ambassadorSnapshot, marketSnapshot] = await Promise.all([
+    getPublicUnlockSnapshot(),
+    getPublicLiquiditySnapshot(),
+    getPublicAmbassadorSnapshot(),
+    getPublicMarketPriceSnapshot()
+  ]);
+
+  const metadataCalls = await Promise.allSettled([
     triggerConstant('getFourteenAnnualGrowthRate()', FOURTEEN_CONTROLLER_CONTRACT),
     triggerConstant('getFourteenLastPriceUpdate()', FOURTEEN_CONTROLLER_CONTRACT),
     triggerConstant('getFourteenPriceUpdateInterval()', FOURTEEN_CONTROLLER_CONTRACT),
@@ -1114,132 +1099,129 @@ async function buildVerificationSnapshot() {
     triggerConstant('getFourteenLiquidityPool()', FOURTEEN_CONTROLLER_CONTRACT),
     triggerConstant('getFourteenAirdropAddress()', FOURTEEN_CONTROLLER_CONTRACT),
     triggerConstant('owner()', FOURTEEN_CONTROLLER_CONTRACT),
-    triggerConstant('getSystemCounts()', FOURTEEN_CONTROLLER_CONTRACT),
-    triggerConstant('getSystemRewards()', FOURTEEN_CONTROLLER_CONTRACT),
-    triggerConstant('getSystemBalances()', FOURTEEN_CONTROLLER_CONTRACT),
-    triggerConstant('owner()', LIQUIDITY_CONTROLLER_CONTRACT),
-    triggerConstant('MIN_BALANCE()', LIQUIDITY_CONTROLLER_CONTRACT),
-    triggerConstant('DAILY_PERCENT()', LIQUIDITY_CONTROLLER_CONTRACT),
-    triggerConstant('PERCENT_DIVIDER()', LIQUIDITY_CONTROLLER_CONTRACT),
-    triggerConstant('targetA()', LIQUIDITY_CONTROLLER_CONTRACT),
-    triggerConstant('targetB()', LIQUIDITY_CONTROLLER_CONTRACT),
-    fetchAccountBalanceSun(LIQUIDITY_CONTROLLER_CONTRACT)
+    triggerConstant('owner()', LIQUIDITY_CONTROLLER_CONTRACT)
   ]);
-
-  const targetAAddress = toAddress(targetAHex) || JUSTMONEY_EXECUTOR_CONTRACT;
-  const targetBAddress = toAddress(targetBHex) || SUN_V3_EXECUTOR_CONTRACT;
 
   const [
-    fourteenVaultBalanceRaw,
-    teamLockVaultBalanceRaw,
-    airdropVaultBalanceRaw,
-    targetABalanceRaw,
-    targetBBalanceRaw
-  ] = await Promise.all([
-    readTokenBalance(FOURTEEN_VAULT_CONTRACT),
-    readTokenBalance(TEAM_LOCK_VAULT_CONTRACT),
-    readTokenBalance(AIRDROP_VAULT_CONTRACT),
-    readTokenBalance(targetAAddress),
-    readTokenBalance(targetBAddress)
-  ]);
+    annualGrowthRateResult,
+    lastPriceUpdateResult,
+    priceUpdateIntervalResult,
+    tokenOwnerResult,
+    liquidityPoolResult,
+    airdropAddressResult,
+    controllerOwnerResult,
+    liquidityControllerOwnerResult
+  ] = metadataCalls;
 
-  const totalSupplyRaw = hexToBigInt(totalSupplyHex);
-  const currentPriceRaw = hexToBigInt(previewPriceHex);
-  const annualGrowthRateRaw = hexToBigInt(annualGrowthRateHex);
-  const lastPriceUpdateRaw = hexToBigInt(lastPriceUpdateHex);
-  const priceUpdateIntervalRaw = hexToBigInt(priceUpdateIntervalHex);
-  const liquidityMinBalanceRaw = hexToBigInt(liquidityMinBalanceHex);
-  const liquidityDailyPercentRaw = hexToBigInt(liquidityDailyPercentHex);
-  const liquidityPercentDividerRaw = hexToBigInt(liquidityPercentDividerHex);
-  const [ambassadorsCountRaw, activeAmbassadorsCountRaw, boundBuyersCountRaw] = splitWords(systemCountsHex).map(hexToBigInt);
-  const [trackedVolumeRaw, rewardsAccruedRaw, rewardsClaimedRaw] = splitWords(systemRewardsHex).map(hexToBigInt);
-  const [controllerBalanceRaw, ownerAvailableRaw, reservedRewardsRaw, unallocatedPurchaseFundsRaw] =
-    splitWords(systemBalancesHex).map(hexToBigInt);
-  const vaultCustodyRaw = fourteenVaultBalanceRaw + teamLockVaultBalanceRaw + airdropVaultBalanceRaw;
+  const annualGrowthRateRaw =
+    annualGrowthRateResult.status === 'fulfilled'
+      ? hexToBigInt(annualGrowthRateResult.value)
+      : BigInt(1475);
+  const priceUpdateIntervalRaw =
+    priceUpdateIntervalResult.status === 'fulfilled'
+      ? hexToBigInt(priceUpdateIntervalResult.value)
+      : BigInt(90 * 24 * 60 * 60);
+  const lastPriceUpdateAt =
+    lastPriceUpdateResult.status === 'fulfilled'
+      ? Number(hexToBigInt(lastPriceUpdateResult.value)) * 1000
+      : 0;
+
+  const unlock = unlockSnapshot.snapshot;
+  const liquidity = liquiditySnapshot.snapshot;
+  const ambassador = ambassadorSnapshot.snapshot;
+  const market = marketSnapshot.snapshot;
+
+  if (!unlock || !liquidity || !ambassador || !market) {
+    throw new Error('Dependent site snapshots are missing');
+  }
+
+  const currentPriceDisplay = String(
+    market.direct?.trx ||
+      market.dex?.trx ||
+      market.quotes?.[0]?.value ||
+      '0'
+  );
 
   return {
     loadedAt: new Date().toISOString(),
-    totalSupplyDisplay: formatTokenAmount(totalSupplyRaw),
-    totalSupplyRaw: totalSupplyRaw.toString(),
-    currentPriceDisplay: formatSunAmount(currentPriceRaw),
-    currentPriceRaw: currentPriceRaw.toString(),
-    vaultCustodyDisplay: formatTokenAmount(vaultCustodyRaw),
-    vaultCustodyRaw: vaultCustodyRaw.toString(),
-    controllerBalanceDisplay: formatSunAmount(controllerBalanceRaw),
-    controllerBalanceRaw: controllerBalanceRaw.toString(),
-    ownerAvailableDisplay: formatSunAmount(ownerAvailableRaw),
-    ownerAvailableRaw: ownerAvailableRaw.toString(),
-    reservedRewardsDisplay: formatSunAmount(reservedRewardsRaw),
-    reservedRewardsRaw: reservedRewardsRaw.toString(),
-    unallocatedPurchaseFundsDisplay: formatSunAmount(unallocatedPurchaseFundsRaw),
-    unallocatedPurchaseFundsRaw: unallocatedPurchaseFundsRaw.toString(),
-    trackedVolumeDisplay: formatSunAmount(trackedVolumeRaw),
-    trackedVolumeRaw: trackedVolumeRaw.toString(),
-    rewardsAccruedDisplay: formatSunAmount(rewardsAccruedRaw),
-    rewardsAccruedRaw: rewardsAccruedRaw.toString(),
-    rewardsClaimedDisplay: formatSunAmount(rewardsClaimedRaw),
-    rewardsClaimedRaw: rewardsClaimedRaw.toString(),
-    liquidityControllerBalanceDisplay: formatSunAmount(liquidityControllerBalanceRaw),
-    liquidityControllerBalanceRaw: liquidityControllerBalanceRaw.toString(),
-    liquidityMinBalanceDisplay: formatSunAmount(liquidityMinBalanceRaw),
-    liquidityMinBalanceRaw: liquidityMinBalanceRaw.toString(),
-    liquidityDailyReleaseLabel: toPercentLabel(liquidityDailyPercentRaw, liquidityPercentDividerRaw),
+    totalSupplyDisplay: unlock.totalSupplyDisplay,
+    totalSupplyRaw: unlock.totalSupplyRaw,
+    currentPriceDisplay,
+    currentPriceRaw: String(market.direct?.trx || '0'),
+    vaultCustodyDisplay: unlock.vaultCustodyDisplay,
+    vaultCustodyRaw: unlock.vaultCustodyRaw,
+    controllerBalanceDisplay: ambassador.system.controllerBalanceDisplay,
+    controllerBalanceRaw: ambassador.system.controllerBalanceRaw,
+    ownerAvailableDisplay: ambassador.system.ownerAvailableBalanceDisplay,
+    ownerAvailableRaw: ambassador.system.ownerAvailableBalanceRaw,
+    reservedRewardsDisplay: ambassador.system.reservedRewardsDisplay,
+    reservedRewardsRaw: ambassador.system.reservedRewardsRaw,
+    unallocatedPurchaseFundsDisplay: ambassador.system.unallocatedPurchaseFundsDisplay,
+    unallocatedPurchaseFundsRaw: ambassador.system.unallocatedPurchaseFundsRaw,
+    trackedVolumeDisplay: ambassador.system.trackedVolumeDisplay,
+    trackedVolumeRaw: ambassador.system.trackedVolumeRaw,
+    rewardsAccruedDisplay: ambassador.system.rewardsAccruedDisplay,
+    rewardsAccruedRaw: ambassador.system.rewardsAccruedRaw,
+    rewardsClaimedDisplay: ambassador.system.rewardsClaimedDisplay,
+    rewardsClaimedRaw: ambassador.system.rewardsClaimedRaw,
+    liquidityControllerBalanceDisplay: liquidity.controllerBalanceDisplay,
+    liquidityControllerBalanceRaw: liquidity.controllerBalanceRaw,
+    liquidityMinBalanceDisplay: liquidity.minBalanceDisplay,
+    liquidityMinBalanceRaw: '0',
+    liquidityDailyReleaseLabel: liquidity.dailyPercentLabel,
     annualGrowthRateLabel: `${(Number(annualGrowthRateRaw) / 100).toFixed(2)}% / ${Math.max(1, Math.round(Number(priceUpdateIntervalRaw) / 86400))}d`,
     annualGrowthRateRaw: annualGrowthRateRaw.toString(),
     priceUpdateIntervalDays: Math.max(1, Math.round(Number(priceUpdateIntervalRaw) / 86400)),
     priceUpdateIntervalSeconds: Number(priceUpdateIntervalRaw),
-    lastPriceUpdateAt: Number(lastPriceUpdateRaw) * 1000,
-    tokenOwnerAddress: toAddress(tokenOwnerHex),
-    controllerOwnerAddress: toAddress(controllerOwnerHex),
-    liquidityControllerOwnerAddress: toAddress(liquidityControllerOwnerHex),
-    liquidityPoolAddress: toAddress(liquidityPoolHex),
-    airdropAddress: toAddress(airdropAddressHex),
-    justMoneyExecutorAddress: targetAAddress,
-    sunV3ExecutorAddress: targetBAddress,
-    ambassadorsCount: Number(ambassadorsCountRaw),
-    activeAmbassadorsCount: Number(activeAmbassadorsCountRaw),
-    boundBuyersCount: Number(boundBuyersCountRaw),
+    lastPriceUpdateAt,
+    tokenOwnerAddress:
+      tokenOwnerResult.status === 'fulfilled'
+        ? toAddress(tokenOwnerResult.value)
+        : FOURTEEN_CONTROLLER_CONTRACT,
+    controllerOwnerAddress:
+      controllerOwnerResult.status === 'fulfilled'
+        ? toAddress(controllerOwnerResult.value)
+        : '',
+    liquidityControllerOwnerAddress:
+      liquidityControllerOwnerResult.status === 'fulfilled'
+        ? toAddress(liquidityControllerOwnerResult.value)
+        : '',
+    liquidityPoolAddress:
+      liquidityPoolResult.status === 'fulfilled'
+        ? toAddress(liquidityPoolResult.value) || LIQUIDITY_BOOTSTRAPPER_CONTRACT
+        : LIQUIDITY_BOOTSTRAPPER_CONTRACT,
+    airdropAddress:
+      airdropAddressResult.status === 'fulfilled'
+        ? toAddress(airdropAddressResult.value) || AIRDROP_VAULT_CONTRACT
+        : AIRDROP_VAULT_CONTRACT,
+    justMoneyExecutorAddress:
+      liquidity.reserves.find((item) => item.title === 'JustMoney Executor')?.address ||
+      JUSTMONEY_EXECUTOR_CONTRACT,
+    sunV3ExecutorAddress:
+      liquidity.reserves.find((item) => item.title === 'Sun.io V3 Executor')?.address ||
+      SUN_V3_EXECUTOR_CONTRACT,
+    ambassadorsCount: ambassador.system.ambassadorsCount,
+    activeAmbassadorsCount: ambassador.system.activeAmbassadorsCount,
+    boundBuyersCount: ambassador.system.boundBuyersCount,
     assets: [
-      {
-        title: 'FourteenVault',
-        address: FOURTEEN_VAULT_CONTRACT,
-        balanceDisplay: formatTokenAmount(fourteenVaultBalanceRaw),
-        balanceRaw: fourteenVaultBalanceRaw.toString(),
-        role: 'Liquidity reserve custody',
-        href: `https://tronscan.org/#/contract/${FOURTEEN_VAULT_CONTRACT}`
-      },
-      {
-        title: 'TeamLockVault',
-        address: TEAM_LOCK_VAULT_CONTRACT,
-        balanceDisplay: formatTokenAmount(teamLockVaultBalanceRaw),
-        balanceRaw: teamLockVaultBalanceRaw.toString(),
-        role: 'Team allocation lock custody',
-        href: `https://tronscan.org/#/contract/${TEAM_LOCK_VAULT_CONTRACT}`
-      },
-      {
-        title: 'AirdropVault',
-        address: AIRDROP_VAULT_CONTRACT,
-        balanceDisplay: formatTokenAmount(airdropVaultBalanceRaw),
-        balanceRaw: airdropVaultBalanceRaw.toString(),
-        role: 'Community distribution reserve',
-        href: `https://tronscan.org/#/contract/${AIRDROP_VAULT_CONTRACT}`
-      },
-      {
-        title: 'JustMoney Executor',
-        address: targetAAddress,
-        balanceDisplay: formatTokenAmount(targetABalanceRaw),
-        balanceRaw: targetABalanceRaw.toString(),
-        role: 'Prepared 4TEEN inventory for JustMoney liquidity path',
-        href: `https://tronscan.org/#/contract/${targetAAddress}`
-      },
-      {
-        title: 'Sun.io V3 Executor',
-        address: targetBAddress,
-        balanceDisplay: formatTokenAmount(targetBBalanceRaw),
-        balanceRaw: targetBBalanceRaw.toString(),
-        role: 'Prepared 4TEEN inventory for Sun.io V3 liquidity path',
-        href: `https://tronscan.org/#/contract/${targetBAddress}`
-      }
+      ...unlock.vaults.map((vault) => ({
+        title: vault.title,
+        address: vault.address,
+        balanceDisplay: vault.balanceDisplay,
+        balanceRaw: vault.balanceRaw,
+        role: vault.role,
+        href: vault.href
+      })),
+      ...liquidity.reserves
+        .filter((reserve) => reserve.title !== 'FourteenVault')
+        .map((reserve) => ({
+          title: reserve.title,
+          address: reserve.address,
+          balanceDisplay: reserve.balanceDisplay,
+          balanceRaw: reserve.balanceRaw,
+          role: reserve.role,
+          href: reserve.href
+        }))
     ]
   };
 }
