@@ -20,13 +20,18 @@ The mobile app is locally release-ready from a code and bundling perspective.
 
 - App icon wired from the current 4TEEN brand mark
 - App display name set to `4TEEN`
-- Store version set to `1.0.0`
+- Store version set to `1.0.1`
 - `ITSAppUsesNonExemptEncryption` declared as `false`
 - Removed unused Android `RECORD_AUDIO` permission
 - Removed EAS channel config that was noisy without `expo-updates`
 - Removed local `ios.buildNumber` / `android.versionCode` from app config because EAS remote versioning is enabled
 - Fixed Android Metro bundling for `@noble/hashes` via local shim
 - Reworked the Android install-referrer native bridge to a Promise-based Expo module path that is compatible with the current Expo Modules core
+- Folded the latest no-wallet entry fixes into the release baseline:
+  - wallet-required routes now fall back into `wallet-access`
+  - `wallet-access` now uses the onboarding `ui-lab` flow
+  - no-wallet language selection is available without exposing the full app shell
+  - unlock shield / biometric-entry polish is included
 
 ## Referral / attribution readiness
 

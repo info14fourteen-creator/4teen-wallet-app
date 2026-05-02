@@ -9,7 +9,7 @@ This is the practical submission pack: exact values where we already know them, 
 - App name: `4TEEN`
 - Internal label: `4TEEN Wallet`
 - Positioning line: `Wallet & protocol access`
-- Version: `1.0.0`
+- Version: `1.0.1`
 - Bundle identifier: `me.fourteen.wallet`
 - Android package: `me.fourteen.wallet`
 - Website: `https://4teen.me`

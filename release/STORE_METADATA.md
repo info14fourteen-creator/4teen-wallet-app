@@ -10,7 +10,7 @@ Last updated: 2026-05-02
 - Expo slug: `4teen-wallet`
 - iOS bundle identifier: `me.fourteen.wallet`
 - Android package: `me.fourteen.wallet`
-- Version: `1.0.0`
+- Version: `1.0.1`
 
 ## App Store
 

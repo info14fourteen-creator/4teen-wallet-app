@@ -2,7 +2,7 @@
   "expo": {
     "name": "4TEEN",
     "slug": "4teen-wallet",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "4TEEN Wallet. Ecosystem connector for direct buys, swaps, wallet access, and on-chain protocol flows.",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

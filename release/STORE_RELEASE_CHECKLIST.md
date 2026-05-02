@@ -5,7 +5,7 @@
 - [x] Set short app display name to `4TEEN`
 - [x] Set iOS bundle identifier to `me.fourteen.wallet`
 - [x] Set Android package to `me.fourteen.wallet`
-- [x] Set app version to `1.0.0`
+- [x] Set app version to `1.0.1`
 - [x] Enable EAS remote app versioning
 - [x] Wire main app icon
 - [x] Add `eas.json`
