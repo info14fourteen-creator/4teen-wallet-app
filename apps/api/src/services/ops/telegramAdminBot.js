@@ -624,26 +624,32 @@ async function recordBotEvent(input) {
   }).catch(() => null);
 }
 
-function formatRelativeMinutes(timestamp) {
+function formatRelativeMinutes(timestamp, locale = 'ru') {
   const time = new Date(timestamp || 0).getTime();
   if (!Number.isFinite(time) || time <= 0) {
-    return 'неизвестно';
+    return pickLocale(locale, 'неизвестно', 'unknown');
   }
 
   const diffMinutes = Math.max(0, Math.round((Date.now() - time) / 60000));
-  if (diffMinutes < 1) return 'только что';
-  if (diffMinutes < 60) return `${diffMinutes} мин назад`;
+  if (diffMinutes < 1) return pickLocale(locale, 'только что', 'just now');
+  if (diffMinutes < 60) return pickLocale(locale, `${diffMinutes} мин назад`, `${diffMinutes} min ago`);
   const hours = Math.floor(diffMinutes / 60);
   const restMinutes = diffMinutes % 60;
-  return restMinutes > 0 ? `${hours} ч ${restMinutes} мин назад` : `${hours} ч назад`;
+  return restMinutes > 0
+    ? pickLocale(locale, `${hours} ч ${restMinutes} мин назад`, `${hours}h ${restMinutes}m ago`)
+    : pickLocale(locale, `${hours} ч назад`, `${hours}h ago`);
 }
 
-function formatKeyPoolLine(label, snapshot) {
+function formatKeyPoolLine(label, snapshot, locale = 'ru') {
   const available = Number(snapshot?.available || 0);
   const total = Number(snapshot?.total || 0);
   const coolingDown = Number(snapshot?.coolingDown || 0);
   const icon = available === 0 ? '🔴' : available === total ? '🟢' : '🟠';
-  return `${icon} ${label}: готово ${available}/${total}, в cooldown ${coolingDown}`;
+  return pickLocale(
+    locale,
+    `${icon} ${label}: готово ${available}/${total}, в cooldown ${coolingDown}`,
+    `${icon} ${label}: ready ${available}/${total}, cooling down ${coolingDown}`
+  );
 }
 
 function shortenAddress(address) {
@@ -667,38 +673,38 @@ function severityIcon(severity) {
   return '🟢';
 }
 
-function feedbackTypeMeta(type) {
+function feedbackTypeMeta(type, locale = 'ru') {
   const safe = normalizeValue(type).toLowerCase();
 
   if (safe === 'app_issue') {
-    return { icon: '🚨', label: 'поломка' };
+    return { icon: '🚨', label: pickLocale(locale, 'поломка', 'broken') };
   }
 
   if (safe === 'app_confusing') {
-    return { icon: '🤔', label: 'непонятно' };
+    return { icon: '🤔', label: pickLocale(locale, 'непонятно', 'confusing') };
   }
 
   if (safe === 'app_slow') {
-    return { icon: '🐢', label: 'тормозит' };
+    return { icon: '🐢', label: pickLocale(locale, 'тормозит', 'slow') };
   }
 
   if (safe === 'app_idea') {
-    return { icon: '💡', label: 'идея' };
+    return { icon: '💡', label: pickLocale(locale, 'идея', 'idea') };
   }
 
   if (safe === 'app_praise') {
-    return { icon: '❤️', label: 'похвала' };
+    return { icon: '❤️', label: pickLocale(locale, 'похвала', 'praise') };
   }
 
-  return { icon: '💬', label: 'отзыв' };
+  return { icon: '💬', label: pickLocale(locale, 'отзыв', 'feedback') };
 }
 
-function feedbackStatusLabel(event) {
+function feedbackStatusLabel(event, locale = 'ru') {
   if (event?.resolved_at) {
-    return 'разобрано';
+    return pickLocale(locale, 'разобрано', 'reviewed');
   }
 
-  return 'ждёт внимания';
+  return pickLocale(locale, 'ждёт внимания', 'needs attention');
 }
 
 function parseJson(value, fallback = null) {
@@ -719,7 +725,7 @@ function screenerStatusIcon(status) {
   return '🔴';
 }
 
-function buildScreenerStateSummary(snapshot) {
+function buildScreenerStateSummary(snapshot, locale = 'ru') {
   const summary = snapshot?.summary || {};
   const ok = Number(summary.ok || 0);
   const warn = Number(summary.warn || 0);
@@ -727,67 +733,87 @@ function buildScreenerStateSummary(snapshot) {
   const total = Number(summary.total || 0);
 
   if (total <= 0) {
-    return 'ещё нет прогона';
+    return pickLocale(locale, 'ещё нет прогона', 'not run yet');
   }
 
   if (fail > 0) {
-    return `${ok}/${total} ок, ${warn} под давлением, ${fail} сломано`;
+    return pickLocale(
+      locale,
+      `${ok}/${total} ок, ${warn} под давлением, ${fail} сломано`,
+      `${ok}/${total} ok, ${warn} under pressure, ${fail} broken`
+    );
   }
 
   if (warn > 0) {
-    return `${ok}/${total} ок, ${warn} под давлением`;
+    return pickLocale(locale, `${ok}/${total} ок, ${warn} под давлением`, `${ok}/${total} ok, ${warn} under pressure`);
   }
 
-  return `${ok}/${total} ок`;
+  return pickLocale(locale, `${ok}/${total} ок`, `${ok}/${total} ok`);
 }
 
-function buildEventRecommendation(event) {
+function buildEventRecommendation(event, locale = 'ru') {
   const source = normalizeValue(event?.source);
   const category = normalizeValue(event?.category);
   const type = normalizeValue(event?.type);
   const details = parseJson(event?.details_json, {});
 
   if (source === 'airdrop' && category === 'resources' && type === 'resource_floor_low') {
-    return `Совет: докинуть energy на airdrop-кошелёк ${shortenAddress(details?.walletAddress)}.`;
+    return pickLocale(
+      locale,
+      `Совет: докинуть energy на airdrop-кошелёк ${shortenAddress(details?.walletAddress)}.`,
+      `Advice: add energy to the airdrop wallet ${shortenAddress(details?.walletAddress)}.`
+    );
   }
 
   if (source === 'ambassador' && category === 'resources' && type === 'resource_floor_low') {
-    return `Совет: проверить operator wallet ${shortenAddress(details?.walletAddress)} и поднять energy.`;
+    return pickLocale(
+      locale,
+      `Совет: проверить operator wallet ${shortenAddress(details?.walletAddress)} и поднять energy.`,
+      `Advice: check operator wallet ${shortenAddress(details?.walletAddress)} and top up energy.`
+    );
   }
 
   if (source === 'proxy' && category === 'keys' && type === 'key_pool_exhausted') {
-    return 'Совет: часть провайдерских ключей упёрлась в лимиты. Стоит проверить квоты и запасные ключи.';
+    return pickLocale(locale, 'Совет: часть провайдерских ключей упёрлась в лимиты. Стоит проверить квоты и запасные ключи.', 'Advice: some provider keys hit their limits. Check quotas and spare keys.');
   }
 
   if (source === 'gasstation' && category === 'keys' && type === 'credential_pool_failed') {
-    return 'Совет: проверить лимиты/whitelist GasStation и хватает ли средств для top-up.';
+    return pickLocale(locale, 'Совет: проверить лимиты/whitelist GasStation и хватает ли средств для top-up.', 'Advice: check GasStation limits/whitelist and whether there are enough funds for top-up.');
   }
 
   if (source === 'clock' && category === 'heartbeat' && type === 'clock_stale') {
-    return 'Совет: проверить clock dyno и свежесть heartbeat.';
+    return pickLocale(locale, 'Совет: проверить clock dyno и свежесть heartbeat.', 'Advice: check the clock dyno and heartbeat freshness.');
   }
 
   if (source === 'screeners' && type === 'wallet_market_pipeline') {
-    return 'Совет: проверить proxy до Trongrid/Tronscan и запас по ключам.';
+    return pickLocale(locale, 'Совет: проверить proxy до Trongrid/Tronscan и запас по ключам.', 'Advice: check the proxy path to Trongrid/Tronscan and remaining key capacity.');
   }
 
   if (source === 'screeners' && type === 'ambassador_energy_quote') {
-    return 'Совет: проверить quote на energy и fallback-конфиг для resale.';
+    return pickLocale(locale, 'Совет: проверить quote на energy и fallback-конфиг для resale.', 'Advice: check the energy quote and the resale fallback config.');
   }
 
   if (source === 'screeners' && type === 'telegram_airdrop_flow') {
-    return `Совет: посмотреть airdrop wallet ${shortenAddress(details?.meta?.walletAddress || details?.walletAddress)} и его ресурсы.`;
+    return pickLocale(
+      locale,
+      `Совет: посмотреть airdrop wallet ${shortenAddress(details?.meta?.walletAddress || details?.walletAddress)} и его ресурсы.`,
+      `Advice: inspect airdrop wallet ${shortenAddress(details?.meta?.walletAddress || details?.walletAddress)} and its resources.`
+    );
   }
 
   if (source === 'screeners' && type === 'ambassador_allocation_flow') {
-    return `Совет: проверить operator wallet ${shortenAddress(details?.meta?.walletAddress || details?.walletAddress)} и не застряли ли аллокации.`;
+    return pickLocale(
+      locale,
+      `Совет: проверить operator wallet ${shortenAddress(details?.meta?.walletAddress || details?.walletAddress)} и не застряли ли аллокации.`,
+      `Advice: inspect operator wallet ${shortenAddress(details?.meta?.walletAddress || details?.walletAddress)} and check for stuck allocations.`
+    );
   }
 
   if (source === 'app-feedback' && category === 'feedback') {
-    return 'Совет: открыть экран, который человек указал в отзыве, и быстро воспроизвести путь руками.';
+    return pickLocale(locale, 'Совет: открыть экран, который человек указал в отзыве, и быстро воспроизвести путь руками.', 'Advice: open the screen mentioned in the feedback and quickly reproduce the path by hand.');
   }
 
-  return 'Совет: откройте детали ниже и посмотрите соседние сигналы в разделе здоровья.';
+  return pickLocale(locale, 'Совет: откройте детали ниже и посмотрите соседние сигналы в разделе здоровья.', 'Advice: open the details below and compare nearby signals in the health section.');
 }
 
 function buildHeader(title, subtitle) {
@@ -945,20 +971,20 @@ function isAdvancedScreen(screen) {
   );
 }
 
-function buildClockWalletOpsSummary(clockPayload) {
+function buildClockWalletOpsSummary(clockPayload, locale = 'ru') {
   const app = clockPayload?.app || {};
   const claims = app.telegramClaimsProcessed;
   const wallets = app.ambassadorWalletsProcessed;
   const failed = app.ambassadorWalletsFailed;
 
   if (claims == null && wallets == null) {
-    return 'данные по wallet workers ещё не записаны';
+    return pickLocale(locale, 'данные по wallet workers ещё не записаны', 'wallet worker data has not been recorded yet');
   }
 
   return `claims ${claims ?? 'n/a'} • ambassador wallets ${wallets ?? 'n/a'} • failed ${failed ?? 'n/a'}`;
 }
 
-function buildClockSiteSummary(clockPayload) {
+function buildClockSiteSummary(clockPayload, locale = 'ru') {
   const site = clockPayload?.site || {};
   const total = Number(site.total || 0);
   const ok = Number(site.ok || 0);
@@ -966,7 +992,7 @@ function buildClockSiteSummary(clockPayload) {
   const failed = Number(site.failed || 0);
 
   if (total <= 0) {
-    return 'сайтовый refresh ещё не зафиксирован';
+    return pickLocale(locale, 'сайтовый refresh ещё не зафиксирован', 'site refresh has not been recorded yet');
   }
 
   return `${total} endpoints • ok ${ok} • stale ${stale} • fail ${failed}`;
@@ -1002,8 +1028,8 @@ function buildMenuMarkup(currentScreen, options = {}) {
           { text: pickLocale(locale, '📦 Очереди', '📦 Queues'), callback_data: `${CALLBACK_PREFIX}screen:queues` }
         ],
         [
-          { text: '🤖 Jobs', callback_data: `${CALLBACK_PREFIX}screen:jobs` },
-          { text: '📚 Knowledge', callback_data: `${CALLBACK_PREFIX}screen:knowledge` }
+          { text: pickLocale(locale, '🤖 Джобы', '🤖 Jobs'), callback_data: `${CALLBACK_PREFIX}screen:jobs` },
+          { text: pickLocale(locale, '📚 Память', '📚 Knowledge'), callback_data: `${CALLBACK_PREFIX}screen:knowledge` }
         ],
         [
           { text: pickLocale(locale, '📝 План', '📝 Notes'), callback_data: `${CALLBACK_PREFIX}screen:notes` },
@@ -1015,16 +1041,16 @@ function buildMenuMarkup(currentScreen, options = {}) {
   return {
     inline_keyboard: [
       [
-        { text: '🧠 Summary', callback_data: `${CALLBACK_PREFIX}screen:summary` },
+        { text: pickLocale(locale, '🧠 Сводка', '🧠 Summary'), callback_data: `${CALLBACK_PREFIX}screen:summary` },
         { text: pickLocale(locale, '🏠 Founder', '🏠 Founder'), callback_data: `${CALLBACK_PREFIX}screen:overview` }
       ],
       [
         { text: pickLocale(locale, '🚨 Проблемы', '🚨 Problems'), callback_data: `${CALLBACK_PREFIX}screen:events` },
-        { text: '💬 Feedback', callback_data: `${CALLBACK_PREFIX}screen:feedback` }
+        { text: pickLocale(locale, '💬 Отзывы', '💬 Feedback'), callback_data: `${CALLBACK_PREFIX}screen:feedback` }
       ],
       [
         { text: pickLocale(locale, '🧾 Задачи', '🧾 Tasks'), callback_data: `${CALLBACK_PREFIX}screen:tasks` },
-        { text: '🚀 Run', callback_data: `${CALLBACK_PREFIX}screen:run` }
+        { text: pickLocale(locale, '🚀 Запуск', '🚀 Run'), callback_data: `${CALLBACK_PREFIX}screen:run` }
       ],
       [
         { text: pickLocale(locale, '🛠 Engineer', '🛠 Engineer'), callback_data: `${CALLBACK_PREFIX}screen:engineer` }
@@ -1106,51 +1132,89 @@ function formatProbeMode(resourceState) {
   return '';
 }
 
-function formatTargets(targets) {
+function formatTargets(targets, locale = 'ru') {
   if (!targets.length) {
-    return 'Пока нет ни одного разрешённого чата.';
+    return pickLocale(locale, 'Пока нет ни одного разрешённого чата.', 'No authorized chats yet.');
   }
 
   return targets
     .map((target) => {
-      const prefix = target.is_owner ? '👑 owner' : '🔔 target';
+      const prefix = target.is_owner ? '👑 owner' : pickLocale(locale, '🔔 чат', '🔔 target');
       const label = normalizeValue(target.label) || target.chat_type;
       return `${prefix}: ${label} (${target.chat_id})`;
     })
     .join('\n');
 }
 
-function buildRecommendationLines(data) {
+function buildRecommendationLines(data, locale = 'ru') {
   const lines = [];
 
   if (data.airdropState && data.airdropState.hasEnough === false) {
     lines.push(
-      `1. Поднять energy для airdrop-кошелька ${shortenAddress(data.airdropState.walletAddress)}.`
+      pickLocale(
+        locale,
+        `1. Поднять energy для airdrop-кошелька ${shortenAddress(data.airdropState.walletAddress)}.`,
+        `1. Add energy to the airdrop wallet ${shortenAddress(data.airdropState.walletAddress)}.`
+      )
     );
   }
 
   if (data.ambassadorState && data.ambassadorState.hasEnough === false) {
     lines.push(
-      `2. Проверить operator wallet ${shortenAddress(data.ambassadorState.walletAddress)} и его energy.`
+      pickLocale(
+        locale,
+        `2. Проверить operator wallet ${shortenAddress(data.ambassadorState.walletAddress)} и его energy.`,
+        `2. Check operator wallet ${shortenAddress(data.ambassadorState.walletAddress)} and its energy.`
+      )
     );
   }
 
   if (Number(data.keyPools?.trongrid?.available || 0) === 0) {
-    lines.push('3. Все Trongrid-ключи сейчас упёрлись в лимит. Нужны свежие/запасные ключи.');
+    lines.push(
+      pickLocale(
+        locale,
+        '3. Все Trongrid-ключи сейчас упёрлись в лимит. Нужны свежие/запасные ключи.',
+        '3. All Trongrid keys are currently rate-limited. Fresh or spare keys are needed.'
+      )
+    );
   }
 
   if (data.gasState?.enabled && Number(data.gasState?.operator?.balanceSun || 0) <= 3_000_000) {
-    lines.push('4. У operator wallet маленький запас TRX для топ-апов GasStation.');
+    lines.push(
+      pickLocale(
+        locale,
+        '4. У operator wallet маленький запас TRX для топ-апов GasStation.',
+        '4. The operator wallet has a small TRX reserve for GasStation top-ups.'
+      )
+    );
   }
 
   if (Number(data.screeners?.summary?.fail || 0) > 0) {
-    lines.push('5. Один или несколько реальных app-flow уже падают. Откройте раздел «Скринер».');
+    lines.push(
+      pickLocale(
+        locale,
+        '5. Один или несколько реальных app-flow уже падают. Откройте раздел «Скринер».',
+        '5. One or more real app flows are already failing. Open the Screeners section.'
+      )
+    );
   } else if (Number(data.screeners?.summary?.warn || 0) > 0) {
-    lines.push('5. Есть flow под давлением. Лучше заранее посмотреть раздел «Скринер».');
+    lines.push(
+      pickLocale(
+        locale,
+        '5. Есть flow под давлением. Лучше заранее посмотреть раздел «Скринер».',
+        '5. A flow is under pressure. It is better to review the Screeners section early.'
+      )
+    );
   }
 
   if (!lines.length) {
-    lines.push('Срочных красных действий не вижу. Можно просто иногда поглядывать на события.');
+    lines.push(
+      pickLocale(
+        locale,
+        'Срочных красных действий не вижу. Можно просто иногда поглядывать на события.',
+        'I do not see urgent red actions right now. You can just keep an eye on events.'
+      )
+    );
   }
 
   return lines;
@@ -1201,7 +1265,7 @@ async function buildSummaryText(options = {}) {
         : 'Короткая сводка вместо россыпи сигналов. Сначала суть, потом уже детали.'
     ),
     `${summaryStatusIcon(digest?.overallStatus)} ${normalizeValue(digest?.headline) || (english ? 'No summary yet.' : 'Пока без вывода.')}`,
-    `${english ? 'Mode' : 'Режим'}: ${normalizeValue(digest?.mode) === 'openai' ? (english ? 'GPT analysis' : 'GPT-анализ') : (english ? 'reliable fallback' : 'надёжный fallback')} • ${english ? 'updated' : 'обновлено'} ${formatRelativeMinutes(digest?.generatedAt)}`,
+    `${english ? 'Mode' : 'Режим'}: ${normalizeValue(digest?.mode) === 'openai' ? (english ? 'GPT analysis' : 'GPT-анализ') : (english ? 'reliable fallback' : 'надёжный fallback')} • ${english ? 'updated' : 'обновлено'} ${formatRelativeMinutes(digest?.generatedAt, locale)}`,
     '',
     ...groups.map((group) => {
       const items = Array.isArray(group?.items) ? group.items.filter(Boolean) : [];
@@ -1240,7 +1304,7 @@ async function buildOverviewText(options = {}) {
     `${statusIcon(data.dbOk)} ${pickLocale(locale, 'API и база', 'API and database')}: ${data.dbOk ? pickLocale(locale, 'живы', 'healthy') : pickLocale(locale, 'есть проблема с базой', 'database issue detected')}`,
     `${statusIcon(clockPayload?.status === 'ok', clockPayload?.status !== 'ok')} Clock: ${
       clockPayload?.status === 'ok' ? pickLocale(locale, 'работает', 'running') : pickLocale(locale, 'надо проверить', 'needs attention')
-    } (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at)})`,
+    } (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at, locale)})`,
     `${statusIcon(!airdropWarn, airdropWarn)} ${pickLocale(locale, 'Airdrop wallet', 'Airdrop wallet')}: ${
       airdropWarn ? pickLocale(locale, 'ресурсов не хватает', 'not enough resources') : pickLocale(locale, 'по ресурсам всё ок', 'resources look fine')
     }`,
@@ -1256,7 +1320,7 @@ async function buildOverviewText(options = {}) {
         : Number(data.screeners?.summary?.warn || 0) > 0
           ? 'warn'
           : 'ok'
-    )} ${pickLocale(locale, 'Реальные app-flow', 'Real app flows')}: ${buildScreenerStateSummary(data.screeners)}`,
+    )} ${pickLocale(locale, 'Реальные app-flow', 'Real app flows')}: ${buildScreenerStateSummary(data.screeners, locale)}`,
     `${openEvents > 0 ? '🟠' : '🟢'} ${pickLocale(locale, 'Открытых событий', 'Open events')}: ${openEvents}`,
     '',
     pickLocale(locale, 'Что я бы рекомендовал сейчас:', 'What I would do next:'),
@@ -1272,7 +1336,7 @@ async function buildOverviewText(options = {}) {
               ? '5. Some flows are under pressure. Screeners are worth checking now.'
               : '5. No urgent red actions right now.'
         ]
-      : buildRecommendationLines(data))
+      : buildRecommendationLines(data, locale))
   ].join('\n');
 }
 
@@ -1288,11 +1352,11 @@ async function buildEngineerText(options = {}) {
 
   return [
     buildHeader(pickLocale(locale, '🛠 Engineer View', '🛠 Engineer View'), pickLocale(locale, 'Здесь уже не founder-картинка, а инженерный разрез по системам.', 'This is the engineering cut, not the founder summary.')),
-    `🕒 ${pickLocale(locale, 'Clock сейчас смешанный: wallet workers + site snapshot refresh', 'Clock is mixed right now: wallet workers + site snapshot refresh')} (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at)})`,
-    `⚙️ ${pickLocale(locale, 'Wallet workers', 'Wallet workers')}: ${buildClockWalletOpsSummary(clockPayload)}`,
-    `🌐 ${pickLocale(locale, 'Site refresh внутри clock', 'Site refresh inside clock')}: ${buildClockSiteSummary(clockPayload)}`,
+    `🕒 ${pickLocale(locale, 'Clock сейчас смешанный: wallet workers + site snapshot refresh', 'Clock is mixed right now: wallet workers + site snapshot refresh')} (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at, locale)})`,
+    `⚙️ ${pickLocale(locale, 'Wallet workers', 'Wallet workers')}: ${buildClockWalletOpsSummary(clockPayload, locale)}`,
+    `🌐 ${pickLocale(locale, 'Site refresh внутри clock', 'Site refresh inside clock')}: ${buildClockSiteSummary(clockPayload, locale)}`,
     `${statusIcon(data.dbOk)} ${pickLocale(locale, 'База', 'Database')}: ${data.dbOk ? 'ok' : pickLocale(locale, 'падает', 'failing')}`,
-    `${statusIcon(Number(data.screeners?.summary?.fail || 0) === 0, Number(data.screeners?.summary?.fail || 0) > 0)} Screeners: ${buildScreenerStateSummary(data.screeners)}`,
+    `${statusIcon(Number(data.screeners?.summary?.fail || 0) === 0, Number(data.screeners?.summary?.fail || 0) > 0)} Screeners: ${buildScreenerStateSummary(data.screeners, locale)}`,
     `${statusIcon(!anyKeyPressure, anyKeyPressure)} ${pickLocale(locale, 'Provider keys', 'Provider keys')}: ${anyKeyPressure ? pickLocale(locale, 'есть cooldown/pressure', 'cooldown/pressure is present') : pickLocale(locale, 'без явного pressure', 'no visible pressure')}`,
     '',
     pickLocale(locale, 'Что это значит:', 'What this means:'),
@@ -1308,11 +1372,14 @@ async function buildScreenerText(options = {}) {
   const snapshot = await getSyntheticScreenerSnapshot().catch(() => null);
   const items = Array.isArray(snapshot?.items) ? snapshot.items : [];
   const summary = snapshot?.summary || {};
-  const checkedAt = snapshot?.checkedAt ? formatRelativeMinutes(snapshot.checkedAt) : 'ещё не запускался';
+  const checkedAt = snapshot?.checkedAt ? formatRelativeMinutes(snapshot.checkedAt, locale) : pickLocale(locale, 'ещё не запускался', 'not run yet');
 
   if (!items.length) {
     return [
-      buildHeader('🧪 Реальный скринер', 'Это проверка глазами пользователя, а не просто healthcheck сервера.'),
+      buildHeader(
+        pickLocale(locale, '🧪 Реальный скринер', '🧪 Real screeners'),
+        pickLocale(locale, 'Это проверка глазами пользователя, а не просто healthcheck сервера.', 'This is a user-visible flow check, not just a server healthcheck.')
+      ),
       pickLocale(locale, '⚪ Скринер ещё не запускался.', '⚪ Screeners have not run yet.'),
       '',
       pickLocale(locale, 'Нажмите кнопку «Прогнать скринер сейчас», и я проверю ключевые app-flow.', 'Press “Run screener now” and I will check the key app flows.')
@@ -1322,7 +1389,7 @@ async function buildScreenerText(options = {}) {
   return [
     buildHeader(pickLocale(locale, '🧪 Реальный скринер', '🧪 Real screeners'), pickLocale(locale, 'Показываю, проходят ли ключевые сценарии приложения целиком.', 'This shows whether the key user flows actually pass end-to-end.')),
     `${pickLocale(locale, 'Последний прогон', 'Last run')}: ${checkedAt}`,
-    `${pickLocale(locale, 'Итог', 'Result')}: ${buildScreenerStateSummary(snapshot)}`,
+    `${pickLocale(locale, 'Итог', 'Result')}: ${buildScreenerStateSummary(snapshot, locale)}`,
     '',
     ...items.map((item) => {
       const meta = item?.meta && typeof item.meta === 'object' ? item.meta : null;
@@ -1356,7 +1423,7 @@ async function buildHealthText(options = {}) {
     `${statusIcon(data.dbOk)} ${pickLocale(locale, 'База данных', 'Database')}: ${data.dbOk ? pickLocale(locale, 'отвечает', 'responding') : pickLocale(locale, 'не отвечает', 'not responding')}`,
     `${statusIcon(clockPayload?.status === 'ok', clockPayload?.status !== 'ok')} Clock: ${
       clockPayload?.status === 'ok' ? pickLocale(locale, 'тикнул нормально', 'heartbeat is healthy') : pickLocale(locale, 'нужна проверка', 'needs checking')
-    } (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at)})`,
+    } (${formatRelativeMinutes(clockPayload?.heartbeatAt || data.clockState?.updated_at, locale)})`,
     `${statusIcon(data.airdropState?.hasEnough === true, data.airdropState?.hasEnough === false)} Airdrop wallet ${shortenAddress(
       data.airdropState?.walletAddress
     )}: energy ${Number(data.airdropState?.energyAvailable || 0)}, bandwidth ${Number(data.airdropState?.bandwidthAvailable || 0)}${formatProbeMode(data.airdropState)}`,
@@ -1378,7 +1445,7 @@ async function buildHealthText(options = {}) {
       data.airdropState?.hasEnough === false ? '1. Airdrop wallet needs resources.' : '1. Airdrop wallet is okay.',
       data.ambassadorState?.hasEnough === false ? '2. Operator wallet needs resources for ambassador flow.' : '2. Operator wallet is okay.',
       gasStationWarn ? '3. GasStation metrics need a re-check.' : '3. GasStation metrics are readable.'
-    ] : buildRecommendationLines(data))
+    ] : buildRecommendationLines(data, locale))
   ].join('\n');
 }
 
@@ -1390,22 +1457,22 @@ async function buildKeysText(options = {}) {
     ? gasPool.credentials.map((item) => {
         const state = item.state || {};
         const status = state.lastErrorAt
-          ? `🟠 была ошибка ${formatRelativeMinutes(state.lastErrorAt)}`
+          ? pickLocale(locale, `🟠 была ошибка ${formatRelativeMinutes(state.lastErrorAt, locale)}`, `🟠 last error ${formatRelativeMinutes(state.lastErrorAt, locale)}`)
           : state.lastSuccessAt
-            ? `🟢 последний успех ${formatRelativeMinutes(state.lastSuccessAt)}`
-            : '⚪ пока без истории';
+            ? pickLocale(locale, `🟢 последний успех ${formatRelativeMinutes(state.lastSuccessAt, locale)}`, `🟢 last success ${formatRelativeMinutes(state.lastSuccessAt, locale)}`)
+            : pickLocale(locale, '⚪ пока без истории', '⚪ no history yet');
         return `• ${item.label}: ${status}`;
       })
     : [];
 
   return [
     buildHeader(pickLocale(locale, '🔑 Ключи и лимиты', '🔑 Keys and limits'), pickLocale(locale, 'Сюда удобно смотреть, когда приложение внезапно начинает тупить из-за провайдеров.', 'Open this first when the app starts degrading because of providers.')),
-    formatKeyPoolLine('trongrid', keyPools.trongrid),
-    formatKeyPoolLine('tronscan', keyPools.tronscan),
-    formatKeyPoolLine('cmc', keyPools.cmc),
+    formatKeyPoolLine('trongrid', keyPools.trongrid, locale),
+    formatKeyPoolLine('tronscan', keyPools.tronscan, locale),
+    formatKeyPoolLine('cmc', keyPools.cmc, locale),
     '',
     'GasStation credentials:',
-    ...(gasLines.length ? gasLines : ['• пока не вижу настроенных credential-ов']),
+    ...(gasLines.length ? gasLines : [pickLocale(locale, '• пока не вижу настроенных credential-ов', '• no configured credentials yet')]),
     '',
     pickLocale(locale, 'Если здесь краснеет:', 'If this goes red:'),
     pickLocale(locale, '1. Сначала проверь лимиты и cooldown.', '1. Check limits and cooldown first.'),
@@ -1420,7 +1487,10 @@ async function buildEventsText(options = {}) {
 
   if (!events.length) {
     return [
-      buildHeader('🚨 Активные события', 'Сейчас тут пусто, и это хороший знак.'),
+      buildHeader(
+        pickLocale(locale, '🚨 Активные события', '🚨 Active events'),
+        pickLocale(locale, 'Сейчас тут пусто, и это хороший знак.', 'This section is empty right now, which is a good sign.')
+      ),
       pickLocale(locale, '🟢 Открытых проблем не вижу.', '🟢 No open problems right now.')
     ].join('\n');
   }
@@ -1430,12 +1500,13 @@ async function buildEventsText(options = {}) {
     ...events.map((event) => {
       const icon = severityIcon(event.severity);
       const count = Number(event.count || 0);
-      return `${icon} ${event.title}\n${pickLocale(locale, 'Источник', 'Source')}: ${normalizeValue(event.source)} • ${pickLocale(locale, 'повторов', 'repeats')}: ${count}\n${buildEventRecommendation(event)}`;
+      return `${icon} ${event.title}\n${pickLocale(locale, 'Источник', 'Source')}: ${normalizeValue(event.source)} • ${pickLocale(locale, 'повторов', 'repeats')}: ${count}\n${buildEventRecommendation(event, locale)}`;
     })
   ].join('\n');
 }
 
-async function buildFeedbackText() {
+async function buildFeedbackText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const events = await listRecentEvents(20, { onlyOpen: false }).catch(() => []);
   const feedbackEvents = events.filter(
     (event) =>
@@ -1445,8 +1516,11 @@ async function buildFeedbackText() {
 
   if (!feedbackEvents.length) {
     return [
-      buildHeader('💬 Feedback из кошелька', 'Здесь будут живые отзывы прямо из приложения.'),
-      'Пока пусто. Когда кто-то нажмёт feedback в кошельке, я покажу это здесь.'
+      buildHeader(
+        pickLocale(locale, '💬 Feedback из кошелька', '💬 Wallet feedback'),
+        pickLocale(locale, 'Здесь будут живые отзывы прямо из приложения.', 'Live feedback from the app will show up here.')
+      ),
+      pickLocale(locale, 'Пока пусто. Когда кто-то нажмёт feedback в кошельке, я покажу это здесь.', 'Nothing here yet. When someone sends feedback from the wallet, I will show it here.')
     ].join('\n');
   }
 
@@ -1458,121 +1532,139 @@ async function buildFeedbackText() {
   const praiseCount = feedbackEvents.filter((event) => normalizeValue(event?.type) === 'app_praise').length;
 
   return [
-    buildHeader('💬 Feedback из кошелька', 'Не логи, а живой голос пользователя: что раздражает, где тупит и что нравится.'),
-    `Сейчас ждут внимания: ${openCount}`,
-    `Срез последних отзывов: 🚨 ${issueCount} • 🤔 ${confusingCount} • 🐢 ${slowCount} • 💡 ${ideaCount} • ❤️ ${praiseCount}`,
+    buildHeader(
+      pickLocale(locale, '💬 Feedback из кошелька', '💬 Wallet feedback'),
+      pickLocale(locale, 'Не логи, а живой голос пользователя: что раздражает, где тупит и что нравится.', 'Not logs, but the user voice: what annoys them, what feels slow, and what they like.')
+    ),
+    `${pickLocale(locale, 'Сейчас ждут внимания', 'Waiting for attention now')}: ${openCount}`,
+    `${pickLocale(locale, 'Срез последних отзывов', 'Latest feedback mix')}: 🚨 ${issueCount} • 🤔 ${confusingCount} • 🐢 ${slowCount} • 💡 ${ideaCount} • ❤️ ${praiseCount}`,
     '',
     ...feedbackEvents.slice(0, 6).map((event) => {
-      const meta = feedbackTypeMeta(event?.type);
+      const meta = feedbackTypeMeta(event?.type, locale);
       const details = parseJson(event?.details_json, {});
       const sourceScreen = normalizeValue(details?.sourceScreen) || 'unknown';
       const appVersion = normalizeValue(details?.appVersion) || 'unknown';
       const walletAddress = normalizeValue(details?.walletAddressMasked);
-      const walletLine = walletAddress ? ` • кошелёк ${walletAddress}` : '';
+      const walletLine = walletAddress ? pickLocale(locale, ` • кошелёк ${walletAddress}`, ` • wallet ${walletAddress}`) : '';
       const count = Number(event?.count || 0);
-      const repeatLine = count > 1 ? ` • повторов ${count}` : '';
+      const repeatLine = count > 1 ? pickLocale(locale, ` • повторов ${count}`, ` • repeats ${count}`) : '';
 
       return [
         `${meta.icon} ${normalizeValue(event?.title) || meta.label}`,
-        `Статус: ${feedbackStatusLabel(event)} • ${meta.label} • ${formatRelativeMinutes(event?.last_seen_at)}`,
-        `Экран: ${sourceScreen} • версия ${appVersion}${walletLine}${repeatLine}`,
-        `Что человек сказал: ${shortenText(event?.message, 220)}`,
-        buildEventRecommendation(event)
+        `${pickLocale(locale, 'Статус', 'Status')}: ${feedbackStatusLabel(event, locale)} • ${meta.label} • ${formatRelativeMinutes(event?.last_seen_at, locale)}`,
+        `${pickLocale(locale, 'Экран', 'Screen')}: ${sourceScreen} • ${pickLocale(locale, 'версия', 'version')} ${appVersion}${walletLine}${repeatLine}`,
+        `${pickLocale(locale, 'Что человек сказал', 'What the person said')}: ${shortenText(event?.message, 220)}`,
+        buildEventRecommendation(event, locale)
       ].join('\n');
     }),
     '',
-    'Как читать этот экран:',
-    '1. 🚨 🤔 🐢 — это полезные сигналы, на них лучше смотреть первыми.',
-    '2. 💡 и ❤️ я тоже храню, но они не шумят в активных алертах.',
-    '3. Если один и тот же отзыв повторяется, значит проблема уже не случайная.'
+    pickLocale(locale, 'Как читать этот экран:', 'How to read this screen:'),
+    pickLocale(locale, '1. 🚨 🤔 🐢 — это полезные сигналы, на них лучше смотреть первыми.', '1. 🚨 🤔 🐢 are the most actionable signals, so start with them.'),
+    pickLocale(locale, '2. 💡 и ❤️ я тоже храню, но они не шумят в активных алертах.', '2. 💡 and ❤️ are stored too, but they do not pollute active alerts.'),
+    pickLocale(locale, '3. Если один и тот же отзыв повторяется, значит проблема уже не случайная.', '3. If the same feedback repeats, the issue is no longer random.')
   ].join('\n');
 }
 
-async function buildNotesText() {
+async function buildNotesText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const notes = await listProductNotes(8, { onlyOpen: true }).catch(() => []);
 
   if (!notes.length) {
     return [
-      buildHeader('📝 План следующей версии', 'Сюда я складываю ваши идеи, фиксы и голосовые заметки.'),
-      'Пока пусто.',
+      buildHeader(
+        pickLocale(locale, '📝 План следующей версии', '📝 Next release plan'),
+        pickLocale(locale, 'Сюда я складываю ваши идеи, фиксы и голосовые заметки.', 'This is where I put your ideas, fixes, and voice notes.')
+      ),
+      pickLocale(locale, 'Пока пусто.', 'Nothing here yet.'),
       '',
-      'Как быстро добавить:',
-      '1. Напишите /note и дальше текстом мысль.',
-      '2. Или пришлите голосовое в личку owner-чата, я превращу его в backlog item.'
+      pickLocale(locale, 'Как быстро добавить:', 'How to add quickly:'),
+      pickLocale(locale, '1. Напишите /note и дальше текстом мысль.', '1. Send /note followed by your thought.'),
+      pickLocale(locale, '2. Или пришлите голосовое в личку owner-чата, я превращу его в backlog item.', '2. Or send a voice note in the owner chat and I will turn it into a backlog item.')
     ].join('\n');
   }
 
   return [
-    buildHeader('📝 План следующей версии', 'Это ваш живой backlog: что менять дальше, а не просто шум в чате.'),
-    `Открытых заметок: ${notes.length}`,
+    buildHeader(
+      pickLocale(locale, '📝 План следующей версии', '📝 Next release plan'),
+      pickLocale(locale, 'Это ваш живой backlog: что менять дальше, а не просто шум в чате.', 'This is your live backlog: what to change next, not just chat noise.')
+    ),
+    `${pickLocale(locale, 'Открытых заметок', 'Open notes')}: ${notes.length}`,
     '',
     ...notes.map((note) => {
       const meta = productNoteMeta(note);
       return [
-        `${meta.typeIcon} ${meta.priorityIcon} ${normalizeValue(note?.title) || 'Без названия'}`,
-        `Тип: ${meta.typeLabel} • статус: ${normalizeValue(note?.status) || 'open'} • обновлено ${formatRelativeMinutes(note?.updated_at)}`,
+        `${meta.typeIcon} ${meta.priorityIcon} ${normalizeValue(note?.title) || pickLocale(locale, 'Без названия', 'Untitled')}`,
+        `${pickLocale(locale, 'Тип', 'Type')}: ${meta.typeLabel} • ${pickLocale(locale, 'статус', 'status')}: ${normalizeValue(note?.status) || 'open'} • ${pickLocale(locale, 'обновлено', 'updated')} ${formatRelativeMinutes(note?.updated_at, locale)}`,
         shortenText(note?.body, 220)
       ].join('\n');
     }),
     '',
-    'Подсказка:',
-    'Если мысль прилетела голосом, просто отправьте её сюда. Я распознаю текст и сохраню как заметку.'
+    pickLocale(locale, 'Подсказка:', 'Tip:'),
+    pickLocale(locale, 'Если мысль прилетела голосом, просто отправьте её сюда. Я распознаю текст и сохраню как заметку.', 'If the idea comes as voice, just send it here. I will transcribe it and save it as a note.')
   ].join('\n');
 }
 
-async function buildTasksText() {
+async function buildTasksText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const tasks = await listTasks(10, {
     includeDone: false
   }).catch(() => []);
 
   if (!tasks.length) {
     return [
-      buildHeader('🧾 Рабочие задачи', 'Здесь живут уже не мысли, а нормальные тикеты для движения вперёд.'),
-      'Сейчас открытых задач нет.',
+      buildHeader(
+        pickLocale(locale, '🧾 Рабочие задачи', '🧾 Working tasks'),
+        pickLocale(locale, 'Здесь живут уже не мысли, а нормальные тикеты для движения вперёд.', 'This is no longer ideas, but real tickets to move things forward.')
+      ),
+      pickLocale(locale, 'Сейчас открытых задач нет.', 'There are no open tasks right now.'),
       '',
-      'Как они появляются:',
-      '1. Из ваших заметок и голосовых сообщений.',
-      '2. Из инцидентов, которые вы руками помечаете в личке.',
-      '3. Позже сюда можно будет слать и auto-task из feedback/monitor.'
+      pickLocale(locale, 'Как они появляются:', 'How tasks appear:'),
+      pickLocale(locale, '1. Из ваших заметок и голосовых сообщений.', '1. From your notes and voice messages.'),
+      pickLocale(locale, '2. Из инцидентов, которые вы руками помечаете в личке.', '2. From incidents you flag manually in the private chat.'),
+      pickLocale(locale, '3. Позже сюда можно будет слать и auto-task из feedback/monitor.', '3. Later this can also receive auto-tasks from feedback and monitoring.')
     ].join('\n');
   }
 
   return [
-    buildHeader('🧾 Рабочие задачи', 'Это уже operational/task board, а не просто backlog мыслей.'),
-    `Открытых задач: ${tasks.length}`,
+    buildHeader(
+      pickLocale(locale, '🧾 Рабочие задачи', '🧾 Working tasks'),
+      pickLocale(locale, 'Это уже operational/task board, а не просто backlog мыслей.', 'This is an operational task board, not just an idea backlog.')
+    ),
+    `${pickLocale(locale, 'Открытых задач', 'Open tasks')}: ${tasks.length}`,
     '',
     ...tasks.map((task) => {
       const meta = taskStatusMeta(task);
       return [
-        `${meta.statusIcon} ${meta.priorityIcon} #${task.id} ${normalizeValue(task?.title) || 'Без названия'}`,
-        `Статус: ${meta.status} • тип: ${meta.type} • обновлено ${formatRelativeMinutes(task?.updated_at)}`,
+        `${meta.statusIcon} ${meta.priorityIcon} #${task.id} ${normalizeValue(task?.title) || pickLocale(locale, 'Без названия', 'Untitled')}`,
+        `${pickLocale(locale, 'Статус', 'Status')}: ${meta.status} • ${pickLocale(locale, 'тип', 'type')}: ${meta.type} • ${pickLocale(locale, 'обновлено', 'updated')} ${formatRelativeMinutes(task?.updated_at, locale)}`,
         shortenText(task?.body, 220)
       ].join('\n');
     }),
     '',
-    'Быстрые действия:',
-    '1. /take 123 — взять задачу в работу.',
-    '2. /done 123 — закрыть задачу.',
-    '3. /block 123 причина — пометить блокер.',
-    '4. /todo 123 — вернуть задачу в очередь для Codex.',
-    '5. /codex 123 — запустить Codex job по задаче.'
+    pickLocale(locale, 'Быстрые действия:', 'Quick actions:'),
+    pickLocale(locale, '1. /take 123 — взять задачу в работу.', '1. /take 123 — start working on a task.'),
+    pickLocale(locale, '2. /done 123 — закрыть задачу.', '2. /done 123 — close a task.'),
+    pickLocale(locale, '3. /block 123 причина — пометить блокер.', '3. /block 123 reason — mark a blocker.'),
+    pickLocale(locale, '4. /todo 123 — вернуть задачу в очередь для Codex.', '4. /todo 123 — return a task to the Codex queue.'),
+    pickLocale(locale, '5. /codex 123 — запустить Codex job по задаче.', '5. /codex 123 — run a Codex job for a task.')
   ].join('\n');
 }
 
-async function buildJobsText() {
+async function buildJobsText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const jobs = await listCodexJobs(8).catch(() => []);
 
   if (!jobs.length) {
     return [
-      buildHeader('🤖 Codex Jobs', 'Здесь видно, что уже гонялось через codex-слой.'),
-      'Пока ни одного job не запускали.',
+      buildHeader('🤖 Codex Jobs', pickLocale(locale, 'Здесь видно, что уже гонялось через codex-слой.', 'This shows what has already run through the Codex layer.')),
+      pickLocale(locale, 'Пока ни одного job не запускали.', 'No jobs have been run yet.'),
       '',
-      'Старт: /codex 12'
+      pickLocale(locale, 'Старт: /codex 12', 'Start with: /codex 12')
     ].join('\n');
   }
 
   return [
-    buildHeader('🤖 Codex Jobs', 'Это не просто задача, а конкретный прогон codex-анализа по репо-контексту.'),
+    buildHeader('🤖 Codex Jobs', pickLocale(locale, 'Это не просто задача, а конкретный прогон codex-анализа по репо-контексту.', 'This is not just a task, but a concrete Codex analysis run against repo context.')),
     ...jobs.map((job) => {
       const status = normalizeValue(job?.status) || 'unknown';
       const icon =
@@ -1583,16 +1675,17 @@ async function buildJobsText() {
 
       return [
         `${icon} Job #${job.id} -> Task #${Number(job.task_id || 0)}`,
-        `Статус: ${status} • модель: ${normalizeValue(job.model) || '—'} • обновлено ${formatRelativeMinutes(job.updated_at)}`,
+        `${pickLocale(locale, 'Статус', 'Status')}: ${status} • ${pickLocale(locale, 'модель', 'model')}: ${normalizeValue(job.model) || '—'} • ${pickLocale(locale, 'обновлено', 'updated')} ${formatRelativeMinutes(job.updated_at, locale)}`,
         normalizeValue(job.error_message)
-          ? `Ошибка: ${shortenText(job.error_message, 180)}`
-          : shortenText(job.response_text, 200) || 'Пока без текста результата.'
+          ? `${pickLocale(locale, 'Ошибка', 'Error')}: ${shortenText(job.error_message, 180)}`
+          : shortenText(job.response_text, 200) || pickLocale(locale, 'Пока без текста результата.', 'No result text yet.')
       ].join('\n');
     })
   ].join('\n');
 }
 
-async function buildRunText() {
+async function buildRunText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const [tasks, awaitingConfirmation, confirmed, running, jobs] = await Promise.all([
     listTasks(20, { includeDone: false }).catch(() => []),
     listExecutionRequests(6, { status: 'awaiting_confirmation' }).catch(() => []),
@@ -1607,37 +1700,41 @@ async function buildRunText() {
   const latestJob = jobs[0] || null;
 
   return [
-    buildHeader('🚀 Run & Delivery', 'Здесь путь от задачи до реального code-run, а не просто список тикетов.'),
-    `🧾 Открытых задач: ${tasks.length} • ready_for_codex ${readyForCodex} • in_progress ${inProgress} • blocked ${blocked}`,
-    `🔐 Ждут 6-значного подтверждения: ${awaitingConfirmation.length}`,
-    `⏳ Подтверждены и ждут runner: ${confirmed.length}`,
-    `🛠 Сейчас выполняются: ${running.length}`,
+    buildHeader('🚀 Run & Delivery', pickLocale(locale, 'Здесь путь от задачи до реального code-run, а не просто список тикетов.', 'This is the path from a task to a real code run, not just a ticket list.')),
+    `🧾 ${pickLocale(locale, 'Открытых задач', 'Open tasks')}: ${tasks.length} • ready_for_codex ${readyForCodex} • in_progress ${inProgress} • blocked ${blocked}`,
+    `🔐 ${pickLocale(locale, 'Ждут 6-значного подтверждения', 'Waiting for 6-digit confirmation')}: ${awaitingConfirmation.length}`,
+    `⏳ ${pickLocale(locale, 'Подтверждены и ждут runner', 'Confirmed and waiting for runner')}: ${confirmed.length}`,
+    `🛠 ${pickLocale(locale, 'Сейчас выполняются', 'Running now')}: ${running.length}`,
     latestJob
-      ? `🤖 Последний Codex job: #${latestJob.id} • task #${Number(latestJob.task_id || 0)} • ${normalizeValue(latestJob.status) || 'unknown'}`
-      : '🤖 Codex jobs пока не запускались.',
+      ? `🤖 ${pickLocale(locale, 'Последний Codex job', 'Latest Codex job')}: #${latestJob.id} • task #${Number(latestJob.task_id || 0)} • ${normalizeValue(latestJob.status) || 'unknown'}`
+      : pickLocale(locale, '🤖 Codex jobs пока не запускались.', '🤖 Codex jobs have not run yet.'),
     '',
-    'Как пользоваться без командной каши:',
-    '1. Просто напишите: выполни задачу 12 в приложении.',
-    '2. Повторите 6 цифр.',
-    '3. Потом, если всё ок: запушь задачу 12 или задеплой задачу 12.',
+    pickLocale(locale, 'Как пользоваться без командной каши:', 'How to use it without command overload:'),
+    pickLocale(locale, '1. Просто напишите: выполни задачу 12 в приложении.', '1. Just write: run task 12 in the app.'),
+    pickLocale(locale, '2. Повторите 6 цифр.', '2. Repeat the 6 digits.'),
+    pickLocale(locale, '3. Потом, если всё ок: запушь задачу 12 или задеплой задачу 12.', '3. Then, if all looks good: publish task 12 or deploy task 12.'),
     '',
-    'Важно:',
-    'Runner у вас уже умеет apply/publish, а deploy всё ещё должен вести себя осторожно и может честно уйти в blocked.'
+    pickLocale(locale, 'Важно:', 'Important:'),
+    pickLocale(locale, 'Runner у вас уже умеет apply/publish, а deploy всё ещё должен вести себя осторожно и может честно уйти в blocked.', 'Your runner already supports apply and publish, while deploy still behaves carefully and may honestly return blocked.')
   ].join('\n');
 }
 
-async function buildKnowledgeText() {
+async function buildKnowledgeText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const status = await getKnowledgeBaseStatus().catch(() => null);
 
   if (!status?.configured) {
     return [
-      buildHeader('📚 Память бота', 'Это база знаний по проекту: доки, backlog и карта репо.'),
-      '⚪ OpenAI-слой для knowledge base пока не настроен.',
+      buildHeader(
+        pickLocale(locale, '📚 Память бота', '📚 Bot memory'),
+        pickLocale(locale, 'Это база знаний по проекту: доки, backlog и карта репо.', 'This is the project knowledge base: docs, backlog, and repo map.')
+      ),
+      pickLocale(locale, '⚪ OpenAI-слой для knowledge base пока не настроен.', '⚪ The OpenAI layer for the knowledge base is not configured yet.'),
       '',
-      'Когда он включён, бот может лучше отвечать на вопросы вроде:',
-      '1. Где это живёт в коде?',
-      '2. Что уже планировали на следующий релиз?',
-      '3. Какие экраны и маршруты связаны с проблемой?'
+      pickLocale(locale, 'Когда он включён, бот может лучше отвечать на вопросы вроде:', 'When enabled, the bot can answer questions like:'),
+      pickLocale(locale, '1. Где это живёт в коде?', '1. Where does this live in the code?'),
+      pickLocale(locale, '2. Что уже планировали на следующий релиз?', '2. What was already planned for the next release?'),
+      pickLocale(locale, '3. Какие экраны и маршруты связаны с проблемой?', '3. Which screens and routes are connected to the issue?')
     ].join('\n');
   }
 
@@ -1646,13 +1743,16 @@ async function buildKnowledgeText() {
   const ready = normalizeValue(status?.fileStatus).toLowerCase() === 'completed';
 
   return [
-    buildHeader('📚 Память бота', 'Здесь видно, что именно бот помнит о проекте помимо live-алертов.'),
-    `${ready ? '🟢' : '🟠'} Состояние индекса: ${normalizeValue(status?.fileStatus) || 'ещё не синхронизирован'}`,
+    buildHeader(
+      pickLocale(locale, '📚 Память бота', '📚 Bot memory'),
+      pickLocale(locale, 'Здесь видно, что именно бот помнит о проекте помимо live-алертов.', 'This shows what the bot remembers about the project beyond live alerts.')
+    ),
+    `${ready ? '🟢' : '🟠'} ${pickLocale(locale, 'Состояние индекса', 'Index status')}: ${normalizeValue(status?.fileStatus) || pickLocale(locale, 'ещё не синхронизирован', 'not synced yet')}`,
     `🗂️ Vector store: ${shortenId(status?.vectorStoreId)}`,
-    `🕒 Последняя синхронизация: ${status?.lastSyncedAt ? formatRelativeMinutes(status.lastSyncedAt) : 'ещё не было'}`,
-    `📄 Последний файл: ${normalizeValue(status?.lastFilename) || 'ещё не загружался'}`,
+    `🕒 ${pickLocale(locale, 'Последняя синхронизация', 'Last sync')}: ${status?.lastSyncedAt ? formatRelativeMinutes(status.lastSyncedAt, locale) : pickLocale(locale, 'ещё не было', 'never')}`,
+    `📄 ${pickLocale(locale, 'Последний файл', 'Last file')}: ${normalizeValue(status?.lastFilename) || pickLocale(locale, 'ещё не загружался', 'nothing uploaded yet')}`,
     '',
-    'Что внутри сейчас:',
+    pickLocale(locale, 'Что внутри сейчас:', 'What is inside right now:'),
     `1. Product notes: ${Number(summary.productNotes || 0)}`,
     `2. Markdown docs: ${Number(summary.docs || 0)}`,
     `3. Mobile screens: ${Number(summary.mobileScreens || 0)}`,
@@ -1661,14 +1761,15 @@ async function buildKnowledgeText() {
     `6. Tasks: ${Number(summary.tasks || 0)}`,
     '',
     includedFiles.length
-      ? `Последние включённые docs: ${includedFiles.slice(0, 4).map((item) => '/' + item).join(', ')}`
-      : 'Документных источников пока не зафиксировано в состоянии синка.',
+      ? `${pickLocale(locale, 'Последние включённые docs', 'Latest included docs')}: ${includedFiles.slice(0, 4).map((item) => '/' + item).join(', ')}`
+      : pickLocale(locale, 'Документных источников пока не зафиксировано в состоянии синка.', 'No document sources are recorded in the sync state yet.'),
     '',
-    'Это не заменяет live-данные, а помогает боту помнить контекст проекта и релизов.'
+    pickLocale(locale, 'Это не заменяет live-данные, а помогает боту помнить контекст проекта и релизов.', 'This does not replace live data, but it helps the bot remember project and release context.')
   ].join('\n');
 }
 
-async function buildQueuesText() {
+async function buildQueuesText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const { clockState, events } = await collectOverviewData();
 
   const clockPayload = clockState?.value_json || {};
@@ -1677,58 +1778,66 @@ async function buildQueuesText() {
   const siteIssues = listClockSiteIssues(clockPayload);
 
   return [
-    buildHeader('📦 Очереди и фоновые задачи', 'Здесь я уже отдельно показываю wallet work и сайтовый шум, чтобы не путать одно с другим.'),
-    `⚙️ Wallet workers за последний tick: ${walletSummary}`,
-    `🌐 Site snapshot refresh в том же clock: ${siteSummary}`,
-    `🚨 Открытых событий сейчас: ${events.length}`,
+    buildHeader(
+      pickLocale(locale, '📦 Очереди и фоновые задачи', '📦 Queues and background work'),
+      pickLocale(locale, 'Здесь я уже отдельно показываю wallet work и сайтовый шум, чтобы не путать одно с другим.', 'Here I separate wallet work from website noise so they do not get mixed together.')
+    ),
+    `⚙️ ${pickLocale(locale, 'Wallet workers за последний tick', 'Wallet workers in the last tick')}: ${buildClockWalletOpsSummary(clockPayload, locale)}`,
+    `🌐 ${pickLocale(locale, 'Site snapshot refresh в том же clock', 'Site snapshot refresh in the same clock')}: ${buildClockSiteSummary(clockPayload, locale)}`,
+    `🚨 ${pickLocale(locale, 'Открытых событий сейчас', 'Open events right now')}: ${events.length}`,
     '',
-    'Важно:',
-    '1. Этот clock смешанный: он обслуживает и wallet background work, и сайтовые snapshots.',
-    '2. Поэтому часть шума здесь реально относится к сайту, а не к mobile/app-flow.',
-    ...(siteIssues.length ? [`3. Сейчас сайтовый хвост: ${siteIssues.join(', ')}`] : ['3. Явного сайтового хвоста в последнем tick не видно.']),
+    pickLocale(locale, 'Важно:', 'Important:'),
+    pickLocale(locale, '1. Этот clock смешанный: он обслуживает и wallet background work, и сайтовые snapshots.', '1. This clock is mixed: it handles both wallet background work and website snapshots.'),
+    pickLocale(locale, '2. Поэтому часть шума здесь реально относится к сайту, а не к mobile/app-flow.', '2. That is why some of the noise here really belongs to the website, not the mobile app flow.'),
+    ...(siteIssues.length ? [pickLocale(locale, `3. Сейчас сайтовый хвост: ${siteIssues.join(', ')}`, `3. Current website tail: ${siteIssues.join(', ')}`)] : [pickLocale(locale, '3. Явного сайтового хвоста в последнем tick не видно.', '3. No obvious website tail is visible in the last tick.')]),
     '',
-    'Если wallet-цифры растут, а события не закрываются:',
-    '1. Смотри раздел «События».',
-    '2. Потом «Здоровье».',
-    '3. Обычно корень проблемы там, а не в самой очереди.'
+    pickLocale(locale, 'Если wallet-цифры растут, а события не закрываются:', 'If wallet metrics rise while events stay open:'),
+    pickLocale(locale, '1. Смотри раздел «События».', '1. Check the Events section.'),
+    pickLocale(locale, '2. Потом «Здоровье».', '2. Then check Health.'),
+    pickLocale(locale, '3. Обычно корень проблемы там, а не в самой очереди.', '3. The root cause is usually there, not in the queue itself.')
   ].join('\n');
 }
 
-async function buildTargetsText() {
+async function buildTargetsText(options = {}) {
+  const locale = normalizeLocale(options?.locale);
   const targets = await listActiveTelegramTargets();
   const owner = await getOwnerTelegramTarget();
 
   return [
-    buildHeader('👥 Чаты и уведомления', 'Куда бот имеет право писать сейчас.'),
-    formatTargets(targets),
+    buildHeader(
+      pickLocale(locale, '👥 Чаты и уведомления', '👥 Chats and notifications'),
+      pickLocale(locale, 'Куда бот имеет право писать сейчас.', 'Where the bot is allowed to write right now.')
+    ),
+    formatTargets(targets, locale),
     '',
     owner
-      ? `Главный owner: ${normalizeValue(owner.label) || owner.chat_id}`
-      : 'Owner пока не привязан.',
+      ? `${pickLocale(locale, 'Главный owner', 'Primary owner')}: ${normalizeValue(owner.label) || owner.chat_id}`
+      : pickLocale(locale, 'Owner пока не привязан.', 'Owner is not linked yet.'),
     '',
-    'Как добавить группу позже:',
-    '1. Добавьте туда бота.',
-    '2. Напишите в группе /allow_here именно с вашего owner-аккаунта.',
-    '3. После этого бот сможет слать туда алерты.'
+    pickLocale(locale, 'Как добавить группу позже:', 'How to add a group later:'),
+    pickLocale(locale, '1. Добавьте туда бота.', '1. Add the bot to the group.'),
+    pickLocale(locale, '2. Напишите в группе /allow_here именно с вашего owner-аккаунта.', '2. Send /allow_here in that group from your owner account.'),
+    pickLocale(locale, '3. После этого бот сможет слать туда алерты.', '3. After that, the bot will be able to send alerts there.')
   ].join('\n');
 }
 
 async function buildScreenText(screen, options = {}) {
   if (screen === 'summary') return buildSummaryText(options);
-  if (screen === 'engineer') return buildEngineerText();
-  if (screen === 'run') return buildRunText();
-  if (screen === 'screen') return buildScreenerText();
-  if (screen === 'health') return buildHealthText();
-  if (screen === 'events') return buildEventsText();
-  if (screen === 'feedback') return buildFeedbackText();
-  if (screen === 'knowledge') return buildKnowledgeText();
-  if (screen === 'jobs') return buildJobsText();
-  if (screen === 'notes') return buildNotesText();
-  if (screen === 'tasks') return buildTasksText();
-  if (screen === 'keys') return buildKeysText();
-  if (screen === 'queues') return buildQueuesText();
-  if (screen === 'targets') return buildTargetsText();
-  return buildOverviewText();
+  if (screen === 'overview') return buildOverviewText(options);
+  if (screen === 'engineer') return buildEngineerText(options);
+  if (screen === 'run') return buildRunText(options);
+  if (screen === 'screen') return buildScreenerText(options);
+  if (screen === 'health') return buildHealthText(options);
+  if (screen === 'events') return buildEventsText(options);
+  if (screen === 'feedback') return buildFeedbackText(options);
+  if (screen === 'knowledge') return buildKnowledgeText(options);
+  if (screen === 'jobs') return buildJobsText(options);
+  if (screen === 'notes') return buildNotesText(options);
+  if (screen === 'tasks') return buildTasksText(options);
+  if (screen === 'keys') return buildKeysText(options);
+  if (screen === 'queues') return buildQueuesText(options);
+  if (screen === 'targets') return buildTargetsText(options);
+  return buildOverviewText(options);
 }
 
 async function ensureAdminTelegramWebhook() {
@@ -1998,16 +2107,18 @@ function extractConfirmationCode(text) {
   return '';
 }
 
-function buildRepoLabel(repoKey) {
-  return normalizeRepoKey(repoKey) === 'website' ? 'сайт' : 'приложение';
+function buildRepoLabel(repoKey, locale = 'ru') {
+  return normalizeRepoKey(repoKey) === 'website'
+    ? pickLocale(locale, 'сайт', 'website')
+    : pickLocale(locale, 'приложение', 'app');
 }
 
-function buildActionLabel(actionType) {
+function buildActionLabel(actionType, locale = 'ru') {
   const safe = normalizeActionType(actionType);
-  if (safe === 'publish') return 'push ветки';
-  if (safe === 'deploy') return 'деплой';
-  if (safe === 'restart') return 'рестарт';
-  return 'исполнение кода';
+  if (safe === 'publish') return pickLocale(locale, 'push ветки', 'branch publish');
+  if (safe === 'deploy') return pickLocale(locale, 'деплой', 'deploy');
+  if (safe === 'restart') return pickLocale(locale, 'рестарт', 'restart');
+  return pickLocale(locale, 'исполнение кода', 'code execution');
 }
 
 function detectExecutionRequestPrefilter(text) {
@@ -2084,23 +2195,25 @@ function detectPostExecutionRequestPrefilter(text) {
 
 async function updateTaskFromOwnerCommand(message, status, options = {}) {
   const chatId = normalizeValue(message?.chat?.id);
+  const locale = await getChatLocale(chatId);
+  const english = isEnglish(locale);
   const ownerOnly = await isOwnerMessage(message);
   const isPrivate = normalizeValue(message?.chat?.type) === 'private';
 
   if (!ownerOnly || !isPrivate) {
-    await reply(chatId, '⛔ Менять статус задач я даю только owner-аккаунту в личке.');
+    await reply(chatId, english ? '⛔ I only allow task status changes from the owner in the private chat.' : '⛔ Менять статус задач я даю только owner-аккаунту в личке.');
     return { ok: false, unauthorized: true };
   }
 
   const args = parseTaskCommandArgs(extractCommandArgs(message?.text));
   if (!Number.isFinite(args.taskId) || args.taskId <= 0) {
-    await reply(chatId, options.usageText || 'Укажите id задачи после команды. Например: /done 12');
+    await reply(chatId, english ? 'Provide the task id after the command. Example: /done 12' : (options.usageText || 'Укажите id задачи после команды. Например: /done 12'));
     return { ok: true, promptShown: true };
   }
 
   const task = await getTaskById(args.taskId);
   if (!task) {
-    await reply(chatId, `⚠️ Задача #${args.taskId} не найдена.`);
+    await reply(chatId, english ? `⚠️ Task #${args.taskId} was not found.` : `⚠️ Задача #${args.taskId} не найдена.`);
     return { ok: false, notFound: true };
   }
 
@@ -2114,7 +2227,7 @@ async function updateTaskFromOwnerCommand(message, status, options = {}) {
   });
 
   if (!updated) {
-    await reply(chatId, `⚠️ Не получилось обновить задачу #${args.taskId}.`);
+    await reply(chatId, english ? `⚠️ I could not update task #${args.taskId}.` : `⚠️ Не получилось обновить задачу #${args.taskId}.`);
     return { ok: false };
   }
 
@@ -2122,10 +2235,10 @@ async function updateTaskFromOwnerCommand(message, status, options = {}) {
   await reply(
     chatId,
     [
-      `${meta.statusIcon} Обновил задачу #${updated.id}`,
-      `Новый статус: ${meta.status}`,
-      `${meta.priorityIcon} ${normalizeValue(updated.title) || 'Без названия'}`,
-      args.body ? `Комментарий: ${args.body}` : ''
+      english ? `${meta.statusIcon} Updated task #${updated.id}` : `${meta.statusIcon} Обновил задачу #${updated.id}`,
+      english ? `New status: ${meta.status}` : `Новый статус: ${meta.status}`,
+      `${meta.priorityIcon} ${normalizeValue(updated.title) || (english ? 'Untitled' : 'Без названия')}`,
+      args.body ? (english ? `Comment: ${args.body}` : `Комментарий: ${args.body}`) : ''
     ].filter(Boolean).join('\n')
   );
 
@@ -2138,11 +2251,13 @@ async function updateTaskFromOwnerCommand(message, status, options = {}) {
 
 async function startExecutionRequestFromOwner(message, options = {}) {
   const chatId = normalizeValue(message?.chat?.id);
+  const locale = await getChatLocale(chatId);
+  const english = isEnglish(locale);
   const ownerOnly = await isOwnerMessage(message);
   const isPrivate = normalizeValue(message?.chat?.type) === 'private';
 
   if (!ownerOnly || !isPrivate) {
-    await reply(chatId, '⛔ Запускать кодовые задачи я даю только owner-аккаунту в личке.');
+    await reply(chatId, english ? '⛔ I only allow code execution requests from the owner in the private chat.' : '⛔ Запускать кодовые задачи я даю только owner-аккаунту в личке.');
     return { ok: false, unauthorized: true };
   }
 
@@ -2156,21 +2271,25 @@ async function startExecutionRequestFromOwner(message, options = {}) {
   if (!Number.isFinite(args.taskId) || args.taskId <= 0) {
     await reply(
       chatId,
-      '🛠️ Укажите задачу для исполнения.\n\nПримеры:\n/execute 12 app\n/execute 14 website\nили просто: выполни задачу 12 в приложении'
+      english
+        ? '🛠️ Tell me which task to execute.\n\nExamples:\n/execute 12 app\n/execute 14 website\nor simply: run task 12 in the app'
+        : '🛠️ Укажите задачу для исполнения.\n\nПримеры:\n/execute 12 app\n/execute 14 website\nили просто: выполни задачу 12 в приложении'
     );
     return { ok: true, promptShown: true };
   }
 
   let task = await getTaskById(args.taskId);
   if (!task) {
-    await reply(chatId, `⚠️ Задача #${args.taskId} не найдена.`);
+    await reply(chatId, english ? `⚠️ Task #${args.taskId} was not found.` : `⚠️ Задача #${args.taskId} не найдена.`);
     return { ok: false, notFound: true };
   }
 
   const requestedRepoKey = normalizeRepoKey(options?.repoKey || args.body);
   const progressMessage = await sendProgressMessage(
     chatId,
-    `🛠️ Готовлю задачу #${args.taskId} к реальному исполнению в repo. Сначала проверю, что у неё есть grounded work order...`
+    english
+      ? `🛠️ Preparing task #${args.taskId} for real execution in the repo. First I will confirm that it has a grounded work order...`
+      : `🛠️ Готовлю задачу #${args.taskId} к реальному исполнению в repo. Сначала проверю, что у неё есть grounded work order...`
   );
 
   try {
@@ -2193,8 +2312,8 @@ async function startExecutionRequestFromOwner(message, options = {}) {
           progressMessage,
           [
             `⚠️ Сначала прогнал Codex по задаче #${task.id}, но он не собрал надёжный work order.`,
-            normalizeValue(codexResult?.result?.blockerReason) ? `Блокер: ${normalizeValue(codexResult.result.blockerReason)}` : '',
-            'Сначала поправьте формулировку задачи или дайте больше контекста, потом повторим запуск.'
+            normalizeValue(codexResult?.result?.blockerReason) ? (english ? `Blocker: ${normalizeValue(codexResult.result.blockerReason)}` : `Блокер: ${normalizeValue(codexResult.result.blockerReason)}`) : '',
+            english ? 'Please refine the task wording or give me more context, then we can try again.' : 'Сначала поправьте формулировку задачи или дайте больше контекста, потом повторим запуск.'
           ]
             .filter(Boolean)
             .join('\n')
@@ -2220,9 +2339,9 @@ async function startExecutionRequestFromOwner(message, options = {}) {
         progressMessage,
         [
           `⏳ Для задачи #${task.id} уже есть активный запрос на исполнение.`,
-          `Repo: ${buildRepoLabel(issued.repoKey)}`,
-          `Статус: ${normalizeValue(issued.request?.status) || 'unknown'}`,
-          'Новый код подтверждения не нужен, пока этот запрос не завершён или не отменён.'
+          `Repo: ${buildRepoLabel(issued.repoKey, locale)}`,
+          english ? `Status: ${normalizeValue(issued.request?.status) || 'unknown'}` : `Статус: ${normalizeValue(issued.request?.status) || 'unknown'}`,
+          english ? 'A new confirmation code is not needed while this request is still active.' : 'Новый код подтверждения не нужен, пока этот запрос не завершён или не отменён.'
         ].join('\n')
       );
       return {
@@ -2236,11 +2355,11 @@ async function startExecutionRequestFromOwner(message, options = {}) {
       progressMessage,
       [
         codexRan ? `🤖 Сначала добрал work order для задачи #${task.id}, теперь она готова к исполнению.` : `🛠️ Подготовил задачу #${task.id} к исполнению.`,
-        `Repo: ${buildRepoLabel(issued.repoKey)}`,
-        `Задача: ${normalizeValue(task.title) || `#${task.id}`}`,
+        `Repo: ${buildRepoLabel(issued.repoKey, locale)}`,
+        english ? `Task: ${normalizeValue(task.title) || `#${task.id}`}` : `Задача: ${normalizeValue(task.title) || `#${task.id}`}`,
         '',
-        `Для подтверждения напишите только этот код: ${issued.confirmationCode}`,
-        `Если передумаете, просто напишите: отмена кода`
+        english ? `To confirm, reply with only this code: ${issued.confirmationCode}` : `Для подтверждения напишите только этот код: ${issued.confirmationCode}`,
+        english ? 'If you change your mind, just write: cancel code' : 'Если передумаете, просто напишите: отмена кода'
       ].join('\n')
     );
 
@@ -2252,7 +2371,9 @@ async function startExecutionRequestFromOwner(message, options = {}) {
   } catch (error) {
     await finalizeProgressMessage(
       progressMessage,
-      `⚠️ Не получилось подготовить задачу #${args.taskId} к исполнению: ${normalizeValue(error.message) || 'unknown error'}`
+      english
+        ? `⚠️ I could not prepare task #${args.taskId} for execution: ${normalizeValue(error.message) || 'unknown error'}`
+        : `⚠️ Не получилось подготовить задачу #${args.taskId} к исполнению: ${normalizeValue(error.message) || 'unknown error'}`
     );
     return { ok: false, error: error.message };
   }
@@ -2260,17 +2381,19 @@ async function startExecutionRequestFromOwner(message, options = {}) {
 
 async function confirmExecutionRequestFromOwner(message, explicitCode = '') {
   const chatId = normalizeValue(message?.chat?.id);
+  const locale = await getChatLocale(chatId);
+  const english = isEnglish(locale);
   const ownerOnly = await isOwnerMessage(message);
   const isPrivate = normalizeValue(message?.chat?.type) === 'private';
 
   if (!ownerOnly || !isPrivate) {
-    await reply(chatId, '⛔ Подтверждать кодовые задачи я даю только owner-аккаунту в личке.');
+    await reply(chatId, english ? '⛔ I only allow execution confirmations from the owner in the private chat.' : '⛔ Подтверждать кодовые задачи я даю только owner-аккаунту в личке.');
     return { ok: false, unauthorized: true };
   }
 
   const code = explicitCode || extractConfirmationCode(message?.text);
   if (!code) {
-    await reply(chatId, '🔐 Пришлите 6-значный код подтверждения. Например: 381042');
+    await reply(chatId, english ? '🔐 Send the 6-digit confirmation code. Example: 381042' : '🔐 Пришлите 6-значный код подтверждения. Например: 381042');
     return { ok: true, promptShown: true };
   }
 
@@ -2282,7 +2405,9 @@ async function confirmExecutionRequestFromOwner(message, explicitCode = '') {
   if (!result.confirmed) {
     await reply(
       chatId,
-      '⚠️ Такой код не нашёлся. Возможно, он истёк или вы уже подтвердили другой запуск. Если нужно, просто попросите подготовить задачу ещё раз.'
+      english
+        ? '⚠️ I could not find that code. It may have expired, or another run may already be confirmed. If needed, just ask me to prepare the task again.'
+        : '⚠️ Такой код не нашёлся. Возможно, он истёк или вы уже подтвердили другой запуск. Если нужно, просто попросите подготовить задачу ещё раз.'
     );
     return { ok: false, invalidCode: true };
   }
@@ -2290,9 +2415,11 @@ async function confirmExecutionRequestFromOwner(message, explicitCode = '') {
   await reply(
     chatId,
     [
-      `✅ Подтвердил ${buildActionLabel(result?.request?.action_type)} для задачи #${Number(result?.task?.id || result?.request?.task_id || 0)}`,
-      `Repo: ${buildRepoLabel(result?.request?.repo_key)}`,
-      'Запрос ушёл в очередь runner-а. Как только он заберёт задачу, статус пойдёт в работу.'
+      english
+        ? `✅ Confirmed ${buildActionLabel(result?.request?.action_type, locale)} for task #${Number(result?.task?.id || result?.request?.task_id || 0)}`
+        : `✅ Подтвердил ${buildActionLabel(result?.request?.action_type, locale)} для задачи #${Number(result?.task?.id || result?.request?.task_id || 0)}`,
+      `Repo: ${buildRepoLabel(result?.request?.repo_key, locale)}`,
+      english ? 'The request is now in the runner queue. As soon as the runner claims it, the status will move into progress.' : 'Запрос ушёл в очередь runner-а. Как только он заберёт задачу, статус пойдёт в работу.'
     ].join('\n')
   );
 
@@ -3001,6 +3128,8 @@ async function handleCommand(message) {
     };
   }
 
+  const locale = await getChatLocale(chatId);
+  const english = isEnglish(locale);
   await touchTelegramTarget(chatId, message?.from?.id).catch(() => null);
   logTelegramTrace('message.command_entry', {
     chatId,
@@ -3028,7 +3157,9 @@ async function handleCommand(message) {
   if (!authorized) {
     await reply(
       chatId,
-      '⛔ Этот чат пока не привязан к 4TEEN Ops.\n\nЕсли это ваш личный чат, просто напишите /start.\nЕсли это группа, сначала привяжите личку owner-аккаунта, а потом уже используйте /allow_here в группе.'
+      english
+        ? '⛔ This chat is not linked to 4TEEN Ops yet.\n\nIf this is your private chat, just send /start.\nIf this is a group, first link your owner private chat and then use /allow_here in the group.'
+        : '⛔ Этот чат пока не привязан к 4TEEN Ops.\n\nЕсли это ваш личный чат, просто напишите /start.\nЕсли это группа, сначала привяжите личку owner-аккаунта, а потом уже используйте /allow_here в группе.'
     );
     return {
       ok: false,
@@ -3044,8 +3175,10 @@ async function handleCommand(message) {
     await reply(
       chatId,
       [
-        '🧹 Почистил историю бота.',
-        `Удалил сообщений: ${Number(cleared.deleted || 0)} из ${Number(cleared.total || 0)}.`
+        english ? '🧹 Cleared the bot history.' : '🧹 Почистил историю бота.',
+        english
+          ? `Deleted messages: ${Number(cleared.deleted || 0)} of ${Number(cleared.total || 0)}.`
+          : `Удалил сообщений: ${Number(cleared.deleted || 0)} из ${Number(cleared.total || 0)}.`
       ].join('\n')
     );
     return { ok: true, cleared: true };
@@ -3054,44 +3187,83 @@ async function handleCommand(message) {
   if (command === '/help') {
     await reply(
       chatId,
-      [
-        '🤝 Я могу говорить по-простому, а не сухими логами.',
-        '',
-        'Основное:',
-        '/menu — открыть меню',
-        '/summary — короткая AI-сводка',
-        '/run — текущий путь от задачи до code-run',
-        '/engineer — инженерный разрез по системам',
-        '/ask — задать вопрос по серверу, ключам, feedback и backlog',
-        '/screen — проверить реальные app-flow',
-        '/health — быстро понять, что болит',
-        '/events — активные проблемы',
-        '/feedback — отзывы из кошелька',
-        '/kb — память бота по проекту',
-        '/jobs — последние Codex jobs',
-        '/notes — backlog следующей версии',
-        '/tasks — рабочие задачи',
-        '/codex 12 — прогнать Codex по задаче',
-        '/execute 12 app — подготовить реальное исполнение кода',
-        '/publish 12 app — подготовить push ветки',
-        '/deploy 12 app — подготовить деплой',
-        '/restart 12 app — подготовить рестарт',
-        '/confirm 381042 — подтвердить запуск 6-значным кодом',
-        '/cancelrun — отменить активный запрос на исполнение',
-        '/note текст — добавить идею или правку в backlog',
-        '/take 12 — взять задачу в работу',
-        '/done 12 — закрыть задачу',
-        '/block 12 причина — пометить блокер',
-        '/todo 12 — вернуть задачу в очередь',
-        '/keys — ключи и лимиты',
-        '/queues — очереди и фоновые задачи',
-        '/targets — куда бот пишет',
-        '/allow_here — разрешить этот чат',
-        '',
-        'Бонус:',
-        '1. Голосовое в owner-личку я превращаю в заметку для следующей версии.',
-        '2. Любой обычный текст в owner-личке я сам пытаюсь понять: это вопрос, заметка в план или живой инцидент.'
-      ].join('\n')
+      english
+        ? [
+            '🤝 I can speak plainly instead of dumping dry logs.',
+            '',
+            'Main commands:',
+            '/menu — open the menu',
+            '/summary — short AI summary',
+            '/run — current path from task to code run',
+            '/engineer — engineering view',
+            '/ask — ask about server state, keys, feedback, and backlog',
+            '/screen — check real app flows',
+            '/health — quickly see what hurts',
+            '/events — active problems',
+            '/feedback — wallet feedback',
+            '/kb — bot memory for the project',
+            '/jobs — latest Codex jobs',
+            '/notes — next release backlog',
+            '/tasks — working tasks',
+            '/codex 12 — run Codex for a task',
+            '/execute 12 app — prepare real code execution',
+            '/publish 12 app — prepare branch push',
+            '/deploy 12 app — prepare deploy',
+            '/restart 12 app — prepare restart',
+            '/confirm 381042 — confirm a run with a 6-digit code',
+            '/cancelrun — cancel the active execution request',
+            '/note text — add an idea or fix into backlog',
+            '/take 12 — start a task',
+            '/done 12 — close a task',
+            '/block 12 reason — mark a blocker',
+            '/todo 12 — return a task to the queue',
+            '/keys — keys and limits',
+            '/queues — queues and background work',
+            '/targets — where the bot can write',
+            '/allow_here — authorize this chat',
+            '',
+            'Bonus:',
+            '1. A voice note in the owner private chat becomes a note for the next release.',
+            '2. Any normal text in the owner private chat is auto-routed as a question, backlog note, or live incident.'
+          ].join('\n')
+        : [
+            '🤝 Я могу говорить по-простому, а не сухими логами.',
+            '',
+            'Основное:',
+            '/menu — открыть меню',
+            '/summary — короткая AI-сводка',
+            '/run — текущий путь от задачи до code-run',
+            '/engineer — инженерный разрез по системам',
+            '/ask — задать вопрос по серверу, ключам, feedback и backlog',
+            '/screen — проверить реальные app-flow',
+            '/health — быстро понять, что болит',
+            '/events — активные проблемы',
+            '/feedback — отзывы из кошелька',
+            '/kb — память бота по проекту',
+            '/jobs — последние Codex jobs',
+            '/notes — backlog следующей версии',
+            '/tasks — рабочие задачи',
+            '/codex 12 — прогнать Codex по задаче',
+            '/execute 12 app — подготовить реальное исполнение кода',
+            '/publish 12 app — подготовить push ветки',
+            '/deploy 12 app — подготовить деплой',
+            '/restart 12 app — подготовить рестарт',
+            '/confirm 381042 — подтвердить запуск 6-значным кодом',
+            '/cancelrun — отменить активный запрос на исполнение',
+            '/note текст — добавить идею или правку в backlog',
+            '/take 12 — взять задачу в работу',
+            '/done 12 — закрыть задачу',
+            '/block 12 причина — пометить блокер',
+            '/todo 12 — вернуть задачу в очередь',
+            '/keys — ключи и лимиты',
+            '/queues — очереди и фоновые задачи',
+            '/targets — куда бот пишет',
+            '/allow_here — разрешить этот чат',
+            '',
+            'Бонус:',
+            '1. Голосовое в owner-личку я превращаю в заметку для следующей версии.',
+            '2. Любой обычный текст в owner-личке я сам пытаюсь понять: это вопрос, заметка в план или живой инцидент.'
+          ].join('\n')
     );
     return { ok: true };
   }
@@ -3335,7 +3507,7 @@ async function handleCommand(message) {
     return handleOwnerInboxText(message);
   }
 
-  await reply(chatId, 'Не понял команду. Нажмите /menu, там удобнее.');
+  await reply(chatId, english ? 'I did not understand that command. Press /menu, it is easier there.' : 'Не понял команду. Нажмите /menu, там удобнее.');
   return { ok: true };
 }
 
