@@ -1,13 +1,13 @@
 # 4teen-wallet-app — BUILD AND TOOLING
 
-Generated: 2026-05-02T16:35:51.909Z
+Generated: 2026-05-02T16:41:53.326Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 5462c041d23c7494e09adcf16525fabc91cada5a
-Short commit: 5462c04
-Commit subject: Bootstrap ops runner from control plane
+Last commit: 784fc230a86fba8c97e83ee6594e3e37a07047b6
+Short commit: 784fc23
+Commit subject: Poll confirmed ops requests from control plane
 Commit author: 4TEEN Ops Runner
-Commit date: 2026-05-02T21:35:39+05:00
+Commit date: 2026-05-02T21:41:39+05:00
 
 ## Included files
 
@@ -164,6 +164,9 @@ on:
   repository_dispatch:
     types:
       - ops-execution-request
+  workflow_dispatch:
+  schedule:
+    - cron: '*/10 * * * *'
 
 permissions:
   contents: write
@@ -177,11 +180,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OPS_REPO_KEY: wallet-app
-      OPS_REQUEST_ID: ${{ github.event.client_payload.requestId }}
-      OPS_TASK_ID: ${{ github.event.client_payload.taskId }}
-      OPS_ACTION_TYPE: ${{ github.event.client_payload.actionType }}
-      OPS_BASE_URL: ${{ github.event.client_payload.opsBaseUrl }}
-      OPS_RUNNER_TOKEN: ${{ github.event.client_payload.runnerToken }}
+      OPS_BASE_URL: https://fourteen-wallet-api-7af291023d36.herokuapp.com
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -998,11 +998,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const OPS_REPO_KEY = normalizeValue(process.env.OPS_REPO_KEY) || 'wallet-app';
-const REQUEST_ID = Number(process.env.OPS_REQUEST_ID || 0);
-const TASK_ID = Number(process.env.OPS_TASK_ID || 0);
-const ACTION_TYPE = normalizeValue(process.env.OPS_ACTION_TYPE) || 'apply';
 const OPS_BASE_URL = normalizeValue(process.env.OPS_BASE_URL).replace(/\/+$/, '');
-const OPS_RUNNER_TOKEN = normalizeValue(process.env.OPS_RUNNER_TOKEN);
+const GITHUB_TOKEN = normalizeValue(process.env.GITHUB_TOKEN);
 const DEFAULT_BRANCH = normalizeValue(process.env.GITHUB_REF_NAME) || 'main';
 const RUNNER_ID = `github-actions/${process.env.GITHUB_REPOSITORY || OPS_REPO_KEY}/${process.env.GITHUB_RUN_ID || 'manual'}`;
 
@@ -1041,17 +1038,18 @@ async function remoteApi(pathname, body = {}) {
   return payload.result || null;
 }
 
-async function bootstrap() {
-  return remoteApi(`/ops/execution-requests/${REQUEST_ID}/bootstrap`, {
-    token: OPS_RUNNER_TOKEN,
-    runnerId: RUNNER_ID
+async function claimNext() {
+  return remoteApi('/ops/execution-requests/claim-github-runner', {
+    repoKey: OPS_REPO_KEY,
+    runnerId: RUNNER_ID,
+    githubToken: GITHUB_TOKEN
   });
 }
 
-async function finish(status, summary, resultMessage, details = {}) {
-  return remoteApi(`/ops/execution-requests/${REQUEST_ID}/finish-remote`, {
-    token: OPS_RUNNER_TOKEN,
+async function finish(requestId, status, summary, resultMessage, details = {}) {
+  return remoteApi(`/ops/execution-requests/${requestId}/finish-github-runner`, {
     runnerId: RUNNER_ID,
+    githubToken: GITHUB_TOKEN,
     status,
     summary,
     resultMessage,
@@ -1370,8 +1368,8 @@ async function restartHeroku(credentials) {
   return appName;
 }
 
-async function handleApply(bootstrapResult) {
-  const workOrder = bootstrapResult?.workOrder;
+async function handleApply(claimed) {
+  const workOrder = claimed?.workOrder;
   if (!workOrder?.readyToImplement) {
     throw new Error('Task does not have a ready work order yet');
   }
@@ -1387,7 +1385,7 @@ async function handleApply(bootstrapResult) {
     }
   }
 
-  const implementation = await generateImplementation(workOrder, contextFiles, bootstrapResult?.credentials || {});
+  const implementation = await generateImplementation(workOrder, contextFiles, claimed?.credentials || {});
   if (implementation.blocked) {
     throw new Error(normalizeValue(implementation.reason) || 'Model reported blocked');
   }
@@ -1418,8 +1416,8 @@ async function handleApply(bootstrapResult) {
   };
 }
 
-async function handlePublish(bootstrapResult) {
-  const taskId = TASK_ID || bootstrapResult?.request?.task_id;
+async function handlePublish(claimed) {
+  const taskId = Number(claimed?.request?.task_id || 0);
   const remote = remoteBranchExists(taskId);
   if (!remote.exists) {
     throw new Error(`Branch ${remote.branch} is not on origin yet. Run apply first.`);
@@ -1435,8 +1433,8 @@ async function handlePublish(bootstrapResult) {
   };
 }
 
-async function handleDeploy(bootstrapResult) {
-  const taskId = TASK_ID || bootstrapResult?.request?.task_id;
+async function handleDeploy(claimed) {
+  const taskId = Number(claimed?.request?.task_id || 0);
   const remote = remoteBranchExists(taskId);
   if (!remote.exists) {
     throw new Error(`Branch ${remote.branch} is not on origin yet. Apply the task first.`);
@@ -1453,7 +1451,7 @@ async function handleDeploy(bootstrapResult) {
     throw new Error(`Deploy blocked: ${deployability.reason}`);
   }
 
-  const appName = deployToHeroku(remote.branch, bootstrapResult?.credentials || {});
+  const appName = deployToHeroku(remote.branch, claimed?.credentials || {});
   return {
     summary: `Deployed ${remote.branch} to ${appName}`,
     resultMessage: `Heroku app ${appName} was updated from ${remote.branch}.`,
@@ -1465,10 +1463,10 @@ async function handleDeploy(bootstrapResult) {
   };
 }
 
-async function handleRestart(bootstrapResult) {
-  const appName = await restartHeroku(bootstrapResult?.credentials || {});
+async function handleRestart(claimed) {
+  const appName = await restartHeroku(claimed?.credentials || {});
   return {
-    summary: `Restarted ${appName} for task #${TASK_ID || bootstrapResult?.request?.task_id || 0}`,
+    summary: `Restarted ${appName} for task #${Number(claimed?.request?.task_id || 0)}`,
     resultMessage: `Heroku dynos for ${appName} were restarted.`,
     details: {
       herokuApp: appName
@@ -1477,46 +1475,47 @@ async function handleRestart(bootstrapResult) {
 }
 
 async function main() {
-  if (!Number.isFinite(REQUEST_ID) || REQUEST_ID <= 0) {
-    throw new Error('Missing or invalid OPS_REQUEST_ID');
+  if (!OPS_BASE_URL || !GITHUB_TOKEN) {
+    throw new Error('Missing OPS_BASE_URL or GITHUB_TOKEN');
   }
 
-  if (!OPS_BASE_URL || !OPS_RUNNER_TOKEN) {
-    throw new Error('Missing bootstrap payload for remote runner');
-  }
-
-  let bootstrapResult = null;
+  let claimed = null;
   try {
-    bootstrapResult = await bootstrap();
-    if (!bootstrapResult?.request) {
-      throw new Error('Remote runner did not receive a claimed request');
+    claimed = await claimNext();
+    if (!claimed?.request) {
+      console.log('No confirmed execution requests for this repository. Exiting quietly.');
+      return;
     }
 
+    const actionType = normalizeValue(claimed.request.action_type) || 'apply';
     let outcome;
-    if (ACTION_TYPE === 'apply') {
-      outcome = await handleApply(bootstrapResult);
-    } else if (ACTION_TYPE === 'publish') {
-      outcome = await handlePublish(bootstrapResult);
-    } else if (ACTION_TYPE === 'deploy') {
-      outcome = await handleDeploy(bootstrapResult);
-    } else if (ACTION_TYPE === 'restart') {
-      outcome = await handleRestart(bootstrapResult);
+    if (actionType === 'apply') {
+      outcome = await handleApply(claimed);
+    } else if (actionType === 'publish') {
+      outcome = await handlePublish(claimed);
+    } else if (actionType === 'deploy') {
+      outcome = await handleDeploy(claimed);
+    } else if (actionType === 'restart') {
+      outcome = await handleRestart(claimed);
     } else {
-      throw new Error(`Unsupported action type: ${ACTION_TYPE}`);
+      throw new Error(`Unsupported action type: ${actionType}`);
     }
 
-    await finish('done', outcome.summary, outcome.resultMessage, outcome.details);
+    await finish(claimed.request.id, 'done', outcome.summary, outcome.resultMessage, outcome.details);
   } catch (error) {
     console.error(error);
-    await finish(
-      'blocked',
-      `Remote runner blocked ${ACTION_TYPE} for task #${TASK_ID || bootstrapResult?.request?.task_id || REQUEST_ID}`,
-      normalizeValue(error?.message) || 'Unknown runner failure',
-      {
-        actionType: ACTION_TYPE,
-        repoKey: OPS_REPO_KEY
-      }
-    ).catch(() => null);
+    if (claimed?.request?.id) {
+      await finish(
+        claimed.request.id,
+        'blocked',
+        `Remote runner blocked ${normalizeValue(claimed.request.action_type) || 'request'} for task #${Number(claimed.request.task_id || 0)}`,
+        normalizeValue(error?.message) || 'Unknown runner failure',
+        {
+          actionType: normalizeValue(claimed.request.action_type) || 'unknown',
+          repoKey: OPS_REPO_KEY
+        }
+      ).catch(() => null);
+    }
     process.exitCode = 1;
   }
 }

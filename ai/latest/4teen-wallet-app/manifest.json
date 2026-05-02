@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-05-02T16:35:51.909Z",
+  "generatedAt": "2026-05-02T16:41:53.327Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "5462c041d23c7494e09adcf16525fabc91cada5a",
-    "shortHash": "5462c04",
-    "subject": "Bootstrap ops runner from control plane",
+    "hash": "784fc230a86fba8c97e83ee6594e3e37a07047b6",
+    "shortHash": "784fc23",
+    "subject": "Poll confirmed ops requests from control plane",
     "author": "4TEEN Ops Runner",
-    "date": "2026-05-02T21:35:39+05:00"
+    "date": "2026-05-02T21:41:39+05:00"
   },
   "changedFiles": [
     "M\t.github/workflows/ops-remote-runner.yml",
@@ -16,11 +16,11 @@
   ],
   "activeFiles": [
     {
-      "file": "apps/mobile/src/config/app-version.ts",
-      "count": 7
+      "file": "apps/api/src/services/ops/telegramAdminBot.js",
+      "count": 6
     },
     {
-      "file": "apps/api/src/services/ops/telegramAdminBot.js",
+      "file": "apps/mobile/src/config/app-version.ts",
       "count": 6
     },
     {
@@ -32,28 +32,12 @@
       "count": 5
     },
     {
-      "file": "apps/mobile/app/_layout.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/about.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/language.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/unlock.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/ui/footer-nav.tsx",
-      "count": 3
-    },
-    {
       "file": ".github/workflows/ops-remote-runner.yml",
-      "count": 2
+      "count": 3
+    },
+    {
+      "file": "scripts/ops-remote-runner.mjs",
+      "count": 3
     },
     {
       "file": "apps/api/clock.js",
@@ -84,55 +68,71 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/app/add-custom-token.tsx",
+      "file": "apps/mobile/app/_layout.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/address-book.tsx",
+      "file": "apps/mobile/app/about.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/airdrop.tsx",
+      "file": "apps/mobile/app/language.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/ambassador-confirm.tsx",
+      "file": "apps/mobile/app/ui-lab.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
+      "file": "apps/mobile/app/unlock.tsx",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/authentication-method.tsx",
+      "file": "apps/mobile/package.json",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/backup-private-key.tsx",
+      "file": "apps/mobile/screenshots/airdrop-site-2026-05-01/airdrop-facebook-youtube-cards.png",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/browser.tsx",
+      "file": "apps/mobile/screenshots/airdrop-site-2026-05-01/airdrop-info-expanded.png",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/buy-confirm.tsx",
+      "file": "apps/mobile/screenshots/airdrop-site-2026-05-01/airdrop-overview-telegram-available.png",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/buy.tsx",
+      "file": "apps/mobile/screenshots/airdrop-site-2026-05-01/airdrop-social-rollout-cards.png",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/confirm-passcode.tsx",
+      "file": "apps/mobile/screenshots/airdrop-site-2026-05-01/telegram-web-login-screen.png",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/create-passcode.tsx",
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/about-screen.png",
       "count": 2
     },
     {
-      "file": "apps/mobile/app/create-wallet.tsx",
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/address-book-screen.png",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/airdrop-screen.png",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/ambassador-program-screen.png",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/appearance-screen.png",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/screenshots/ui-audit-2026-05-01/authentication-method-screen.png",
       "count": 2
     }
   ],
