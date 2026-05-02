@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-05-02T19:52:26.317Z",
+  "generatedAt": "2026-05-02T20:38:58.276Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "df3770a3b53b9d1a2789beb1e19560cda9757027",
-    "shortHash": "df3770a",
-    "subject": "Trigger ops runner on workflow changes",
+    "hash": "5d0b373169abab5ad00a1b55cbf84b758a5e2077",
+    "shortHash": "5d0b373",
+    "subject": "Trigger wallet ops runner validation",
     "author": "info14fourteen-creator",
-    "date": "2026-05-03T00:52:09+05:00"
+    "date": "2026-05-03T01:38:46+05:00"
   },
   "changedFiles": [
-    "M\t.github/workflows/ops-remote-runner.yml"
+    "M\t.github/scripts/ops-remote-runner.mjs"
   ],
   "activeFiles": [
     {
@@ -19,47 +19,15 @@
       "count": 6
     },
     {
+      "file": ".github/scripts/ops-remote-runner.mjs",
+      "count": 4
+    },
+    {
       "file": "scripts/ops-remote-runner.mjs",
       "count": 4
     },
     {
-      "file": ".github/scripts/ops-remote-runner.mjs",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/src/config/app-version.ts",
-      "count": 2
-    },
-    {
       "file": "apps/mobile/app.json",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/_layout.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/language.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/ui-lab.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/unlock.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/ui_lab_language_globe.json",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/unlock_biometric_faceid.json",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/unlock_biometric_fingerprint.json",
       "count": 1
     },
     {
@@ -67,27 +35,7 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/src/security/lock-overlay.ts",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/src/ui/footer-nav.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/src/ui/lottie-icon.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/src/ui/navigation-routes.ts",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/src/ui/product-shell.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/src/ui/screen-brow.tsx",
+      "file": "apps/mobile/src/config/app-version.ts",
       "count": 1
     },
     {
