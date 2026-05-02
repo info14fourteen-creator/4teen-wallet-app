@@ -1,6 +1,10 @@
 name: Ops Remote Runner
 
 on:
+  push:
+    paths:
+      - '.github/workflows/ops-remote-runner.yml'
+      - '.github/scripts/ops-remote-runner.mjs'
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
