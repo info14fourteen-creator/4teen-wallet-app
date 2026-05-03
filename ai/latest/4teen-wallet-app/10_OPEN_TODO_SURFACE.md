@@ -1,13 +1,13 @@
 # 4teen-wallet-app — OPEN TODO SURFACE
 
-Generated: 2026-05-03T00:36:33.307Z
+Generated: 2026-05-03T00:50:27.755Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 610ab8917a24e2c2868642df815a8bd7e7559b7f
-Short commit: 610ab89
-Commit subject: Remove file_search from Codex jobs
+Last commit: d544ed53f5b19decb8500553bdafa3b411e79724
+Short commit: d544ed5
+Commit subject: Improve Codex repo grounding with GitHub evidence
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T05:36:16+05:00
+Commit date: 2026-05-03T05:50:10+05:00
 
 ## TODO markers (TODO, FIXME, HACK, XXX)
 
