@@ -357,7 +357,11 @@ export function TopChrome() {
                   <AboutActionRow label={t('Version Update')} onPress={handleVersionUpdate} />
                   <AboutActionRow label={t('Terms of Service')} onPress={goTerms} />
                   <AboutActionRow label={t('4TEEN Whitepaper')} onPress={goWhitepaper} />
-                  <AboutActionRow label={t('Rate Us')} icon="star" onPress={() => setRateOpen(true)} />
+                  <AboutActionRow
+                    label={`${t('Rate Us')} / ${t('Send Feedback')}`}
+                    icon="star"
+                    onPress={() => setRateOpen(true)}
+                  />
                 </View>
 
                 <Text style={styles.channelsTitle}>{t('Official Channels')}</Text>
@@ -424,7 +428,7 @@ export function TopChrome() {
                 </Text>
 
                 <RateButton label={t('I like it!')} onPress={() => void handleQuickPraise()} />
-                <RateButton label={t('I wanna feedback')} onPress={openFeedback} />
+                <RateButton label={t('Send Feedback')} onPress={openFeedback} />
                 <RateButton label={t('Not this time')} onPress={() => setRateOpen(false)} />
               </View>
             </View>

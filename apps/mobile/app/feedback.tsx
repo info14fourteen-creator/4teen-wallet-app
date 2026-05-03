@@ -94,19 +94,17 @@ export default function FeedbackScreen() {
   };
 
   return (
-    <ProductScreen eyebrow={t('FEEDBACK')} browVariant="back" keyboardAware keyboardExtraScrollHeight={120}>
+    <ProductScreen
+      eyebrow={t('FEEDBACK')}
+      browVariant="back"
+      keyboardAware
+      keyboardExtraScrollHeight={220}
+      bottomInsetExtra={150}
+    >
       <View style={styles.heroCard}>
         <Text style={[ui.titleMd, locale.textStart]}>{t('Tell 4TEEN Ops what you see')}</Text>
         <Text style={[styles.heroBody, locale.textStart]}>
           {t('This goes straight into the private ops bot, together with app version, current source screen, and a masked wallet hint.')}
-        </Text>
-      </View>
-
-      <View style={styles.metaCard}>
-        <Text style={[styles.metaEyebrow, locale.textStart]}>{t('Source screen')}</Text>
-        <Text style={[styles.metaValue, locale.textStart]}>{sourceScreen}</Text>
-        <Text style={[styles.metaHelper, locale.textStart]}>
-          {t('Please do not paste a seed phrase or a private key here.')}
         </Text>
       </View>
 
@@ -132,6 +130,9 @@ export default function FeedbackScreen() {
 
       <View style={styles.section}>
         <Text style={[ui.sectionEyebrow, locale.textStart]}>{t('Short note')}</Text>
+        <Text style={[styles.inputHelper, locale.textStart]}>
+          {t('Please do not paste a seed phrase or a private key here.')}
+        </Text>
         <TextInput
           value={message}
           onChangeText={setMessage}
@@ -173,34 +174,14 @@ const styles = StyleSheet.create({
     color: colors.textSoft,
   },
 
-  metaCard: {
-    marginBottom: spacing[3],
-    padding: spacing[3],
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.surfaceSoft,
-    gap: 6,
-  },
-
-  metaEyebrow: {
-    ...ui.muted,
-    color: colors.textDim,
-  },
-
-  metaValue: {
-    ...ui.actionLabel,
-    color: colors.white,
-  },
-
-  metaHelper: {
-    ...ui.body,
-    color: colors.textDim,
-  },
-
   section: {
     marginBottom: spacing[3],
     gap: 10,
+  },
+
+  inputHelper: {
+    ...ui.body,
+    color: colors.textDim,
   },
 
   typeList: {

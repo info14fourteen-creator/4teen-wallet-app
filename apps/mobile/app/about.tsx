@@ -127,7 +127,7 @@ export default function AboutScreen() {
         <ActionRow label={t('Version Update')} onPress={handleVersionUpdate} />
         <ActionRow label={t('Terms of Service')} onPress={() => router.push('/terms' as any)} />
         <ActionRow label={t('4TEEN Whitepaper')} onPress={() => router.push('/whitepaper' as any)} />
-        <ActionRow label={t('Rate Us')} icon="star" onPress={handleRateUs} />
+        <ActionRow label={`${t('Rate Us')} / ${t('Send Feedback')}`} icon="star" onPress={handleRateUs} />
         <ActionRow label={t('Open 4TEEN Website')} icon="external" onPress={() => void openInAppBrowser(router, 'https://4teen.me')} isLast />
       </View>
 

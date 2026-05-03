@@ -40,6 +40,8 @@ The mobile app is locally release-ready from a code and bundling perspective.
   - onboarding and wallet-access copy now live under dedicated translation slices
   - route-level helper copy for send, swap, buy, airdrop, and export screens is wired through i18n
   - `About Us` and `Feedback` now ride the same audited localized shell instead of mixed source keys
+  - feedback UX is tightened so keyboard handling matches the rest of the app more closely
+  - the visible `source screen` panel was removed from the feedback UI while internal source tagging remains in the ops payload
 - Folded the latest runtime-recovery pass into the release baseline:
   - render crashes are caught by a root app boundary
   - uncaught runtime errors are reported into the ops/admin event stream
