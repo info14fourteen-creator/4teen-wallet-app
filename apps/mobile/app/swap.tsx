@@ -127,9 +127,18 @@ function getProtectedSwapReserve(token?: Pick<SwapTokenMeta, 'tokenId' | 'decima
 }
 
 function getProtectedSpendableSwapBalance(
-  token?: Pick<SwapTokenMeta, 'tokenId' | 'decimals' | 'balance'> | null
+  token?:
+    | (Pick<SwapTokenMeta, 'tokenId' | 'decimals' | 'balance'> & {
+        amount?: number;
+      })
+    | null
 ) {
-  const balance = Number.isFinite(token?.balance) ? Number(token?.balance) : 0;
+  const rawBalance = Number.isFinite(token?.balance)
+    ? Number(token?.balance)
+    : Number.isFinite(token?.amount)
+      ? Number(token?.amount)
+      : 0;
+  const balance = Math.max(0, rawBalance);
   return Math.max(0, balance - getProtectedSwapReserve(token));
 }
 
@@ -1025,33 +1034,35 @@ export default function SwapScreen() {
                 <Text style={styles.swapSectionFieldTitle}>{t('AMOUNT')}</Text>
               </View>
 
-              <TouchableOpacity
-                activeOpacity={1}
-                onPress={openAmountKeyboard}
-                style={[styles.swapInputShell, styles.swapInputShellAmount]}
-              >
-                <TextInput
-                  value={amount}
-                  onChangeText={(value) => {
-                    setAmount((current) => {
+              <View style={[styles.swapInputShell, styles.swapInputShellAmount]}>
+                <Pressable
+                  onPress={openAmountKeyboard}
+                  style={styles.swapAmountTapArea}
+                >
+                  <TextInput
+                    value={amount}
+                    onChangeText={(value) => {
                       const next = normalizeSwapAmountInput(value);
-                      return next === null ? current : next;
-                    });
-                  }}
-                  placeholder={t('0.00')}
-                  placeholderTextColor={colors.textDim}
-                  style={styles.swapAmountInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  showSoftInputOnFocus={false}
-                  onFocus={openAmountKeyboard}
-                  selectionColor={colors.accent}
-                />
+                      if (next !== null) {
+                        setAmount(next);
+                      }
+                    }}
+                    placeholder={t('0.00')}
+                    placeholderTextColor={colors.textDim}
+                    style={styles.swapAmountInput}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    showSoftInputOnFocus={false}
+                    onFocus={openAmountKeyboard}
+                    selectionColor={colors.accent}
+                  />
+                </Pressable>
 
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={handleSelectMax}
                   style={styles.swapInputMaxButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Text style={styles.swapInputMaxButtonText}>{t('MAX')}</Text>
                 </TouchableOpacity>
@@ -1066,7 +1077,7 @@ export default function SwapScreen() {
                     {selectedSourceToken?.symbol || t('TOKEN')}
                   </Text>
                 </View>
-              </TouchableOpacity>
+              </View>
 
               <Text
                 style={styles.swapHint}
@@ -1660,13 +1671,16 @@ const styles = StyleSheet.create({
   },
 
   swapAmountInput: {
-    flex: 1,
     minHeight: layout.fieldHeight,
     color: colors.white,
     fontSize: 16,
     lineHeight: 20,
     fontFamily: 'Sora_600SemiBold',
     paddingRight: 12,
+  },
+
+  swapAmountTapArea: {
+    flex: 1,
   },
 
   swapInputSuffix: {
@@ -1689,8 +1703,11 @@ const styles = StyleSheet.create({
   },
 
   swapInputMaxButton: {
+    minWidth: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 6,
     marginRight: 10,
   },
 
