@@ -1,25 +1,38 @@
 {
-  "generatedAt": "2026-05-03T00:50:27.755Z",
+  "generatedAt": "2026-05-03T22:11:35.371Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "d544ed53f5b19decb8500553bdafa3b411e79724",
-    "shortHash": "d544ed5",
-    "subject": "Improve Codex repo grounding with GitHub evidence",
+    "hash": "64de869c38d2521427369284d61e472dec57723f",
+    "shortHash": "64de869",
+    "subject": "Fix ops bot merge regression",
     "author": "info14fourteen-creator",
-    "date": "2026-05-03T05:50:10+05:00"
+    "date": "2026-05-04T03:11:10+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/src/services/ops/codexJobs.js"
+    "M\tapps/api/src/services/ops/telegramAdminBot.js",
+    "M\tapps/mobile/src/config/app-version.ts"
   ],
   "activeFiles": [
     {
-      "file": ".github/scripts/ops-remote-runner.mjs",
-      "count": 3
+      "file": "apps/mobile/src/config/app-version.ts",
+      "count": 12
+    },
+    {
+      "file": "apps/mobile/app/feedback.tsx",
+      "count": 4
+    },
+    {
+      "file": "apps/mobile/app/swap.tsx",
+      "count": 4
     },
     {
       "file": "apps/api/src/services/ops/telegramAdminBot.js",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/about.tsx",
       "count": 3
     },
     {
@@ -29,6 +42,98 @@
     {
       "file": "apps/api/src/services/ops/openai.js",
       "count": 2
+    },
+    {
+      "file": "release/RELEASE_READINESS_STATUS.md",
+      "count": 2
+    },
+    {
+      "file": "apps/api/package.json",
+      "count": 1
+    },
+    {
+      "file": "apps/api/scripts/export-codex-work-orders.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/scripts/ops-executor.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/config/env.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/routes/ops.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/githubRemoteRunner.js",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app.json",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/_layout.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/authentication-method.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/buy.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/confirm-passcode.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/create-passcode.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/create-wallet.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/earn.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/enable-biometrics.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/import-private-key.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/import-wallet.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/language.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/ui-lab.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/unlock.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/socials/lottie/discord_social_hover.json",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/assets/icons/ui/socials/lottie/facebook_social_hover.json",
+      "count": 1
     }
   ],
   "todoCount": 10,
@@ -62,6 +167,8 @@
     ".github/scripts/ops-remote-runner.mjs",
     "apps/api/clock.js",
     "apps/api/package.json",
+    "apps/api/scripts/export-codex-work-orders.js",
+    "apps/api/scripts/ops-executor.js",
     "apps/api/server.js",
     "apps/api/src/app.js",
     "apps/api/src/config/env.js",
@@ -263,9 +370,7 @@
     "apps/mobile/assets/icons/ui/copy_btn.svg",
     "apps/mobile/assets/icons/ui/create_add_wallet_qp_btn.svg",
     "apps/mobile/assets/icons/ui/decline_btn.svg",
-    "apps/mobile/assets/icons/ui/earn_footer_menu_btn_onclick.svg",
-    "apps/mobile/assets/icons/ui/earn_footer_menu_btn.svg",
-    "apps/mobile/assets/icons/ui/footer_menu.svg"
+    "apps/mobile/assets/icons/ui/earn_footer_menu_btn_onclick.svg"
   ],
   "outputDir": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app",
   "zipUrl": "https://raw.githubusercontent.com/info14fourteen-creator/4teen-wallet-app/main/ai/latest/4teen-wallet-app.zip"

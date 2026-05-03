@@ -1,13 +1,13 @@
 # 4teen-wallet-app — PROJECT OVERVIEW
 
-Generated: 2026-05-03T00:50:27.753Z
+Generated: 2026-05-03T22:11:35.369Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: d544ed53f5b19decb8500553bdafa3b411e79724
-Short commit: d544ed5
-Commit subject: Improve Codex repo grounding with GitHub evidence
+Last commit: 64de869c38d2521427369284d61e472dec57723f
+Short commit: 64de869
+Commit subject: Fix ops bot merge regression
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T05:50:10+05:00
+Commit date: 2026-05-04T03:11:10+05:00
 
 ## Curated project tree
 
@@ -21,6 +21,9 @@ Commit date: 2026-05-03T05:50:10+05:00
     - ops-remote-runner.yml
 - apps/
   - api/
+    - scripts/
+      - export-codex-work-orders.js
+      - ops-executor.js
     - src/
       - config/
         - env.js
@@ -247,8 +250,6 @@ Commit date: 2026-05-03T05:50:10+05:00
           - create_add_wallet_qp_btn.svg
           - decline_btn.svg
           - earn_footer_menu_btn_onclick.svg
-          - earn_footer_menu_btn.svg
-          - footer_menu.svg
     - app.json
 - docs/
   - ai-snapshots/
@@ -544,7 +545,7 @@ Wire `home.tsx` to active stored wallet and real chain snapshot:
     "herokuProcessRead": true,
     "herokuDeployPathAvailable": true,
     "originWriteVerified": false,
-    "crossRepoAccessVerified": false
+    "crossRepoAccessVerified": true
   },
   "projects": [
     {
@@ -573,6 +574,17 @@ Wire `home.tsx` to active stored wallet and real chain snapshot:
         "/Users/stanataev/4teen-wallet-app/docs/ops/repo-map.md",
         "/Users/stanataev/4teen-wallet-app/docs/ops/knowledge-base.md",
         "/Users/stanataev/4teen-wallet-app/docs/ops/next-release-notes.md"
+      ]
+    },
+    {
+      "repoName": "4teen-website",
+      "localPath": "/Users/stanataev/4teen-website",
+      "originUrl": "git@github.com:info14fourteen-creator/4teen-website.git",
+      "defaultBranch": "main",
+      "deployType": "Cloudflare OpenNext",
+      "scripts": [
+        "pnpm build",
+        "pnpm cf:deploy"
       ]
     }
   ],
@@ -620,6 +632,10 @@ This map describes what Codex can already access for the current 4TEEN project f
 - Observed branch in local workspace: `main`
 - Observed local commit: `1279df7`
 - GitHub remote `origin`: `https://github.com/info14fourteen-creator/4teen-wallet-app.git`
+- Website repo local clone: `/Users/stanataev/4teen-website`
+- Website repo remote `origin`: `git@github.com:info14fourteen-creator/4teen-website.git`
+- Website repo branch: `main`
+- Website repo commit: `6a40c67`
 - Heroku remote: `https://git.heroku.com/fourteen-wallet-api.git`
 - Heroku app: `fourteen-wallet-api`
 - Heroku web URL: `https://fourteen-wallet-api-7af291023d36.herokuapp.com/`
@@ -652,6 +668,18 @@ This map describes what Codex can already access for the current 4TEEN project f
   - [knowledge-base.md](/Users/stanataev/4teen-wallet-app/docs/ops/knowledge-base.md)
   - [next-release-notes.md](/Users/stanataev/4teen-wallet-app/docs/ops/next-release-notes.md)
 
+### Marketing Website
+
+- Repo name: `4teen-website`
+- Local path: `/Users/stanataev/4teen-website`
+- Git remote `origin`: `git@github.com:info14fourteen-creator/4teen-website.git`
+- Runtime/deploy shape:
+  - `Next.js 16`
+  - `OpenNext Cloudflare`
+- Primary scripts:
+  - `pnpm build`
+  - `pnpm cf:deploy`
+
 ## What Codex Already Has
 
 For this project, Codex already has enough to:
@@ -659,6 +687,7 @@ For this project, Codex already has enough to:
 - inspect the local repo
 - read and edit code in the local workspace
 - inspect the Git remotes
+- inspect the local website repo
 - inspect the Heroku app
 - inspect Heroku dyno state
 - read selected Heroku config presence
@@ -668,6 +697,7 @@ That means Codex can already work on:
 
 - repo analysis
 - code changes
+- website code changes
 - ops bot changes
 - API changes
 - Heroku deploys for the current app
