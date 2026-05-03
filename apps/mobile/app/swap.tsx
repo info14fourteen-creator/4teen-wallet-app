@@ -1023,14 +1023,6 @@ export default function SwapScreen() {
             <View style={styles.swapSectionBlock} onLayout={handleAmountSectionLayout}>
               <View style={styles.swapFieldHeaderRow}>
                 <Text style={styles.swapSectionFieldTitle}>{t('AMOUNT')}</Text>
-
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={handleSelectMax}
-                  style={styles.swapInputMaxButton}
-                >
-                  <Text style={styles.swapInputMaxButtonText}>{t('MAX')}</Text>
-                </TouchableOpacity>
               </View>
 
               <TouchableOpacity
@@ -1055,6 +1047,14 @@ export default function SwapScreen() {
                   onFocus={openAmountKeyboard}
                   selectionColor={colors.accent}
                 />
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={handleSelectMax}
+                  style={styles.swapInputMaxButton}
+                >
+                  <Text style={styles.swapInputMaxButtonText}>{t('MAX')}</Text>
+                </TouchableOpacity>
 
                 <View style={styles.swapInputSuffix}>
                   <Image
@@ -1691,6 +1691,7 @@ const styles = StyleSheet.create({
   swapInputMaxButton: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 10,
   },
 
   swapInputMaxButtonText: {
