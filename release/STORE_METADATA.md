@@ -1,6 +1,6 @@
 # 4TEEN Store Metadata
 
-Last updated: 2026-05-02
+Last updated: 2026-05-03
 
 ## Identity
 
@@ -10,7 +10,7 @@ Last updated: 2026-05-02
 - Expo slug: `4teen-wallet`
 - iOS bundle identifier: `me.fourteen.wallet`
 - Android package: `me.fourteen.wallet`
-- Version: `1.0.1`
+- Version: `1.0.3`
 
 ## App Store
 

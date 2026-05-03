@@ -433,7 +433,7 @@ export default function CreateWalletScreen() {
           {stage === 'verify' ? (
             <>
               <Text style={styles.title}>
-                {t('Verify')} <Text style={styles.titleAccent}>{t('3 words')}</Text>
+                <Text style={styles.titleAccent}>{t('Verify 3 words')}</Text>
               </Text>
 
               <Text style={styles.noticeLine}>

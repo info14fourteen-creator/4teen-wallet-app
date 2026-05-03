@@ -5,7 +5,7 @@
 - [x] Set short app display name to `4TEEN`
 - [x] Set iOS bundle identifier to `me.fourteen.wallet`
 - [x] Set Android package to `me.fourteen.wallet`
-- [x] Set app version to `1.0.1`
+- [x] Set app version to `1.0.3`
 - [x] Enable EAS remote app versioning
 - [x] Wire main app icon
 - [x] Add `eas.json`
@@ -20,6 +20,7 @@
 - [x] `npx expo export --platform ios`
 - [x] `npx expo export --platform android`
 - [x] Fix Android native install-referrer build path for current Expo Modules core
+- [x] Add production-safe app runtime recovery and ops error reporting
 
 ## Still Needed Before Store Submission
 

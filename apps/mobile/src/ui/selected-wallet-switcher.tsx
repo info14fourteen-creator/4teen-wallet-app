@@ -1,9 +1,9 @@
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { useI18n } from '../i18n';
+import { useI18n, useLocaleLayout } from '../i18n';
 import type { WalletMeta } from '../services/wallet/storage';
 import { colors, radius } from '../theme/tokens';
-import { OpenDownIcon, OpenRightIcon } from './ui-icons';
+import { OpenDownIcon, OpenLeftIcon, OpenRightIcon } from './ui-icons';
 
 export type WalletSwitcherOption = {
   id: string;
@@ -31,16 +31,17 @@ function WalletBalance({
   value: string;
   compact?: boolean;
 }) {
+  const locale = useLocaleLayout();
   const safe = String(value || '—').trim() || '—';
   const match = safe.match(/^([^\d-]+)\s*(.+)$/);
   const currency = match?.[1]?.trim() || '';
   const amount = match?.[2]?.trim() || safe;
 
   return (
-    <View style={styles.walletBalanceRow}>
+    <View style={[styles.walletBalanceRow, locale.row]}>
       {currency ? (
         <Text
-          style={compact ? styles.walletOptionBalanceCurrency : styles.walletBalanceCurrency}
+          style={[compact ? styles.walletOptionBalanceCurrency : styles.walletBalanceCurrency, locale.textStart]}
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.72}
@@ -49,7 +50,7 @@ function WalletBalance({
         </Text>
       ) : null}
       <Text
-        style={compact ? styles.walletOptionBalance : styles.walletBalance}
+        style={[compact ? styles.walletOptionBalance : styles.walletBalance, locale.textStart]}
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.6}
@@ -71,29 +72,30 @@ export default function SelectedWalletSwitcher({
   emptyBody = 'Create or import a wallet first.',
 }: SelectedWalletSwitcherProps) {
   const { t } = useI18n();
+  const locale = useLocaleLayout();
   const resolvedEmptyTitle = t(emptyTitle);
   const resolvedEmptyBody = t(emptyBody);
 
   return (
     <View style={styles.selectionBlock}>
-      <View style={styles.selectionHead}>
-        <Text style={styles.selectionEyebrow}>{t('ACTIVE WALLET')}</Text>
-        <Text style={styles.selectionHint}>{t('tap to switch')}</Text>
+      <View style={[styles.selectionHead, locale.rowBetween]}>
+        <Text style={[styles.selectionEyebrow, locale.textStart]}>{t('ACTIVE WALLET')}</Text>
+        <Text style={[styles.selectionHint, locale.textStart]}>{t('tap to switch')}</Text>
       </View>
 
       <TouchableOpacity
         activeOpacity={0.9}
-        style={[styles.walletCard, walletOptionsOpen ? styles.walletCardOpen : styles.walletCardClosed]}
+        style={[styles.walletCard, locale.rowBetween, walletOptionsOpen ? styles.walletCardOpen : styles.walletCardClosed]}
         onPress={onToggle}
       >
-        <View style={styles.walletCardText}>
-          <View style={styles.walletTitleRow}>
-          <Text style={styles.walletName}>{wallet?.name || resolvedEmptyTitle}</Text>
+        <View style={[styles.walletCardText, locale.alignStart]}>
+          <View style={[styles.walletTitleRow, locale.row]}>
+          <Text style={[styles.walletName, locale.textStart]}>{wallet?.name || resolvedEmptyTitle}</Text>
           </View>
 
           <WalletBalance value={wallet?.balanceDisplay || t('$0.00')} />
 
-          <Text style={styles.walletAddress} numberOfLines={1}>
+          <Text style={[styles.walletAddress, locale.textStart]} numberOfLines={1}>
             {wallet?.address || resolvedEmptyBody}
           </Text>
         </View>
@@ -101,7 +103,7 @@ export default function SelectedWalletSwitcher({
         {walletOptionsOpen ? (
           <OpenDownIcon width={22} height={22} />
         ) : (
-          <OpenRightIcon width={18} height={18} />
+          locale.isRTL ? <OpenLeftIcon width={18} height={18} /> : <OpenRightIcon width={18} height={18} />
         )}
       </TouchableOpacity>
 
@@ -114,16 +116,16 @@ export default function SelectedWalletSwitcher({
               <TouchableOpacity
                 key={item.id}
                 activeOpacity={0.9}
-                style={styles.walletOptionRow}
+                style={[styles.walletOptionRow, locale.rowBetween]}
                 disabled={switching}
                 onPress={() => onChooseWallet(item)}
               >
-                <View style={styles.walletOptionText}>
-                  <View style={styles.walletTitleRow}>
-                    <Text style={styles.walletName}>{item.name}</Text>
+                <View style={[styles.walletOptionText, locale.alignStart]}>
+                  <View style={[styles.walletTitleRow, locale.row]}>
+                    <Text style={[styles.walletName, locale.textStart]}>{item.name}</Text>
                   </View>
                   <WalletBalance value={item.balanceDisplay || t('$0.00')} compact />
-                  <Text style={styles.optionAddress} numberOfLines={1}>
+                  <Text style={[styles.optionAddress, locale.textStart]} numberOfLines={1}>
                     {item.address}
                   </Text>
                 </View>
@@ -131,7 +133,7 @@ export default function SelectedWalletSwitcher({
                 {switching ? (
                   <ActivityIndicator color={colors.accent} />
                 ) : (
-                  <OpenRightIcon width={18} height={18} />
+                  locale.isRTL ? <OpenLeftIcon width={18} height={18} /> : <OpenRightIcon width={18} height={18} />
                 )}
               </TouchableOpacity>
             );

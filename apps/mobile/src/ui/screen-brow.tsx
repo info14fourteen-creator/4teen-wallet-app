@@ -3,6 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 
+import { useLocaleLayout } from '../i18n';
 import { colors } from '../theme/tokens';
 import { goBackOrReplace } from './safe-back';
 import LottieIcon from './lottie-icon';
@@ -44,6 +45,7 @@ type ScreenBrowProps = {
   backAccessory?: ReactNode;
   backLabel?: string | null;
   rightIconAnimation?: BrowAnimatedIconConfig;
+  rtl?: boolean;
 };
 
 function renderLabelAccessory({
@@ -86,9 +88,12 @@ export default function ScreenBrow({
   backAccessory,
   backLabel = null,
   rightIconAnimation,
+  rtl,
 }: ScreenBrowProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const locale = useLocaleLayout();
+  const isRTL = rtl ?? locale.isRTL;
   const [labelPlayToken, setLabelPlayToken] = useState(0);
   const [labelAnimating, setLabelAnimating] = useState(false);
   const [rightPlayToken, setRightPlayToken] = useState(0);
@@ -109,8 +114,8 @@ export default function ScreenBrow({
         : 'chevron-right';
 
   const baseLabelNode = (
-    <View style={patterns.browLeftCluster}>
-      <Text style={patterns.browLabel}>{label}</Text>
+    <View style={[patterns.browLeftCluster, isRTL && rtlStyles.cluster]}>
+      <Text style={[patterns.browLabel, isRTL && rtlStyles.label]}>{label}</Text>
       {renderLabelAccessory({ labelAccessory, variant, defaultChevronName })}
     </View>
   );
@@ -133,8 +138,8 @@ export default function ScreenBrow({
         onLabelPress();
       }}
     >
-      <View style={patterns.browLeftCluster}>
-        <Text style={patterns.browLabel}>{label}</Text>
+      <View style={[patterns.browLeftCluster, isRTL && rtlStyles.cluster]}>
+        <Text style={[patterns.browLabel, isRTL && rtlStyles.label]}>{label}</Text>
         {labelAccessoryAnimation ? (
           labelAnimating ? (
             <LottieIcon
@@ -171,8 +176,8 @@ export default function ScreenBrow({
     </TouchableOpacity>
   ) : (
     labelAccessoryAnimation ? (
-      <View style={patterns.browLeftCluster}>
-        <Text style={patterns.browLabel}>{label}</Text>
+      <View style={[patterns.browLeftCluster, isRTL && rtlStyles.cluster]}>
+        <Text style={[patterns.browLabel, isRTL && rtlStyles.label]}>{label}</Text>
         <LottieIcon
           source={labelAccessoryAnimation.source}
           size={labelAccessoryAnimation.size ?? 18}
@@ -189,7 +194,7 @@ export default function ScreenBrow({
 
   if (variant === 'plain') {
     return (
-      <View style={patterns.browPlain}>
+      <View style={[patterns.browPlain, isRTL && rtlStyles.row]}>
         {labelNode}
       </View>
     );
@@ -197,10 +202,10 @@ export default function ScreenBrow({
 
   if (variant === 'back') {
     return (
-      <View style={patterns.browBack}>
+      <View style={[patterns.browBack, isRTL && rtlStyles.row]}>
         {labelNode}
         {backAction || (
-          <BackAction onPress={handleBackPress} accessory={backAccessory} label={backLabel} />
+          <BackAction onPress={handleBackPress} accessory={backAccessory} label={backLabel} rtl={isRTL} />
         )}
       </View>
     );
@@ -208,17 +213,17 @@ export default function ScreenBrow({
 
   if (variant === 'backLink') {
     return (
-      <View style={patterns.browBackLink}>
+      <View style={[patterns.browBackLink, isRTL && rtlStyles.row]}>
         {labelNode}
         {backAction || (
-          <BackAction onPress={handleBackPress} accessory={backAccessory} label={backLabel} />
+          <BackAction onPress={handleBackPress} accessory={backAccessory} label={backLabel} rtl={isRTL} />
         )}
       </View>
     );
   }
 
   return (
-    <View style={patterns.browLinkIcon}>
+    <View style={[patterns.browLinkIcon, isRTL && rtlStyles.row]}>
       {labelNode}
       <TouchableOpacity
         activeOpacity={patternPress.brow}
@@ -279,10 +284,12 @@ function BackAction({
   onPress,
   accessory,
   label,
+  rtl = false,
 }: {
   onPress: () => void;
   accessory?: ReactNode;
   label?: string | null;
+  rtl?: boolean;
 }) {
   const [playToken, setPlayToken] = useState(0);
   const [animating, setAnimating] = useState(false);
@@ -309,7 +316,7 @@ function BackAction({
           playToken={playToken}
           frames={BROW_BACK_ARROW_FRAMES}
           speed={1.35}
-          style={{ transform: [{ scaleX: -1 }] }}
+          style={{ transform: [{ scaleX: rtl ? 1 : -1 }] }}
           onAnimationFinish={(isCancelled) => {
             setAnimating(false);
 
@@ -325,10 +332,23 @@ function BackAction({
           source={BROW_BACK_ARROW_SOURCE}
           size={18}
           progress={BROW_BACK_ARROW_STATIC_PROGRESS}
-          style={{ transform: [{ scaleX: -1 }] }}
+          style={{ transform: [{ scaleX: rtl ? 1 : -1 }] }}
         />
       )}
-      {label ? <Text style={patterns.browBackText}>{label}</Text> : null}
+      {label ? <Text style={[patterns.browBackText, rtl && rtlStyles.label]}>{label}</Text> : null}
     </TouchableOpacity>
   );
 }
+
+const rtlStyles = {
+  row: {
+    flexDirection: 'row-reverse',
+  } as const,
+  cluster: {
+    flexDirection: 'row-reverse',
+  } as const,
+  label: {
+    textAlign: 'right',
+    writingDirection: 'rtl',
+  } as const,
+};

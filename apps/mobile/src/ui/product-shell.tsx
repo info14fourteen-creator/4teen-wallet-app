@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, layout, radius } from '../theme/tokens';
 import { ui } from '../theme/ui';
+import { useLocaleLayout } from '../i18n';
 import InfoToggleIcon from './info-toggle-icon';
 import KeyboardView from './KeyboardView';
 import ScreenBrow from './screen-brow';
@@ -65,6 +66,7 @@ export function ProductScreen({
 }) {
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset(bottomInsetExtra);
+  const locale = useLocaleLayout();
   const refreshOverlayVisible = Boolean(refreshControl?.props?.refreshing);
   const overlayVisible = loadingOverlayVisible || refreshOverlayVisible;
 
@@ -94,11 +96,12 @@ export function ProductScreen({
                 (headerInfo ? <InfoToggleIcon expanded={headerInfo.expanded} /> : undefined)
               }
               labelAccessoryAnimation={browLabelAccessoryAnimation}
+              rtl={locale.isRTL}
             />
             {headerInfo?.expanded ? (
               <View style={styles.infoPanel}>
-                <Text style={styles.infoTitle}>{headerInfo.title}</Text>
-                <Text style={styles.infoText}>{headerInfo.text}</Text>
+                <Text style={[styles.infoTitle, locale.textStart]}>{headerInfo.title}</Text>
+                <Text style={[styles.infoText, locale.textStart]}>{headerInfo.text}</Text>
               </View>
             ) : null}
             {children}
@@ -127,11 +130,12 @@ export function ProductScreen({
                 (headerInfo ? <InfoToggleIcon expanded={headerInfo.expanded} /> : undefined)
               }
               labelAccessoryAnimation={browLabelAccessoryAnimation}
+              rtl={locale.isRTL}
             />
             {headerInfo?.expanded ? (
               <View style={styles.infoPanel}>
-                <Text style={styles.infoTitle}>{headerInfo.title}</Text>
-                <Text style={styles.infoText}>{headerInfo.text}</Text>
+                <Text style={[styles.infoTitle, locale.textStart]}>{headerInfo.title}</Text>
+                <Text style={[styles.infoText, locale.textStart]}>{headerInfo.text}</Text>
               </View>
             ) : null}
             {children}
@@ -153,11 +157,12 @@ export function ProductHero({
   body: string;
   children?: ReactNode;
 }) {
+  const locale = useLocaleLayout();
   return (
     <View style={styles.heroCard}>
-      <Text style={ui.eyebrow}>{eyebrow}</Text>
-      <Text style={styles.heroTitle}>{title}</Text>
-      <Text style={styles.heroBody}>{body}</Text>
+      <Text style={[ui.eyebrow, locale.textStart]}>{eyebrow}</Text>
+      <Text style={[styles.heroTitle, locale.textStart]}>{title}</Text>
+      <Text style={[styles.heroBody, locale.textStart]}>{body}</Text>
       {children ? <View style={styles.heroChildren}>{children}</View> : null}
     </View>
   );
@@ -168,13 +173,14 @@ export function ProductStatGrid({
 }: {
   items: { eyebrow: string; value: string; body: string }[];
 }) {
+  const locale = useLocaleLayout();
   return (
     <View style={styles.statGrid}>
       {items.map((item) => (
         <View key={`${item.eyebrow}-${item.value}`} style={styles.statCard}>
-          <Text style={ui.muted}>{item.eyebrow}</Text>
-          <Text style={styles.statValue}>{item.value}</Text>
-          <Text style={styles.statBody}>{item.body}</Text>
+          <Text style={[ui.muted, locale.textStart]}>{item.eyebrow}</Text>
+          <Text style={[styles.statValue, locale.textStart]}>{item.value}</Text>
+          <Text style={[styles.statBody, locale.textStart]}>{item.body}</Text>
         </View>
       ))}
     </View>
@@ -190,22 +196,24 @@ export function ProductSection({
   title: string;
   children: ReactNode;
 }) {
+  const locale = useLocaleLayout();
   return (
     <View style={styles.sectionCard}>
-      <Text style={ui.sectionEyebrow}>{eyebrow}</Text>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={[ui.sectionEyebrow, locale.textStart]}>{eyebrow}</Text>
+      <Text style={[styles.sectionTitle, locale.textStart]}>{title}</Text>
       <View style={styles.sectionChildren}>{children}</View>
     </View>
   );
 }
 
 export function ProductBulletList({ items }: { items: string[] }) {
+  const locale = useLocaleLayout();
   return (
     <View style={styles.bulletList}>
       {items.map((item) => (
-        <View key={item} style={styles.bulletRow}>
+        <View key={item} style={[styles.bulletRow, locale.row]}>
           <View style={styles.bulletDot} />
-          <Text style={styles.bulletText}>{item}</Text>
+          <Text style={[styles.bulletText, locale.textStart]}>{item}</Text>
         </View>
       ))}
     </View>
@@ -254,15 +262,16 @@ export function ProductRouteCard({
   onSecondaryPress?: () => void;
   icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 }) {
+  const locale = useLocaleLayout();
   return (
     <Pressable onPress={onPrimaryPress} style={styles.routeCard}>
-      <View style={styles.routeTopRow}>
-        <View style={styles.routeCopy}>
-          <Text style={ui.eyebrow}>{eyebrow}</Text>
-          <Text style={styles.routeTitle}>{title}</Text>
+      <View style={[styles.routeTopRow, locale.rowBetween]}>
+        <View style={[styles.routeCopy, locale.alignStart]}>
+          <Text style={[ui.eyebrow, locale.textStart]}>{eyebrow}</Text>
+          <Text style={[styles.routeTitle, locale.textStart]}>{title}</Text>
         </View>
-        <View style={styles.routeMeta}>
-          {value ? <Text style={styles.routeValue}>{value}</Text> : null}
+        <View style={[styles.routeMeta, locale.alignEnd]}>
+          {value ? <Text style={[styles.routeValue, locale.textStart]}>{value}</Text> : null}
           {icon ? (
             <MaterialCommunityIcons name={icon} size={22} color={colors.accent} />
           ) : (
@@ -271,7 +280,7 @@ export function ProductRouteCard({
         </View>
       </View>
 
-      <Text style={styles.routeBody}>{body}</Text>
+      <Text style={[styles.routeBody, locale.textStart]}>{body}</Text>
 
       <ProductActionRow
         primaryLabel={primaryLabel}
@@ -288,6 +297,7 @@ export function ProductSplitRows({
 }: {
   rows: { eyebrow: string; title: string; body: string; accent?: boolean }[];
 }) {
+  const locale = useLocaleLayout();
   return (
     <View style={styles.splitStack}>
       {rows.map((row) => (
@@ -295,11 +305,11 @@ export function ProductSplitRows({
           key={`${row.eyebrow}-${row.title}`}
           style={[styles.splitCard, row.accent && styles.splitCardAccent]}
         >
-          <Text style={row.accent ? styles.splitEyebrowAccent : ui.sectionEyebrow}>
+          <Text style={[row.accent ? styles.splitEyebrowAccent : ui.sectionEyebrow, locale.textStart]}>
             {row.eyebrow}
           </Text>
-          <Text style={styles.splitTitle}>{row.title}</Text>
-          <Text style={styles.splitBody}>{row.body}</Text>
+          <Text style={[styles.splitTitle, locale.textStart]}>{row.title}</Text>
+          <Text style={[styles.splitBody, locale.textStart]}>{row.body}</Text>
         </View>
       ))}
     </View>

@@ -153,7 +153,7 @@ export default function ImportPrivateKeyScreen() {
           ) : null}
 
           <Text style={styles.title}>
-            {t('Restore from')} <Text style={styles.titleAccent}>{t('private key')}</Text>
+            <Text style={styles.titleAccent}>{t('Restore wallet from private key')}</Text>
           </Text>
 
           <Text style={styles.noticeLine}>{t('We never store your seed phrase or private key.')}</Text>

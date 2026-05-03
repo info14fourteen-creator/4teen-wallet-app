@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ProductScreen } from '../src/ui/product-shell';
 
 import ExpandChevron from '../src/ui/expand-chevron';
-import { useI18n } from '../src/i18n';
+import { useI18n, useLocaleLayout } from '../src/i18n';
 import { colors, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import {
@@ -96,7 +96,7 @@ export default function AboutScreen() {
           },
         },
         {
-          label: t('I Wanna Feedback'),
+          label: t('Send Feedback'),
           onPress: () => router.push('/feedback?sourceScreen=about' as any),
         },
         {
@@ -249,20 +249,22 @@ function ActionRow({
   icon?: 'chevron-forward' | 'star' | 'external';
   isLast?: boolean;
 }) {
+  const locale = useLocaleLayout();
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
       style={[styles.actionRow, isLast && styles.actionRowLast]}
       onPress={onPress}
     >
-      <Text style={ui.actionLabel}>{label}</Text>
+      <Text style={[ui.actionLabel, locale.textStart]}>{label}</Text>
 
       {icon === 'star' ? (
         <Ionicons name="star" size={18} color={colors.accent} />
       ) : icon === 'external' ? (
         <Ionicons name="open-outline" size={18} color={colors.accent} />
       ) : (
-        <ExpandChevron open={false} />
+        <ExpandChevron open={false} rtl={locale.isRTL} />
       )}
     </TouchableOpacity>
   );

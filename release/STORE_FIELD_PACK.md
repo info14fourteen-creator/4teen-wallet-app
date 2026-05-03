@@ -1,6 +1,6 @@
 # 4TEEN Store Field Pack
 
-Last updated: 2026-05-02
+Last updated: 2026-05-03
 
 This is the practical submission pack: exact values where we already know them, plus careful recommendations where the console asks policy-style questions.
 
@@ -9,7 +9,7 @@ This is the practical submission pack: exact values where we already know them, 
 - App name: `4TEEN`
 - Internal label: `4TEEN Wallet`
 - Positioning line: `Wallet & protocol access`
-- Version: `1.0.1`
+- Version: `1.0.3`
 - Bundle identifier: `me.fourteen.wallet`
 - Android package: `me.fourteen.wallet`
 - Website: `https://4teen.me`

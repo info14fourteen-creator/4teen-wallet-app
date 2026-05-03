@@ -2250,7 +2250,7 @@ export const TRANSACTION_SLICE_JA = {
   'Not enough TRX to cover network burn. Top up TRX first.': 'ネットワークのバーンアウトをカバーするには TRX が不十分です。まずTRXを補充してください。',
   'Failed to broadcast token transaction.': 'トークン トランザクションのブロードキャストに失敗しました。',
   'Too many decimal places. Max allowed: {{count}}.': '小数点以下の桁数が多すぎます。許可される最大値: {{count}}。',
-  'Invalid private key provided': '無効な秘密キーが指定されました',
+  'Invalid private key provided': '無効な秘密鍵が指定されました',
   'tronWeb is not available': 'tronWeb は利用できません',
   'Owner address is invalid.': '所有者のアドレスが無効です。',
   'Wallet connection is not ready. Please try again.': 'ウォレット接続の準備ができていません。もう一度試してください。',

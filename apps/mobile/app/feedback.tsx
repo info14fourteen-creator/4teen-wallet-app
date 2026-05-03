@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { useI18n } from '../src/i18n';
+import { useI18n, useLocaleLayout } from '../src/i18n';
 import { useNotice } from '../src/notice/notice-provider';
 import { submitAppFeedback, type AppFeedbackType } from '../src/services/feedback';
 import { ProductScreen } from '../src/ui/product-shell';
@@ -53,6 +53,7 @@ export default function FeedbackScreen() {
   const params = useLocalSearchParams<{ sourceScreen?: string }>();
   const notice = useNotice();
   const { t } = useI18n();
+  const locale = useLocaleLayout();
   const [selectedType, setSelectedType] = useState<AppFeedbackType>('issue');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -95,22 +96,22 @@ export default function FeedbackScreen() {
   return (
     <ProductScreen eyebrow={t('FEEDBACK')} browVariant="back" keyboardAware keyboardExtraScrollHeight={120}>
       <View style={styles.heroCard}>
-        <Text style={ui.titleMd}>{t('Tell 4TEEN Ops what you see')}</Text>
-        <Text style={styles.heroBody}>
+        <Text style={[ui.titleMd, locale.textStart]}>{t('Tell 4TEEN Ops what you see')}</Text>
+        <Text style={[styles.heroBody, locale.textStart]}>
           {t('This goes straight into the private ops bot, together with app version, current source screen, and a masked wallet hint.')}
         </Text>
       </View>
 
       <View style={styles.metaCard}>
-        <Text style={styles.metaEyebrow}>{t('Source screen')}</Text>
-        <Text style={styles.metaValue}>{sourceScreen}</Text>
-        <Text style={styles.metaHelper}>
+        <Text style={[styles.metaEyebrow, locale.textStart]}>{t('Source screen')}</Text>
+        <Text style={[styles.metaValue, locale.textStart]}>{sourceScreen}</Text>
+        <Text style={[styles.metaHelper, locale.textStart]}>
           {t('Please do not paste a seed phrase or a private key here.')}
         </Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={ui.sectionEyebrow}>{t('What kind of feedback is this?')}</Text>
+        <Text style={[ui.sectionEyebrow, locale.textStart]}>{t('What kind of feedback is this?')}</Text>
         <View style={styles.typeList}>
           {FEEDBACK_TYPES.map((item) => {
             const active = item.key === selectedType;
@@ -121,8 +122,8 @@ export default function FeedbackScreen() {
                 style={[styles.typeCard, active && styles.typeCardActive]}
                 onPress={() => setSelectedType(item.key)}
               >
-                <Text style={[styles.typeTitle, active && styles.typeTitleActive]}>{t(item.title)}</Text>
-                <Text style={[styles.typeHelper, active && styles.typeHelperActive]}>{t(item.helper)}</Text>
+                <Text style={[styles.typeTitle, locale.textStart, active && styles.typeTitleActive]}>{t(item.title)}</Text>
+                <Text style={[styles.typeHelper, locale.textStart, active && styles.typeHelperActive]}>{t(item.helper)}</Text>
               </Pressable>
             );
           })}
@@ -130,7 +131,7 @@ export default function FeedbackScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={ui.sectionEyebrow}>{t('Short note')}</Text>
+        <Text style={[ui.sectionEyebrow, locale.textStart]}>{t('Short note')}</Text>
         <TextInput
           value={message}
           onChangeText={setMessage}
@@ -139,7 +140,7 @@ export default function FeedbackScreen() {
           maxLength={500}
           placeholder={t('What exactly did you notice?')}
           placeholderTextColor={colors.textDim}
-          style={styles.input}
+          style={[styles.input, locale.textStart]}
           textAlignVertical="top"
         />
       </View>

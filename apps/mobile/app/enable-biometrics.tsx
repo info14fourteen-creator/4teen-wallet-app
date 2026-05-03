@@ -90,8 +90,11 @@ export default function EnableBiometricsScreen() {
         <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
           <ScreenBrow label={t('ENABLE BIOMETRICS')} />
           <Text style={styles.title}>
-            {enabled || flow === 'disable-biometrics' ? `${t('Disable')} ` : `${t('Enable')} `}
-            <Text style={styles.titleAccent}>{supportedLabel}</Text>
+            <Text style={styles.titleAccent}>
+              {enabled || flow === 'disable-biometrics'
+                ? t('Disable {{label}}', { label: supportedLabel })
+                : t('Enable {{label}}', { label: supportedLabel })}
+            </Text>
           </Text>
 
           <Text style={styles.lead}>

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import { useI18n } from '../src/i18n';
+import { useI18n, useLocaleLayout } from '../src/i18n';
 import { ProductScreen } from '../src/ui/product-shell';
 import {
   type AutoLockMode,
@@ -28,6 +28,7 @@ type AuthStatus = {
 export default function AuthenticationMethodScreen() {
   const router = useRouter();
   const { t } = useI18n();
+  const locale = useLocaleLayout();
   const [infoExpanded, setInfoExpanded] = useState(false);
   const [autoLockExpanded, setAutoLockExpanded] = useState(false);
   const [disableExpanded, setDisableExpanded] = useState(false);
@@ -153,8 +154,8 @@ export default function AuthenticationMethodScreen() {
 
         {status.passcodeEnabled && disableExpanded ? (
           <View style={styles.inlineCard}>
-            <Text style={styles.inlineTitle}>{t('Turn wallet protection off')}</Text>
-            <Text style={styles.inlineBody}>
+            <Text style={[styles.inlineTitle, locale.textStart]}>{t('Turn wallet protection off')}</Text>
+            <Text style={[styles.inlineBody, locale.textStart]}>
               {t('Disabling protection removes the passcode gate and turns biometric unlock off too. The app will open straight into wallet screens until you create a new passcode again.')}
             </Text>
 
@@ -253,8 +254,8 @@ export default function AuthenticationMethodScreen() {
                   }}
                 >
                   <View style={styles.optionText}>
-                    <Text style={styles.optionTitle}>{option.title}</Text>
-                    <Text style={styles.optionBody}>{option.body}</Text>
+                    <Text style={[styles.optionTitle, locale.textStart]}>{option.title}</Text>
+                    <Text style={[styles.optionBody, locale.textStart]}>{option.body}</Text>
                   </View>
 
                   <View style={[styles.radio, selected && styles.radioActive]}>

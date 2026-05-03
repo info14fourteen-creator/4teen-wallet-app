@@ -1,6 +1,6 @@
 # Release Readiness Status
 
-Last checked: 2026-05-02 (Asia/Tashkent)
+Last checked: 2026-05-03 (Asia/Tashkent)
 
 ## Current state
 
@@ -20,7 +20,7 @@ The mobile app is locally release-ready from a code and bundling perspective.
 
 - App icon wired from the current 4TEEN brand mark
 - App display name set to `4TEEN`
-- Store version set to `1.0.1`
+- Store version set to `1.0.3`
 - `ITSAppUsesNonExemptEncryption` declared as `false`
 - Removed unused Android `RECORD_AUDIO` permission
 - Removed EAS channel config that was noisy without `expo-updates`
@@ -32,6 +32,21 @@ The mobile app is locally release-ready from a code and bundling perspective.
   - `wallet-access` now uses the onboarding `ui-lab` flow
   - no-wallet language selection is available without exposing the full app shell
   - unlock shield / biometric-entry polish is included
+- Folded the latest language-polish pass into the release baseline:
+  - all supported locales remain at full key coverage
+  - runtime ambassador/dashboard warnings were normalized language by language
+  - long-form protocol / whitepaper copy received an editorial cleanup for more natural wording
+- Folded the latest route-surface localization pass into the release baseline:
+  - onboarding and wallet-access copy now live under dedicated translation slices
+  - route-level helper copy for send, swap, buy, airdrop, and export screens is wired through i18n
+  - `About Us` and `Feedback` now ride the same audited localized shell instead of mixed source keys
+- Folded the latest runtime-recovery pass into the release baseline:
+  - render crashes are caught by a root app boundary
+  - uncaught runtime errors are reported into the ops/admin event stream
+  - production recovery now routes users back to a safe screen instead of leaving them in a broken state
+- Folded the latest shared-layout regression fix into the release baseline:
+  - `ProductScreen` cards keep full-width layout again after RTL support was introduced
+  - `info` / `earn` no longer collapses into narrow cards with large empty gaps
 
 ## Referral / attribution readiness
 

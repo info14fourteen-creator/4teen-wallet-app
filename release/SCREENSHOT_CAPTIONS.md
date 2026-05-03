@@ -1,6 +1,6 @@
 # 4TEEN Screenshot Captions
 
-Last updated: 2026-05-02
+Last updated: 2026-05-03
 
 These are clean baseline captions for store screenshots. They are short enough to work as overlay copy or store-upload notes.
 

@@ -34,7 +34,7 @@ export const NAVIGATION_SLICE_UZ = {
   'Your feedback helps shape the wallet while it is still actively evolving.':
     'Fikringiz hamyon hali faol rivojlanayotgan paytda uni yaxshilashga yordam beradi.',
   'I like it!': 'Menga yoqdi!',
-  'I wanna feedback': 'Fikr bildirmoqchiman',
+  'I wanna feedback': 'Fikr yuborish',
   'Not this time': 'Hozir emas',
   'Wallet Setup': 'Hamyon sozlamasi',
   'Create or import your first wallet': 'Birinchi hamyoningizni yarating yoki import qiling',
@@ -48,7 +48,7 @@ export const NAVIGATION_SLICE_UZ = {
   'Scan QR': 'QR skanerlash',
   'Scan wallet, address, or payment QR code': 'Hamyon, manzil yoki to‘lov QR kodini skanerlang',
   'DApp Browser': 'DApp brauzeri',
-  'Open websites and dapps inside wallet': 'Saytlar va dapp’larni hamyon ichida oching',
+  'Open websites and dapps inside wallet': 'Saytlar va dApp’larni hamyon ichida oching',
   'Toggle token visibility and manage assets': 'Token ko‘rinishini yoqib-o‘chiring va aktivlarni boshqaring',
   'Add Token': 'Token qo‘shish',
   'Add or enable a token by contract': 'Kontrakt orqali token qo‘shing yoki yoqing',
@@ -56,9 +56,9 @@ export const NAVIGATION_SLICE_UZ = {
   'Open app settings': 'Ilova sozlamalarini ochish',
   'Change fiat display currency': 'Ko‘rsatiladigan fiat valyutani o‘zgartirish',
   'Manage passcode and biometric unlock settings': 'Parol va biometriya sozlamalarini boshqarish',
-  'Export Private Key': 'Private key eksporti',
+  'Export Private Key': 'Maxfiy kalit eksporti',
   'Export Seed Phrase': 'Seed-fraza eksporti',
-  'Import Watch-Only': 'Watch-only importi',
+  'Import Watch-Only': 'Faqat kuzatuv hamyonini import qilish',
   'Add wallet address without signing access': 'Imzolashsiz hamyon manzilini qo‘shish',
   'Open Wallets': 'Hamyonlarni ochish',
   'Ambassador Cabinet': 'Ambassador kabineti',
@@ -107,7 +107,7 @@ export const NAVIGATION_SLICE_TR = {
   'Your feedback helps shape the wallet while it is still actively evolving.':
     'Geri bildiriminiz, cüzdan hâlâ aktif olarak gelişirken ürünü şekillendirmeye yardımcı olur.',
   'I like it!': 'Beğendim!',
-  'I wanna feedback': 'Geri bildirim vermek istiyorum',
+  'I wanna feedback': 'Geri bildirim gönder',
   'Not this time': 'Şimdi değil',
   'Wallet Setup': 'Cüzdan kurulumu',
   'Create or import your first wallet': 'İlk cüzdanınızı oluşturun veya içe aktarın',
@@ -154,10 +154,10 @@ export const SETTINGS_SLICE_UZ = {
   'Press and hold to remove this wallet.': 'Bu hamyonni o‘chirish uchun bosib turing.',
   'Wallet renamed to {{name}}.': 'Hamyon nomi {{name}} qilib o‘zgartirildi.',
   'Wallet rename failed.': 'Hamyon nomini o‘zgartirib bo‘lmadi.',
-  'This wallet has no seed phrase to export.': 'Bu hamyonda eksport qilinadigan seed-fraza yo‘q.',
+  'This wallet has no seed phrase to export.': 'Bu hamyonda eksport qilinadigan tiklash iborasi yo‘q.',
   'Seed phrase export failed to open.': 'Seed-fraza eksportini ochib bo‘lmadi.',
-  'This wallet has no private key to export.': 'Bu hamyonda eksport qilinadigan private key yo‘q.',
-  'Private key export failed to open.': 'Private key eksportini ochib bo‘lmadi.',
+  'This wallet has no private key to export.': 'Bu hamyonda eksport qilinadigan maxfiy kalit yo‘q.',
+  'Private key export failed to open.': 'Maxfiy kalit eksportini ochib bo‘lmadi.',
   'Loading wallets...': 'Hamyonlar yuklanmoqda...',
   'WALLET MANAGEMENT': 'HAMYON BOSHQARUVI',
   'Watch-only wallets are excluded from total balance.': 'Faqat kuzatuv hamyonlari umumiy balansga kiritilmaydi.',
@@ -166,7 +166,7 @@ export const SETTINGS_SLICE_UZ = {
   'Open Wallet': 'Hamyonni ochish',
   'Wallet name': 'Hamyon nomi',
   'Rename Wallet': 'Hamyon nomini o‘zgartirish',
-  'Export Mnemonic': 'Seed-frazani eksport qilish',
+  'Export Mnemonic': 'Tiklash iborasini eksport qilish',
   'Add Wallet': 'Hamyon qo‘shish',
   'Address book failed to load.': 'Kontaktlar kitobini yuklab bo‘lmadi.',
   'Address book update failed.': 'Kontaktlar kitobini yangilab bo‘lmadi.',
@@ -233,12 +233,12 @@ export const SETTINGS_SLICE_TR = {
 export const ACCESS_SLICE_UZ = {
   'Reconnect your wallet access': 'Hamyon kirishini qayta ulang',
   'Pick the recovery path that matches what you actually control. Seed phrase and private key restore signing power. Watch-only is strictly for tracking, not for moving funds.':
-    'Haqiqatan ham siz nazorat qiladigan tiklash yo‘lini tanlang. Seed-fraza va private key imzolash huquqini tiklaydi. Watch-only faqat kuzatish uchun, mablag‘ ko‘chirish uchun emas.',
+    'Haqiqatan nazorat qiladigan tiklash yo‘lini tanlang. Tiklash iborasi va maxfiy kalit imzolash huquqini tiklaydi. Faqat kuzatuv rejimi esa mablag‘ yuborish uchun emas, faqat kuzatish uchun mo‘ljallangan.',
   'Wallet name is required.': 'Hamyon nomi majburiy.',
   'Wallet name must be {{count}} characters or less.': 'Hamyon nomi {{count}} ta belgidan oshmasligi kerak.',
   'Failed to import wallet.': 'Hamyonni import qilib bo‘lmadi.',
   'Restore from a recovery phrase': 'Tiklash iborasidan tiklash',
-  'We never store your seed phrase on our servers.': 'Biz seed-frazangizni serverlarimizda saqlamaymiz.',
+  'We never store your seed phrase on our servers.': 'Biz tiklash iborangizni serverlarimizda saqlamaymiz.',
   '12 Words': '12 so‘z',
   '24 Words': '24 so‘z',
   'Paste Phrase': 'Iborani joylash',
@@ -247,10 +247,10 @@ export const ACCESS_SLICE_UZ = {
   'Wallet Name': 'Hamyon nomi',
   'Imported wallet': 'Import qilingan hamyon',
   'Importing...': 'Import qilinmoqda...',
-  'Private-key wallet imported.': 'Private key hamyoni import qilindi.',
+  'Private-key wallet imported.': 'Maxfiy kalit hamyoni import qilindi.',
   'Restore from': 'Dan tiklash',
-  'private key': 'private key',
-  'Private Key': 'Private key',
+  'private key': 'maxfiy kalit',
+  'Private Key': 'Maxfiy kalit',
   'Enter a valid TRON address.': 'To‘g‘ri TRON manzilini kiriting.',
   'Watch-only wallet added.': 'Faqat kuzatuv hamyoni qo‘shildi.',
   'Failed to save watch-only wallet.': 'Faqat kuzatuv hamyonini saqlab bo‘lmadi.',
@@ -275,12 +275,12 @@ export const ACCESS_SLICE_UZ = {
   'Use Passcode': 'Paroldan foydalanish',
   'Wrong passcode.': 'Noto‘g‘ri parol.',
   'Failed to verify passcode.': 'Parolni tekshirib bo‘lmadi.',
-  'EXPORT PRIVATE KEY': 'PRIVATE KEY EKSPORTI',
+  'EXPORT PRIVATE KEY': 'MAXFIY KALIT EKSPORTI',
   'COPY KEY': 'KALITNI NUSXALASH',
   'HIDE': 'YASHIRISH',
   'REVEAL KEY': 'KALITNI KO‘RSATISH',
   'CANCEL': 'BEKOR QILISH',
-  'EXPORT SEED PHRASE': 'SEED-FRAZANI EKSPORT QILISH',
+  'EXPORT SEED PHRASE': 'TIKLASH IBORASINI EKSPORT QILISH',
   'REVEAL PHRASE': 'IBORANI KO‘RSATISH',
 } as const;
 
@@ -527,8 +527,8 @@ export const VISIBLE_RUNTIME_SLICE_UZ = {
   'A newer build is available.': 'Yangi build mavjud.',
   'I Like It': 'Menga yoqdi',
   'Nice. At least somebody is happy.': 'Zo‘r. Hech bo‘lmasa kimdir xursand.',
-  'I Wanna Feedback': 'Fikr bildirmoqchiman',
-  'Feedback flow is not connected yet.': 'Fikr bildirish oqimi hali ulanmagan.',
+  'I Wanna Feedback': 'Fikr yuborish',
+  'Feedback flow is not connected yet.': 'Fikr yuborish hozircha mavjud emas.',
   'Not This Time': 'Bu safar emas',
   'Fair enough.': 'Mayli, tushunarli.',
   'No active wallet selected.': 'Faol hamyon tanlanmagan.',
@@ -595,8 +595,8 @@ export const VISIBLE_RUNTIME_SLICE_TR = {
   'A newer build is available.': 'Daha yeni bir build mevcut.',
   'I Like It': 'Beğendim',
   'Nice. At least somebody is happy.': 'Güzel. En azından biri memnun.',
-  'I Wanna Feedback': 'Geri bildirim vermek istiyorum',
-  'Feedback flow is not connected yet.': 'Geri bildirim akışı henüz bağlı değil.',
+  'I Wanna Feedback': 'Geri bildirim gönder',
+  'Feedback flow is not connected yet.': 'Geri bildirim gönderimi henüz kullanılamıyor.',
   'Not This Time': 'Bu kez değil',
   'Fair enough.': 'Pekala, anlaşılır.',
   'No active wallet selected.': 'Etkin cüzdan seçilmedi.',
@@ -769,13 +769,13 @@ export const AMBASSADOR_AIRDROP_SLICE_UZ = {
     'Davom eting, tasdiqlang, resurslarni tekshiring, xohlasangiz Energy ijaraga oling, keyin biometria yoki parol bilan tasdiqlang.',
   'Referral link preview': 'Referral havolasi ko‘rinishi',
   'Referral slug': 'Referral slug',
-  'your-slug': 'your-slug',
+  'your-slug': 'sizning-slugingiz',
   '3-24 chars. Lowercase letters, numbers, dash or underscore.':
     '3-24 ta belgi. Kichik harflar, raqamlar, chiziqcha yoki pastki chiziq.',
   'Slug is permanent. After registration it cannot be changed from the wallet.':
     'Slug doimiy bo‘ladi. Ro‘yxatdan o‘tgach, uni hamyon ichidan o‘zgartirib bo‘lmaydi.',
   'Watch-only wallet cannot register. Select or import a seed/private-key wallet first.':
-    'Faqat kuzatuv hamyoni ro‘yxatdan o‘ta olmaydi. Avval seed phrase yoki private-key hamyonni tanlang yoki import qiling.',
+    'Faqat kuzatuv hamyoni ro‘yxatdan o‘ta olmaydi. Avval tiklash iborasi yoki maxfiy kalit hamyonini tanlang yoki import qiling.',
   'CONTINUE TO CONFIRM': 'TASDIQLASHGA O‘TISH',
   'Failed to build ambassador withdrawal confirmation.': 'Ambassador yechib olish tasdig‘ini tayyorlab bo‘lmadi.',
   'Energy is live. Sending withdrawal...': 'Energy tayyor. Yechib olish yuborilmoqda...',
@@ -902,8 +902,8 @@ export const AMBASSADOR_AIRDROP_SLICE_TR = {
   'Continue to confirm, review resources, optionally rent Energy, then approve with biometrics or passcode.':
     'Devam edip onay ekranına geçin, kaynakları gözden geçirin, isterseniz Energy kiralayın, ardından biyometri veya parola ile onaylayın.',
   'Referral link preview': 'Referral link önizlemesi',
-  'Referral slug': 'Referral slug',
-  'your-slug': 'your-slug',
+  'Referral slug': 'Yönlendirme slugı',
+  'your-slug': 'sizin-sluginiz',
   '3-24 chars. Lowercase letters, numbers, dash or underscore.':
     '3-24 karakter. Küçük harfler, rakamlar, tire veya alt çizgi.',
   'Slug is permanent. After registration it cannot be changed from the wallet.':
@@ -929,12 +929,12 @@ export const AMBASSADOR_AIRDROP_SLICE_TR = {
 export const SECURITY_EXPORT_SLICE_UZ = {
   'WITHDRAW REVIEW': 'YECHIB OLISHNI TEKSHIRISH',
   'This calls withdrawRewards() on FourteenController. The contract sends only the current claimable TRX reward to the connected ambassador wallet.':
-    'Bu amal FourteenController ichida withdrawRewards() ni chaqiradi. Kontrakt faqat hozir olinishi mumkin bo‘lgan TRX mukofotini ulangan ambassador hamyoniga yuboradi.',
+    'Bu amal FourteenController ichidagi withdrawRewards() funksiyasini chaqiradi. Kontrakt faqat hozir olish mumkin bo‘lgan TRX mukofotini ulangan ambassador hamyoniga yuboradi.',
   'Energy rental and reward withdrawal': 'Energy ijarasi va mukofotni yechib olish',
   'reward withdrawal': 'mukofotni yechib olish',
   'Light mode is still under construction. The wallet remains on the dark side until the appearance system is rebuilt the right way.':
     'Yorug‘ rejim hali ishlab chiqilmoqda. Ko‘rinish tizimi to‘g‘ri qayta yig‘ilmaguncha hamyon qorong‘i tomonda qoladi.',
-  'Passcode + Biometrics': 'Parol + biometria',
+  'Passcode + Biometrics': 'Parol + biometrika',
   'Passcode': 'Parol',
   'After 15 seconds': '15 soniyadan keyin',
   'Relock quickly after the app leaves the foreground.': 'Ilova old fonni tark etgach tezda qayta qulfla.',
@@ -946,40 +946,40 @@ export const SECURITY_EXPORT_SLICE_UZ = {
     'Bir xil ilova sessiyasi davomida qayta qulf qilmang. Sovuq ishga tushirishda baribir himoya ishlaydi.',
   'How wallet protection works': 'Hamyon himoyasi qanday ishlaydi',
   'Wallet protection has three layers. Passcode is the hard gate. Biometrics are only a faster approval method on top of that passcode. Auto-lock decides when the app should ask again after you leave it. Use a short timer for stricter security, use Never if you want fewer prompts during the same open session, or turn protection off completely if you explicitly do not want unlock checks at all.':
-    'Hamyon himoyasi uch qatlamdan iborat. Parol asosiy himoya darvozasi. Biometria esa shu parol ustidagi tezroq tasdiqlash usuli xolos. Auto-lock ilovadan chiqqaningizdan keyin qachon yana so‘ralishini belgilaydi. Kuchliroq xavfsizlik uchun qisqa taymerdan foydalaning, bitta sessiyada kamroq so‘rov kerak bo‘lsa Never ni tanlang, yoki umuman unlock tekshiruvlari kerak bo‘lmasa himoyani o‘chirib qo‘ying.',
+    'Hamyon himoyasi uch qatlamdan iborat. Parol asosiy xavfsizlik to‘sig‘idir. Biometrika esa shu parol ustidagi tezroq tasdiqlash usuli xolos. Avtoqulflash ilovadan chiqqaningizdan keyin qachon yana so‘ralishini belgilaydi. Qattiqroq xavfsizlik uchun qisqa taymerdan foydalaning, shu ochiq sessiya davomida kamroq so‘rov kerak bo‘lsa Hech qachon variantini tanlang, umuman qulfdan chiqarish tekshiruvlari kerak bo‘lmasa himoyani butunlay o‘chirib qo‘ying.',
   'Wallet Lock': 'Hamyon qulfi',
   'Change your passcode or turn app protection off.': 'Parolni o‘zgartiring yoki ilova himoyasini o‘chirib qo‘ying.',
   'Create a 6-digit passcode to protect wallet access.': 'Hamyon kirishini himoyalash uchun 6 xonali parol yarating.',
   'Turn wallet protection off': 'Hamyon himoyasini o‘chirish',
   'Disabling protection removes the passcode gate and turns biometric unlock off too. The app will open straight into wallet screens until you create a new passcode again.':
-    'Himoyani o‘chirish parol to‘sig‘ini olib tashlaydi va biometric unlock ni ham o‘chiradi. Siz yangi parol yaratmaguningizcha ilova hamyon ekranlariga to‘g‘ridan-to‘g‘ri ochiladi.',
+    'Himoyani o‘chirish parol to‘sig‘ini olib tashlaydi va biometrik qulfdan chiqarishni ham o‘chiradi. Siz yangi parol yaratmaguningizcha ilova hamyon ekranlariga to‘g‘ridan-to‘g‘ri ochiladi.',
   'Turning Off…': 'O‘chirilmoqda…',
   'Turn Off Protection': 'Himoyani o‘chirish',
   'Passcode required first': 'Avval parol kerak',
   'Enabled': 'Yoqilgan',
   'Disabled': 'O‘chirilgan',
   'Unavailable': 'Mavjud emas',
-  'Set a passcode before enabling biometric unlock.': 'Biometric unlock ni yoqishdan oldin parol o‘rnating.',
-  'Turn {{label}} unlock off.': '{{label}} orqali unlock ni o‘chirish.',
+  'Set a passcode before enabling biometric unlock.': 'Biometrik qulfdan chiqarishni yoqishdan oldin parol o‘rnating.',
+  'Turn {{label}} unlock off.': '{{label}} orqali qulfdan chiqarishni o‘chirish.',
   'Turn on {{label}} as a faster approval method.': '{{label}} ni tezroq tasdiqlash usuli sifatida yoqing.',
   '{{label}} is not ready on this device.': '{{label}} bu qurilmada tayyor emas.',
-  'Auto-Lock': 'Auto-lock',
+  'Auto-Lock': 'Avtoqulflash',
   'Choose how quickly wallet protection returns after leaving the app.': 'Ilovadan chiqqandan keyin hamyon himoyasi qanchalik tez qaytishini tanlang.',
-  'Auto-lock becomes available after you enable passcode protection.': 'Auto-lock parol himoyasini yoqqaningizdan keyin ishlaydi.',
+  'Auto-lock becomes available after you enable passcode protection.': 'Avtoqulflash parol himoyasini yoqqaningizdan keyin ishlaydi.',
   'Private key export is available only for signing wallets stored on this device.':
-    'Private key eksporti faqat shu qurilmada saqlangan imzolovchi hamyonlar uchun mavjud.',
-  'Failed to load private key.': 'Private key ni yuklab bo‘lmadi.',
+    'Maxfiy kalit eksporti faqat shu qurilmada saqlangan imzolovchi hamyonlar uchun mavjud.',
+  'Failed to load private key.': 'Maxfiy kalitni yuklab bo‘lmadi.',
   'Secure screen protection is not available in this build. Rebuild the app before exporting the private key.':
-    'Bu build da secure screen himoyasi mavjud emas. Private key ni eksport qilishdan oldin ilovani qayta yig‘ing.',
-  'Private key unlocked.': 'Private key ochildi.',
-  'Private key hidden after screenshot attempt.': 'Skrinshot urinishidan keyin private key yashirildi.',
-  'Private key hidden after 60 seconds.': '60 soniyadan keyin private key yashirildi.',
+    'Bu build da secure screen himoyasi mavjud emas. Maxfiy kalitni eksport qilishdan oldin ilovani qayta yig‘ing.',
+  'Private key unlocked.': 'Maxfiy kalit ochildi.',
+  'Private key hidden after screenshot attempt.': 'Skrinshot urinishidan keyin maxfiy kalit yashirildi.',
+  'Private key hidden after 60 seconds.': '60 soniyadan keyin maxfiy kalit yashirildi.',
 } as const;
 
 export const SECURITY_EXPORT_SLICE_TR = {
   'WITHDRAW REVIEW': 'ÇEKİM İNCELEMESİ',
   'This calls withdrawRewards() on FourteenController. The contract sends only the current claimable TRX reward to the connected ambassador wallet.':
-    'Bu işlem FourteenController üzerinde withdrawRewards() çağrısını yapar. Sözleşme yalnızca şu anda çekilebilir olan TRX ödülünü bağlı ambassador cüzdanına gönderir.',
+    'Bu işlem FourteenController üzerindeki withdrawRewards() çağrısını çalıştırır. Sözleşme yalnızca şu anda çekilebilir durumdaki TRX ödülünü bağlı ambassador cüzdanına gönderir.',
   'Energy rental and reward withdrawal': 'Energy kiralaması ve ödül çekimi',
   'reward withdrawal': 'ödül çekimi',
   'Light mode is still under construction. The wallet remains on the dark side until the appearance system is rebuilt the right way.':
@@ -996,7 +996,7 @@ export const SECURITY_EXPORT_SLICE_TR = {
     'Aynı uygulama oturumu sırasında yeniden kilitleme. Soğuk başlangıç yine de cüzdan korumasına uyar.',
   'How wallet protection works': 'Cüzdan koruması nasıl çalışır',
   'Wallet protection has three layers. Passcode is the hard gate. Biometrics are only a faster approval method on top of that passcode. Auto-lock decides when the app should ask again after you leave it. Use a short timer for stricter security, use Never if you want fewer prompts during the same open session, or turn protection off completely if you explicitly do not want unlock checks at all.':
-    'Cüzdan korumasının üç katmanı vardır. Parola ana güvenlik kapısıdır. Biyometri ise bu parolanın üstünde daha hızlı bir onay yöntemidir. Auto-lock, uygulamadan çıktıktan sonra ne zaman yeniden sorulacağını belirler. Daha sıkı güvenlik için kısa bir zamanlayıcı kullanın, aynı açık oturum sırasında daha az uyarı istiyorsanız Never seçin veya kilit açma kontrollerini hiç istemiyorsanız korumayı tamamen kapatın.',
+    'Cüzdan korumasının üç katmanı vardır. Parola ana güvenlik kapısıdır. Biyometri ise bu parolanın üstünde daha hızlı bir onay yöntemidir. Otomatik kilit, uygulamadan çıktıktan sonra ne zaman yeniden sorulacağını belirler. Daha sıkı güvenlik için kısa bir zamanlayıcı kullanın, aynı açık oturum sırasında daha az uyarı istiyorsanız Asla seçin, kilit açma kontrollerini hiç istemiyorsanız korumayı tamamen kapatın.',
   'Wallet Lock': 'Cüzdan kilidi',
   'Change your passcode or turn app protection off.': 'Parolanızı değiştirin veya uygulama korumasını kapatın.',
   'Create a 6-digit passcode to protect wallet access.': 'Cüzdan erişimini korumak için 6 haneli bir parola oluşturun.',
@@ -1010,7 +1010,7 @@ export const SECURITY_EXPORT_SLICE_TR = {
   'Disabled': 'Devre dışı',
   'Unavailable': 'Kullanılamıyor',
   'Set a passcode before enabling biometric unlock.': 'Biyometrik kilit açmayı etkinleştirmeden önce parola belirleyin.',
-  'Turn {{label}} unlock off.': '{{label}} ile kilit açmayı kapat.',
+  'Turn {{label}} unlock off.': '{{label}} ile açmayı kapat.',
   'Turn on {{label}} as a faster approval method.': '{{label}}’ı daha hızlı onay yöntemi olarak aç.',
   '{{label}} is not ready on this device.': '{{label}} bu cihazda hazır değil.',
   'Auto-Lock': 'Otomatik kilit',
@@ -1027,21 +1027,21 @@ export const SECURITY_EXPORT_SLICE_TR = {
 } as const;
 
 export const BUY_EXPORT_SLICE_UZ = {
-  'Reveal private key': 'Private key ni ko‘rsatish',
-  'Private key copied. Keep it offline.': 'Private key nusxalandi. Uni oflayn saqlang.',
-  'Private key hidden.': 'Private key yashirildi.',
-  'Loading private key...': 'Private key yuklanmoqda...',
+  'Reveal private key': 'Maxfiy kalitni ko‘rsatish',
+  'Private key copied. Keep it offline.': 'Maxfiy kalit nusxalandi. Uni oflayn saqlang.',
+  'Private key hidden.': 'Maxfiy kalit yashirildi.',
+  'Loading private key...': 'Maxfiy kalit yuklanmoqda...',
   'Before you reveal': 'Ko‘rsatishdan oldin',
   'Anyone with this private key can sign transactions from this wallet. 4TEEN will never ask for it. Store it offline, then hide it.':
-    'Bu private key ga ega bo‘lgan har kim bu hamyondan tranzaksiyalarni imzolay oladi. 4TEEN uni hech qachon so‘ramaydi. Uni oflayn saqlang, keyin yana yashiring.',
+    'Bu maxfiy kalitga ega bo‘lgan har kim ushbu hamyondan tranzaksiyalarni imzolay oladi. 4TEEN uni hech qachon so‘ramaydi. Uni oflayn saqlang va keyin yana yashiring.',
   '64 hex': '64 hex',
-  'Private Key Export': 'Private key eksporti',
+  'Private Key Export': 'Maxfiy kalit eksporti',
   'Confirm with Passcode': 'Parol bilan tasdiqlash',
   'This unlocks the wallet signing key locally. Confirm with your 6-digit passcode or {{method}}; nothing is sent to 4TEEN servers.':
     'Bu amal hamyonning imzolash kalitini qurilmaning o‘zida ochadi. 6 xonali parol yoki {{method}} bilan tasdiqlang; 4TEEN serverlariga hech narsa yuborilmaydi.',
   'This unlocks the wallet signing key locally. Confirm with your 6-digit passcode; nothing is sent to 4TEEN servers.':
     'Bu amal hamyonning imzolash kalitini qurilmaning o‘zida ochadi. 6 xonali parol bilan tasdiqlang; 4TEEN serverlariga hech narsa yuborilmaydi.',
-  'Reveal Private Key': 'Private key ni ko‘rsatish',
+  'Reveal Private Key': 'Maxfiy kalitni ko‘rsatish',
   'DIRECT PURCHASE': 'TO‘G‘RIDAN-TO‘G‘RI XARID',
   'Buy 4TEEN through the live contract flow.': '4TEEN ni jonli kontrakt oqimi orqali sotib oling.',
   'The buy surface is the protocol entry point. You send TRX, 4TEEN is minted directly by contract rules, and the new tokens enter a fixed 14-day lock immediately.':
@@ -1113,7 +1113,7 @@ export const BUY_EXPORT_SLICE_TR = {
 } as const;
 
 export const CORE_BUY_COMMON_SLICE_UZ = {
-  'Private key not found for this wallet.': 'Bu hamyon uchun private key topilmadi.',
+  'Private key not found for this wallet.': 'Bu hamyon uchun maxfiy kalit topilmadi.',
   'TRX': 'TRX',
   'Slug must be 3-24 chars: a-z, 0-9, underscore or dash.': 'Slug 3-24 belgidan iborat bo‘lishi kerak: a-z, 0-9, pastki chiziq yoki chiziqcha.',
   'Enter a valid TRX amount.': 'To‘g‘ri TRX miqdorini kiriting.',
@@ -1432,12 +1432,12 @@ export const ACCESS_CONNECTIONS_INFO_SLICE_UZ = {
   'Set the new 6-digit passcode that will protect this app.':
     'Bu ilovani himoya qiladigan yangi 6 xonali parolni o‘rnating.',
   'Signing wallets should not be imported into an unprotected local shell. Set a passcode first, then continue.':
-    'Imzolovchi hamyonlarni himoyasiz local shell ga import qilish kerak emas. Avval parol o‘rnating, keyin davom eting.',
+    'Imzolovchi hamyonlarni himoyasiz mahalliy ilova qobig‘iga import qilish tavsiya etilmaydi. Avval parol o‘rnating, keyin davom eting.',
   'Current passcode': 'Joriy parol',
   'Verify Current Passcode': 'Joriy parolni tasdiqlash',
   'Continue': 'Davom etish',
   'Word {{index}} does not match the generated phrase.': '{{index}}-so‘z yaratilgan frazaga mos kelmadi.',
-  'Seed wallet created.': 'Seed hamyon yaratildi.',
+  'Seed wallet created.': 'Hamyon seed iborasidan yaratildi.',
   'Create the wallet here, then back up the generated phrase before saving it.':
     'Hamyonni shu yerda yarating, keyin uni saqlashdan oldin yaratilgan frazani zaxiralang.',
   '12 words is faster to back up. 24 words adds more entropy.':
@@ -1536,12 +1536,12 @@ export const ACCESS_CONNECTIONS_INFO_SLICE_TR = {
   'Set the new 6-digit passcode that will protect this app.':
     'Bu uygulamayı koruyacak yeni 6 haneli parolayı ayarlayın.',
   'Signing wallets should not be imported into an unprotected local shell. Set a passcode first, then continue.':
-    'İmza cüzdanları korumasız yerel shell içine aktarılmamalıdır. Önce bir parola belirleyin, sonra devam edin.',
+    'İmza cüzdanları korumasız yerel uygulama kabuğuna aktarılmamalıdır. Önce bir parola belirleyin, sonra devam edin.',
   'Current passcode': 'Mevcut parola',
   'Verify Current Passcode': 'Mevcut Parolayı Doğrula',
   'Continue': 'Devam et',
   'Word {{index}} does not match the generated phrase.': '{{index}}. kelime oluşturulan ifadeyle eşleşmiyor.',
-  'Seed wallet created.': 'Seed cüzdan oluşturuldu.',
+  'Seed wallet created.': 'Cüzdan seed ifadesinden oluşturuldu.',
   'Create the wallet here, then back up the generated phrase before saving it.':
     'Cüzdanı burada oluşturun, ardından kaydetmeden önce üretilen ifadeyi yedekleyin.',
   '12 words is faster to back up. 24 words adds more entropy.':
@@ -1712,10 +1712,10 @@ export const EARN_RUNTIME_SLICE_UZ = {
   'Disable': 'O‘chirish',
   'Enable': 'Yoqish',
   'Turn biometric unlock off and keep passcode-only protection.':
-    'Biometric unlock ni o‘chirib, faqat parol himoyasini qoldiring.',
+    'Biometrik qulfdan chiqarishni o‘chirib, faqat parol himoyasini qoldiring.',
   'Biometrics can unlock the app faster after passcode setup.':
-    'Biometria parol o‘rnatilgandan keyin ilovani tezroq ochishi mumkin.',
-  '{{label}} is currently enabled for this wallet shell.': '{{label}} hozir bu hamyon shell i uchun yoqilgan.',
+    'Biometrika parol o‘rnatilgandan keyin ilovani tezroq ochishi mumkin.',
+  '{{label}} is currently enabled for this wallet shell.': '{{label}} hozir ushbu hamyon qobig‘i uchun yoqilgan.',
 } as const;
 
 export const EARN_RUNTIME_SLICE_TR = {
@@ -1792,7 +1792,7 @@ export const EARN_RUNTIME_SLICE_TR = {
   'Disable': 'Devre dışı bırak',
   'Enable': 'Etkinleştir',
   'Turn biometric unlock off and keep passcode-only protection.':
-    'Biyometrik kilidi kapat ve yalnızca parola korumasını koru.',
+    'Biyometrik kilit açmayı kapat ve yalnızca parola korumasını koru.',
   'Biometrics can unlock the app faster after passcode setup.':
     'Parola kurulduktan sonra biyometri uygulamayı daha hızlı açabilir.',
   '{{label}} is currently enabled for this wallet shell.': '{{label}} şu anda bu cüzdan kabuğu için etkin.',
@@ -1808,11 +1808,11 @@ export const BIOMETRIC_MNEMONIC_SLICE_UZ = {
   'Keep It On': 'Yoniq qoldirish',
   'Skip for Now': 'Hozircha o‘tkazib yuborish',
   'Seed phrase export is available only for wallets created in 4TEEN or restored from a seed phrase.':
-    'Seed phrase eksporti faqat 4TEEN ichida yaratilgan yoki seed phrase dan tiklangan hamyonlar uchun mavjud.',
-  'Failed to load seed phrase.': 'Seed phrase ni yuklab bo‘lmadi.',
+    'Tiklash iborasini eksport qilish faqat 4TEEN ichida yaratilgan yoki tiklash iborasidan tiklangan hamyonlar uchun mavjud.',
+  'Failed to load seed phrase.': 'Tiklash iborasini yuklab bo‘lmadi.',
   'Secure screen protection is not available in this build. Rebuild the app before exporting the seed phrase.':
-    'Bu build da secure screen himoyasi mavjud emas. Seed phrase ni eksport qilishdan oldin ilovani qayta yig‘ing.',
-  'Seed phrase unlocked.': 'Seed phrase ochildi.',
+    'Bu build da secure screen himoyasi mavjud emas. Tiklash iborasini eksport qilishdan oldin ilovani qayta yig‘ing.',
+  'Seed phrase unlocked.': 'Tiklash iborasi ochildi.',
 } as const;
 
 export const BIOMETRIC_MNEMONIC_SLICE_TR = {
@@ -1825,31 +1825,31 @@ export const BIOMETRIC_MNEMONIC_SLICE_TR = {
   'Keep It On': 'Açık Tut',
   'Skip for Now': 'Şimdilik Geç',
   'Seed phrase export is available only for wallets created in 4TEEN or restored from a seed phrase.':
-    'Seed phrase dışa aktarma yalnızca 4TEEN içinde oluşturulan veya bir seed phrase ile geri yüklenen cüzdanlar için kullanılabilir.',
-  'Failed to load seed phrase.': 'Seed phrase yüklenemedi.',
+    'Kurtarma ifadesi dışa aktarma yalnızca 4TEEN içinde oluşturulan veya bir kurtarma ifadesi ile geri yüklenen cüzdanlar için kullanılabilir.',
+  'Failed to load seed phrase.': 'Kurtarma ifadesi yüklenemedi.',
   'Secure screen protection is not available in this build. Rebuild the app before exporting the seed phrase.':
-    'Bu build’de güvenli ekran koruması yok. Seed phrase dışa aktarmadan önce uygulamayı yeniden derleyin.',
+    'Bu build’de güvenli ekran koruması yok. Kurtarma ifadesini dışa aktarmadan önce uygulamayı yeniden derleyin.',
   'Seed phrase unlocked.': 'Seed phrase açıldı.',
 } as const;
 
 export const SEED_EXPORT_SLICE_UZ = {
-  'Seed phrase hidden after screenshot attempt.': 'Skrinshot urinishidan keyin seed phrase yashirildi.',
-  'Seed phrase hidden after 60 seconds.': '60 soniyadan keyin seed phrase yashirildi.',
-  'Reveal seed phrase': 'Seed phrase ni ko‘rsatish',
-  'Seed phrase copied. Keep it offline.': 'Seed phrase nusxalandi. Uni oflayn saqlang.',
-  'Seed phrase hidden.': 'Seed phrase yashirildi.',
-  'Loading seed phrase...': 'Seed phrase yuklanmoqda...',
+  'Seed phrase hidden after screenshot attempt.': 'Skrinshot urinishidan keyin tiklash iborasi yashirildi.',
+  'Seed phrase hidden after 60 seconds.': '60 soniyadan keyin tiklash iborasi yashirildi.',
+  'Reveal seed phrase': 'Tiklash iborasini ko‘rsatish',
+  'Seed phrase copied. Keep it offline.': 'Tiklash iborasi nusxalandi. Uni oflayn saqlang.',
+  'Seed phrase hidden.': 'Tiklash iborasi yashirildi.',
+  'Loading seed phrase...': 'Tiklash iborasi yuklanmoqda...',
   'Anyone with these words can move the funds. 4TEEN will never ask for them. Write them down offline, verify every word, then hide the phrase.':
     'Bu so‘zlarga ega bo‘lgan har kim mablag‘larni ko‘chira oladi. 4TEEN ularni hech qachon so‘ramaydi. Ularni oflayn yozib oling, har bir so‘zni tekshiring, keyin frazani yashiring.',
-  'Recovery Phrase': 'Recovery phrase',
+  'Recovery Phrase': 'Tiklash iborasi',
   '{{count}} words': '{{count}} so‘z',
-  'Seed Phrase Export': 'Seed phrase eksporti',
+  'Seed Phrase Export': 'Tiklash iborasini eksport qilish',
 } as const;
 
 export const SEED_EXPORT_SLICE_TR = {
-  'Seed phrase hidden after screenshot attempt.': 'Ekran görüntüsü denemesinden sonra seed phrase gizlendi.',
-  'Seed phrase hidden after 60 seconds.': '60 saniye sonra seed phrase gizlendi.',
-  'Reveal seed phrase': 'Seed phrase’i göster',
+  'Seed phrase hidden after screenshot attempt.': 'Ekran görüntüsü denemesinden sonra kurtarma ifadesi gizlendi.',
+  'Seed phrase hidden after 60 seconds.': '60 saniye sonra kurtarma ifadesi gizlendi.',
+  'Reveal seed phrase': 'Kurtarma ifadesini göster',
   'Seed phrase copied. Keep it offline.': 'Seed phrase kopyalandı. Çevrimdışı saklayın.',
   'Seed phrase hidden.': 'Seed phrase gizlendi.',
   'Loading seed phrase...': 'Seed phrase yükleniyor...',
@@ -1857,7 +1857,7 @@ export const SEED_EXPORT_SLICE_TR = {
     'Bu kelimelere sahip olan herkes fonları taşıyabilir. 4TEEN bunları asla istemez. Kelimeleri çevrimdışı olarak yazın, her kelimeyi doğrulayın, sonra ifadeyi gizleyin.',
   'Recovery Phrase': 'Recovery Phrase',
   '{{count}} words': '{{count}} kelime',
-  'Seed Phrase Export': 'Seed phrase dışa aktarma',
+  'Seed Phrase Export': 'Kurtarma ifadesini dışa aktarma',
 } as const;
 
 export const LIQUIDITY_TIMELINE_SLICE_UZ = {
@@ -2364,7 +2364,7 @@ export const SETTINGS_TERMS_SLICE_UZ = {
   '3. Non-Custodial Model': '3. Non-custodial model',
   'You control your assets': 'Aktivlaringizni siz boshqarasiz',
   'Loss of seed phrase or private keys results in permanent loss of access.':
-    'Seed phrase yoki private key yo‘qolishi kirishning qaytarib bo‘lmaydigan yo‘qolishiga olib keladi.',
+    'Tiklash iborasi yoki maxfiy kalitlar yo‘qolsa, kirish huquqi qaytarib bo‘lmas tarzda yo‘qoladi.',
   '4. Blockchain Interaction': '4. Blokcheyn bilan o‘zaro aloqa',
   'Irreversible operations': 'Qaytarib bo‘lmaydigan amallar',
   '4TEEN does not guarantee execution, timing, or network availability.':
@@ -2575,8 +2575,8 @@ export const HOME_WALLET_PROTOCOL_SLICE_UZ = {
   'This mechanism affects only the amount of 4TEEN minted through the contract purchase flow. It does not set, stabilize, or predict secondary market price.':
     'Bu mexanizm faqat kontrakt purchase oqimi orqali mint qilinadigan 4TEEN miqdoriga ta’sir qiladi. U ikkilamchi bozor narxini belgilamaydi, barqarorlashtirmaydi va bashorat qilmaydi.',
   'This quote is visible, but this route cannot be executed yet.': 'Bu quote ko‘rinmoqda, lekin bu route ni hozircha bajarib bo‘lmaydi.',
-  'This wallet has no private key to export.': 'Bu hamyonda eksport qilinadigan private key yo‘q.',
-  'This wallet has no seed phrase to export.': 'Bu hamyonda eksport qilinadigan seed phrase yo‘q.',
+  'This wallet has no private key to export.': 'Bu hamyonda eksport qilinadigan maxfiy kalit yo‘q.',
+  'This wallet has no seed phrase to export.': 'Bu hamyonda eksport qilinadigan tiklash iborasi yo‘q.',
   'This whitepaper describes the current deployed state of the 4TEEN system. It is a technical and structural specification, not a promise of market outcome.':
     'Bu whitepaper 4TEEN tizimining joriy deploy qilingan holatini tasvirlaydi. Bu bozor natijasi bo‘yicha va’da emas, texnik va struktur spetsifikatsiyadir.',
   'Transactions': 'Tranzaksiyalar',
@@ -2731,7 +2731,7 @@ export const HOME_WALLET_PROTOCOL_SLICE_TR = {
     'Bu mekanizma yalnızca sözleşme satın alma akışıyla mint edilen 4TEEN miktarını etkiler. İkincil piyasa fiyatını belirlemez, sabitlemez veya tahmin etmez.',
   'This quote is visible, but this route cannot be executed yet.': 'Bu quote görünür, ancak bu route henüz yürütülemez.',
   'This wallet has no private key to export.': 'Bu cüzdanda dışa aktarılacak özel anahtar yok.',
-  'This wallet has no seed phrase to export.': 'Bu cüzdanda dışa aktarılacak seed phrase yok.',
+  'This wallet has no seed phrase to export.': 'Bu cüzdanda dışa aktarılacak kurtarma ifadesi yok.',
   'This whitepaper describes the current deployed state of the 4TEEN system. It is a technical and structural specification, not a promise of market outcome.':
     'Bu whitepaper, 4TEEN sisteminin mevcut deploy edilmiş durumunu açıklar. Bu bir piyasa sonucu vaadi değil, teknik ve yapısal bir spesifikasyondur.',
   'Transactions': 'İşlemler',
@@ -2761,6 +2761,7 @@ export const HOME_WALLET_PROTOCOL_SLICE_TR = {
 } as const;
 
 export const FINAL_RUNTIME_SLICE_UZ = {
+  'Your access point to the 4TEEN ecosystem and beyond': '4TEEN ekotizimi va undan keyingi qatlamlarga kirish nuqtangiz',
   ' ecosystem and beyond': ' ekotizimi va undan keyingi qatlamlar',
   '+': '+',
   '+{{count}}': '+{{count}}',
@@ -2819,8 +2820,8 @@ export const FINAL_RUNTIME_SLICE_UZ = {
   'Failed to broadcast token transaction.': 'Token tranzaksiyasini tarmoqqa uzatib bo‘lmadi.',
   'Failed to build contract transaction for resource estimate.':
     'Resurs bahosi uchun kontrakt tranzaksiyasini tuzib bo‘lmadi.',
-  'Failed to derive TRON address from private key.': 'Private key dan TRON manzilini chiqarib bo‘lmadi.',
-  'Failed to derive wallet from seed phrase.': 'Seed phrase dan hamyonni hosil qilib bo‘lmadi.',
+  'Failed to derive TRON address from private key.': 'Maxfiy kalitdan TRON manzilini hosil qilib bo‘lmadi.',
+  'Failed to derive wallet from seed phrase.': 'Tiklash iborasidan hamyonni hosil qilib bo‘lmadi.',
   'Failed to load 4TEEN price.': '4TEEN narxini yuklab bo‘lmadi.',
   'Failed to load balances.': 'Balanslarni yuklab bo‘lmadi.',
   'Failed to load token details.': 'Token tafsilotlarini yuklab bo‘lmadi.',
@@ -2909,7 +2910,7 @@ export const FINAL_RUNTIME_SLICE_UZ = {
   'Wallet address is required.': 'Hamyon manzili majburiy.',
   'Watch-only wallet cannot sign transactions.': 'Faqat kuzatuv hamyoni tranzaksiyalarni imzolay olmaydi.',
   'Watch-only wallets are not available for ambassador registration or cabinet actions. Select a seed phrase or private-key wallet.':
-    'Faqat kuzatuv hamyonlari ambassador ro‘yxatdan o‘tishi yoki panel amallari uchun mos emas. Seed phrase yoki private key hamyonini tanlang.',
+    'Faqat kuzatuv hamyonlari ambassador ro‘yxatdan o‘tishi yoki panel amallari uchun mos emas. Tiklash iborasi yoki maxfiy kalitga ega hamyonni tanlang.',
   'Withdrawal transaction sent but txid was not returned.':
     'Yechib olish tranzaksiyasi yuborildi, ammo txid qaytmadi.',
   'You can only transfer TRON-based tokens (e.g. TRX or TRC10/20/721 tokens) to this account. Other tokens may get lost during transfer.':
@@ -2925,6 +2926,7 @@ export const FINAL_RUNTIME_SLICE_UZ = {
 } as const;
 
 export const FINAL_RUNTIME_SLICE_TR = {
+  'Your access point to the 4TEEN ecosystem and beyond': '4TEEN ekosistemi ve ötesine açılan erişim noktanız',
   ' ecosystem and beyond': ' ekosistemi ve ötesi',
   '+': '+',
   '+{{count}}': '+{{count}}',
@@ -2983,8 +2985,8 @@ export const FINAL_RUNTIME_SLICE_TR = {
   'Failed to broadcast token transaction.': 'Token işlemi yayınlanamadı.',
   'Failed to build contract transaction for resource estimate.':
     'Kaynak tahmini için sözleşme işlemi oluşturulamadı.',
-  'Failed to derive TRON address from private key.': 'Private key üzerinden TRON adresi türetilemedi.',
-  'Failed to derive wallet from seed phrase.': 'Seed phrase üzerinden cüzdan türetilemedi.',
+  'Failed to derive TRON address from private key.': 'Özel anahtar üzerinden TRON adresi türetilemedi.',
+  'Failed to derive wallet from seed phrase.': 'Kurtarma ifadesi üzerinden cüzdan türetilemedi.',
   'Failed to load 4TEEN price.': '4TEEN fiyatı yüklenemedi.',
   'Failed to load balances.': 'Bakiyeler yüklenemedi.',
   'Failed to load token details.': 'Token ayrıntıları yüklenemedi.',
@@ -3072,7 +3074,7 @@ export const FINAL_RUNTIME_SLICE_TR = {
   'Wallet address is required.': 'Cüzdan adresi gereklidir.',
   'Watch-only wallet cannot sign transactions.': 'Watch-only cüzdan işlemleri imzalayamaz.',
   'Watch-only wallets are not available for ambassador registration or cabinet actions. Select a seed phrase or private-key wallet.':
-    'Watch-only cüzdanlar ambassador kaydı veya panel işlemleri için uygun değildir. Bir seed phrase veya private key cüzdanı seçin.',
+    'Watch-only cüzdanlar ambassador kaydı veya panel işlemleri için uygun değildir. Bir kurtarma ifadesi veya özel anahtar cüzdanı seçin.',
   'Withdrawal transaction sent but txid was not returned.':
     'Çekim işlemi gönderildi ancak txid dönmedi.',
   'You can only transfer TRON-based tokens (e.g. TRX or TRC10/20/721 tokens) to this account. Other tokens may get lost during transfer.':

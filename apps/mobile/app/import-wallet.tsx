@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ExpandChevron from '../src/ui/expand-chevron';
-import { useI18n } from '../src/i18n';
+import { useI18n, useLocaleLayout } from '../src/i18n';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { hasPasscode } from '../src/security/local-auth';
@@ -40,6 +40,7 @@ export default function ImportWalletScreen() {
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const contentBottomInset = useBottomInset();
   const { t } = useI18n();
+  const locale = useLocaleLayout();
 
   const handleOptionPress = async (path: string, requiresPasscode: boolean) => {
     if (!requiresPasscode) {
@@ -80,10 +81,10 @@ export default function ImportWalletScreen() {
           showsVerticalScrollIndicator={false}
           bounces
         >
-          <ScreenBrow label={t('IMPORT WALLET')} variant="back" />
-          <Text style={[styles.title, styles.titleAccent]}>{t('Reconnect your wallet access')}</Text>
+          <ScreenBrow label={t('IMPORT WALLET')} variant="back" rtl={locale.isRTL} />
+          <Text style={[styles.title, styles.titleAccent, locale.textStart]}>{t('Reconnect your wallet access')}</Text>
 
-          <Text style={styles.lead}>
+          <Text style={[styles.lead, locale.textStart]}>
             {t(
               'Pick the recovery path that matches what you actually control. Seed phrase and private key restore signing power. Watch-only is strictly for tracking, not for moving funds.'
             )}
@@ -98,11 +99,11 @@ export default function ImportWalletScreen() {
                 onPress={() => handleOptionPress(option.path, option.requiresPasscode)}
               >
                 <View style={styles.optionText}>
-                  <Text style={ui.actionLabel}>{t(option.title)}</Text>
-                  <Text style={styles.optionBody}>{t(option.body)}</Text>
+                  <Text style={[ui.actionLabel, locale.textStart]}>{t(option.title)}</Text>
+                  <Text style={[styles.optionBody, locale.textStart]}>{t(option.body)}</Text>
                 </View>
 
-                <ExpandChevron open={false} />
+                <ExpandChevron open={false} rtl={locale.isRTL} />
               </TouchableOpacity>
             ))}
           </View>

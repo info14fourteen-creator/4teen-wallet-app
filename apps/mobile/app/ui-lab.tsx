@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -17,7 +17,7 @@ import {
   radius,
   typography,
 } from '../src/theme/tokens';
-import { useI18n } from '../src/i18n';
+import { useI18n, useLocaleLayout } from '../src/i18n';
 import { ui } from '../src/theme/ui';
 import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenBrow from '../src/ui/screen-brow';
@@ -28,77 +28,55 @@ import LottieIcon from '../src/ui/lottie-icon';
 const AUTO_INTERVAL = 5200;
 const UI_LAB_LANGUAGE_GLOBE_SOURCE = require('../assets/icons/ui/ui_lab_language_globe.json');
 
-type SegmentTone = 'normal' | 'orange' | 'green' | 'red';
-
-type Segment = {
-  text: string;
-  tone?: SegmentTone;
-};
-
 type Slide = {
-  eyebrow: string;
-  title: string;
-  body: Segment[];
+  eyebrowKey: string;
+  titleKey: string;
+  bodyKey: string;
 };
 
 const slides: Slide[] = [
   {
-    eyebrow: 'Wallet',
-    title: 'Reliable Wallet for TRON',
-    body: [
-      { text: 'Built for ' },
-      { text: 'secure', tone: 'green' },
-      { text: ', decentralized and self-custody use. Clear control, direct access and no bloated nonsense between you and your assets.' },
-    ],
+    eyebrowKey: 'Wallet',
+    titleKey: 'Reliable Wallet for TRON',
+    bodyKey:
+      'Built for <green>secure</green>, decentralized and self-custody use. Clear control, direct access and no bloated nonsense between you and your assets.',
   },
   {
-    eyebrow: 'Ambassador',
-    title: 'Ambassador Access Inside',
-    body: [
-      { text: 'Stay connected to ambassador ecosystem flows and keep growth mechanics close to the wallet, not scattered across random tools.' },
-    ],
+    eyebrowKey: 'Ambassador',
+    titleKey: 'Ambassador Access Inside',
+    bodyKey:
+      'Stay connected to ambassador ecosystem flows and keep growth mechanics close to the wallet, not scattered across random tools.',
   },
   {
-    eyebrow: 'Airdrop',
-    title: 'Structured Airdrop Flow',
-    body: [
-      { text: 'Follow campaign participation and distribution logic without turning everything into a chaotic ' },
-      { text: 'spam circus', tone: 'red' },
-      { text: '.' },
-    ],
+    eyebrowKey: 'Airdrop',
+    titleKey: 'Structured Airdrop Flow',
+    bodyKey:
+      'Follow campaign participation and distribution logic without turning everything into a chaotic <red>spam circus</red>.',
   },
   {
-    eyebrow: 'Unlock + Liquidity',
-    title: 'Watch Unlock and Growth',
-    body: [
-      { text: 'Check unlock timeline and protocol liquidity growth in one clean place with ' },
-      { text: 'clear visibility', tone: 'green' },
-      { text: '.' },
-    ],
+    eyebrowKey: 'Unlock + Liquidity',
+    titleKey: 'Watch Unlock and Growth',
+    bodyKey:
+      'Check unlock timeline and protocol liquidity growth in one clean place with <green>clear visibility</green>.',
   },
   {
-    eyebrow: 'Direct Buy',
-    title: 'Buy 4TEEN Easily',
-    body: [
-      { text: 'Enter the asset through a simpler wallet-native flow and avoid extra friction when you just want to ' },
-      { text: 'buy directly', tone: 'orange' },
-      { text: '.' },
-    ],
+    eyebrowKey: 'Direct Buy',
+    titleKey: 'Buy 4TEEN Easily',
+    bodyKey:
+      'Enter the asset through a simpler wallet-native flow and avoid extra friction when you just want to <orange>buy directly</orange>.',
   },
   {
-    eyebrow: 'Swap',
-    title: 'Fast Swap Access',
-    body: [
-      { text: 'Move between supported assets without leaving the wallet shell and without the usual ' },
-      { text: 'fragmented mess', tone: 'red' },
-      { text: '.' },
-    ],
+    eyebrowKey: 'Swap',
+    titleKey: 'Fast Swap Access',
+    bodyKey:
+      'Move between supported assets without leaving the wallet shell and without the usual <red>fragmented mess</red>.',
   },
 ];
 
 export default function UiLab() {
   const router = useRouter();
   const { t } = useI18n();
+  const locale = useLocaleLayout();
   const { hasWallet } = useWalletSession();
   const navInsets = useNavigationInsets({ topExtra: 14 });
   const { width, height } = useWindowDimensions();
@@ -254,16 +232,63 @@ export default function UiLab() {
     setActiveIndex(nextIndex - 1);
   };
 
-  const renderSegment = (segment: Segment, index: number) => {
-    let style = styles.slideText;
-    if (segment.tone === 'orange') style = styles.orange;
-    if (segment.tone === 'green') style = styles.green;
-    if (segment.tone === 'red') style = styles.red;
+  const renderRichText = (value: string) => {
+    const nodes: ReactNode[] = [];
+    const pattern = /<(green|orange|red)>(.*?)<\/\1>/g;
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = pattern.exec(value))) {
+      const [raw, tone, text] = match;
+      const start = match.index;
+
+      if (start > cursor) {
+        nodes.push(
+          <Text key={`plain-${cursor}`} style={[styles.slideText, locale.textStart, { lineHeight: dynamic.slideTextLineHeight }]}>
+            {value.slice(cursor, start)}
+          </Text>
+        );
+      }
+
+      const toneStyle =
+        tone === 'green' ? styles.green : tone === 'orange' ? styles.orange : styles.red;
+
+      nodes.push(
+        <Text key={`${tone}-${start}`} style={[toneStyle, locale.textStart, { lineHeight: dynamic.slideTextLineHeight }]}>
+          {text}
+        </Text>
+      );
+
+      cursor = start + raw.length;
+    }
+
+    if (cursor < value.length) {
+      nodes.push(
+        <Text key={`tail-${cursor}`} style={[styles.slideText, locale.textStart, { lineHeight: dynamic.slideTextLineHeight }]}>
+          {value.slice(cursor)}
+        </Text>
+      );
+    }
+
+    return nodes;
+  };
+
+  const renderHeroTitle = () => {
+    const title = t('Your access point to the 4TEEN ecosystem and beyond');
+    const brand = '4TEEN';
+    const brandIndex = title.indexOf(brand);
+
+    if (brandIndex === -1) return title;
+
+    const before = title.slice(0, brandIndex);
+    const after = title.slice(brandIndex + brand.length);
 
     return (
-      <Text key={`${segment.text}-${index}`} style={[style, { lineHeight: dynamic.slideTextLineHeight }]}>
-        {segment.text}
-      </Text>
+      <>
+        {before}
+        <Text style={styles.titleAccent}>{brand}</Text>
+        {after}
+      </>
     );
   };
 
@@ -275,6 +300,7 @@ export default function UiLab() {
             label={t('WALLET ACCESS')}
             variant={hasWallet ? 'back' : 'linkIcon'}
             labelAccessory={hasWallet ? undefined : null}
+            rtl={locale.isRTL}
             rightIcon={
               !hasWallet ? (
                 <LottieIcon source={UI_LAB_LANGUAGE_GLOBE_SOURCE} size={22} loop />
@@ -285,15 +311,14 @@ export default function UiLab() {
           <Text
             style={[
               styles.title,
+              locale.textStart,
               {
                 fontSize: dynamic.titleSize,
                 lineHeight: dynamic.titleLineHeight,
               },
             ]}
           >
-            {t('Your access point to the ')}
-            <Text style={styles.titleAccent}>4TEEN</Text>
-            {t(' ecosystem and beyond')}
+            {renderHeroTitle()}
           </Text>
         </View>
 
@@ -313,27 +338,24 @@ export default function UiLab() {
               contentContainerStyle={styles.sliderContent}
             >
               {virtualSlides.map((slide, index) => (
-                <View key={`${slide.title}-${index}`} style={[styles.slidePage, { width: pageSize }]}>
+                <View key={`${slide.titleKey}-${index}`} style={[styles.slidePage, { width: pageSize }]}>
                   <View style={[styles.slideInner, { gap: dynamic.slideGap, paddingVertical: dynamic.slideVerticalPadding }]}>
-                    <Text style={ui.sectionEyebrow}>{t(slide.eyebrow)}</Text>
+                    <Text style={[ui.sectionEyebrow, locale.textStart]}>{t(slide.eyebrowKey)}</Text>
 
                     <Text
                       style={[
                         styles.slideTitle,
+                        locale.textStart,
                         {
                           fontSize: dynamic.slideTitleSize,
                           lineHeight: dynamic.slideTitleLineHeight,
                         },
                       ]}
                     >
-                      {t(slide.title)}
+                      {t(slide.titleKey)}
                     </Text>
 
-                    <Text style={styles.slideTextWrap}>
-                      {slide.body.map((segment, index) =>
-                        renderSegment({ ...segment, text: t(segment.text) }, index)
-                      )}
-                    </Text>
+                    <Text style={[styles.slideTextWrap, locale.textStart]}>{renderRichText(t(slide.bodyKey))}</Text>
                   </View>
                 </View>
               ))}
@@ -343,7 +365,7 @@ export default function UiLab() {
           <View style={[styles.dots, { marginTop: 6, marginBottom: 6 }]}>
             {slides.map((slide, index) => (
               <TouchableOpacity
-                key={slide.title}
+                key={slide.titleKey}
                 activeOpacity={0.8}
                 onPress={() => {
                   stopAutoScroll();

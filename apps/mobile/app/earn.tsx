@@ -639,7 +639,7 @@ function RuntimeWalletRow({
         <Text style={styles.runtimeWalletMetric}>{trxBalance} TRX</Text>
         <Text style={styles.runtimeWalletMetricSub}>
           {details ? t(details) : (energy !== null && bandwidth !== null
-            ? `${energy} energy · ${bandwidth} bandwidth`
+            ? `${t('{{count}} energy', { count: energy })} · ${t('{{count}} bandwidth', { count: bandwidth })}`
             : t('—'))}
         </Text>
       </View>

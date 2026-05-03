@@ -9,6 +9,7 @@ import {
   getLanguageOptions,
   getLanguageLabel,
   useI18n,
+  useLocaleLayout,
   type AppLanguageCode,
 } from '../src/i18n';
 import { colors, radius } from '../src/theme/tokens';
@@ -21,6 +22,7 @@ export default function LanguageScreen() {
   const router = useRouter();
   const notice = useNotice();
   const { setLanguage, t } = useI18n();
+  const locale = useLocaleLayout();
   const { hasWallet } = useWalletSession();
   const [selectedLanguage, setSelectedLanguage] = useState<AppLanguageCode>(getCachedLanguage());
   const [saving, setSaving] = useState(false);
@@ -80,7 +82,7 @@ export default function LanguageScreen() {
         onToggle: () => setInfoExpanded((value) => !value),
       }}
     >
-      <Text style={styles.sectionEyebrow}>{t('AVAILABLE LANGUAGES')}</Text>
+      <Text style={[styles.sectionEyebrow, locale.textStart]}>{t('AVAILABLE LANGUAGES')}</Text>
 
       <View style={styles.list}>
         {getLanguageOptions().map((option) => {
@@ -93,10 +95,10 @@ export default function LanguageScreen() {
               onPress={() => void handleSelect(option.code)}
               disabled={saving}
             >
-              <View style={styles.optionRow}>
+              <View style={[styles.optionRow, locale.rowBetween]}>
                 <View style={styles.optionText}>
                   <Text
-                    style={styles.optionNative}
+                    style={[styles.optionNative, locale.textStart]}
                     numberOfLines={1}
                     adjustsFontSizeToFit
                     minimumFontScale={0.72}
@@ -104,7 +106,7 @@ export default function LanguageScreen() {
                     {option.nativeName}
                   </Text>
                   <Text
-                    style={styles.optionEnglish}
+                    style={[styles.optionEnglish, locale.textStart]}
                     numberOfLines={1}
                     adjustsFontSizeToFit
                     minimumFontScale={0.72}

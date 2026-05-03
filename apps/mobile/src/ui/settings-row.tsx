@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import ExpandChevron from './expand-chevron';
+import { useLocaleLayout } from '../i18n';
 import { colors, radius } from '../theme/tokens';
 import { ui } from '../theme/ui';
 
@@ -22,20 +23,21 @@ export default function SettingsRow({
   icon,
   expanded = false,
 }: SettingsRowProps) {
+  const locale = useLocaleLayout();
   const hasMeta = Boolean(value || hint);
 
   return (
     <TouchableOpacity
       activeOpacity={0.9}
-      style={[styles.row, hasMeta ? styles.rowExpanded : null]}
+      style={[styles.row, locale.rowBetween, hasMeta ? styles.rowExpanded : null]}
       onPress={onPress}
     >
-      <View style={styles.itemLeft}>
+      <View style={[styles.itemLeft, locale.row]}>
         {icon ? <View style={styles.iconWrap}>{icon}</View> : null}
 
         <View style={styles.rowText}>
           <Text
-            style={ui.actionLabel}
+            style={[ui.actionLabel, locale.textStart]}
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.72}
@@ -44,7 +46,7 @@ export default function SettingsRow({
           </Text>
           {value ? (
             <Text
-              style={styles.value}
+              style={[styles.value, locale.textStart]}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.72}
@@ -54,7 +56,7 @@ export default function SettingsRow({
           ) : null}
           {hint ? (
             <Text
-              style={styles.hint}
+              style={[styles.hint, locale.textStart]}
               numberOfLines={2}
               adjustsFontSizeToFit
               minimumFontScale={0.76}
@@ -65,7 +67,7 @@ export default function SettingsRow({
         </View>
       </View>
 
-      <ExpandChevron open={expanded} />
+      <ExpandChevron open={expanded} rtl={locale.isRTL} />
     </TouchableOpacity>
   );
 }

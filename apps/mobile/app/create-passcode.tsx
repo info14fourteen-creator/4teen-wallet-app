@@ -3,7 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useI18n } from '../src/i18n';
+import { useI18n, useLocaleLayout } from '../src/i18n';
 import NumericKeypad from '../src/ui/numeric-keypad';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
@@ -16,6 +16,7 @@ import { useBottomInset } from '../src/ui/use-bottom-inset';
 export default function CreatePasscodeScreen() {
   const router = useRouter();
   const { t } = useI18n();
+  const locale = useLocaleLayout();
   const params = useLocalSearchParams<{ next?: string; flow?: string }>();
   const nextPath = typeof params.next === 'string' ? params.next : '/import-wallet';
   const flow = typeof params.flow === 'string' ? params.flow : 'create-passcode';
@@ -83,8 +84,8 @@ export default function CreatePasscodeScreen() {
       <Stack.Screen options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <View style={styles.screen}>
         <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
-          <ScreenBrow label={isChangeFlow ? t('CHANGE PASSCODE') : t('CREATE PASSCODE')} />
-          <Text style={styles.title}>
+          <ScreenBrow label={isChangeFlow ? t('CHANGE PASSCODE') : t('CREATE PASSCODE')} rtl={locale.isRTL} />
+          <Text style={[styles.title, locale.textStart]}>
             {isVerifyCurrentStep
               ? t('Confirm your current 6-digit passcode')
               : isChangeFlow
@@ -92,7 +93,7 @@ export default function CreatePasscodeScreen() {
                 : t('Create a 6-digit passcode')}
           </Text>
 
-          <Text style={styles.lead}>
+          <Text style={[styles.lead, locale.textStart]}>
             {isVerifyCurrentStep
               ? t('Enter your current 6-digit passcode before setting a new one.')
               : isChangeFlow
@@ -102,10 +103,10 @@ export default function CreatePasscodeScreen() {
 
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
-              <Text style={ui.sectionEyebrow}>
+              <Text style={[ui.sectionEyebrow, locale.textStart]}>
                 {isVerifyCurrentStep ? t('Current passcode') : t('Passcode')}
               </Text>
-              <Text style={styles.cardHeaderErrorText} numberOfLines={1}>
+              <Text style={[styles.cardHeaderErrorText, locale.textStart]} numberOfLines={1}>
                 {error || ' '}
               </Text>
             </View>

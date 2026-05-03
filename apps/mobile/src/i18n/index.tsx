@@ -115,6 +115,10 @@ export function getLanguageLocaleTag(language: AppLanguageCode = languageMemory)
   }
 }
 
+export function isRtlLanguage(language: AppLanguageCode = languageMemory) {
+  return language === 'ar';
+}
+
 export function getCachedLanguageLabel() {
   return getLanguageLabel(languageMemory);
 }
@@ -227,4 +231,33 @@ export function useI18n() {
     throw new Error('useI18n must be used inside I18nProvider');
   }
   return value;
+}
+
+export function useLocaleLayout() {
+  const { language } = useI18n();
+  const isRTL = isRtlLanguage(language);
+
+  return useMemo(
+    () => ({
+      isRTL,
+      textStart: {
+        textAlign: isRTL ? 'right' : 'left',
+        writingDirection: isRTL ? 'rtl' : 'ltr',
+      } as const,
+      row: {
+        flexDirection: isRTL ? 'row-reverse' : 'row',
+      } as const,
+      rowBetween: {
+        flexDirection: isRTL ? 'row-reverse' : 'row',
+        justifyContent: 'space-between',
+      } as const,
+      alignStart: {
+        alignItems: isRTL ? 'flex-end' : 'flex-start',
+      } as const,
+      alignEnd: {
+        alignItems: isRTL ? 'flex-start' : 'flex-end',
+      } as const,
+    }),
+    [isRTL]
+  );
 }

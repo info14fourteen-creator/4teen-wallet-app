@@ -17,6 +17,17 @@ const ROOT_SEGMENTS_WITHOUT_SHARED_NAVIGATION = new Set([
   'browser',
 ]);
 
+const NO_WALLET_ONBOARDING_ROUTES = new Set([
+  '/wallet-access',
+  '/ui-lab',
+  '/language',
+  '/import-wallet',
+  '/create-wallet',
+  '/import-seed',
+  '/import-private-key',
+  '/import-watch-only',
+]);
+
 type SharedNavigationOptions = {
   hasWallet?: boolean;
 };
@@ -34,12 +45,8 @@ export function shouldRenderSharedNavigation(
   const safePathname = normalizePathname(pathname);
   const hasWallet = Boolean(options?.hasWallet);
 
-  if (safePathname === '/wallet-access') {
-    return hasWallet;
-  }
-
-  if (safePathname === '/language') {
-    return hasWallet;
+  if (!hasWallet && NO_WALLET_ONBOARDING_ROUTES.has(safePathname)) {
+    return false;
   }
 
   if (ROUTES_WITHOUT_SHARED_NAVIGATION.has(safePathname)) return false;

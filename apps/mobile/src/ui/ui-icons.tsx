@@ -28,6 +28,7 @@ function createIcon(name: MdiName, defaultColor: string = colors.white) {
 }
 
 export const OpenDownIcon = createIcon('chevron-down', colors.accent);
+export const OpenLeftIcon = createIcon('chevron-left', colors.accent);
 export const OpenRightIcon = createIcon('chevron-right', colors.accent);
 export const PasteIcon = createIcon('content-paste');
 export const ScanIcon = createIcon('qrcode-scan');

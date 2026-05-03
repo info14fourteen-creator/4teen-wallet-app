@@ -318,7 +318,7 @@ export default function UnlockScreen() {
                   disabled={submitting}
                 >
                   <Text style={styles.unlockButtonText}>
-                    {`${t('USE')} ${biometricsLabel.toUpperCase()}`}
+                    {t('Use {{label}}', { label: biometricsLabel })}
                   </Text>
                 </TouchableOpacity>
               ) : null}
