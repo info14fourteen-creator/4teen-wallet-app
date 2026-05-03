@@ -8,11 +8,15 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useI18n, useLocaleLayout } from '../src/i18n';
 import { useNotice } from '../src/notice/notice-provider';
 import { submitAppFeedback, type AppFeedbackType } from '../src/services/feedback';
-import { ProductScreen } from '../src/ui/product-shell';
+import KeyboardView from '../src/ui/KeyboardView';
+import ScreenBrow from '../src/ui/screen-brow';
+import { useBottomInset } from '../src/ui/use-bottom-inset';
+import { useNavigationInsets } from '../src/ui/navigation';
 import { colors, layout, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 
@@ -54,6 +58,8 @@ export default function FeedbackScreen() {
   const notice = useNotice();
   const { t } = useI18n();
   const locale = useLocaleLayout();
+  const navInsets = useNavigationInsets({ topExtra: 14 });
+  const contentBottomInset = useBottomInset();
   const [selectedType, setSelectedType] = useState<AppFeedbackType>('issue');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -94,70 +100,91 @@ export default function FeedbackScreen() {
   };
 
   return (
-    <ProductScreen
-      eyebrow={t('FEEDBACK')}
-      browVariant="back"
-      keyboardAware
-      keyboardExtraScrollHeight={220}
-      bottomInsetExtra={150}
-    >
-      <View style={styles.heroCard}>
-        <Text style={[ui.titleMd, locale.textStart]}>{t('Tell 4TEEN Ops what you see')}</Text>
-        <Text style={[styles.heroBody, locale.textStart]}>
-          {t('This goes straight into the private ops bot, together with app version, current source screen, and a masked wallet hint.')}
-        </Text>
+    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+      <View style={styles.screen}>
+        <KeyboardView
+          contentContainerStyle={[
+            styles.content,
+            { paddingTop: navInsets.top, paddingBottom: contentBottomInset },
+          ]}
+          extraScrollHeight={56}
+        >
+          <ScreenBrow label={t('FEEDBACK')} variant="back" rtl={locale.isRTL} />
+
+          <View style={styles.heroCard}>
+            <Text style={[ui.titleMd, locale.textStart]}>{t('Tell 4TEEN Ops what you see')}</Text>
+            <Text style={[styles.heroBody, locale.textStart]}>
+              {t('This goes straight into the private ops bot, together with app version, current source screen, and a masked wallet hint.')}
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[ui.sectionEyebrow, locale.textStart]}>{t('What kind of feedback is this?')}</Text>
+            <View style={styles.typeList}>
+              {FEEDBACK_TYPES.map((item) => {
+                const active = item.key === selectedType;
+
+                return (
+                  <Pressable
+                    key={item.key}
+                    style={[styles.typeCard, active && styles.typeCardActive]}
+                    onPress={() => setSelectedType(item.key)}
+                  >
+                    <Text style={[styles.typeTitle, locale.textStart, active && styles.typeTitleActive]}>{t(item.title)}</Text>
+                    <Text style={[styles.typeHelper, locale.textStart, active && styles.typeHelperActive]}>{t(item.helper)}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[ui.sectionEyebrow, locale.textStart]}>{t('Short note')}</Text>
+            <Text style={[styles.inputHelper, locale.textStart]}>
+              {t('Please do not paste a seed phrase or a private key here.')}
+            </Text>
+            <TextInput
+              value={message}
+              onChangeText={setMessage}
+              editable={!sending}
+              multiline
+              maxLength={500}
+              placeholder={t('What exactly did you notice?')}
+              placeholderTextColor={colors.textDim}
+              style={[styles.input, locale.textStart]}
+              textAlignVertical="top"
+            />
+          </View>
+
+          <Pressable style={[styles.submitButton, sending && styles.submitButtonDisabled]} onPress={handleSubmit}>
+            {sending ? (
+              <ActivityIndicator color={colors.white} size="small" />
+            ) : (
+              <Text style={styles.submitLabel}>{t('Send to 4TEEN Ops')}</Text>
+            )}
+          </Pressable>
+        </KeyboardView>
       </View>
-
-      <View style={styles.section}>
-        <Text style={[ui.sectionEyebrow, locale.textStart]}>{t('What kind of feedback is this?')}</Text>
-        <View style={styles.typeList}>
-          {FEEDBACK_TYPES.map((item) => {
-            const active = item.key === selectedType;
-
-            return (
-              <Pressable
-                key={item.key}
-                style={[styles.typeCard, active && styles.typeCardActive]}
-                onPress={() => setSelectedType(item.key)}
-              >
-                <Text style={[styles.typeTitle, locale.textStart, active && styles.typeTitleActive]}>{t(item.title)}</Text>
-                <Text style={[styles.typeHelper, locale.textStart, active && styles.typeHelperActive]}>{t(item.helper)}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[ui.sectionEyebrow, locale.textStart]}>{t('Short note')}</Text>
-        <Text style={[styles.inputHelper, locale.textStart]}>
-          {t('Please do not paste a seed phrase or a private key here.')}
-        </Text>
-        <TextInput
-          value={message}
-          onChangeText={setMessage}
-          editable={!sending}
-          multiline
-          maxLength={500}
-          placeholder={t('What exactly did you notice?')}
-          placeholderTextColor={colors.textDim}
-          style={[styles.input, locale.textStart]}
-          textAlignVertical="top"
-        />
-      </View>
-
-      <Pressable style={[styles.submitButton, sending && styles.submitButtonDisabled]} onPress={handleSubmit}>
-        {sending ? (
-          <ActivityIndicator color={colors.white} size="small" />
-        ) : (
-          <Text style={styles.submitLabel}>{t('Send to 4TEEN Ops')}</Text>
-        )}
-      </Pressable>
-    </ProductScreen>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: spacing[4],
+  },
+
+  content: {
+    gap: 0,
+  },
+
   heroCard: {
     marginTop: spacing[2],
     marginBottom: spacing[3],
