@@ -1,19 +1,20 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-05-02T23:54:24.390Z
+Generated: 2026-05-03T00:36:33.307Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: ae1585443030e2d61f978880350193b11221f194
-Short commit: ae15854
-Commit subject: Route voice transcriptions through AI router
+Last commit: 610ab8917a24e2c2868642df815a8bd7e7559b7f
+Short commit: 610ab89
+Commit subject: Remove file_search from Codex jobs
 Commit author: info14fourteen-creator
-Commit date: 2026-05-03T04:54:12+05:00
+Commit date: 2026-05-03T05:36:16+05:00
 
 ## Most frequently changed files in last 20 commits
 
-- 4x :: .github/scripts/ops-remote-runner.mjs
 - 4x :: apps/api/src/services/ops/telegramAdminBot.js
+- 3x :: .github/scripts/ops-remote-runner.mjs
 - 3x :: apps/api/src/services/ops/openai.js
+- 2x :: apps/api/src/services/ops/codexJobs.js
 - 1x :: apps/api/clock.js
 - 1x :: apps/api/package.json
 - 1x :: apps/api/Procfile
@@ -29,7 +30,6 @@ Commit date: 2026-05-03T04:54:12+05:00
 - 1x :: apps/api/src/services/airdrop/telegramClaims.js
 - 1x :: apps/api/src/services/gasstation/gasStation.js
 - 1x :: apps/api/src/services/liquidity/execution.js
-- 1x :: apps/api/src/services/ops/codexJobs.js
 - 1x :: apps/api/src/services/ops/executionRequests.js
 - 1x :: apps/api/src/services/ops/githubOidc.js
 - 1x :: apps/api/src/services/ops/githubRemoteRunner.js
