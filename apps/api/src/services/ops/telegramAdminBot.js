@@ -2119,7 +2119,6 @@ function buildActionLabel(actionType, locale = 'ru') {
   if (safe === 'restart') return pickLocale(locale, 'рестарт', 'restart');
   return pickLocale(locale, 'исполнение кода', 'code execution');
 }
-}
 
 function detectExecutionRequestPrefilter(text) {
   const safe = normalizeValue(text);
