@@ -1,7 +1,7 @@
 const { fetch } = require('undici');
 const env = require('../../config/env');
 const { pool } = require('../../db/pool');
-const { getKnowledgeSearchTool } = require('./knowledgeBase');
+const { getKnowledgeBaseStatus } = require('./knowledgeBase');
 const { ensureOpsTables } = require('./store');
 const { getTaskById, updateTaskStatus } = require('./tasks');
 
@@ -215,13 +215,61 @@ function buildTaskPrompt(task) {
       body: normalizeValue(task?.body)
     },
     rules: [
-      'Use only repository-grounded evidence from file_search and the provided task payload.',
+      'Use only repository-grounded evidence from the provided task payload and repo evidence snippets.',
       'If you cannot identify concrete repository anchors, mark the task as blocked.',
       'Do not invent files, modules, APIs, tests, or implementation details.',
       'Prefer short, explicit implementation steps over generic advice.',
       'Assume the task is for the current 4TEEN wallet repository.'
     ]
   };
+}
+
+async function searchKnowledgeBase(query, options = {}) {
+  const status = await getKnowledgeBaseStatus().catch(() => null);
+  const vectorStoreId = normalizeValue(status?.vectorStoreId);
+
+  if (!vectorStoreId) {
+    return [];
+  }
+
+  const payload = await openAiJson(`/vector_stores/${encodeURIComponent(vectorStoreId)}/search`, {
+    query: normalizeValue(query),
+    max_num_results: Math.max(1, Math.min(Number(options?.maxNumResults || 4), 8))
+  }).catch(() => null);
+
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  return rows.map((row) => {
+    const contentParts = Array.isArray(row?.content) ? row.content : [];
+    const text = contentParts
+      .map((part) => normalizeValue(part?.text))
+      .filter(Boolean)
+      .join('\n\n');
+
+    return {
+      fileId: normalizeValue(row?.file_id),
+      filename: normalizeValue(row?.filename),
+      score: Number(row?.score || 0),
+      text
+    };
+  }).filter((row) => row.text);
+}
+
+function buildRepoEvidenceText(results) {
+  const safeResults = Array.isArray(results) ? results : [];
+  if (!safeResults.length) {
+    return 'No repo evidence was found in the knowledge base search.';
+  }
+
+  return safeResults.slice(0, 4).map((item, index) => {
+    const snippet = normalizeValue(item?.text).slice(0, 2800);
+    return [
+      `Evidence #${index + 1}`,
+      `filename: ${normalizeValue(item?.filename) || 'unknown'}`,
+      `score: ${Number(item?.score || 0).toFixed(3)}`,
+      '',
+      snippet
+    ].join('\n');
+  }).join('\n\n---\n\n');
 }
 
 async function runCodexJobForTask(taskId, options = {}) {
@@ -258,9 +306,11 @@ async function runCodexJobForTask(taskId, options = {}) {
   });
 
   try {
-    const knowledgeTool = await getKnowledgeSearchTool({
-      maxNumResults: 6
-    }).catch(() => null);
+    const knowledgeResults = await searchKnowledgeBase(
+      [task?.title, task?.body].map((item) => normalizeValue(item)).filter(Boolean).join('\n'),
+      { maxNumResults: 6 }
+    );
+    const repoEvidence = buildRepoEvidenceText(knowledgeResults);
 
     const schema = {
       type: 'object',
@@ -312,7 +362,7 @@ async function runCodexJobForTask(taskId, options = {}) {
             {
               type: 'input_text',
               text:
-                'You are a repository-grounded coding operator for the 4TEEN wallet project. Your job is to prepare a task for real implementation without inventing anything. Use the attached file_search knowledge base as repository evidence. If the evidence is not concrete enough, block the task instead of guessing. If the evidence is concrete enough, produce a concise implementation brief that references only likely-real files/modules/routes already present in the repo context.'
+                'You are a repository-grounded coding operator for the 4TEEN wallet project. Your job is to prepare a task for real implementation without inventing anything. Use only the provided repo evidence snippets as repository evidence. If the evidence is not concrete enough, block the task instead of guessing. If the evidence is concrete enough, produce a concise implementation brief that references only likely-real files/modules/routes already present in the repo context.'
             }
           ]
         },
@@ -322,6 +372,10 @@ async function runCodexJobForTask(taskId, options = {}) {
             {
               type: 'input_text',
               text: JSON.stringify(prompt)
+            },
+            {
+              type: 'input_text',
+              text: `Repository evidence:\n\n${repoEvidence}`
             }
           ]
         }
@@ -336,11 +390,6 @@ async function runCodexJobForTask(taskId, options = {}) {
       },
       max_output_tokens: 1600
     };
-
-    if (knowledgeTool) {
-      requestBody.tools = [knowledgeTool];
-      requestBody.include = ['file_search_call.results'];
-    }
 
     const payload = await openAiJson('/responses', requestBody);
     const rawText = extractResponseText(payload);
@@ -383,7 +432,8 @@ async function runCodexJobForTask(taskId, options = {}) {
         implementationSteps: parsed.implementationSteps || [],
         proposedFiles: parsed.proposedFiles || [],
         repoFindings: parsed.repoFindings || [],
-        tests: parsed.tests || []
+        tests: parsed.tests || [],
+        repoEvidenceFiles: knowledgeResults.map((item) => item.filename).filter(Boolean)
       }
     });
 
