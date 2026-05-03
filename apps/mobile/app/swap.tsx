@@ -85,15 +85,22 @@ function normalizeAmountInput(value: string) {
   if (filtered === '.') return '0.';
   const firstDot = filtered.indexOf('.');
 
-  if (firstDot === -1) {
-    return filtered;
-  }
-
-  const normalized = `${filtered.slice(0, firstDot + 1)}${filtered
+  const normalized =
+    firstDot === -1
+      ? filtered
+      : `${filtered.slice(0, firstDot + 1)}${filtered
     .slice(firstDot + 1)
     .replace(/\./g, '')}`;
 
-  return normalized.startsWith('.') ? `0${normalized}` : normalized;
+  const safe = normalized.startsWith('.') ? `0${normalized}` : normalized;
+  const [integerPart, fractionPart] = safe.split('.');
+  const trimmedInteger = integerPart.replace(/^0+(?=\d)/, '');
+
+  if (fractionPart === undefined) {
+    return trimmedInteger || '0';
+  }
+
+  return `${trimmedInteger || '0'}.${fractionPart}`;
 }
 
 function formatTokenAmount(value?: number, maximumFractionDigits = 6) {
@@ -102,6 +109,12 @@ function formatTokenAmount(value?: number, maximumFractionDigits = 6) {
     minimumFractionDigits: 0,
     maximumFractionDigits,
   });
+}
+
+function formatInputNumber(value?: number, maximumFractionDigits = 6) {
+  const safe = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  if (safe <= 0) return '0';
+  return safe.toFixed(maximumFractionDigits).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
 }
 
 function getProtectedSwapReserve(token?: Pick<SwapTokenMeta, 'tokenId' | 'decimals'> | null) {
@@ -266,7 +279,7 @@ export default function SwapScreen() {
   const [switchingWalletId, setSwitchingWalletId] = useState<string | null>(null);
   const [activeWallet, setActiveWallet] = useState<WalletMeta | null>(null);
   const [amount, setAmount] = useState('');
-  const amountBackspaceActsAsClose = amount === '' || amount === '0';
+  const amountBackspaceActsAsClose = amount === '';
   const [sourceTokenId, setSourceTokenId] = useState('');
   const [targetTokenId, setTargetTokenId] = useState('');
   const [slippage, setSlippage] = useState('3.00');
@@ -558,7 +571,7 @@ export default function SwapScreen() {
 
   const handleSelectMax = useCallback(() => {
     if (!selectedSourceToken) return;
-    setAmount(formatTokenAmount(spendableInputBalance, selectedSourceToken.decimals));
+    setAmount(formatInputNumber(spendableInputBalance, selectedSourceToken.decimals));
   }, [selectedSourceToken, spendableInputBalance]);
 
   const openAmountKeyboard = useCallback(() => {
@@ -587,7 +600,12 @@ export default function SwapScreen() {
   }, []);
 
   const handleAmountDigitPress = useCallback((digit: string) => {
-    setAmount((prev) => normalizeAmountInput(`${prev}${digit}`));
+    setAmount((prev) => {
+      if (prev === '0') {
+        return digit === '0' ? '0' : digit;
+      }
+      return normalizeAmountInput(`${prev}${digit}`);
+    });
   }, []);
 
   const handleAmountDotPress = useCallback(() => {
@@ -600,7 +618,7 @@ export default function SwapScreen() {
 
   const handleAmountBackspace = useCallback(() => {
     setAmount((prev) => {
-      if (prev === '' || prev === '0') {
+      if (prev === '') {
         closeAmountKeyboard();
         return prev;
       }
