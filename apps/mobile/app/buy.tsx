@@ -179,6 +179,9 @@ export default function BuyScreen() {
   const contentBottomInset = useBottomInset(amountKeyboardVisible ? 312 : 0);
   const amountBackspaceActsAsClose = amount === '' || amount === '0';
   const enteredAmount = useMemo(() => parseDirectBuyAmount(amount), [amount]);
+  const spendableTrxBalance = useMemo(() => {
+    return Math.max(0, (context?.trxBalance ?? 0) - DEFAULT_DIRECT_BUY_BURN_BUFFER_TRX);
+  }, [context?.trxBalance]);
   const estimatedTokens = useMemo(() => {
     return computeEstimatedDirectBuyTokens(
       enteredAmount,
@@ -187,7 +190,7 @@ export default function BuyScreen() {
     );
   }, [context?.tokenDecimals, context?.tokenPriceSun, enteredAmount]);
   const split = useMemo(() => computeDirectBuySplit(enteredAmount), [enteredAmount]);
-  const exceedsBalance = Boolean(context) && enteredAmount > (context?.trxBalance ?? 0);
+  const exceedsBalance = Boolean(context) && enteredAmount > spendableTrxBalance;
   const canContinue = Boolean(context) && enteredAmount > 0 && !exceedsBalance;
 
   const load = useCallback(async (options?: { silent?: boolean }) => {
@@ -290,17 +293,17 @@ export default function BuyScreen() {
   }, []);
 
   const handleAmountDigitPress = useCallback((digit: string) => {
-    setAmount((current) => applyAmountLimit(`${current}${digit}`, context?.trxBalance));
-  }, [context?.trxBalance]);
+    setAmount((current) => applyAmountLimit(`${current}${digit}`, spendableTrxBalance));
+  }, [spendableTrxBalance]);
 
   const handleAmountDotPress = useCallback(() => {
     setAmount((current) => {
       const safe = String(current || '');
       if (safe.includes('.')) return safe;
       if (!safe) return '0.';
-      return applyAmountLimit(`${safe}.`, context?.trxBalance);
+      return applyAmountLimit(`${safe}.`, spendableTrxBalance);
     });
-  }, [context?.trxBalance]);
+  }, [spendableTrxBalance]);
 
   const handleAmountBackspace = useCallback(() => {
     if (amountBackspaceActsAsClose) {
@@ -326,7 +329,7 @@ export default function BuyScreen() {
       return;
     }
 
-    if (enteredAmount > context.trxBalance) {
+    if (enteredAmount > spendableTrxBalance) {
       notice.showErrorNotice(t('Insufficient TRX balance for this buy.'), 2600);
       return;
     }
@@ -352,13 +355,11 @@ export default function BuyScreen() {
         3000
       );
     }
-  }, [closeAmountKeyboard, context, enteredAmount, notice, router, t]);
+  }, [closeAmountKeyboard, context, enteredAmount, notice, router, spendableTrxBalance, t]);
 
   const handleSelectMax = useCallback(() => {
-    if (!context) return;
-    const nextAmount = Math.max(0, context.trxBalance - DEFAULT_DIRECT_BUY_BURN_BUFFER_TRX);
-    setAmount(formatInputNumber(nextAmount, 6));
-  }, [context]);
+    setAmount(formatInputNumber(spendableTrxBalance, 6));
+  }, [spendableTrxBalance]);
 
   if (loading) {
     return <ScreenLoadingState label={t('Loading buy...')} />;
@@ -442,40 +443,38 @@ export default function BuyScreen() {
           <View style={styles.sectionBlock} onLayout={handleAmountSectionLayout}>
             <View style={styles.fieldHeaderRow}>
               <Text style={styles.sectionEyebrow}>{t('BUY AMOUNT')}</Text>
+            </View>
+
+            <View style={[styles.inputShell, exceedsBalance ? styles.inputShellError : null]}>
+              <Pressable onPress={openAmountKeyboard} style={styles.amountTapArea}>
+                <TextInput
+                  value={amount}
+                  onChangeText={(value) => setAmount(applyAmountLimit(value, spendableTrxBalance))}
+                  placeholder={t('0.00')}
+                  placeholderTextColor={colors.textDim}
+                  style={styles.amountInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  showSoftInputOnFocus={false}
+                  onFocus={openAmountKeyboard}
+                  selectionColor={colors.accent}
+                />
+              </Pressable>
+
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={handleSelectMax}
-                style={styles.maxButton}
+                style={styles.inputMaxButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={styles.maxButtonText}>{t('MAX')}</Text>
+                <Text style={styles.inputMaxButtonText}>{t('MAX')}</Text>
               </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={openAmountKeyboard}
-              style={[styles.inputShell, exceedsBalance ? styles.inputShellError : null]}
-            >
-              <TextInput
-                value={amount}
-                onChangeText={(value) =>
-                  setAmount(applyAmountLimit(value, context?.trxBalance))
-                }
-                placeholder={t('0.00')}
-                placeholderTextColor={colors.textDim}
-                style={styles.amountInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-                showSoftInputOnFocus={false}
-                onFocus={openAmountKeyboard}
-                selectionColor={colors.accent}
-              />
 
               <View style={styles.inputSuffixWrap}>
                 <Image source={{ uri: TRX_LOGO }} style={styles.inputTokenLogo} contentFit="contain" />
                 <Text style={styles.inputSuffix}>{t('TRX')}</Text>
               </View>
-            </TouchableOpacity>
+            </View>
 
             <Text style={styles.hintText}>
               {t('Current price {{price}} per 4TEEN. Direct buy locks received 4TEEN for 14 days.', {
@@ -777,7 +776,6 @@ const styles = StyleSheet.create({
   fieldHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: 12,
     marginBottom: 8,
   },
@@ -787,25 +785,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontFamily: 'Sora_600SemiBold',
-  },
-
-  maxButton: {
-    minHeight: 28,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.lineSoft,
-    backgroundColor: colors.surfaceSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-
-  maxButtonText: {
-    color: colors.white,
-    fontSize: 12,
-    lineHeight: 16,
-    fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.3,
   },
 
   inputShell: {
@@ -818,6 +797,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+
+  amountTapArea: {
+    flex: 1,
   },
 
   inputShellError: {
@@ -834,12 +817,27 @@ const styles = StyleSheet.create({
   },
 
   amountInput: {
-    flex: 1,
     color: colors.white,
     fontSize: 16,
     lineHeight: 20,
     fontFamily: 'Sora_600SemiBold',
     paddingVertical: 0,
+  },
+
+  inputMaxButton: {
+    minWidth: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+
+  inputMaxButtonText: {
+    color: colors.accent,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: 'Sora_700Bold',
+    letterSpacing: 0.3,
   },
 
   receiveValue: {
