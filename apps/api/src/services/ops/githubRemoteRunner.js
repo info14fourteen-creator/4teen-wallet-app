@@ -65,7 +65,16 @@ async function dispatchExecutionRequest(request, task = null) {
           taskTitle: normalizeValue(task?.title) || null,
           opsBaseUrl:
             normalizeValue(env.ADMIN_TELEGRAM_WEBHOOK_BASE_URL) ||
-            'https://fourteen-wallet-api-7af291023d36.herokuapp.com'
+            'https://fourteen-wallet-api-7af291023d36.herokuapp.com',
+          adminToken: normalizeValue(env.ADMIN_SYNC_TOKEN),
+          openAiApiKey: normalizeValue(env.OPENAI_API_KEY),
+          openAiOrgId: normalizeValue(env.OPENAI_ORG_ID),
+          openAiProjectId: normalizeValue(env.OPENAI_PROJECT_ID),
+          openAiCodexModel: normalizeValue(env.OPENAI_CODEX_MODEL) || 'gpt-5-codex',
+          herokuApiKey: normalizeValue(env.OPS_REMOTE_HEROKU_API_KEY),
+          herokuEmail: normalizeValue(env.OPS_REMOTE_HEROKU_EMAIL),
+          herokuAppName: normalizeValue(env.OPS_WALLET_HEROKU_APP_NAME),
+          cloudflareApiToken: normalizeValue(env.OPS_REMOTE_CLOUDFLARE_API_TOKEN)
         }
       })
     }

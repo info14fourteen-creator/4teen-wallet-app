@@ -13,7 +13,7 @@
     "herokuProcessRead": true,
     "herokuDeployPathAvailable": true,
     "originWriteVerified": false,
-    "crossRepoAccessVerified": false
+    "crossRepoAccessVerified": true
   },
   "projects": [
     {
@@ -42,6 +42,17 @@
         "/Users/stanataev/4teen-wallet-app/docs/ops/repo-map.md",
         "/Users/stanataev/4teen-wallet-app/docs/ops/knowledge-base.md",
         "/Users/stanataev/4teen-wallet-app/docs/ops/next-release-notes.md"
+      ]
+    },
+    {
+      "repoName": "4teen-website",
+      "localPath": "/Users/stanataev/4teen-website",
+      "originUrl": "git@github.com:info14fourteen-creator/4teen-website.git",
+      "defaultBranch": "main",
+      "deployType": "Cloudflare OpenNext",
+      "scripts": [
+        "pnpm build",
+        "pnpm cf:deploy"
       ]
     }
   ],

@@ -118,6 +118,16 @@ function shouldKeepAppFeedbackOpen(type) {
   return type === 'issue' || type === 'slow' || type === 'confusing';
 }
 
+function normalizeAppRuntimeSource(value) {
+  const safe = sanitizeText(value, 40).toLowerCase();
+
+  if (safe === 'global' || safe === 'boundary' || safe === 'unhandledrejection') {
+    return safe;
+  }
+
+  return 'global';
+}
+
 function readAdminToken(req) {
   const authHeader = normalizeValue(req.headers.authorization);
 
@@ -461,6 +471,56 @@ router.post('/feedback/app', async (req, res) => {
   }
 });
 
+router.post('/errors/app', async (req, res) => {
+  try {
+    const source = normalizeAppRuntimeSource(req.body?.source);
+    const fatal = req.body?.fatal === true;
+    const payload = {
+      title: sanitizeText(req.body?.title, 120) || 'App runtime error',
+      message: sanitizeText(req.body?.message, 500) || 'Unknown runtime error',
+      currentPath: sanitizeText(req.body?.currentPath, 120) || 'unknown',
+      lastStablePath: sanitizeText(req.body?.lastStablePath, 120) || 'unknown',
+      recentPaths: Array.isArray(req.body?.recentPaths)
+        ? req.body.recentPaths.map((item) => sanitizeText(item, 120)).filter(Boolean).slice(-6)
+        : [],
+      appVersion: sanitizeText(req.body?.appVersion, 80) || null,
+      walletAddressMasked: sanitizeText(req.body?.walletAddressMasked, 60) || null,
+      details: sanitizeJsonValue(req.body?.details, 0),
+      fatal,
+      source,
+    };
+
+    const fingerprint =
+      sanitizeText(req.body?.fingerprint, 200) ||
+      `app-runtime:${source}:${payload.currentPath}:${payload.title}:${payload.message}`;
+
+    const event = await recordOpsEvent({
+      source: 'app-runtime',
+      category: 'runtime',
+      type: `mobile_${source}`,
+      severity: fatal ? 'error' : 'warning',
+      title: payload.title,
+      message: payload.message,
+      details: payload,
+      fingerprint,
+      notify: true,
+    });
+
+    return res.json({
+      ok: true,
+      result: {
+        id: event?.id || null,
+        stored: true,
+      },
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
 router.post('/monitor/run', requireAdminToken, async (_req, res) => {
   try {
     await runMonitorTick('manual');
@@ -760,12 +820,11 @@ router.post('/execution-requests/claim', requireOpsAuth({
   allowGithubRunner: true
 }), async (req, res) => {
   try {
-    const requestedRepoKey =
-      req.opsAuth?.kind === 'github-runner'
-        ? normalizeRepoKey(req.opsAuth.repoKey)
-        : sanitizeText(req.body?.repoKey, 60);
     const result = await claimExecutionRequest({
-      repoKey: requestedRepoKey,
+      repoKey:
+        req.opsAuth?.kind === 'github-runner'
+          ? normalizeRepoKey(req.opsAuth.repoKey)
+          : sanitizeText(req.body?.repoKey, 60),
       actionType: sanitizeText(req.body?.actionType, 40),
       runnerId: sanitizeText(req.body?.runnerId, 120)
     });
@@ -901,7 +960,6 @@ router.post('/execution-requests/:id/finish', requireOpsAuth({
   try {
     const executionRequest = await getExecutionRequestById(req.params.id);
     ensureRunnerCanAccessExecutionRequest(req, executionRequest);
-
     const result = await finishExecutionRequest(req.params.id, {
       status: sanitizeText(req.body?.status, 40),
       runnerId: sanitizeText(req.body?.runnerId, 120),

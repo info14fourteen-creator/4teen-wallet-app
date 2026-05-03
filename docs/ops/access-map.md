@@ -13,6 +13,10 @@ This map describes what Codex can already access for the current 4TEEN project f
 - Observed branch in local workspace: `main`
 - Observed local commit: `1279df7`
 - GitHub remote `origin`: `https://github.com/info14fourteen-creator/4teen-wallet-app.git`
+- Website repo local clone: `/Users/stanataev/4teen-website`
+- Website repo remote `origin`: `git@github.com:info14fourteen-creator/4teen-website.git`
+- Website repo branch: `main`
+- Website repo commit: `6a40c67`
 - Heroku remote: `https://git.heroku.com/fourteen-wallet-api.git`
 - Heroku app: `fourteen-wallet-api`
 - Heroku web URL: `https://fourteen-wallet-api-7af291023d36.herokuapp.com/`
@@ -45,6 +49,18 @@ This map describes what Codex can already access for the current 4TEEN project f
   - [knowledge-base.md](/Users/stanataev/4teen-wallet-app/docs/ops/knowledge-base.md)
   - [next-release-notes.md](/Users/stanataev/4teen-wallet-app/docs/ops/next-release-notes.md)
 
+### Marketing Website
+
+- Repo name: `4teen-website`
+- Local path: `/Users/stanataev/4teen-website`
+- Git remote `origin`: `git@github.com:info14fourteen-creator/4teen-website.git`
+- Runtime/deploy shape:
+  - `Next.js 16`
+  - `OpenNext Cloudflare`
+- Primary scripts:
+  - `pnpm build`
+  - `pnpm cf:deploy`
+
 ## What Codex Already Has
 
 For this project, Codex already has enough to:
@@ -52,6 +68,7 @@ For this project, Codex already has enough to:
 - inspect the local repo
 - read and edit code in the local workspace
 - inspect the Git remotes
+- inspect the local website repo
 - inspect the Heroku app
 - inspect Heroku dyno state
 - read selected Heroku config presence
@@ -61,6 +78,7 @@ That means Codex can already work on:
 
 - repo analysis
 - code changes
+- website code changes
 - ops bot changes
 - API changes
 - Heroku deploys for the current app

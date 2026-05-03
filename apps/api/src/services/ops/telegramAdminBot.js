@@ -125,7 +125,6 @@ function logTelegramTrace(stage, payload = {}) {
 
   console.log(`[ops-bot] ${stage}`, safePayload);
 }
-
 function parseJson(value, fallback = null) {
   if (value == null) return fallback;
   if (typeof value === 'object') return value;
@@ -2119,6 +2118,7 @@ function buildActionLabel(actionType, locale = 'ru') {
   if (safe === 'deploy') return pickLocale(locale, 'деплой', 'deploy');
   if (safe === 'restart') return pickLocale(locale, 'рестарт', 'restart');
   return pickLocale(locale, 'исполнение кода', 'code execution');
+}
 }
 
 function detectExecutionRequestPrefilter(text) {

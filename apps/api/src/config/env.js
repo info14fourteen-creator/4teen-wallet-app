@@ -98,6 +98,11 @@ module.exports = {
   OPENAI_OPS_VECTOR_STORE_ID: optionalEnv('OPENAI_OPS_VECTOR_STORE_ID', ''),
   OPENAI_OPS_VECTOR_STORE_NAME: optionalEnv('OPENAI_OPS_VECTOR_STORE_NAME', '4TEEN Ops Knowledge'),
   OPS_EXECUTION_CONFIRM_TTL_MINUTES: numberEnv('OPS_EXECUTION_CONFIRM_TTL_MINUTES', 15),
+  APP_LATEST_VERSION: optionalEnv('APP_LATEST_VERSION', '1.0.0'),
+  APP_MIN_SUPPORTED_VERSION: optionalEnv('APP_MIN_SUPPORTED_VERSION', '1.0.0'),
+  APP_UPDATE_FALLBACK_URL: optionalEnv('APP_UPDATE_FALLBACK_URL', 'https://4teen.me'),
+  APP_IOS_UPDATE_URL: optionalEnv('APP_IOS_UPDATE_URL', ''),
+  APP_ANDROID_UPDATE_URL: optionalEnv('APP_ANDROID_UPDATE_URL', ''),
   ALLOWED_ORIGINS: optionalEnv(
     'ALLOWED_ORIGINS',
     'https://4teen.me,https://www.4teen.me,http://localhost:3000,http://127.0.0.1:3000'
