@@ -562,6 +562,9 @@ export default function SwapScreen() {
   const bestRoute = routes[0] || null;
   const spendableInputBalance = getProtectedSpendableSwapBalance(selectedSourceToken);
   const enteredAmount = amountAsNumber(amount);
+  const amountPrecision = Number.isFinite(selectedSourceToken?.decimals)
+    ? Math.max(0, Number(selectedSourceToken?.decimals))
+    : 6;
   const canContinue =
     activeWallet?.kind !== 'watch-only' &&
     enteredAmount > 0 &&
@@ -569,10 +572,38 @@ export default function SwapScreen() {
     routes.length > 0 &&
     !quotesLoading;
 
+  const normalizeSwapAmountInput = useCallback(
+    (rawValue: string) => {
+      const safeValue = String(rawValue || '').replace(',', '.');
+      if (!safeValue) return '';
+      if (!/^\d*(\.\d*)?$/.test(safeValue)) return null;
+
+      const [integerPartRaw, fractionPartRaw] = safeValue.split('.');
+      const integerPart = integerPartRaw.replace(/^0+(?=\d)/, '') || '0';
+      const fractionPart =
+        fractionPartRaw === undefined ? undefined : fractionPartRaw.slice(0, amountPrecision);
+      const trimmedValue =
+        fractionPart === undefined ? integerPart : `${integerPart}.${fractionPart}`;
+      const parsedValue = amountAsNumber(trimmedValue);
+
+      if (!Number.isFinite(parsedValue)) return trimmedValue;
+      if (parsedValue <= spendableInputBalance) return trimmedValue;
+      return formatInputNumber(spendableInputBalance, amountPrecision);
+    },
+    [amountPrecision, spendableInputBalance]
+  );
+
   const handleSelectMax = useCallback(() => {
     if (!selectedSourceToken) return;
-    setAmount(formatInputNumber(spendableInputBalance, selectedSourceToken.decimals));
-  }, [selectedSourceToken, spendableInputBalance]);
+    setAmount(formatInputNumber(spendableInputBalance, amountPrecision));
+  }, [amountPrecision, selectedSourceToken, spendableInputBalance]);
+
+  useEffect(() => {
+    setAmount((current) => {
+      const next = normalizeSwapAmountInput(current);
+      return next === null || next === current ? current : next;
+    });
+  }, [normalizeSwapAmountInput]);
 
   const openAmountKeyboard = useCallback(() => {
     closeInlinePickers();
@@ -604,17 +635,19 @@ export default function SwapScreen() {
       if (prev === '0') {
         return digit === '0' ? '0' : digit;
       }
-      return normalizeAmountInput(`${prev}${digit}`);
+      const next = normalizeSwapAmountInput(`${prev}${digit}`);
+      return next === null ? prev : next;
     });
-  }, []);
+  }, [normalizeSwapAmountInput]);
 
   const handleAmountDotPress = useCallback(() => {
     setAmount((prev) => {
       if (!prev) return '0.';
       if (prev.includes('.')) return prev;
-      return normalizeAmountInput(`${prev}.`);
+      const next = normalizeSwapAmountInput(`${prev}.`);
+      return next === null ? prev : next;
     });
-  }, []);
+  }, [normalizeSwapAmountInput]);
 
   const handleAmountBackspace = useCallback(() => {
     setAmount((prev) => {
@@ -622,7 +655,11 @@ export default function SwapScreen() {
         closeAmountKeyboard();
         return prev;
       }
-      return prev.slice(0, -1);
+      if (prev === '0') {
+        return '';
+      }
+      const next = prev.slice(0, -1);
+      return next;
     });
   }, [closeAmountKeyboard]);
 
@@ -1003,7 +1040,12 @@ export default function SwapScreen() {
               >
                 <TextInput
                   value={amount}
-                  onChangeText={(value) => setAmount(normalizeAmountInput(value))}
+                  onChangeText={(value) => {
+                    setAmount((current) => {
+                      const next = normalizeSwapAmountInput(value);
+                      return next === null ? current : next;
+                    });
+                  }}
                   placeholder={t('0.00')}
                   placeholderTextColor={colors.textDim}
                   style={styles.swapAmountInput}
