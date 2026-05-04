@@ -211,7 +211,7 @@ async function ensurePnpmAvailable() {
       '  npm install --global pnpm@10.33.0 >/dev/null 2>&1',
       '  pnpm --version',
       'fi'
-    ].join(' ')
+    ].join('\n')
   ]);
 }
 
