@@ -63,8 +63,8 @@ function buildDateKey(parts) {
 }
 
 function hasReachedTarget(parts) {
-  const targetHour = Number(env.WEBSITE_BLOG_DAILY_HOUR || 11);
-  const targetMinute = Number(env.WEBSITE_BLOG_DAILY_MINUTE || 30);
+  const targetHour = Number(env.WEBSITE_BLOG_DAILY_HOUR);
+  const targetMinute = Number(env.WEBSITE_BLOG_DAILY_MINUTE);
 
   if (parts.hour > targetHour) {
     return true;
@@ -79,8 +79,8 @@ function hasReachedTarget(parts) {
 
 function findNextTargetDate(now = new Date()) {
   const timeZone = normalizeValue(env.WEBSITE_BLOG_DAILY_TIMEZONE) || 'Asia/Tashkent';
-  const targetHour = Number(env.WEBSITE_BLOG_DAILY_HOUR || 11);
-  const targetMinute = Number(env.WEBSITE_BLOG_DAILY_MINUTE || 30);
+  const targetHour = Number(env.WEBSITE_BLOG_DAILY_HOUR);
+  const targetMinute = Number(env.WEBSITE_BLOG_DAILY_MINUTE);
 
   let probe = new Date(now.getTime());
   probe.setUTCSeconds(0, 0);
@@ -113,10 +113,10 @@ function buildDispatchPayload() {
     writerEffort: normalizeValue(env.WEBSITE_BLOG_WRITER_EFFORT),
     metadataModel: normalizeValue(env.WEBSITE_BLOG_METADATA_MODEL),
     imageMode: normalizeValue(env.WEBSITE_BLOG_IMAGE_MODE),
-    scanArticles: Number(env.WEBSITE_BLOG_SCAN_ARTICLES || 24),
-    deepAnalysisArticles: Number(env.WEBSITE_BLOG_DEEP_ANALYSIS_ARTICLES || 8),
-    maxArticles: Number(env.WEBSITE_BLOG_MAX_ARTICLES || 12),
-    lookbackHours: Number(env.WEBSITE_BLOG_LOOKBACK_HOURS || 24),
+    scanArticles: Number(env.WEBSITE_BLOG_SCAN_ARTICLES),
+    deepAnalysisArticles: Number(env.WEBSITE_BLOG_DEEP_ANALYSIS_ARTICLES),
+    maxArticles: Number(env.WEBSITE_BLOG_MAX_ARTICLES),
+    lookbackHours: Number(env.WEBSITE_BLOG_LOOKBACK_HOURS),
     signature: normalizeValue(env.WEBSITE_BLOG_SIGNATURE) || 'Stan At, 4teen Founder'
   };
 }
