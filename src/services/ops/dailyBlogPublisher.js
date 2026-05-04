@@ -1,3 +1,10 @@
+const fs = require('fs');
+const fsPromises = require('fs/promises');
+const os = require('os');
+const path = require('path');
+const { spawn } = require('child_process');
+const { Readable } = require('stream');
+const { pipeline } = require('stream/promises');
 const env = require('../../config/env');
 const { recordOpsEvent, resolveOpsEvent, writeOpsHeartbeat } = require('./events');
 const { getRuntimeState, setRuntimeState } = require('./store');
@@ -99,8 +106,6 @@ function findNextTargetDate(now = new Date()) {
 
 function buildDispatchPayload() {
   return {
-    source: 'heroku-clock',
-    dispatchedAt: new Date().toISOString(),
     databaseUrl: normalizeValue(env.DATABASE_URL),
     openAiApiKey: normalizeValue(env.OPENAI_API_KEY),
     openAiOrgId: normalizeValue(env.OPENAI_ORG_ID),
@@ -119,6 +124,169 @@ function buildDispatchPayload() {
     lookbackHours: Number(env.WEBSITE_BLOG_LOOKBACK_HOURS),
     signature: normalizeValue(env.WEBSITE_BLOG_SIGNATURE) || 'Stan At, 4teen Founder'
   };
+}
+
+async function runCommand(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: {
+        ...process.env,
+        ...(options.env || {})
+      },
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (chunk) => {
+      const text = chunk.toString();
+      stdout += text;
+      process.stdout.write(text);
+    });
+
+    child.stderr.on('data', (chunk) => {
+      const text = chunk.toString();
+      stderr += text;
+      process.stderr.write(text);
+    });
+
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+
+      const message = stderr.trim() || stdout.trim() || `${command} exited with code ${code}`;
+      reject(new Error(message));
+    });
+  });
+}
+
+async function prepareWebsiteWorkspace() {
+  const rootDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), '4teen-website-publish-'));
+  const archivePath = path.join(rootDir, 'website.tar.gz');
+  const repoDir = path.join(rootDir, 'repo');
+
+  await fsPromises.mkdir(repoDir, { recursive: true });
+
+  const response = await fetch(
+    `https://api.github.com/repos/${encodeURIComponent(normalizeValue(env.GITHUB_REMOTE_OWNER))}/${encodeURIComponent(normalizeValue(env.GITHUB_WEBSITE_REPO))}/tarball/main`,
+    {
+      headers: {
+        Authorization: `Bearer ${normalizeValue(env.GITHUB_REMOTE_TOKEN)}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': '4teen-heroku-clock'
+      }
+    }
+  );
+
+  if (!response.ok || !response.body) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Could not download website archive: ${response.status}${text ? ` ${text}` : ''}`);
+  }
+
+  await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(archivePath));
+  await runCommand('tar', ['-xzf', archivePath, '-C', repoDir, '--strip-components=1']);
+
+  return {
+    rootDir,
+    repoDir
+  };
+}
+
+async function ensurePnpmAvailable() {
+  await runCommand('bash', [
+    '-lc',
+    [
+      'if command -v pnpm >/dev/null 2>&1; then',
+      '  pnpm --version',
+      'elif command -v corepack >/dev/null 2>&1; then',
+      '  corepack enable >/dev/null 2>&1 || true',
+      '  corepack prepare pnpm@10.33.0 --activate >/dev/null 2>&1',
+      '  pnpm --version',
+      'else',
+      '  npm install --global pnpm@10.33.0 >/dev/null 2>&1',
+      '  pnpm --version',
+      'fi'
+    ].join(' ')
+  ]);
+}
+
+async function runWebsitePublisher({ trigger, localDate, timeZone }) {
+  const workspace = await prepareWebsiteWorkspace();
+  const publishEnv = {
+    DATABASE_URL: normalizeValue(env.DATABASE_URL),
+    BLOG_DATABASE_URL: normalizeValue(env.DATABASE_URL),
+    OPENAI_API_KEY: normalizeValue(env.OPENAI_API_KEY),
+    OPENAI_ORG_ID: normalizeValue(env.OPENAI_ORG_ID),
+    OPENAI_PROJECT_ID: normalizeValue(env.OPENAI_PROJECT_ID),
+    CLOUDFLARE_API_TOKEN: normalizeValue(env.OPS_REMOTE_CLOUDFLARE_API_TOKEN),
+    DAILY_DIGEST_FEED_URL: normalizeValue(env.WEBSITE_BLOG_FEED_URL),
+    DAILY_DIGEST_TRIAGE_MODEL: normalizeValue(env.WEBSITE_BLOG_TRIAGE_MODEL),
+    DAILY_DIGEST_ANALYSIS_MODEL: normalizeValue(env.WEBSITE_BLOG_ANALYSIS_MODEL),
+    DAILY_DIGEST_WRITER_MODEL: normalizeValue(env.WEBSITE_BLOG_WRITER_MODEL),
+    DAILY_DIGEST_WRITER_EFFORT: normalizeValue(env.WEBSITE_BLOG_WRITER_EFFORT),
+    DAILY_DIGEST_METADATA_MODEL: normalizeValue(env.WEBSITE_BLOG_METADATA_MODEL),
+    DAILY_DIGEST_IMAGE_MODE: normalizeValue(env.WEBSITE_BLOG_IMAGE_MODE),
+    DAILY_DIGEST_SCAN_ARTICLES: String(env.WEBSITE_BLOG_SCAN_ARTICLES),
+    DAILY_DIGEST_DEEP_ANALYSIS_ARTICLES: String(env.WEBSITE_BLOG_DEEP_ANALYSIS_ARTICLES),
+    DAILY_DIGEST_MAX_ARTICLES: String(env.WEBSITE_BLOG_MAX_ARTICLES),
+    DAILY_DIGEST_LOOKBACK_HOURS: String(env.WEBSITE_BLOG_LOOKBACK_HOURS),
+    DAILY_DIGEST_SIGNATURE: normalizeValue(env.WEBSITE_BLOG_SIGNATURE),
+    BLOG_ADMIN_CHAT_ID: '',
+    DIGEST_ADMIN_CHAT_ID: '',
+    CI: 'true'
+  };
+
+  try {
+    await ensurePnpmAvailable();
+    await runCommand('pnpm', ['install', '--frozen-lockfile'], {
+      cwd: workspace.repoDir,
+      env: publishEnv
+    });
+
+    await runCommand('pnpm', ['blog:daily-digest', '--skip-notify'], {
+      cwd: workspace.repoDir,
+      env: publishEnv
+    });
+
+    await setRuntimeState(STATE_KEY, {
+      localDate,
+      publishedAt: new Date().toISOString(),
+      trigger,
+      timeZone
+    });
+
+    await writeOpsHeartbeat('website_blog.daily_publish', {
+      status: 'published',
+      localDate,
+      trigger,
+      timeZone
+    }).catch(() => null);
+  } finally {
+    await fsPromises.rm(workspace.rootDir, { recursive: true, force: true }).catch(() => null);
+  }
+}
+
+async function publishWebsiteArticle(context) {
+  const { trigger, localDate, timeZone } = context;
+
+  console.info('[airdrop-clock] daily blog publish started', {
+    trigger,
+    localDate,
+    timeZone
+  });
+
+  await runWebsitePublisher({ trigger, localDate, timeZone });
+
+  console.info('[airdrop-clock] daily blog publish completed', {
+    trigger,
+    localDate,
+    timeZone
+  });
 }
 
 async function dispatchWorkflow() {
@@ -198,19 +366,7 @@ async function maybeDispatchDailyBlogPublish(trigger = 'clock') {
   }
 
   try {
-    await dispatchWorkflow();
-    await setRuntimeState(STATE_KEY, {
-      localDate,
-      dispatchedAt: new Date().toISOString(),
-      trigger,
-      timeZone
-    });
-    await writeOpsHeartbeat('website_blog.daily_publish', {
-      status: 'queued',
-      localDate,
-      trigger,
-      timeZone
-    }).catch(() => null);
+    await publishWebsiteArticle({ trigger, localDate, timeZone });
     await resolveOpsEvent({
       ...TARGET_EVENT,
       message: `Daily website blog publish recovered for ${localDate}`
