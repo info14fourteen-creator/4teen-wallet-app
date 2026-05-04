@@ -43,6 +43,7 @@ const { generateApplyPlan, validateChanges } = require('../services/ops/remoteAp
 const { verifyGithubActionsOidcToken } = require('../services/ops/githubOidc');
 const {
   bootstrapAdminBotEnv,
+  broadcastAdminMessage,
   getExpectedWebhookUrl,
   handleAdminTelegramWebhookUpdate
 } = require('../services/ops/telegramAdminBot');
@@ -116,6 +117,100 @@ function shouldNotifyAppFeedback(type) {
 
 function shouldKeepAppFeedbackOpen(type) {
   return type === 'issue' || type === 'slow' || type === 'confusing';
+}
+
+function normalizeAppRuntimeSource(value) {
+  const safe = sanitizeText(value, 40).toLowerCase();
+
+  if (safe === 'global' || safe === 'boundary' || safe === 'unhandledrejection') {
+    return safe;
+  }
+
+  return 'global';
+}
+
+function normalizeBlogPublicationStatus(value) {
+  const safe = sanitizeText(value, 40).toLowerCase();
+
+  if (['published', 'success', 'ok', 'done', 'posted', 'live'].includes(safe)) {
+    return 'published';
+  }
+
+  if (['failed', 'error', 'fail'].includes(safe)) {
+    return 'failed';
+  }
+
+  if (['skipped', 'noop', 'ignored', 'canceled', 'cancelled'].includes(safe)) {
+    return 'skipped';
+  }
+
+  return 'failed';
+}
+
+function normalizeBlogPublicationSeverity(status) {
+  if (status === 'failed') {
+    return 'error';
+  }
+
+  if (status === 'skipped') {
+    return 'warning';
+  }
+
+  return 'info';
+}
+
+function buildBlogPublicationIdentity(payload) {
+  return sanitizeText(
+    payload?.slug ||
+      payload?.url ||
+      payload?.title ||
+      payload?.locale ||
+      payload?.repo ||
+      'unknown',
+    200
+  ).toLowerCase();
+}
+
+function buildBlogPublicationNotification(payload) {
+  const title = sanitizeText(payload?.title, 160) || 'Без названия';
+  const status = normalizeBlogPublicationStatus(payload?.status);
+  const link = sanitizeText(payload?.url || payload?.publicUrl, 400) || '';
+  const slug = sanitizeText(payload?.slug, 120) || '';
+  const locale = sanitizeText(payload?.locale, 40) || '';
+  const repo = sanitizeText(payload?.repo, 80) || '4teen-website';
+  const runUrl = sanitizeText(payload?.runUrl, 400) || '';
+  const commitSha = sanitizeText(payload?.commitSha, 80) || '';
+  const errorMessage =
+    sanitizeText(payload?.error || payload?.errorMessage || payload?.message, 500) || 'Причина не передана';
+
+  if (status === 'published') {
+    return [
+      '📰 Статья размещена в блоге',
+      `Заголовок: ${title}`,
+      slug ? `Slug: ${slug}` : '',
+      locale ? `Язык: ${locale}` : '',
+      `Репозиторий: ${repo}`,
+      link ? `Ссылка: ${link}` : '',
+      runUrl ? `Run: ${runUrl}` : '',
+      commitSha ? `Commit: ${commitSha}` : ''
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  return [
+    status === 'skipped' ? '⚠️ Статья не была размещена' : '🚨 Статья не разместилась',
+    `Заголовок: ${title}`,
+    slug ? `Slug: ${slug}` : '',
+    locale ? `Язык: ${locale}` : '',
+    `Репозиторий: ${repo}`,
+    link ? `Планируемая ссылка: ${link}` : '',
+    `Причина: ${errorMessage}`,
+    runUrl ? `Run: ${runUrl}` : '',
+    commitSha ? `Commit: ${commitSha}` : ''
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function readAdminToken(req) {
@@ -408,6 +503,108 @@ router.post('/feedback', requireAdminToken, async (req, res) => {
   }
 });
 
+router.post('/content/blog-publication', requireAdminToken, async (req, res) => {
+  try {
+    const status = normalizeBlogPublicationStatus(req.body?.status);
+    const payload = {
+      status,
+      title: sanitizeText(req.body?.title, 160) || 'Blog article',
+      slug: sanitizeText(req.body?.slug, 120) || null,
+      url: sanitizeText(req.body?.url || req.body?.publicUrl, 400) || null,
+      locale: sanitizeText(req.body?.locale, 40) || null,
+      repo: sanitizeText(req.body?.repo, 80) || '4teen-website',
+      runUrl: sanitizeText(req.body?.runUrl || req.body?.workflowRunUrl, 400) || null,
+      commitSha: sanitizeText(req.body?.commitSha, 80) || null,
+      message: sanitizeText(req.body?.message, 500) || null,
+      error: sanitizeText(req.body?.error || req.body?.errorMessage, 500) || null,
+      publishedAt: sanitizeText(req.body?.publishedAt, 80) || null,
+      details: sanitizeJsonValue(req.body?.details, 0)
+    };
+
+    const identity = buildBlogPublicationIdentity(payload);
+    const failureFingerprint = `website-blog:publish_failed:${identity}`;
+    const successFingerprint = `website-blog:publish_success:${identity}`;
+
+    if (status === 'published') {
+      const successEvent = await recordOpsEvent({
+        source: 'website-blog',
+        category: 'content',
+        type: 'blog_publish_success',
+        severity: 'info',
+        title: payload.title,
+        message: payload.url
+          ? `Статья опубликована: ${payload.url}`
+          : 'Статья опубликована в блоге.',
+        details: payload,
+        fingerprint: successFingerprint,
+        notify: false
+      });
+
+      await resolveOpsEvent({
+        source: 'website-blog',
+        category: 'content',
+        type: 'blog_publish_success',
+        fingerprint: successFingerprint,
+        message: 'Публикация зафиксирована.'
+      }).catch(() => null);
+
+      await resolveOpsEvent({
+        source: 'website-blog',
+        category: 'content',
+        type: 'blog_publish_failed',
+        fingerprint: failureFingerprint,
+        message: payload.url
+          ? `Статья опубликована: ${payload.url}`
+          : 'Проблема закрыта успешной публикацией.'
+      }).catch(() => null);
+
+      const text = buildBlogPublicationNotification(payload);
+      const delivered = await broadcastAdminMessage(text)
+        .then(() => true)
+        .catch(() => false);
+
+      return res.json({
+        ok: true,
+        result: {
+          status,
+          delivered,
+          eventId: successEvent?.id || null
+        }
+      });
+    }
+
+    const failureEvent = await recordOpsEvent({
+      source: 'website-blog',
+      category: 'content',
+      type: 'blog_publish_failed',
+      severity: normalizeBlogPublicationSeverity(status),
+      title: payload.title,
+      message:
+        payload.error ||
+        payload.message ||
+        (status === 'skipped'
+          ? 'Публикация статьи была пропущена.'
+          : 'Публикация статьи завершилась ошибкой.'),
+      details: payload,
+      fingerprint: failureFingerprint,
+      notify: true
+    });
+
+    return res.json({
+      ok: true,
+      result: {
+        status,
+        eventId: failureEvent?.id || null
+      }
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
 router.post('/feedback/app', async (req, res) => {
   try {
     const type = normalizeAppFeedbackType(req.body?.type);
@@ -457,6 +654,56 @@ router.post('/feedback/app', async (req, res) => {
     return res.status(error.status || 500).json({
       ok: false,
       error: error.message
+    });
+  }
+});
+
+router.post('/errors/app', async (req, res) => {
+  try {
+    const source = normalizeAppRuntimeSource(req.body?.source);
+    const fatal = req.body?.fatal === true;
+    const payload = {
+      title: sanitizeText(req.body?.title, 120) || 'App runtime error',
+      message: sanitizeText(req.body?.message, 500) || 'Unknown runtime error',
+      currentPath: sanitizeText(req.body?.currentPath, 120) || 'unknown',
+      lastStablePath: sanitizeText(req.body?.lastStablePath, 120) || 'unknown',
+      recentPaths: Array.isArray(req.body?.recentPaths)
+        ? req.body.recentPaths.map((item) => sanitizeText(item, 120)).filter(Boolean).slice(-6)
+        : [],
+      appVersion: sanitizeText(req.body?.appVersion, 80) || null,
+      walletAddressMasked: sanitizeText(req.body?.walletAddressMasked, 60) || null,
+      details: sanitizeJsonValue(req.body?.details, 0),
+      fatal,
+      source,
+    };
+
+    const fingerprint =
+      sanitizeText(req.body?.fingerprint, 200) ||
+      `app-runtime:${source}:${payload.currentPath}:${payload.title}:${payload.message}`;
+
+    const event = await recordOpsEvent({
+      source: 'app-runtime',
+      category: 'runtime',
+      type: `mobile_${source}`,
+      severity: fatal ? 'error' : 'warning',
+      title: payload.title,
+      message: payload.message,
+      details: payload,
+      fingerprint,
+      notify: true,
+    });
+
+    return res.json({
+      ok: true,
+      result: {
+        id: event?.id || null,
+        stored: true,
+      },
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message,
     });
   }
 });
@@ -760,12 +1007,11 @@ router.post('/execution-requests/claim', requireOpsAuth({
   allowGithubRunner: true
 }), async (req, res) => {
   try {
-    const requestedRepoKey =
-      req.opsAuth?.kind === 'github-runner'
-        ? normalizeRepoKey(req.opsAuth.repoKey)
-        : sanitizeText(req.body?.repoKey, 60);
     const result = await claimExecutionRequest({
-      repoKey: requestedRepoKey,
+      repoKey:
+        req.opsAuth?.kind === 'github-runner'
+          ? normalizeRepoKey(req.opsAuth.repoKey)
+          : sanitizeText(req.body?.repoKey, 60),
       actionType: sanitizeText(req.body?.actionType, 40),
       runnerId: sanitizeText(req.body?.runnerId, 120)
     });
@@ -901,7 +1147,6 @@ router.post('/execution-requests/:id/finish', requireOpsAuth({
   try {
     const executionRequest = await getExecutionRequestById(req.params.id);
     ensureRunnerCanAccessExecutionRequest(req, executionRequest);
-
     const result = await finishExecutionRequest(req.params.id, {
       status: sanitizeText(req.body?.status, 40),
       runnerId: sanitizeText(req.body?.runnerId, 120),

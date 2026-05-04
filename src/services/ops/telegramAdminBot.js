@@ -125,7 +125,6 @@ function logTelegramTrace(stage, payload = {}) {
 
   console.log(`[ops-bot] ${stage}`, safePayload);
 }
-
 function parseJson(value, fallback = null) {
   if (value == null) return fallback;
   if (typeof value === 'object') return value;
