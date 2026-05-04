@@ -70,6 +70,10 @@ function recommendationForEvent(event) {
     return 'Что делать: открыть связанный экран в кошельке и воспроизвести сценарий, который пользователь отметил руками.';
   }
 
+  if (source === 'website-blog' && category === 'content' && type === 'blog_publish_failed') {
+    return 'Что делать: проверить automation-run, входные данные статьи, slug и свежесть деплоя сайта.';
+  }
+
   return 'Что делать: открыть /menu и посмотреть детали в разделах События и Здоровье.';
 }
 
