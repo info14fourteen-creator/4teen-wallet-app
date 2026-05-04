@@ -10,6 +10,7 @@ const {
 const { refreshPublicSiteData } = require('./src/services/publicData/siteData');
 const { writeOpsHeartbeat } = require('./src/services/ops/events');
 const { getAirdropResourceSignal, getAmbassadorResourceSignal } = require('./src/services/ops/resourceSignals');
+const { scheduleDailyBlogPublish } = require('./src/services/ops/dailyBlogPublisher');
 
 const HOUR_MS = 60 * 60 * 1000;
 const START_DELAY_MS = 15 * 1000;
@@ -112,6 +113,8 @@ async function runTick(trigger) {
 }
 
 console.log('[airdrop-clock] started');
+
+scheduleDailyBlogPublish();
 
 setTimeout(() => {
   void runTick('startup');
