@@ -1,18 +1,18 @@
 {
-  "generatedAt": "2026-05-03T22:11:35.371Z",
+  "generatedAt": "2026-05-04T22:54:38.194Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "64de869c38d2521427369284d61e472dec57723f",
-    "shortHash": "64de869",
-    "subject": "Fix ops bot merge regression",
+    "hash": "fdd16aedbe4d27bc75e473f19e90ae1c0f527069",
+    "shortHash": "fdd16ae",
+    "subject": "Add blog publication ops notifications",
     "author": "info14fourteen-creator",
-    "date": "2026-05-04T03:11:10+05:00"
+    "date": "2026-05-05T03:54:09+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/src/services/ops/telegramAdminBot.js",
-    "M\tapps/mobile/src/config/app-version.ts"
+    "M\tapps/api/src/routes/ops.js",
+    "M\tapps/api/src/services/ops/events.js"
   ],
   "activeFiles": [
     {
@@ -36,11 +36,11 @@
       "count": 3
     },
     {
-      "file": "apps/api/src/services/ops/codexJobs.js",
+      "file": "apps/api/src/routes/ops.js",
       "count": 2
     },
     {
-      "file": "apps/api/src/services/ops/openai.js",
+      "file": "apps/api/src/services/ops/codexJobs.js",
       "count": 2
     },
     {
@@ -64,11 +64,15 @@
       "count": 1
     },
     {
-      "file": "apps/api/src/routes/ops.js",
+      "file": "apps/api/src/services/ops/events.js",
       "count": 1
     },
     {
       "file": "apps/api/src/services/ops/githubRemoteRunner.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/openai.js",
       "count": 1
     },
     {
@@ -129,10 +133,6 @@
     },
     {
       "file": "apps/mobile/assets/icons/ui/socials/lottie/discord_social_hover.json",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/socials/lottie/facebook_social_hover.json",
       "count": 1
     }
   ],
