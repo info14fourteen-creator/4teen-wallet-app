@@ -1,13 +1,13 @@
 # 4teen-wallet-app — OPEN TODO SURFACE
 
-Generated: 2026-05-05T11:33:41.245Z
+Generated: 2026-05-05T11:52:39.962Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 4722a974a28c2f2d7d05cd5a0dea02eb01ae52a3
-Short commit: 4722a97
-Commit subject: Stabilize buy energy rental flow and UX
+Last commit: d04fe0c726f8e1b7c0786b12fd19f5fc6c224ce5
+Short commit: d04fe0c
+Commit subject: Restore operator-paid buy rental flow
 Commit author: info14fourteen-creator
-Commit date: 2026-05-05T16:33:06+05:00
+Commit date: 2026-05-05T16:52:23+05:00
 
 ## TODO markers (TODO, FIXME, HACK, XXX)
 
