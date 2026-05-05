@@ -1328,20 +1328,29 @@ export async function getAmbassadorRegistrationEnergyQuote(input: {
     throw new Error(translateNow('Slug must be 3-24 chars: a-z, 0-9, underscore or dash.'));
   }
 
-  const payload = await fetchJsonOrThrow<{
+  let payload: {
     ok?: boolean;
     result?: AmbassadorRegistrationEnergyQuote;
-  }>(buildWalletApiUrl('/resources/rental/quote'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      purpose: 'ambassador_registration',
-      wallet,
-      slug,
-      requiredEnergy: input.requiredEnergy,
-      requiredBandwidth: input.requiredBandwidth,
-    }),
-  });
+  } | null;
+
+  try {
+    payload = await fetchJsonOrThrow<{
+      ok?: boolean;
+      result?: AmbassadorRegistrationEnergyQuote;
+    }>(buildWalletApiUrl('/resources/rental/quote'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        purpose: 'ambassador_registration',
+        wallet,
+        slug,
+        requiredEnergy: input.requiredEnergy,
+        requiredBandwidth: input.requiredBandwidth,
+      }),
+    });
+  } catch {
+    throw new Error(translateNow('Energy rental quote is unavailable.'));
+  }
 
   const result = payload?.result;
 

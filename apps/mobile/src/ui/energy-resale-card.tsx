@@ -34,7 +34,7 @@ export default function EnergyResaleCard({
   processing,
   disabled,
   showUnavailable = false,
-  unavailableText = 'Resource rental is unavailable right now. You can continue with network burn or pull to refresh.',
+  unavailableText = 'Energy rental quote is unavailable.',
   actionLabel = 'APPROVE',
   estimatedBurnSun,
   onRent,
