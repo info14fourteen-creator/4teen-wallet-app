@@ -598,7 +598,6 @@ export default function BuyConfirmScreen() {
         <View style={styles.screen}>
         <ScreenLoadingOverlay
           visible={refreshing || approvalProcessing}
-          placement={approvalProcessing ? 'bottom' : 'center'}
           title={
             refreshing
               ? t('Refreshing confirmation')
