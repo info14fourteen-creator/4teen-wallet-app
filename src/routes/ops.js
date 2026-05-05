@@ -243,6 +243,66 @@ function normalizeBlogUrl(url) {
   }
 }
 
+function normalizeComparableUrl(url) {
+  const safe = normalizeBlogUrl(url);
+  if (!safe) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(safe);
+    parsed.hash = '';
+    parsed.search = '';
+    parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+    return parsed.toString();
+  } catch (_) {
+    return '';
+  }
+}
+
+function readComparablePath(url) {
+  const safe = normalizeComparableUrl(url);
+  if (!safe) {
+    return '';
+  }
+
+  try {
+    return new URL(safe).pathname.toLowerCase();
+  } catch (_) {
+    return '';
+  }
+}
+
+function extractHtmlLinkValue(html, relOrPropertyPattern) {
+  const safeHtml = String(html || '');
+  const patterns = Array.isArray(relOrPropertyPattern)
+    ? relOrPropertyPattern
+    : [relOrPropertyPattern];
+
+  for (const pattern of patterns) {
+    const regex = new RegExp(
+      `<(?:meta|link)[^>]+(?:property|rel)=["']${pattern}["'][^>]+(?:content|href)=["']([^"']+)["']`,
+      'i'
+    );
+    const match = safeHtml.match(regex);
+    if (match?.[1]) {
+      return normalizeComparableUrl(match[1]);
+    }
+  }
+
+  return '';
+}
+
+function isSpecificBlogArticlePath(pathname) {
+  const safePath = String(pathname || '').toLowerCase().replace(/\/+$/, '') || '/';
+  if (!safePath.startsWith('/blog/')) {
+    return false;
+  }
+
+  const segments = safePath.split('/').filter(Boolean);
+  return segments.length >= 2;
+}
+
 function htmlContainsExpectedArticle(html, payload) {
   const safeHtml = String(html || '');
   const lower = safeHtml.toLowerCase();
@@ -279,6 +339,8 @@ async function verifyPublishedBlogPage(payload) {
   }
 
   const expectedSlug = sanitizeText(payload?.slug, 120).toLowerCase();
+  const expectedUrl = normalizeComparableUrl(url);
+  const expectedPath = readComparablePath(expectedUrl);
   const attempts = Math.max(1, Math.min(Number(payload?.verificationAttempts || 3) || 3, 5));
   const delayMs = Math.max(0, Math.min(Number(payload?.verificationDelayMs || 2000) || 2000, 10000));
   let lastFailure = 'The page did not become available.';
@@ -295,33 +357,40 @@ async function verifyPublishedBlogPage(payload) {
       });
 
       const finalUrl = normalizeBlogUrl(response?.url || url) || url;
-      const finalPath = (() => {
-        try {
-          return new URL(finalUrl).pathname.toLowerCase();
-        } catch (_) {
-          return '';
-        }
-      })();
+      const finalComparableUrl = normalizeComparableUrl(finalUrl) || expectedUrl;
+      const finalPath = readComparablePath(finalComparableUrl);
 
       if (!response.ok) {
         lastFailure = `Public URL returned ${response.status}.`;
       } else {
         const html = await response.text().catch(() => '');
+        const canonicalUrl = extractHtmlLinkValue(html, 'canonical');
+        const ogUrl = extractHtmlLinkValue(html, 'og:url');
         const pathLooksRight =
-          finalPath.includes('/blog') &&
-          (expectedSlug ? finalPath.includes(expectedSlug) : true);
+          isSpecificBlogArticlePath(finalPath) &&
+          (!expectedPath || finalPath === expectedPath) &&
+          (expectedSlug ? finalPath.includes(`/${expectedSlug}`) : true);
+        const metaLooksRight =
+          Boolean(canonicalUrl || ogUrl) &&
+          [canonicalUrl, ogUrl].filter(Boolean).some((item) => item === finalComparableUrl);
         const contentLooksRight = htmlContainsExpectedArticle(html, payload);
 
-        if (pathLooksRight && contentLooksRight) {
+        if (pathLooksRight && metaLooksRight && contentLooksRight) {
           return {
             ok: true,
             finalUrl,
-            statusCode: response.status
+            statusCode: response.status,
+            canonicalUrl: canonicalUrl || null,
+            ogUrl: ogUrl || null
           };
         }
 
         if (!pathLooksRight) {
-          lastFailure = `Public URL redirected to ${finalPath || finalUrl}, not to the expected article path.`;
+          lastFailure = isSpecificBlogArticlePath(finalPath)
+            ? `Public URL resolved to ${finalPath || finalUrl}, but it did not match the expected article path.`
+            : `Public URL resolved to ${finalPath || finalUrl}, which is not a specific blog article page.`;
+        } else if (!metaLooksRight) {
+          lastFailure = 'The public page opened, but canonical metadata did not confirm the expected article URL.';
         } else {
           lastFailure = 'The public page opened, but the article content did not match the expected title or slug.';
         }
