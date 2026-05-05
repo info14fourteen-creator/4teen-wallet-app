@@ -1807,6 +1807,8 @@ export const dictionaries: Partial<Record<AppLanguageCode, Record<string, string
     'Energy rental and swap': 'Аренда энергии и обмен',
     'Energy rental and transfer': 'Аренда энергии и перевод',
     'Energy rental failed.': 'Аренда энергии завершилась ошибкой.',
+    'Energy rental is temporarily unavailable. Your buy has not been sent yet.':
+      'Аренда энергии временно недоступна. Ваша покупка еще не была отправлена.',
     'Enter amount first.': 'Сначала введите сумму.',
     'Enter amount to preview swap routes.': 'Введите сумму, чтобы увидеть маршруты обмена.',
     'Enter amount.': 'Введите сумму.',

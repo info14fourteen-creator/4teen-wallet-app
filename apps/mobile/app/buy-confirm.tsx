@@ -334,7 +334,6 @@ export default function BuyConfirmScreen() {
       setEnergyRenting(true);
       setApprovalStatusTitle(t('Preparing direct buy'));
       setApprovalStatusMessage(t('Sending Energy rental payment...'));
-      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'direct_buy',
         wallet: review.wallet.address,
@@ -344,18 +343,17 @@ export default function BuyConfirmScreen() {
             progress.step === 'energy-ready' ? t('Energy is ready') : t('Preparing direct buy')
           );
           setApprovalStatusMessage(progress.message);
-          notice.showNeutralNotice(progress.message, 2600);
         },
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
       setApprovalStatusTitle(t('Sending buy transaction'));
       setApprovalStatusMessage(t('Energy is live. Sending buy transaction...'));
-      notice.showSuccessNotice(t('Energy is live. Sending buy transaction...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.warn(error);
+      setErrorText(error instanceof Error ? error.message : t('Energy rental failed.'));
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
@@ -600,6 +598,7 @@ export default function BuyConfirmScreen() {
         <View style={styles.screen}>
         <ScreenLoadingOverlay
           visible={refreshing || approvalProcessing}
+          placement={approvalProcessing ? 'bottom' : 'center'}
           title={
             refreshing
               ? t('Refreshing confirmation')

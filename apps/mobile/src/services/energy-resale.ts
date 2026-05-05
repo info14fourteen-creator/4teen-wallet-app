@@ -93,6 +93,22 @@ function toUserFacingEnergyResaleError(error: unknown) {
   return error instanceof Error ? error : new Error(translateNow('Energy rental failed.'));
 }
 
+function toUserFacingEnergyResaleFailureMessage(message: string | null | undefined) {
+  const text = String(message || '').trim();
+
+  if (!text) {
+    return translateNow('Energy rental failed.');
+  }
+
+  if (/operator wallet does not have enough confirmed trx|top up gas station deposit address/i.test(text)) {
+    return translateNow(
+      'Energy rental is temporarily unavailable. Your buy has not been sent yet.'
+    );
+  }
+
+  return text;
+}
+
 function shouldRetryAcrossOrigins(error: unknown) {
   if (!(error instanceof EnergyResaleApiError)) {
     return true;
@@ -324,8 +340,7 @@ async function waitForEnergyResaleReady(input: {
 
     if (lastStatus.lastOrder?.status === 'failed') {
       throw new Error(
-        lastStatus.lastOrder.error_message ||
-          translateNow('Energy rental failed.')
+        toUserFacingEnergyResaleFailureMessage(lastStatus.lastOrder.error_message)
       );
     }
 

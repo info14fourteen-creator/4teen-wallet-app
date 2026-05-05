@@ -8,12 +8,14 @@ type ScreenLoadingOverlayProps = {
   visible: boolean;
   title?: string;
   message?: string;
+  placement?: 'center' | 'bottom';
 };
 
 export default function ScreenLoadingOverlay({
   visible,
   title,
   message,
+  placement = 'center',
 }: ScreenLoadingOverlayProps) {
   const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const [mounted, setMounted] = useState(visible);
@@ -47,9 +49,9 @@ export default function ScreenLoadingOverlay({
   return (
     <Animated.View
       pointerEvents={visible ? 'auto' : 'none'}
-      style={[styles.overlay, { opacity }]}
+      style={[styles.overlay, placement === 'bottom' ? styles.overlayBottom : null, { opacity }]}
     >
-      <View style={styles.content}>
+      <View style={[styles.content, placement === 'bottom' ? styles.contentBottom : null]}>
         <ThinOrangeLoader size={28} strokeWidth={2.4} />
         {title ? <Text style={styles.title}>{title}</Text> : null}
         {message ? <Text style={styles.message}>{message}</Text> : null}
@@ -66,12 +68,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.bg,
   },
+  overlayBottom: {
+    justifyContent: 'flex-end',
+    paddingBottom: 48,
+  },
   content: {
     width: '100%',
     maxWidth: 320,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+  },
+  contentBottom: {
+    paddingVertical: 18,
   },
   title: {
     marginTop: 18,
