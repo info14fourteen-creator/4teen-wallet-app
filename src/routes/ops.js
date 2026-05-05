@@ -605,6 +605,46 @@ router.post('/content/blog-publication', requireAdminToken, async (req, res) => 
   }
 });
 
+router.get(
+  '/blog-daily-publish-config',
+  requireOpsAuth({
+    allowGithubRunner: true,
+    expectedRepoKey: 'website'
+  }),
+  async (_req, res) => {
+    try {
+      return res.json({
+        ok: true,
+        result: {
+          databaseUrl: normalizeValue(env.DATABASE_URL) || null,
+          blogDatabaseUrl: normalizeValue(env.DATABASE_URL) || null,
+          openAiApiKey: normalizeValue(env.OPENAI_API_KEY) || null,
+          openAiOrgId: normalizeValue(env.OPENAI_ORG_ID) || null,
+          openAiProjectId: normalizeValue(env.OPENAI_PROJECT_ID) || null,
+          cloudflareApiToken: normalizeValue(env.OPS_REMOTE_CLOUDFLARE_API_TOKEN) || null,
+          feedUrl: 'https://rss.app/feeds/v1.1/tKryunfPwo68YKWa.json',
+          writerModel: 'gpt-5.5',
+          writerEffort: 'high',
+          triageModel: 'gpt-5-nano',
+          analysisModel: 'gpt-5-mini',
+          metadataModel: 'gpt-5-nano',
+          imageMode: 'openai-generate',
+          scanArticles: '24',
+          deepAnalysisArticles: '8',
+          maxArticles: '12',
+          lookbackHours: '24',
+          signature: 'Stan At, 4teen Founder'
+        }
+      });
+    } catch (error) {
+      return res.status(error.status || 500).json({
+        ok: false,
+        error: error.message
+      });
+    }
+  }
+);
+
 router.post('/feedback/app', async (req, res) => {
   try {
     const type = normalizeAppFeedbackType(req.body?.type);
