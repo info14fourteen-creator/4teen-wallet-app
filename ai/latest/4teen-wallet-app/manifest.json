@@ -1,27 +1,23 @@
 {
-  "generatedAt": "2026-05-05T16:58:25.400Z",
+  "generatedAt": "2026-05-05T17:28:45.887Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "2f5744add3283e5c1a76ca665f6bea967046a772",
-    "shortHash": "2f5744a",
-    "subject": "Unify rental progress UX across confirm screens",
+    "hash": "dd0ee4fa593fc831845af9600e3c6768203599c3",
+    "shortHash": "dd0ee4f",
+    "subject": "Guard rental quotes on low operator balance",
     "author": "info14fourteen-creator",
-    "date": "2026-05-05T21:58:10+05:00"
+    "date": "2026-05-05T22:28:21+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app/ambassador-confirm.tsx",
-    "M\tapps/mobile/app/ambassador-withdraw-confirm.tsx",
-    "M\tapps/mobile/app/liquidity-confirm.tsx",
-    "M\tapps/mobile/app/send-confirm.tsx",
-    "M\tapps/mobile/app/swap-confirm.tsx",
+    "M\tapps/api/src/services/gasstation/gasStation.js",
     "M\tapps/mobile/src/config/app-version.ts"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 10
+      "count": 9
     },
     {
       "file": "apps/api/src/services/gasstation/energyResale.js",
@@ -32,11 +28,7 @@
       "count": 3
     },
     {
-      "file": "apps/api/src/routes/ops.js",
-      "count": 2
-    },
-    {
-      "file": "apps/api/src/services/ops/telegramAdminBot.js",
+      "file": "apps/api/src/services/gasstation/gasStation.js",
       "count": 2
     },
     {
@@ -76,19 +68,7 @@
       "count": 2
     },
     {
-      "file": "apps/api/package.json",
-      "count": 1
-    },
-    {
-      "file": "apps/api/scripts/export-codex-work-orders.js",
-      "count": 1
-    },
-    {
-      "file": "apps/api/scripts/ops-executor.js",
-      "count": 1
-    },
-    {
-      "file": "apps/api/src/config/env.js",
+      "file": "apps/api/src/routes/ops.js",
       "count": 1
     },
     {
@@ -96,27 +76,11 @@
       "count": 1
     },
     {
-      "file": "apps/api/src/services/gasstation/gasStation.js",
-      "count": 1
-    },
-    {
       "file": "apps/api/src/services/ops/events.js",
       "count": 1
     },
     {
-      "file": "apps/api/src/services/ops/githubRemoteRunner.js",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/src/i18n/dictionaries.ts",
-      "count": 1
-    },
-    {
-      "file": "docs/ops/access-map.json",
-      "count": 1
-    },
-    {
-      "file": "docs/ops/access-map.md",
       "count": 1
     }
   ],

@@ -1,21 +1,20 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-05-05T16:58:25.400Z
+Generated: 2026-05-05T17:28:45.887Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 2f5744add3283e5c1a76ca665f6bea967046a772
-Short commit: 2f5744a
-Commit subject: Unify rental progress UX across confirm screens
+Last commit: dd0ee4fa593fc831845af9600e3c6768203599c3
+Short commit: dd0ee4f
+Commit subject: Guard rental quotes on low operator balance
 Commit author: info14fourteen-creator
-Commit date: 2026-05-05T21:58:10+05:00
+Commit date: 2026-05-05T22:28:21+05:00
 
 ## Most frequently changed files in last 20 commits
 
-- 10x :: apps/mobile/src/config/app-version.ts
+- 9x :: apps/mobile/src/config/app-version.ts
 - 5x :: apps/api/src/services/gasstation/energyResale.js
 - 3x :: apps/mobile/app/buy-confirm.tsx
-- 2x :: apps/api/src/routes/ops.js
-- 2x :: apps/api/src/services/ops/telegramAdminBot.js
+- 2x :: apps/api/src/services/gasstation/gasStation.js
 - 2x :: apps/mobile/app/ambassador-confirm.tsx
 - 2x :: apps/mobile/app/ambassador-withdraw-confirm.tsx
 - 2x :: apps/mobile/app/liquidity-confirm.tsx
@@ -25,14 +24,7 @@ Commit date: 2026-05-05T21:58:10+05:00
 - 2x :: apps/mobile/README.md
 - 2x :: apps/mobile/src/services/energy-resale.ts
 - 2x :: apps/mobile/src/ui/screen-loading-overlay.tsx
-- 1x :: apps/api/package.json
-- 1x :: apps/api/scripts/export-codex-work-orders.js
-- 1x :: apps/api/scripts/ops-executor.js
-- 1x :: apps/api/src/config/env.js
+- 1x :: apps/api/src/routes/ops.js
 - 1x :: apps/api/src/routes/resources.js
-- 1x :: apps/api/src/services/gasstation/gasStation.js
 - 1x :: apps/api/src/services/ops/events.js
-- 1x :: apps/api/src/services/ops/githubRemoteRunner.js
 - 1x :: apps/mobile/src/i18n/dictionaries.ts
-- 1x :: docs/ops/access-map.json
-- 1x :: docs/ops/access-map.md
