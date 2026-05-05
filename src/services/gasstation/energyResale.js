@@ -418,6 +418,88 @@ async function ensureEnergyResaleOrdersTable() {
   `);
 }
 
+async function updateEnergyResaleOrder(paymentTxHash, { status, rowJson }) {
+  const result = await pool.query(
+    `
+      UPDATE energy_resale_orders
+      SET
+        status = COALESCE(NULLIF($2, ''), status),
+        row_json = COALESCE($3::jsonb, row_json),
+        updated_at = NOW()
+      WHERE payment_tx_hash = $1
+      RETURNING *
+    `,
+    [
+      paymentTxHash,
+      String(status || '').trim() || null,
+      rowJson == null ? null : JSON.stringify(rowJson)
+    ]
+  );
+
+  return result.rows[0] || null;
+}
+
+function buildPendingEnergyResaleError(details = {}) {
+  const error = new Error('Energy rental is pending');
+  error.status = 202;
+  error.details = details;
+  return error;
+}
+
+function buildSerializedOrderError(error) {
+  return {
+    message: String(error?.message || 'Energy rental failed'),
+    status: Number(error?.status || 0) || null,
+    details: error?.details || null
+  };
+}
+
+function scheduleApiEnergyResaleConfirmation({
+  paymentTxHash,
+  purpose,
+  wallet,
+  payment,
+  packageConfig
+}) {
+  setTimeout(() => {
+    void (async () => {
+      try {
+        const rented = await rentResourcesForWallet({
+          receiveAddress: wallet,
+          energyNum: packageConfig.energyQuantity,
+          bandwidthNum: packageConfig.bandwidthQuantity,
+          requestPrefix: `energy-resale-${purpose}`,
+          paymentAmountSun: payment.amountSun,
+          context: {
+            purpose,
+            paymentTxid: paymentTxHash
+          }
+        });
+
+        await updateEnergyResaleOrder(paymentTxHash, {
+          status: 'completed',
+          rowJson: {
+            mode: 'api',
+            package: packageConfig,
+            payment,
+            rented
+          }
+        });
+      } catch (error) {
+        await updateEnergyResaleOrder(paymentTxHash, {
+          status: 'failed',
+          rowJson: {
+            mode: 'api',
+            package: packageConfig,
+            payment,
+            error: buildSerializedOrderError(error)
+          }
+        }).catch(() => null);
+      }
+    })();
+  }, 0);
+}
+
 async function confirmEnergyResalePayment({
   purpose,
   wallet,
@@ -487,6 +569,13 @@ async function confirmEnergyResalePayment({
     return existing.rows[0];
   }
 
+  if (existing.rows[0]?.status === 'processing_api' || existing.rows[0]?.status === 'waiting_api') {
+    throw buildPendingEnergyResaleError({
+      paymentTxid: txid,
+      orderStatus: existing.rows[0].status
+    });
+  }
+
   if (!existing.rows[0]) {
     await pool.query(
       `
@@ -520,40 +609,27 @@ async function confirmEnergyResalePayment({
   }
 
   if (packageConfig.mode === 'api') {
-    const rented = await rentResourcesForWallet({
-      receiveAddress: resolvedWallet,
-      energyNum: packageConfig.energyQuantity,
-      bandwidthNum: packageConfig.bandwidthQuantity,
-      requestPrefix: `energy-resale-${resolvedPurpose}`,
-      paymentAmountSun: payment.amountSun,
-      context: {
-        purpose: resolvedPurpose,
-        paymentTxid: txid
+    await updateEnergyResaleOrder(txid, {
+      status: 'processing_api',
+      rowJson: {
+        mode: 'api',
+        package: packageConfig,
+        payment
       }
     });
 
-    const updated = await pool.query(
-      `
-        UPDATE energy_resale_orders
-        SET
-          status = 'completed',
-          row_json = $2,
-          updated_at = NOW()
-        WHERE payment_tx_hash = $1
-        RETURNING *
-      `,
-      [
-        txid,
-        JSON.stringify({
-          mode: 'api',
-          package: packageConfig,
-          payment,
-          rented
-        })
-      ]
-    );
+    scheduleApiEnergyResaleConfirmation({
+      paymentTxHash: txid,
+      purpose: resolvedPurpose,
+      wallet: resolvedWallet,
+      payment,
+      packageConfig
+    });
 
-    return updated.rows[0];
+    throw buildPendingEnergyResaleError({
+      paymentTxid: txid,
+      orderStatus: 'processing_api'
+    });
   }
 
   const energyState = await waitForEnergyFulfillment(
@@ -633,7 +709,16 @@ async function getEnergyResaleStatus({ purpose, wallet, requiredEnergy, required
     requiredBandwidth: requiredReadyBandwidth,
     energyState,
     package: packageConfig,
-    lastOrder: lastOrder.rows[0] || null
+    lastOrder: lastOrder.rows[0]
+      ? {
+          status: lastOrder.rows[0].status || null,
+          payment_tx_hash: lastOrder.rows[0].payment_tx_hash || null,
+          error_message:
+            lastOrder.rows[0].row_json?.error?.message
+              ? String(lastOrder.rows[0].row_json.error.message)
+              : null
+        }
+      : null
   };
 }
 
