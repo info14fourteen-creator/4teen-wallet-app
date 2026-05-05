@@ -248,7 +248,7 @@ async function runWebsitePublisher({ trigger, localDate, timeZone }) {
       env: publishEnv
     });
 
-    await runCommand('pnpm', ['blog:daily-digest', '--skip-notify'], {
+    await runCommand('pnpm', ['blog:daily-digest', '--skip-notify', '--date', localDate], {
       cwd: workspace.repoDir,
       env: publishEnv
     });
