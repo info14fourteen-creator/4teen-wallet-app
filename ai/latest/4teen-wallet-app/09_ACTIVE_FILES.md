@@ -1,29 +1,30 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-05-05T09:59:12.879Z
+Generated: 2026-05-05T10:35:09.242Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 63d0358731e8545aee733f277e12c7bfb00d8f10
-Short commit: 63d0358
-Commit subject: Fix energy rental pending flow across confirm screens
+Last commit: 8148e3b8d9032f565d7d914232befac47d98dc51
+Short commit: 8148e3b
+Commit subject: Return explicit pending state for energy rental confirm
 Commit author: info14fourteen-creator
-Commit date: 2026-05-05T14:58:52+05:00
+Commit date: 2026-05-05T15:34:18+05:00
 
 ## Most frequently changed files in last 20 commits
 
-- 13x :: apps/mobile/src/config/app-version.ts
+- 14x :: apps/mobile/src/config/app-version.ts
 - 4x :: apps/mobile/app/feedback.tsx
 - 4x :: apps/mobile/app/swap.tsx
 - 3x :: apps/mobile/app/about.tsx
 - 2x :: apps/api/src/routes/ops.js
-- 2x :: apps/api/src/services/ops/codexJobs.js
+- 2x :: apps/api/src/services/gasstation/energyResale.js
 - 2x :: apps/api/src/services/ops/telegramAdminBot.js
 - 2x :: release/RELEASE_READINESS_STATUS.md
 - 1x :: apps/api/package.json
 - 1x :: apps/api/scripts/export-codex-work-orders.js
 - 1x :: apps/api/scripts/ops-executor.js
 - 1x :: apps/api/src/config/env.js
-- 1x :: apps/api/src/services/gasstation/energyResale.js
+- 1x :: apps/api/src/routes/resources.js
+- 1x :: apps/api/src/services/ops/codexJobs.js
 - 1x :: apps/api/src/services/ops/events.js
 - 1x :: apps/api/src/services/ops/githubRemoteRunner.js
 - 1x :: apps/mobile/app.json
@@ -40,4 +41,3 @@ Commit date: 2026-05-05T14:58:52+05:00
 - 1x :: apps/mobile/app/enable-biometrics.tsx
 - 1x :: apps/mobile/app/import-private-key.tsx
 - 1x :: apps/mobile/app/import-wallet.tsx
-- 1x :: apps/mobile/app/language.tsx

@@ -1,31 +1,24 @@
 {
-  "generatedAt": "2026-05-05T09:59:12.879Z",
+  "generatedAt": "2026-05-05T10:35:09.242Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "63d0358731e8545aee733f277e12c7bfb00d8f10",
-    "shortHash": "63d0358",
-    "subject": "Fix energy rental pending flow across confirm screens",
+    "hash": "8148e3b8d9032f565d7d914232befac47d98dc51",
+    "shortHash": "8148e3b",
+    "subject": "Return explicit pending state for energy rental confirm",
     "author": "info14fourteen-creator",
-    "date": "2026-05-05T14:58:52+05:00"
+    "date": "2026-05-05T15:34:18+05:00"
   },
   "changedFiles": [
+    "M\tapps/api/src/routes/resources.js",
     "M\tapps/api/src/services/gasstation/energyResale.js",
-    "M\tapps/mobile/app/ambassador-confirm.tsx",
-    "M\tapps/mobile/app/ambassador-withdraw-confirm.tsx",
-    "M\tapps/mobile/app/buy-confirm.tsx",
-    "M\tapps/mobile/app/liquidity-confirm.tsx",
-    "M\tapps/mobile/app/send-confirm.tsx",
-    "M\tapps/mobile/app/swap-confirm.tsx",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/services/energy-resale.ts",
-    "M\tapps/mobile/src/ui/screen-loading-overlay.tsx"
+    "M\tapps/mobile/src/config/app-version.ts"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 13
+      "count": 14
     },
     {
       "file": "apps/mobile/app/feedback.tsx",
@@ -44,7 +37,7 @@
       "count": 2
     },
     {
-      "file": "apps/api/src/services/ops/codexJobs.js",
+      "file": "apps/api/src/services/gasstation/energyResale.js",
       "count": 2
     },
     {
@@ -72,7 +65,11 @@
       "count": 1
     },
     {
-      "file": "apps/api/src/services/gasstation/energyResale.js",
+      "file": "apps/api/src/routes/resources.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/ops/codexJobs.js",
       "count": 1
     },
     {
@@ -137,10 +134,6 @@
     },
     {
       "file": "apps/mobile/app/import-wallet.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/language.tsx",
       "count": 1
     }
   ],
