@@ -320,9 +320,10 @@ async function getEnergyResalePackage(purposeInput, requirements = {}) {
       minMarkupSun: String(quote.minMarkupSun || ''),
       minMarkupTrx: quote.minMarkupTrx,
       energyQuantity: Number(quote.energyQuantity || 0),
-      readyEnergy: Number(quote.energyQuantity || 0),
+      readyEnergy: requiredEnergy > 0 ? requiredEnergy : Number(quote.energyQuantity || 0),
       bandwidthQuantity: Number(quote.bandwidthQuantity || 0),
-      readyBandwidth: Number(quote.bandwidthQuantity || 0),
+      readyBandwidth:
+        requiredBandwidth > 0 ? requiredBandwidth : Number(quote.bandwidthQuantity || 0),
       packageCount: 1,
       requiredEnergy,
       requiredBandwidth,
