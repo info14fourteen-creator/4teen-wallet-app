@@ -135,6 +135,8 @@ export default function SwapConfirmScreen() {
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
   const [energyRenting, setEnergyRenting] = useState(false);
+  const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
+  const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
   const [pendingApprovalMode, setPendingApprovalMode] = useState<'swap' | 'rent'>('swap');
   const routeChangedNoticeShownRef = useRef(false);
   const preserveNoticeOnExitRef = useRef(false);
@@ -298,15 +300,25 @@ export default function SwapConfirmScreen() {
 
     try {
       setEnergyRenting(true);
+      setApprovalStatusTitle(t('Preparing swap'));
+      setApprovalStatusMessage(t('Sending Energy rental payment...'));
       notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'swap',
         wallet: review.wallet.address,
         quote: energyQuote,
-        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
+        onProgress: (progress) => {
+          setApprovalStatusTitle(
+            progress.step === 'energy-ready' ? t('Energy is ready') : t('Preparing swap')
+          );
+          setApprovalStatusMessage(progress.message);
+          notice.showNeutralNotice(progress.message, 2600);
+        },
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
+      setApprovalStatusTitle(t('Starting swap'));
+      setApprovalStatusMessage(t('Energy is live. Starting swap...'));
       notice.showSuccessNotice(t('Energy is live. Starting swap...'), 3000);
       await load();
       return true;
@@ -319,6 +331,8 @@ export default function SwapConfirmScreen() {
       return false;
     } finally {
       setEnergyRenting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
       setPasscodeOpen(false);
       setPasscodeDigits('');
       setPasscodeError('');
@@ -330,6 +344,8 @@ export default function SwapConfirmScreen() {
 
     try {
       setSubmitting(true);
+      setApprovalStatusTitle(t('Starting swap'));
+      setApprovalStatusMessage(t('Submitting your swap to the network...'));
 
       const result = await executeSwap({
         route: review.route,
@@ -441,6 +457,8 @@ export default function SwapConfirmScreen() {
       notice.showErrorNotice(error instanceof Error ? error.message : t('Swap failed.'), 3200);
     } finally {
       setSubmitting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
     }
   }, [notice, review, router, submitting, t, triggerWalletDataRefresh]);
 
@@ -592,7 +610,15 @@ export default function SwapConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
+        <ScreenLoadingOverlay
+          visible={refreshing || approvalProcessing}
+          title={
+            refreshing
+              ? t('Refreshing confirmation')
+              : approvalStatusTitle || t('Processing')
+          }
+          message={refreshing ? t('Updating swap review...') : approvalStatusMessage}
+        />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[

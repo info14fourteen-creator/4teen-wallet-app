@@ -74,6 +74,8 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
   const [energyRenting, setEnergyRenting] = useState(false);
+  const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
+  const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
   const [pendingApprovalMode, setPendingApprovalMode] = useState<'withdraw' | 'rent'>('withdraw');
   const preserveNoticeOnExitRef = useRef(false);
   const burnWarningShownRef = useRef(false);
@@ -220,15 +222,25 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
     try {
       setEnergyRenting(true);
+      setApprovalStatusTitle(t('Preparing withdrawal'));
+      setApprovalStatusMessage(t('Sending Energy rental payment...'));
       notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'ambassador_withdraw',
         wallet: review.wallet.address,
         quote: energyQuote,
-        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
+        onProgress: (progress) => {
+          setApprovalStatusTitle(
+            progress.step === 'energy-ready' ? t('Energy is ready') : t('Preparing withdrawal')
+          );
+          setApprovalStatusMessage(progress.message);
+          notice.showNeutralNotice(progress.message, 2600);
+        },
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
+      setApprovalStatusTitle(t('Sending withdrawal'));
+      setApprovalStatusMessage(t('Energy is live. Sending withdrawal...'));
       notice.showSuccessNotice(t('Energy is live. Sending withdrawal...'), 3000);
       await load();
       return true;
@@ -241,6 +253,8 @@ export default function AmbassadorWithdrawConfirmScreen() {
       return false;
     } finally {
       setEnergyRenting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
       setPasscodeOpen(false);
       setPasscodeEntryOpen(false);
       setPasscodeDigits('');
@@ -253,6 +267,8 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
     try {
       setSubmitting(true);
+      setApprovalStatusTitle(t('Sending withdrawal'));
+      setApprovalStatusMessage(t('Submitting withdrawal to the network...'));
       const receipt = await withdrawAmbassadorRewards();
 
       setPasscodeOpen(false);
@@ -273,6 +289,8 @@ export default function AmbassadorWithdrawConfirmScreen() {
       );
     } finally {
       setSubmitting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
     }
   }, [notice, review, router, submitting, t, triggerWalletDataRefresh]);
 
@@ -426,7 +444,15 @@ export default function AmbassadorWithdrawConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
+        <ScreenLoadingOverlay
+          visible={refreshing || approvalProcessing}
+          title={
+            refreshing
+              ? t('Refreshing confirmation')
+              : approvalStatusTitle || t('Processing')
+          }
+          message={refreshing ? t('Updating withdrawal review...') : approvalStatusMessage}
+        />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[

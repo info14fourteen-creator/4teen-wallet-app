@@ -77,6 +77,8 @@ export default function LiquidityConfirmScreen() {
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
   const [energyRenting, setEnergyRenting] = useState(false);
+  const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
+  const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
   const [pendingApprovalMode, setPendingApprovalMode] = useState<'execute' | 'rent'>('execute');
   const preserveNoticeOnExitRef = useRef(false);
   const canUseBiometrics = biometricAvailable && biometricsEnabled;
@@ -226,15 +228,25 @@ export default function LiquidityConfirmScreen() {
 
     try {
       setEnergyRenting(true);
+      setApprovalStatusTitle(t('Preparing liquidity'));
+      setApprovalStatusMessage(t('Sending Energy rental payment...'));
       notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'liquidity_execute',
         wallet: review.wallet.address,
         quote: energyQuote,
-        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
+        onProgress: (progress) => {
+          setApprovalStatusTitle(
+            progress.step === 'energy-ready' ? t('Energy is ready') : t('Preparing liquidity')
+          );
+          setApprovalStatusMessage(progress.message);
+          notice.showNeutralNotice(progress.message, 2600);
+        },
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
+      setApprovalStatusTitle(t('Triggering liquidity'));
+      setApprovalStatusMessage(t('Energy is live. Triggering liquidity...'));
       notice.showSuccessNotice(t('Energy is live. Triggering liquidity...'), 3000);
       await load();
       return true;
@@ -247,6 +259,8 @@ export default function LiquidityConfirmScreen() {
       return false;
     } finally {
       setEnergyRenting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
       setPasscodeOpen(false);
       setPasscodeEntryOpen(false);
       setPasscodeDigits('');
@@ -259,6 +273,8 @@ export default function LiquidityConfirmScreen() {
 
     try {
       setSubmitting(true);
+      setApprovalStatusTitle(t('Triggering liquidity'));
+      setApprovalStatusMessage(t('Submitting liquidity execution to the network...'));
       const receipt = await executeLiquidityController({
         feeLimitSun: review.resources.recommendedFeeLimitSun,
       });
@@ -281,6 +297,8 @@ export default function LiquidityConfirmScreen() {
       );
     } finally {
       setSubmitting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
     }
   }, [notice, review, router, submitting, triggerWalletDataRefresh, t]);
 
@@ -439,7 +457,15 @@ export default function LiquidityConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
+        <ScreenLoadingOverlay
+          visible={refreshing || approvalProcessing}
+          title={
+            refreshing
+              ? t('Refreshing confirmation')
+              : approvalStatusTitle || t('Processing')
+          }
+          message={refreshing ? t('Updating liquidity review...') : approvalStatusMessage}
+        />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[

@@ -94,6 +94,8 @@ export default function SendConfirmScreen() {
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
   const [energyRenting, setEnergyRenting] = useState(false);
+  const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
+  const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
   const [pendingApprovalMode, setPendingApprovalMode] = useState<'send' | 'rent'>('send');
   const burnWarningShownRef = useRef(false);
   const preserveNoticeOnExitRef = useRef(false);
@@ -259,15 +261,25 @@ export default function SendConfirmScreen() {
 
     try {
       setEnergyRenting(true);
+      setApprovalStatusTitle(t('Preparing transfer'));
+      setApprovalStatusMessage(t('Sending Energy rental payment...'));
       notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'send_transfer',
         wallet: estimate.wallet.address,
         quote: energyQuote,
-        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
+        onProgress: (progress) => {
+          setApprovalStatusTitle(
+            progress.step === 'energy-ready' ? t('Energy is ready') : t('Preparing transfer')
+          );
+          setApprovalStatusMessage(progress.message);
+          notice.showNeutralNotice(progress.message, 2600);
+        },
       });
       clearWalletRuntimeCaches(estimate.wallet.address);
       preserveNoticeOnExitRef.current = true;
+      setApprovalStatusTitle(t('Sending transfer'));
+      setApprovalStatusMessage(t('Energy is live. Sending transfer...'));
       notice.showSuccessNotice(t('Energy is live. Sending transfer...'), 3000);
       await load();
       return true;
@@ -280,6 +292,8 @@ export default function SendConfirmScreen() {
       return false;
     } finally {
       setEnergyRenting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
       setPasscodeOpen(false);
       setPasscodeDigits('');
       setPasscodeError('');
@@ -291,6 +305,8 @@ export default function SendConfirmScreen() {
 
     try {
       setSending(true);
+      setApprovalStatusTitle(t('Sending transfer'));
+      setApprovalStatusMessage(t('Submitting your transfer to the network...'));
 
       if (estimate.requestedTokenId !== estimate.token.tokenId) {
         throw new Error(
@@ -375,6 +391,8 @@ export default function SendConfirmScreen() {
       );
     } finally {
       setSending(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
     }
   }, [contactName, estimate, notice, router, sending, t, triggerWalletDataRefresh]);
 
@@ -535,7 +553,15 @@ export default function SendConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
+        <ScreenLoadingOverlay
+          visible={refreshing || approvalProcessing}
+          title={
+            refreshing
+              ? t('Refreshing confirmation')
+              : approvalStatusTitle || t('Processing')
+          }
+          message={refreshing ? t('Updating transfer review...') : approvalStatusMessage}
+        />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[

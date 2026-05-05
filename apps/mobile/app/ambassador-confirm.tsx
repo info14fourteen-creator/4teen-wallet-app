@@ -92,6 +92,8 @@ export default function AmbassadorConfirmScreen() {
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
   const [energyRenting, setEnergyRenting] = useState(false);
+  const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
+  const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
   const [pendingApprovalMode, setPendingApprovalMode] =
     useState<RegistrationApprovalMode>('burn');
   const burnWarningShownRef = useRef(false);
@@ -264,6 +266,8 @@ export default function AmbassadorConfirmScreen() {
 
     try {
       setEnergyRenting(true);
+      setApprovalStatusTitle(t('Preparing ambassador registration'));
+      setApprovalStatusMessage(t('Sending Energy rental payment...'));
       notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'ambassador_registration',
@@ -272,10 +276,20 @@ export default function AmbassadorConfirmScreen() {
         metadata: {
           slug: requestedSlug,
         },
-        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
+        onProgress: (progress) => {
+          setApprovalStatusTitle(
+            progress.step === 'energy-ready'
+              ? t('Energy is ready')
+              : t('Preparing ambassador registration')
+          );
+          setApprovalStatusMessage(progress.message);
+          notice.showNeutralNotice(progress.message, 2600);
+        },
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
+      setApprovalStatusTitle(t('Sending ambassador registration'));
+      setApprovalStatusMessage(t('Energy is live. Sending ambassador registration...'));
       notice.showSuccessNotice(t('Energy is live. Sending ambassador registration...'), 3000);
       await load();
       return true;
@@ -288,6 +302,8 @@ export default function AmbassadorConfirmScreen() {
       return false;
     } finally {
       setEnergyRenting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
       setPasscodeOpen(false);
       setPasscodeEntryOpen(false);
       setPasscodeDigits('');
@@ -300,6 +316,8 @@ export default function AmbassadorConfirmScreen() {
 
     try {
       setSubmitting(true);
+      setApprovalStatusTitle(t('Sending ambassador registration'));
+      setApprovalStatusMessage(t('Submitting ambassador registration to the network...'));
 
       const receipt = await registerAmbassadorWithOptions(requestedSlug, {
         feeLimitSun: review.resources.recommendedFeeLimitSun,
@@ -321,6 +339,8 @@ export default function AmbassadorConfirmScreen() {
       );
     } finally {
       setSubmitting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
     }
   }, [notice, requestedSlug, review, router, submitting, t, triggerWalletDataRefresh]);
 
@@ -480,7 +500,15 @@ export default function AmbassadorConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
+        <ScreenLoadingOverlay
+          visible={refreshing || approvalProcessing}
+          title={
+            refreshing
+              ? t('Refreshing confirmation')
+              : approvalStatusTitle || t('Processing')
+          }
+          message={refreshing ? t('Updating ambassador review...') : approvalStatusMessage}
+        />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[

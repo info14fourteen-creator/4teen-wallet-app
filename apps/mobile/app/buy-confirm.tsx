@@ -159,6 +159,8 @@ export default function BuyConfirmScreen() {
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
   const [energyRenting, setEnergyRenting] = useState(false);
+  const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
+  const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
   const [pendingApprovalMode, setPendingApprovalMode] = useState<'buy' | 'rent'>('buy');
   const preserveNoticeOnExitRef = useRef(false);
   const burnWarningShownRef = useRef(false);
@@ -330,15 +332,25 @@ export default function BuyConfirmScreen() {
 
     try {
       setEnergyRenting(true);
+      setApprovalStatusTitle(t('Preparing direct buy'));
+      setApprovalStatusMessage(t('Sending Energy rental payment...'));
       notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'direct_buy',
         wallet: review.wallet.address,
         quote: energyQuote,
-        onProgress: (progress) => notice.showNeutralNotice(progress.message, 2600),
+        onProgress: (progress) => {
+          setApprovalStatusTitle(
+            progress.step === 'energy-ready' ? t('Energy is ready') : t('Preparing direct buy')
+          );
+          setApprovalStatusMessage(progress.message);
+          notice.showNeutralNotice(progress.message, 2600);
+        },
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
+      setApprovalStatusTitle(t('Sending buy transaction'));
+      setApprovalStatusMessage(t('Energy is live. Sending buy transaction...'));
       notice.showSuccessNotice(t('Energy is live. Sending buy transaction...'), 3000);
       await load();
       return true;
@@ -351,6 +363,8 @@ export default function BuyConfirmScreen() {
       return false;
     } finally {
       setEnergyRenting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
       setPasscodeOpen(false);
       setPasscodeDigits('');
       setPasscodeError('');
@@ -362,6 +376,8 @@ export default function BuyConfirmScreen() {
 
     try {
       setSubmitting(true);
+      setApprovalStatusTitle(t('Sending buy transaction'));
+      setApprovalStatusMessage(t('Submitting your direct buy to the network...'));
 
       const nextReceipt = await executeDirectBuy({
         trxAmount: review.amountTrx,
@@ -425,6 +441,8 @@ export default function BuyConfirmScreen() {
       notice.showErrorNotice(message, 3400);
     } finally {
       setSubmitting(false);
+      setApprovalStatusTitle('');
+      setApprovalStatusMessage('');
     }
   }, [notice, review, submitting, t, triggerWalletDataRefresh]);
 
@@ -579,8 +597,20 @@ export default function BuyConfirmScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <View style={styles.screen}>
-        <ScreenLoadingOverlay visible={refreshing || approvalProcessing} />
+        <View style={styles.screen}>
+        <ScreenLoadingOverlay
+          visible={refreshing || approvalProcessing}
+          title={
+            refreshing
+              ? t('Refreshing confirmation')
+              : approvalStatusTitle || t('Processing')
+          }
+          message={
+            refreshing
+              ? t('Updating buy review...')
+              : approvalStatusMessage
+          }
+        />
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={[

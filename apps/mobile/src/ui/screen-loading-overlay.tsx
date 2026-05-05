@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 import { colors } from '../theme/tokens';
 import ThinOrangeLoader from './thin-orange-loader';
 
 type ScreenLoadingOverlayProps = {
   visible: boolean;
+  title?: string;
+  message?: string;
 };
 
-export default function ScreenLoadingOverlay({ visible }: ScreenLoadingOverlayProps) {
+export default function ScreenLoadingOverlay({
+  visible,
+  title,
+  message,
+}: ScreenLoadingOverlayProps) {
   const opacity = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const [mounted, setMounted] = useState(visible);
 
@@ -43,7 +49,11 @@ export default function ScreenLoadingOverlay({ visible }: ScreenLoadingOverlayPr
       pointerEvents={visible ? 'auto' : 'none'}
       style={[styles.overlay, { opacity }]}
     >
-      <ThinOrangeLoader size={28} strokeWidth={2.4} />
+      <View style={styles.content}>
+        <ThinOrangeLoader size={28} strokeWidth={2.4} />
+        {title ? <Text style={styles.title}>{title}</Text> : null}
+        {message ? <Text style={styles.message}>{message}</Text> : null}
+      </View>
     </Animated.View>
   );
 }
@@ -55,5 +65,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.bg,
+  },
+  content: {
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  title: {
+    marginTop: 18,
+    color: colors.white,
+    fontSize: 18,
+    lineHeight: 24,
+    fontFamily: 'Sora_700Bold',
+    textAlign: 'center',
+  },
+  message: {
+    marginTop: 10,
+    color: colors.textDim,
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: 'Sora_600SemiBold',
+    textAlign: 'center',
   },
 });

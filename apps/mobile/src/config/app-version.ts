@@ -7,8 +7,8 @@ export const APP_VERSION = {
 };
 
 export const APP_BUILD = {
-  buildNumber: '202605040311',
-  generatedAtIso: '2026-05-03T22:11:10.683Z',
+  buildNumber: '202605051458',
+  generatedAtIso: '2026-05-05T09:58:35.285Z',
 };
 
 export function getVersionLabel() {
