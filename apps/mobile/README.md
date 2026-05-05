@@ -1,50 +1,92 @@
-# Welcome to your Expo app 👋
+# 4TEEN Mobile Development
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This app should be developed with a **development build**, not plain Expo Go.
 
-## Get started
+## Why Expo Go is not the main path
 
-1. Install dependencies
+The project includes custom native code:
 
-   ```bash
-   npm install
-   ```
+- local Expo module: `modules/install-referrer`
 
-2. Start the app
+Because of that, Expo Go is only a partial sandbox here. It is not the reliable way to run the app on a real device.
 
-   ```bash
-   npx expo start
-   ```
+## Correct daily workflow
 
-In the output, you'll find options to open the app in a
+### 1. Install a development build once
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+If you do not already have the `4TEEN` development app installed on your iPhone, build one:
 
 ```bash
-npm run reset-project
+cd /Users/stanataev/4teen-wallet-app/apps/mobile
+pnpm dlx eas-cli build -p ios --profile development
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+After the build finishes, install that build on the device.
 
-## Learn more
+Use this instead of Expo Go for this project.
 
-To learn more about developing your project with Expo, look at the following resources:
+### 2. Start Metro for the dev client
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+cd /Users/stanataev/4teen-wallet-app/apps/mobile
+pnpm dev:client:clear
+```
 
-## Join the community
+Or without clearing cache:
 
-Join our community of developers creating universal apps.
+```bash
+cd /Users/stanataev/4teen-wallet-app/apps/mobile
+pnpm dev:client
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### 3. Open the installed `4TEEN` dev app
+
+Do **not** open Expo Go.
+
+Open the installed `4TEEN` development app on the phone. It should connect to the Metro server.
+
+## Useful scripts
+
+```bash
+pnpm start
+pnpm dev:client
+pnpm dev:client:clear
+pnpm ios
+pnpm android
+```
+
+## When QR is still needed
+
+QR is only a fallback:
+
+- first launch of a new dev build
+- device and Mac are not discovering the local server automatically
+- you started plain `expo start` instead of `expo start --dev-client`
+
+If the dev client is installed and Metro is started with `--dev-client`, QR should not be your normal daily flow.
+
+## If the phone does not see the server
+
+Try:
+
+```bash
+cd /Users/stanataev/4teen-wallet-app/apps/mobile
+pnpm dev:client:clear -- --tunnel
+```
+
+If that is not enough:
+
+- make sure phone and Mac are on the same network
+- make sure VPN is not interfering
+- reopen the `4TEEN` dev app after Metro is running
+
+## Production note
+
+`Expo Go` and `development build` are only for development.
+
+Store builds come from EAS:
+
+```bash
+pnpm dlx eas-cli build -p ios --profile production
+pnpm dlx eas-cli build -p android --profile production
+```
