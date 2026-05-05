@@ -1,23 +1,25 @@
 {
-  "generatedAt": "2026-05-05T11:52:39.962Z",
+  "generatedAt": "2026-05-05T12:55:54.808Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "d04fe0c726f8e1b7c0786b12fd19f5fc6c224ce5",
-    "shortHash": "d04fe0c",
-    "subject": "Restore operator-paid buy rental flow",
+    "hash": "8282085b60d0602e84f9239444015311c57d0aa1",
+    "shortHash": "8282085",
+    "subject": "Add dev client setup for mobile development",
     "author": "info14fourteen-creator",
-    "date": "2026-05-05T16:52:23+05:00"
+    "date": "2026-05-05T17:55:28+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/src/services/gasstation/energyResale.js",
-    "M\tapps/mobile/src/config/app-version.ts"
+    "M\tapps/mobile/README.md",
+    "M\tapps/mobile/package.json",
+    "M\tapps/mobile/src/config/app-version.ts",
+    "M\tpnpm-lock.yaml"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 14
+      "count": 13
     },
     {
       "file": "apps/api/src/services/gasstation/energyResale.js",
@@ -26,10 +28,6 @@
     {
       "file": "apps/mobile/app/swap.tsx",
       "count": 4
-    },
-    {
-      "file": "apps/mobile/app/feedback.tsx",
-      "count": 3
     },
     {
       "file": "apps/api/src/routes/ops.js",
@@ -84,10 +82,6 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/about.tsx",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/app/ambassador-confirm.tsx",
       "count": 1
     },
@@ -97,6 +91,10 @@
     },
     {
       "file": "apps/mobile/app/buy.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/feedback.tsx",
       "count": 1
     },
     {
@@ -112,11 +110,15 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/src/i18n/dictionaries.ts",
+      "file": "apps/mobile/package.json",
       "count": 1
     },
     {
-      "file": "apps/mobile/src/ui/top-chrome.tsx",
+      "file": "apps/mobile/README.md",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/src/i18n/dictionaries.ts",
       "count": 1
     },
     {
@@ -125,10 +127,6 @@
     },
     {
       "file": "docs/ops/access-map.md",
-      "count": 1
-    },
-    {
-      "file": "release/RELEASE_READINESS_STATUS.md",
       "count": 1
     }
   ],

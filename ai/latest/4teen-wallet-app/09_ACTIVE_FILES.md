@@ -1,20 +1,19 @@
 # 4teen-wallet-app — ACTIVE FILES
 
-Generated: 2026-05-05T11:52:39.962Z
+Generated: 2026-05-05T12:55:54.808Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: d04fe0c726f8e1b7c0786b12fd19f5fc6c224ce5
-Short commit: d04fe0c
-Commit subject: Restore operator-paid buy rental flow
+Last commit: 8282085b60d0602e84f9239444015311c57d0aa1
+Short commit: 8282085
+Commit subject: Add dev client setup for mobile development
 Commit author: info14fourteen-creator
-Commit date: 2026-05-05T16:52:23+05:00
+Commit date: 2026-05-05T17:55:28+05:00
 
 ## Most frequently changed files in last 20 commits
 
-- 14x :: apps/mobile/src/config/app-version.ts
+- 13x :: apps/mobile/src/config/app-version.ts
 - 4x :: apps/api/src/services/gasstation/energyResale.js
 - 4x :: apps/mobile/app/swap.tsx
-- 3x :: apps/mobile/app/feedback.tsx
 - 2x :: apps/api/src/routes/ops.js
 - 2x :: apps/api/src/services/ops/telegramAdminBot.js
 - 2x :: apps/mobile/app/buy-confirm.tsx
@@ -28,15 +27,15 @@ Commit date: 2026-05-05T16:52:23+05:00
 - 1x :: apps/api/src/services/gasstation/gasStation.js
 - 1x :: apps/api/src/services/ops/events.js
 - 1x :: apps/api/src/services/ops/githubRemoteRunner.js
-- 1x :: apps/mobile/app/about.tsx
 - 1x :: apps/mobile/app/ambassador-confirm.tsx
 - 1x :: apps/mobile/app/ambassador-withdraw-confirm.tsx
 - 1x :: apps/mobile/app/buy.tsx
+- 1x :: apps/mobile/app/feedback.tsx
 - 1x :: apps/mobile/app/liquidity-confirm.tsx
 - 1x :: apps/mobile/app/send-confirm.tsx
 - 1x :: apps/mobile/app/swap-confirm.tsx
+- 1x :: apps/mobile/package.json
+- 1x :: apps/mobile/README.md
 - 1x :: apps/mobile/src/i18n/dictionaries.ts
-- 1x :: apps/mobile/src/ui/top-chrome.tsx
 - 1x :: docs/ops/access-map.json
 - 1x :: docs/ops/access-map.md
-- 1x :: release/RELEASE_READINESS_STATUS.md
