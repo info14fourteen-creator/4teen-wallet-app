@@ -603,6 +603,40 @@ async function getOperatorState() {
   return getWalletState(env.OPERATOR_WALLET);
 }
 
+async function assertOperatorCanFulfillRentalQuote(client, {
+  costAmountSun,
+  retainedSun = 0
+}) {
+  const gasBalance = await client.getBalance();
+  const gasStationBalanceSun = toSun(gasBalance?.balance || 0);
+  const requiredCostSun = normalizeSunAmount(costAmountSun);
+  const requiredRetainedSun = normalizeSunAmount(retainedSun);
+  const requiredTopUpSun = Math.max(0, requiredCostSun - gasStationBalanceSun);
+  const requiredOperatorSun = requiredTopUpSun + requiredRetainedSun;
+  const operator = await getOperatorState();
+
+  if (operator.balanceSun >= requiredOperatorSun) {
+    return {
+      operator,
+      gasStationBalanceSun,
+      requiredOperatorSun,
+      requiredTopUpSun
+    };
+  }
+
+  const error = new Error('Energy rental is temporarily unavailable');
+  error.status = 503;
+  error.details = {
+    operatorWallet: env.OPERATOR_WALLET,
+    operatorBalanceSun: operator.balanceSun,
+    gasStationBalanceSun,
+    requiredOperatorSun,
+    requiredTopUpSun,
+    requiredRetainedSun
+  };
+  throw error;
+}
+
 async function getAirdropControlState() {
   const wallet = String(env.AIRDROP_CONTROL_WALLET || '').trim();
 
@@ -1140,6 +1174,11 @@ async function quoteEnergyRental({ energyNum }) {
     });
     const marked = applyRentalMarkup(estimate.totalAmountSun);
 
+    await assertOperatorCanFulfillRentalQuote(client, {
+      costAmountSun: marked.costAmountSun,
+      retainedSun: marked.markupAmountSun
+    });
+
     return {
       energyQuantity: normalizedEnergyNum,
       amountSun: marked.amountSun,
@@ -1175,6 +1214,11 @@ async function quoteResourceRental({ energyNum = 0, bandwidthNum = 0 }) {
       bandwidthQuantity
     });
     const marked = applyRentalMarkup(estimate.totalAmountSun);
+
+    await assertOperatorCanFulfillRentalQuote(client, {
+      costAmountSun: marked.costAmountSun,
+      retainedSun: marked.markupAmountSun
+    });
 
     return {
       energyQuantity,
