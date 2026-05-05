@@ -3527,7 +3527,9 @@ export async function getTokenHistoryPage(
         });
 
         const trxItems = walletPage.items
-          .filter((item) => item.tokenId === TRX_TOKEN_ID)
+          .filter(
+            (item) => item.tokenId === TRX_TOKEN_ID && item.contractType === 'TransferContract'
+          )
           .map(({ tokenId: _tokenId, tokenName: _tokenName, tokenSymbol: _tokenSymbol, tokenLogo: _tokenLogo, ...item }) => item);
 
         items.push(...trxItems);

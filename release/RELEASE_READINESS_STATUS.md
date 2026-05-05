@@ -1,6 +1,6 @@
 # Release Readiness Status
 
-Last checked: 2026-05-03 (Asia/Tashkent)
+Last checked: 2026-05-05 (Asia/Tashkent)
 
 ## Current state
 
@@ -20,7 +20,7 @@ The mobile app is locally release-ready from a code and bundling perspective.
 
 - App icon wired from the current 4TEEN brand mark
 - App display name set to `4TEEN`
-- Store version set to `1.0.3`
+- Store version set to `1.0.4`
 - `ITSAppUsesNonExemptEncryption` declared as `false`
 - Removed unused Android `RECORD_AUDIO` permission
 - Removed EAS channel config that was noisy without `expo-updates`
@@ -49,6 +49,10 @@ The mobile app is locally release-ready from a code and bundling perspective.
 - Folded the latest shared-layout regression fix into the release baseline:
   - `ProductScreen` cards keep full-width layout again after RTL support was introduced
   - `info` / `earn` no longer collapses into narrow cards with large empty gaps
+- Folded the latest rental hardening into the release baseline:
+  - rental quotes are now blocked before payment when the operator wallet cannot actually fulfill the top-up path
+  - confirm screens now share the same rental-unavailable behavior instead of diverging by route
+  - `TRX` token details no longer mix smart-contract action noise into the plain send/receive history surface
 
 ## Referral / attribution readiness
 
