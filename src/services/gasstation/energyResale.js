@@ -226,6 +226,10 @@ function getDefaultPurposeRequirements(purpose) {
   };
 }
 
+function getApiRentalPaymentAddress() {
+  return normalizeWallet(env.GASSTATION_DEPOSIT_ADDRESS || env.OPERATOR_WALLET);
+}
+
 function getResalePackage(purposeInput, requirements = {}) {
   const purpose = normalizePurpose(purposeInput);
 
@@ -293,7 +297,7 @@ async function getEnergyResalePackage(purposeInput, requirements = {}) {
       const result = {
       purpose,
       mode: 'api',
-      paymentAddress: env.OPERATOR_WALLET,
+      paymentAddress: getApiRentalPaymentAddress(),
       amountSun,
       amountTrx: formatSunAsTrx(amountSun),
       costAmountSun: String(quote.costAmountSun || ''),
@@ -439,6 +443,13 @@ async function updateEnergyResaleOrder(paymentTxHash, { status, rowJson }) {
   return result.rows[0] || null;
 }
 
+function buildPendingEnergyResaleError(details = {}) {
+  const error = new Error('Energy rental is pending');
+  error.status = 202;
+  error.details = details;
+  return error;
+}
+
 function buildPendingEnergyResaleResult(details = {}) {
   return {
     pending: true,
@@ -473,7 +484,8 @@ function scheduleApiEnergyResaleConfirmation({
           paymentAmountSun: payment.amountSun,
           context: {
             purpose,
-            paymentTxid: paymentTxHash
+            paymentTxid: paymentTxHash,
+            paymentAddress: packageConfig.paymentAddress
           }
         });
 

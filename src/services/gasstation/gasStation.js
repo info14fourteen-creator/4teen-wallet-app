@@ -779,6 +779,22 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun, options = {}) 
     };
   }
 
+  if (options.waitForDepositCoverage) {
+    const waitedBalance = await waitForGasStationBalanceCoverage(client, requiredSun);
+
+    if (waitedBalance.ready) {
+      return {
+        toppedUp: false,
+        gasStationBalanceSun: waitedBalance.gasStationBalanceSun,
+        depositAddress: waitedBalance.depositAddress,
+        topUpTxHash: null,
+        topUpAmountSun: 0,
+        waitedForOperator: false,
+        fundingTransfer: null
+      };
+    }
+  }
+
   const requiredTopUpSun = Math.max(0, requiredSun - currentGasBalanceSun);
   const { waited, fundingTransfer } = await waitForOperatorTopUpCapacity(
     requiredTopUpSun,
@@ -916,6 +932,46 @@ function computeRequiredOrders(state) {
     needBandwidth: bandwidthDeficit > 0,
     energyQuantity: energyDeficit > 0 ? Math.max(minEnergy, energyDeficit) : 0,
     bandwidthQuantity: bandwidthDeficit > 0 ? Math.max(minBandwidth, bandwidthDeficit) : 0
+  };
+}
+
+function isGasStationDepositPaymentAddress(address) {
+  const expected = String(env.GASSTATION_DEPOSIT_ADDRESS || '').trim().toLowerCase();
+  const actual = String(address || '').trim().toLowerCase();
+  return Boolean(expected && actual && expected === actual);
+}
+
+async function waitForGasStationBalanceCoverage(
+  client,
+  requiredAmountSun,
+  { attempts = 20, delayMs = 3000 } = {}
+) {
+  const requiredSun = normalizeSunAmount(requiredAmountSun);
+  let lastBalanceSun = 0;
+  let lastDepositAddress = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const balance = await client.getBalance();
+    lastBalanceSun = toSun(balance?.balance || 0);
+    lastDepositAddress = balance?.deposit_address || null;
+
+    if (lastBalanceSun >= requiredSun) {
+      return {
+        ready: true,
+        gasStationBalanceSun: lastBalanceSun,
+        depositAddress: lastDepositAddress
+      };
+    }
+
+    if (attempt < attempts - 1) {
+      await sleep(delayMs);
+    }
+  }
+
+  return {
+    ready: false,
+    gasStationBalanceSun: lastBalanceSun,
+    depositAddress: lastDepositAddress
   };
 }
 
@@ -1156,12 +1212,22 @@ async function rentEnergyForWallet({
       energyQuantity: normalizedEnergyNum,
       bandwidthQuantity: 0
     });
+    const paymentCreditedToDepositSun = isGasStationDepositPaymentAddress(context.paymentAddress)
+      ? normalizeSunAmount(paymentAmountSun)
+      : 0;
     const retainedSun = Math.max(0, normalizeSunAmount(paymentAmountSun) - estimate.totalAmountSun);
     const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun, {
       minOperatorRetainedSun: retainedSun > 0 ? retainedSun : MIN_OPERATOR_RESERVE_SUN,
-      context
+      context,
+      waitForDepositCoverage: paymentCreditedToDepositSun > 0
     });
-    const replenishCostSun = Math.max(0, estimate.totalAmountSun - normalizeSunAmount(topUp?.topUpAmountSun));
+    const replenishCostSun = Math.max(
+      0,
+      estimate.totalAmountSun - Math.max(
+        normalizeSunAmount(topUp?.topUpAmountSun),
+        Math.min(paymentCreditedToDepositSun, estimate.totalAmountSun)
+      )
+    );
     const backgroundReplenishment = scheduleGasStationReplenishment(client, replenishCostSun, {
       ...context,
       purpose: context.purpose || requestPrefix,
@@ -1218,12 +1284,22 @@ async function rentResourcesForWallet({
       energyQuantity,
       bandwidthQuantity
     });
+    const paymentCreditedToDepositSun = isGasStationDepositPaymentAddress(context.paymentAddress)
+      ? normalizeSunAmount(paymentAmountSun)
+      : 0;
     const retainedSun = Math.max(0, normalizeSunAmount(paymentAmountSun) - estimate.totalAmountSun);
     const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun, {
       minOperatorRetainedSun: retainedSun > 0 ? retainedSun : MIN_OPERATOR_RESERVE_SUN,
-      context
+      context,
+      waitForDepositCoverage: paymentCreditedToDepositSun > 0
     });
-    const replenishCostSun = Math.max(0, estimate.totalAmountSun - normalizeSunAmount(topUp?.topUpAmountSun));
+    const replenishCostSun = Math.max(
+      0,
+      estimate.totalAmountSun - Math.max(
+        normalizeSunAmount(topUp?.topUpAmountSun),
+        Math.min(paymentCreditedToDepositSun, estimate.totalAmountSun)
+      )
+    );
     const backgroundReplenishment = scheduleGasStationReplenishment(client, replenishCostSun, {
       ...context,
       purpose: context.purpose || requestPrefix,
