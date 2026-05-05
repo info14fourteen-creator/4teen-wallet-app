@@ -1,13 +1,13 @@
 # 4teen-wallet-app — OPEN TODO SURFACE
 
-Generated: 2026-05-05T12:55:54.808Z
+Generated: 2026-05-05T13:50:52.650Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 8282085b60d0602e84f9239444015311c57d0aa1
-Short commit: 8282085
-Commit subject: Add dev client setup for mobile development
+Last commit: bdc9c2c5588182def62a8989f9f29f69e4f95269
+Short commit: bdc9c2c
+Commit subject: Revert "Add dev client setup for mobile development"
 Commit author: info14fourteen-creator
-Commit date: 2026-05-05T17:55:28+05:00
+Commit date: 2026-05-05T18:50:24+05:00
 
 ## TODO markers (TODO, FIXME, HACK, XXX)
 

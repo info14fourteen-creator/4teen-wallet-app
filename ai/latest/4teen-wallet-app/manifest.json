@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-05-05T12:55:54.808Z",
+  "generatedAt": "2026-05-05T13:50:52.650Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "8282085b60d0602e84f9239444015311c57d0aa1",
-    "shortHash": "8282085",
-    "subject": "Add dev client setup for mobile development",
+    "hash": "bdc9c2c5588182def62a8989f9f29f69e4f95269",
+    "shortHash": "bdc9c2c",
+    "subject": "Revert \"Add dev client setup for mobile development\"",
     "author": "info14fourteen-creator",
-    "date": "2026-05-05T17:55:28+05:00"
+    "date": "2026-05-05T18:50:24+05:00"
   },
   "changedFiles": [
     "M\tapps/mobile/README.md",
@@ -19,7 +19,7 @@
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 13
+      "count": 12
     },
     {
       "file": "apps/api/src/services/gasstation/energyResale.js",
@@ -27,7 +27,7 @@
     },
     {
       "file": "apps/mobile/app/swap.tsx",
-      "count": 4
+      "count": 3
     },
     {
       "file": "apps/api/src/routes/ops.js",
@@ -39,6 +39,14 @@
     },
     {
       "file": "apps/mobile/app/buy-confirm.tsx",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/package.json",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/README.md",
       "count": 2
     },
     {
@@ -94,10 +102,6 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/app/feedback.tsx",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/app/liquidity-confirm.tsx",
       "count": 1
     },
@@ -107,14 +111,6 @@
     },
     {
       "file": "apps/mobile/app/swap-confirm.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/package.json",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/README.md",
       "count": 1
     },
     {
