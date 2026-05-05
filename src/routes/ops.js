@@ -185,12 +185,13 @@ function buildBlogPublicationNotification(payload) {
 
   if (status === 'published') {
     return [
-      '📰 Статья размещена в блоге',
+      '📰 Статья подтверждена на сайте',
       `Заголовок: ${title}`,
       slug ? `Slug: ${slug}` : '',
       locale ? `Язык: ${locale}` : '',
       `Репозиторий: ${repo}`,
       link ? `Ссылка: ${link}` : '',
+      'Проверка: public article page открылась и совпала по URL/метаданным.',
       runUrl ? `Run: ${runUrl}` : '',
       commitSha ? `Commit: ${commitSha}` : ''
     ]
@@ -199,7 +200,7 @@ function buildBlogPublicationNotification(payload) {
   }
 
   return [
-    status === 'skipped' ? '⚠️ Статья не была размещена' : '🚨 Статья не разместилась',
+    status === 'skipped' ? '⚠️ Статья не появилась на сайте' : '🚨 Страница статьи не появилась на сайте',
     `Заголовок: ${title}`,
     slug ? `Slug: ${slug}` : '',
     locale ? `Язык: ${locale}` : '',
