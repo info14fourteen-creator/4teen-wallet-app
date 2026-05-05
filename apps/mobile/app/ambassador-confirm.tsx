@@ -265,10 +265,10 @@ export default function AmbassadorConfirmScreen() {
     if (!review || !energyQuote || energyRenting) return false;
 
     try {
+      setErrorText('');
       setEnergyRenting(true);
       setApprovalStatusTitle(t('Preparing ambassador registration'));
       setApprovalStatusMessage(t('Sending Energy rental payment...'));
-      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'ambassador_registration',
         wallet: review.wallet.address,
@@ -283,18 +283,17 @@ export default function AmbassadorConfirmScreen() {
               : t('Preparing ambassador registration')
           );
           setApprovalStatusMessage(progress.message);
-          notice.showNeutralNotice(progress.message, 2600);
         },
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
       setApprovalStatusTitle(t('Sending ambassador registration'));
       setApprovalStatusMessage(t('Energy is live. Sending ambassador registration...'));
-      notice.showSuccessNotice(t('Energy is live. Sending ambassador registration...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.warn(error);
+      setErrorText(error instanceof Error ? error.message : t('Energy rental failed.'));
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Energy rental failed.'),
         4200

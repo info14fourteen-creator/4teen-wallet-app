@@ -260,10 +260,10 @@ export default function SendConfirmScreen() {
     if (!estimate || !energyQuote || energyRenting) return false;
 
     try {
+      setErrorText('');
       setEnergyRenting(true);
       setApprovalStatusTitle(t('Preparing transfer'));
       setApprovalStatusMessage(t('Sending Energy rental payment...'));
-      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'send_transfer',
         wallet: estimate.wallet.address,
@@ -273,18 +273,17 @@ export default function SendConfirmScreen() {
             progress.step === 'energy-ready' ? t('Energy is ready') : t('Preparing transfer')
           );
           setApprovalStatusMessage(progress.message);
-          notice.showNeutralNotice(progress.message, 2600);
         },
       });
       clearWalletRuntimeCaches(estimate.wallet.address);
       preserveNoticeOnExitRef.current = true;
       setApprovalStatusTitle(t('Sending transfer'));
       setApprovalStatusMessage(t('Energy is live. Sending transfer...'));
-      notice.showSuccessNotice(t('Energy is live. Sending transfer...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.warn(error);
+      setErrorText(error instanceof Error ? error.message : t('Energy rental failed.'));
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Energy rental failed.'),
         4200

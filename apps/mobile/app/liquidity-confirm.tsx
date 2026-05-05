@@ -227,10 +227,10 @@ export default function LiquidityConfirmScreen() {
     if (!review || !energyQuote || energyRenting) return false;
 
     try {
+      setErrorText('');
       setEnergyRenting(true);
       setApprovalStatusTitle(t('Preparing liquidity'));
       setApprovalStatusMessage(t('Sending Energy rental payment...'));
-      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'liquidity_execute',
         wallet: review.wallet.address,
@@ -240,18 +240,17 @@ export default function LiquidityConfirmScreen() {
             progress.step === 'energy-ready' ? t('Energy is ready') : t('Preparing liquidity')
           );
           setApprovalStatusMessage(progress.message);
-          notice.showNeutralNotice(progress.message, 2600);
         },
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
       setApprovalStatusTitle(t('Triggering liquidity'));
       setApprovalStatusMessage(t('Energy is live. Triggering liquidity...'));
-      notice.showSuccessNotice(t('Energy is live. Triggering liquidity...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.warn(error);
+      setErrorText(error instanceof Error ? error.message : t('Energy rental failed.'));
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Energy rental failed.'),
         4200

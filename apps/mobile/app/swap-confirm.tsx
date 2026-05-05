@@ -299,10 +299,10 @@ export default function SwapConfirmScreen() {
     if (!review || !energyQuote || energyRenting) return false;
 
     try {
+      setErrorText('');
       setEnergyRenting(true);
       setApprovalStatusTitle(t('Preparing swap'));
       setApprovalStatusMessage(t('Sending Energy rental payment...'));
-      notice.showNeutralNotice(t('Sending Energy rental payment...'), 2500);
       await rentEnergyForPurpose({
         purpose: 'swap',
         wallet: review.wallet.address,
@@ -312,18 +312,17 @@ export default function SwapConfirmScreen() {
             progress.step === 'energy-ready' ? t('Energy is ready') : t('Preparing swap')
           );
           setApprovalStatusMessage(progress.message);
-          notice.showNeutralNotice(progress.message, 2600);
         },
       });
       clearWalletRuntimeCaches(review.wallet.address);
       preserveNoticeOnExitRef.current = true;
       setApprovalStatusTitle(t('Starting swap'));
       setApprovalStatusMessage(t('Energy is live. Starting swap...'));
-      notice.showSuccessNotice(t('Energy is live. Starting swap...'), 3000);
       await load();
       return true;
     } catch (error) {
       console.warn(error);
+      setErrorText(error instanceof Error ? error.message : t('Energy rental failed.'));
       notice.showErrorNotice(
         error instanceof Error ? error.message : t('Energy rental failed.'),
         4200
