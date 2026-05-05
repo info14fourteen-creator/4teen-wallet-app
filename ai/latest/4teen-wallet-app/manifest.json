@@ -1,32 +1,31 @@
 {
-  "generatedAt": "2026-05-05T13:50:52.650Z",
+  "generatedAt": "2026-05-05T16:50:44.537Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "bdc9c2c5588182def62a8989f9f29f69e4f95269",
-    "shortHash": "bdc9c2c",
-    "subject": "Revert \"Add dev client setup for mobile development\"",
+    "hash": "dcbca1c35f002b97b2b382ec29dfa791c1429a8b",
+    "shortHash": "dcbca1c",
+    "subject": "Fix buy rental readiness and overlay placement",
     "author": "info14fourteen-creator",
-    "date": "2026-05-05T18:50:24+05:00"
+    "date": "2026-05-05T21:50:27+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/README.md",
-    "M\tapps/mobile/package.json",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\tpnpm-lock.yaml"
+    "M\tapps/api/src/services/gasstation/energyResale.js",
+    "M\tapps/mobile/app/buy-confirm.tsx",
+    "M\tapps/mobile/src/config/app-version.ts"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 12
+      "count": 11
     },
     {
       "file": "apps/api/src/services/gasstation/energyResale.js",
-      "count": 4
+      "count": 5
     },
     {
-      "file": "apps/mobile/app/swap.tsx",
+      "file": "apps/mobile/app/buy-confirm.tsx",
       "count": 3
     },
     {
@@ -35,10 +34,6 @@
     },
     {
       "file": "apps/api/src/services/ops/telegramAdminBot.js",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/buy-confirm.tsx",
       "count": 2
     },
     {
@@ -111,6 +106,10 @@
     },
     {
       "file": "apps/mobile/app/swap-confirm.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/swap.tsx",
       "count": 1
     },
     {
