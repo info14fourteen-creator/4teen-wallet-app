@@ -1,23 +1,31 @@
 {
-  "generatedAt": "2026-05-04T22:54:38.194Z",
+  "generatedAt": "2026-05-05T09:59:12.879Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "fdd16aedbe4d27bc75e473f19e90ae1c0f527069",
-    "shortHash": "fdd16ae",
-    "subject": "Add blog publication ops notifications",
+    "hash": "63d0358731e8545aee733f277e12c7bfb00d8f10",
+    "shortHash": "63d0358",
+    "subject": "Fix energy rental pending flow across confirm screens",
     "author": "info14fourteen-creator",
-    "date": "2026-05-05T03:54:09+05:00"
+    "date": "2026-05-05T14:58:52+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/src/routes/ops.js",
-    "M\tapps/api/src/services/ops/events.js"
+    "M\tapps/api/src/services/gasstation/energyResale.js",
+    "M\tapps/mobile/app/ambassador-confirm.tsx",
+    "M\tapps/mobile/app/ambassador-withdraw-confirm.tsx",
+    "M\tapps/mobile/app/buy-confirm.tsx",
+    "M\tapps/mobile/app/liquidity-confirm.tsx",
+    "M\tapps/mobile/app/send-confirm.tsx",
+    "M\tapps/mobile/app/swap-confirm.tsx",
+    "M\tapps/mobile/src/config/app-version.ts",
+    "M\tapps/mobile/src/services/energy-resale.ts",
+    "M\tapps/mobile/src/ui/screen-loading-overlay.tsx"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 12
+      "count": 13
     },
     {
       "file": "apps/mobile/app/feedback.tsx",
@@ -26,10 +34,6 @@
     {
       "file": "apps/mobile/app/swap.tsx",
       "count": 4
-    },
-    {
-      "file": "apps/api/src/services/ops/telegramAdminBot.js",
-      "count": 3
     },
     {
       "file": "apps/mobile/app/about.tsx",
@@ -41,6 +45,10 @@
     },
     {
       "file": "apps/api/src/services/ops/codexJobs.js",
+      "count": 2
+    },
+    {
+      "file": "apps/api/src/services/ops/telegramAdminBot.js",
       "count": 2
     },
     {
@@ -64,15 +72,15 @@
       "count": 1
     },
     {
+      "file": "apps/api/src/services/gasstation/energyResale.js",
+      "count": 1
+    },
+    {
       "file": "apps/api/src/services/ops/events.js",
       "count": 1
     },
     {
       "file": "apps/api/src/services/ops/githubRemoteRunner.js",
-      "count": 1
-    },
-    {
-      "file": "apps/api/src/services/ops/openai.js",
       "count": 1
     },
     {
@@ -84,7 +92,19 @@
       "count": 1
     },
     {
+      "file": "apps/mobile/app/ambassador-confirm.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
+      "count": 1
+    },
+    {
       "file": "apps/mobile/app/authentication-method.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/buy-confirm.tsx",
       "count": 1
     },
     {
@@ -121,18 +141,6 @@
     },
     {
       "file": "apps/mobile/app/language.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/ui-lab.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/unlock.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/assets/icons/ui/socials/lottie/discord_social_hover.json",
       "count": 1
     }
   ],
