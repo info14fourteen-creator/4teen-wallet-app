@@ -446,6 +446,14 @@ function buildPendingEnergyResaleError(details = {}) {
   return error;
 }
 
+function buildPendingEnergyResaleResult(details = {}) {
+  return {
+    pending: true,
+    status: 'processing_api',
+    ...details
+  };
+}
+
 function buildSerializedOrderError(error) {
   return {
     message: String(error?.message || 'Energy rental failed'),
@@ -570,7 +578,7 @@ async function confirmEnergyResalePayment({
   }
 
   if (existing.rows[0]?.status === 'processing_api' || existing.rows[0]?.status === 'waiting_api') {
-    throw buildPendingEnergyResaleError({
+    return buildPendingEnergyResaleResult({
       paymentTxid: txid,
       orderStatus: existing.rows[0].status
     });
@@ -626,7 +634,15 @@ async function confirmEnergyResalePayment({
       packageConfig
     });
 
-    throw buildPendingEnergyResaleError({
+    console.info('[EnergyResale] queued api rental confirmation', {
+      purpose: resolvedPurpose,
+      wallet: resolvedWallet,
+      paymentTxid: txid,
+      requiredEnergy,
+      requiredBandwidth
+    });
+
+    return buildPendingEnergyResaleResult({
       paymentTxid: txid,
       orderStatus: 'processing_api'
     });
