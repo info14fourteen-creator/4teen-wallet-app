@@ -227,7 +227,19 @@ function getDefaultPurposeRequirements(purpose) {
 }
 
 function getApiRentalPaymentAddress() {
-  return normalizeWallet(env.GASSTATION_DEPOSIT_ADDRESS || env.OPERATOR_WALLET);
+  return normalizeWallet(env.OPERATOR_WALLET);
+}
+
+function shouldRetryPendingEnergyRentalError(error) {
+  const message = String(error?.message || '').trim().toLowerCase();
+
+  return (
+    message.includes('operator wallet does not have enough confirmed trx') ||
+    message.includes('failed to top up gas station deposit address') ||
+    message.includes('gas station balance did not update after top up') ||
+    message.includes('gasstation request timed out') ||
+    message.includes('fetch failed')
+  );
 }
 
 function getResalePackage(purposeInput, requirements = {}) {
@@ -471,8 +483,11 @@ function scheduleApiEnergyResaleConfirmation({
   purpose,
   wallet,
   payment,
-  packageConfig
+  packageConfig,
+  attempt = 0
 }) {
+  const delayMs = attempt > 0 ? 5000 : 0;
+
   setTimeout(() => {
     void (async () => {
       try {
@@ -499,6 +514,27 @@ function scheduleApiEnergyResaleConfirmation({
           }
         });
       } catch (error) {
+        if (shouldRetryPendingEnergyRentalError(error) && attempt < 8) {
+          console.warn('[EnergyResale] retrying api rental confirmation', {
+            purpose,
+            wallet,
+            paymentTxid: paymentTxHash,
+            attempt: attempt + 1,
+            error: String(error?.message || error)
+          });
+
+          scheduleApiEnergyResaleConfirmation({
+            paymentTxHash,
+            purpose,
+            wallet,
+            payment,
+            packageConfig,
+            attempt: attempt + 1
+          });
+
+          return;
+        }
+
         await updateEnergyResaleOrder(paymentTxHash, {
           status: 'failed',
           rowJson: {
@@ -510,7 +546,7 @@ function scheduleApiEnergyResaleConfirmation({
         }).catch(() => null);
       }
     })();
-  }, 0);
+  }, delayMs);
 }
 
 async function confirmEnergyResalePayment({

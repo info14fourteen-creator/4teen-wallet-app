@@ -185,13 +185,12 @@ function buildBlogPublicationNotification(payload) {
 
   if (status === 'published') {
     return [
-      '📰 Статья подтверждена на сайте',
+      '📰 Статья размещена в блоге',
       `Заголовок: ${title}`,
       slug ? `Slug: ${slug}` : '',
       locale ? `Язык: ${locale}` : '',
       `Репозиторий: ${repo}`,
       link ? `Ссылка: ${link}` : '',
-      'Проверка: public article page открылась и совпала по URL/метаданным.',
       runUrl ? `Run: ${runUrl}` : '',
       commitSha ? `Commit: ${commitSha}` : ''
     ]
@@ -200,7 +199,7 @@ function buildBlogPublicationNotification(payload) {
   }
 
   return [
-    status === 'skipped' ? '⚠️ Статья не появилась на сайте' : '🚨 Страница статьи не появилась на сайте',
+    status === 'skipped' ? '⚠️ Статья не была размещена' : '🚨 Статья не разместилась',
     `Заголовок: ${title}`,
     slug ? `Slug: ${slug}` : '',
     locale ? `Язык: ${locale}` : '',
@@ -212,203 +211,6 @@ function buildBlogPublicationNotification(payload) {
   ]
     .filter(Boolean)
     .join('\n');
-}
-
-function normalizeBoolean(value, fallback = true) {
-  if (value == null) {
-    return fallback;
-  }
-
-  if (typeof value === 'boolean') {
-    return value;
-  }
-
-  const safe = sanitizeText(value, 20).toLowerCase();
-  if (['1', 'true', 'yes', 'on'].includes(safe)) return true;
-  if (['0', 'false', 'no', 'off'].includes(safe)) return false;
-  return fallback;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function normalizeBlogUrl(url) {
-  const safe = sanitizeText(url, 400);
-  if (!safe) return '';
-
-  try {
-    return new URL(safe).toString();
-  } catch (_) {
-    return '';
-  }
-}
-
-function normalizeComparableUrl(url) {
-  const safe = normalizeBlogUrl(url);
-  if (!safe) {
-    return '';
-  }
-
-  try {
-    const parsed = new URL(safe);
-    parsed.hash = '';
-    parsed.search = '';
-    parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
-    return parsed.toString();
-  } catch (_) {
-    return '';
-  }
-}
-
-function readComparablePath(url) {
-  const safe = normalizeComparableUrl(url);
-  if (!safe) {
-    return '';
-  }
-
-  try {
-    return new URL(safe).pathname.toLowerCase();
-  } catch (_) {
-    return '';
-  }
-}
-
-function extractHtmlLinkValue(html, relOrPropertyPattern) {
-  const safeHtml = String(html || '');
-  const patterns = Array.isArray(relOrPropertyPattern)
-    ? relOrPropertyPattern
-    : [relOrPropertyPattern];
-
-  for (const pattern of patterns) {
-    const regex = new RegExp(
-      `<(?:meta|link)[^>]+(?:property|rel)=["']${pattern}["'][^>]+(?:content|href)=["']([^"']+)["']`,
-      'i'
-    );
-    const match = safeHtml.match(regex);
-    if (match?.[1]) {
-      return normalizeComparableUrl(match[1]);
-    }
-  }
-
-  return '';
-}
-
-function isSpecificBlogArticlePath(pathname) {
-  const safePath = String(pathname || '').toLowerCase().replace(/\/+$/, '') || '/';
-  if (!safePath.startsWith('/blog/')) {
-    return false;
-  }
-
-  const segments = safePath.split('/').filter(Boolean);
-  return segments.length >= 2;
-}
-
-function htmlContainsExpectedArticle(html, payload) {
-  const safeHtml = String(html || '');
-  const lower = safeHtml.toLowerCase();
-  const title = sanitizeText(payload?.title, 160).toLowerCase();
-  const slug = sanitizeText(payload?.slug, 120).toLowerCase();
-
-  const placeholderSignals = [
-    'blog route is live as the future publishing layer',
-    'this page becomes the protocol publishing surface'
-  ];
-
-  if (placeholderSignals.some((item) => lower.includes(item))) {
-    return false;
-  }
-
-  if (title && lower.includes(title)) {
-    return true;
-  }
-
-  if (slug && lower.includes(slug)) {
-    return true;
-  }
-
-  return false;
-}
-
-async function verifyPublishedBlogPage(payload) {
-  const url = normalizeBlogUrl(payload?.url || payload?.publicUrl);
-  if (!url) {
-    return {
-      ok: false,
-      reason: 'Public URL was not provided.'
-    };
-  }
-
-  const expectedSlug = sanitizeText(payload?.slug, 120).toLowerCase();
-  const expectedUrl = normalizeComparableUrl(url);
-  const expectedPath = readComparablePath(expectedUrl);
-  const attempts = Math.max(1, Math.min(Number(payload?.verificationAttempts || 3) || 3, 5));
-  const delayMs = Math.max(0, Math.min(Number(payload?.verificationDelayMs || 2000) || 2000, 10000));
-  let lastFailure = 'The page did not become available.';
-
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        redirect: 'follow',
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
-        }
-      });
-
-      const finalUrl = normalizeBlogUrl(response?.url || url) || url;
-      const finalComparableUrl = normalizeComparableUrl(finalUrl) || expectedUrl;
-      const finalPath = readComparablePath(finalComparableUrl);
-
-      if (!response.ok) {
-        lastFailure = `Public URL returned ${response.status}.`;
-      } else {
-        const html = await response.text().catch(() => '');
-        const canonicalUrl = extractHtmlLinkValue(html, 'canonical');
-        const ogUrl = extractHtmlLinkValue(html, 'og:url');
-        const pathLooksRight =
-          isSpecificBlogArticlePath(finalPath) &&
-          (!expectedPath || finalPath === expectedPath) &&
-          (expectedSlug ? finalPath.includes(`/${expectedSlug}`) : true);
-        const metaLooksRight =
-          Boolean(canonicalUrl || ogUrl) &&
-          [canonicalUrl, ogUrl].filter(Boolean).some((item) => item === finalComparableUrl);
-        const contentLooksRight = htmlContainsExpectedArticle(html, payload);
-
-        if (pathLooksRight && metaLooksRight && contentLooksRight) {
-          return {
-            ok: true,
-            finalUrl,
-            statusCode: response.status,
-            canonicalUrl: canonicalUrl || null,
-            ogUrl: ogUrl || null
-          };
-        }
-
-        if (!pathLooksRight) {
-          lastFailure = isSpecificBlogArticlePath(finalPath)
-            ? `Public URL resolved to ${finalPath || finalUrl}, but it did not match the expected article path.`
-            : `Public URL resolved to ${finalPath || finalUrl}, which is not a specific blog article page.`;
-        } else if (!metaLooksRight) {
-          lastFailure = 'The public page opened, but canonical metadata did not confirm the expected article URL.';
-        } else {
-          lastFailure = 'The public page opened, but the article content did not match the expected title or slug.';
-        }
-      }
-    } catch (error) {
-      lastFailure = error.message || 'Public URL check failed.';
-    }
-
-    if (attempt < attempts) {
-      await sleep(delayMs);
-    }
-  }
-
-  return {
-    ok: false,
-    reason: lastFailure
-  };
 }
 
 function readAdminToken(req) {
@@ -704,7 +506,6 @@ router.post('/feedback', requireAdminToken, async (req, res) => {
 router.post('/content/blog-publication', requireAdminToken, async (req, res) => {
   try {
     const status = normalizeBlogPublicationStatus(req.body?.status);
-    const notify = normalizeBoolean(req.body?.notify, true);
     const payload = {
       status,
       title: sanitizeText(req.body?.title, 160) || 'Blog article',
@@ -725,43 +526,6 @@ router.post('/content/blog-publication', requireAdminToken, async (req, res) => 
     const successFingerprint = `website-blog:publish_success:${identity}`;
 
     if (status === 'published') {
-      const verification = await verifyPublishedBlogPage({
-        ...payload,
-        verificationAttempts: req.body?.verificationAttempts,
-        verificationDelayMs: req.body?.verificationDelayMs
-      }).catch((error) => ({
-        ok: false,
-        reason: error.message || 'Public page verification failed.'
-      }));
-
-      if (!verification?.ok) {
-        const failureEvent = await recordOpsEvent({
-          source: 'website-blog',
-          category: 'content',
-          type: 'blog_publish_failed',
-          severity: 'error',
-          title: payload.title,
-          message: verification?.reason || 'The page did not appear on the public site.',
-          details: {
-            ...payload,
-            verification: verification || null
-          },
-          fingerprint: failureFingerprint,
-          notify
-        });
-
-        return res.json({
-          ok: true,
-          result: {
-            status: 'failed',
-            verified: false,
-            reason: verification?.reason || null,
-            eventId: failureEvent?.id || null
-          }
-        });
-      }
-
-      payload.url = verification.finalUrl || payload.url;
       const successEvent = await recordOpsEvent({
         source: 'website-blog',
         category: 'content',
@@ -771,10 +535,7 @@ router.post('/content/blog-publication', requireAdminToken, async (req, res) => 
         message: payload.url
           ? `Статья опубликована: ${payload.url}`
           : 'Статья опубликована в блоге.',
-        details: {
-          ...payload,
-          verification
-        },
+        details: payload,
         fingerprint: successFingerprint,
         notify: false
       });
@@ -797,18 +558,15 @@ router.post('/content/blog-publication', requireAdminToken, async (req, res) => 
           : 'Проблема закрыта успешной публикацией.'
       }).catch(() => null);
 
-      const delivered = notify
-        ? await broadcastAdminMessage(buildBlogPublicationNotification(payload))
-            .then(() => true)
-            .catch(() => false)
-        : false;
+      const text = buildBlogPublicationNotification(payload);
+      const delivered = await broadcastAdminMessage(text)
+        .then(() => true)
+        .catch(() => false);
 
       return res.json({
         ok: true,
         result: {
           status,
-          verified: true,
-          url: payload.url,
           delivered,
           eventId: successEvent?.id || null
         }
@@ -829,7 +587,7 @@ router.post('/content/blog-publication', requireAdminToken, async (req, res) => 
           : 'Публикация статьи завершилась ошибкой.'),
       details: payload,
       fingerprint: failureFingerprint,
-      notify
+      notify: true
     });
 
     return res.json({
