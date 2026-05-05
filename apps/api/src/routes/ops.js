@@ -307,7 +307,9 @@ async function verifyPublishedBlogPage(payload) {
         lastFailure = `Public URL returned ${response.status}.`;
       } else {
         const html = await response.text().catch(() => '');
-        const pathLooksRight = expectedSlug ? finalPath.includes(expectedSlug) : finalPath.includes('/blog');
+        const pathLooksRight =
+          finalPath.includes('/blog') &&
+          (expectedSlug ? finalPath.includes(expectedSlug) : true);
         const contentLooksRight = htmlContainsExpectedArticle(html, payload);
 
         if (pathLooksRight && contentLooksRight) {
