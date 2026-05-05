@@ -164,6 +164,18 @@ router.post('/rental/confirm', async (req, res) => {
       requiredBandwidth: req.body?.requiredBandwidth || req.body?.bandwidthShortfall
     });
 
+    if (result?.pending) {
+      return res.status(202).json({
+        ok: false,
+        error: 'Energy rental is pending',
+        details: {
+          paymentTxid: result.paymentTxid || null,
+          orderStatus: result.orderStatus || result.status || 'processing_api',
+          ...metadata
+        }
+      });
+    }
+
     return res.json({
       ok: true,
       result: {
