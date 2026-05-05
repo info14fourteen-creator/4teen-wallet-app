@@ -1,21 +1,24 @@
 # 4teen-wallet-app — RECENT CHANGES
 
-Generated: 2026-05-05T17:28:45.887Z
+Generated: 2026-05-05T17:33:33.520Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: dd0ee4fa593fc831845af9600e3c6768203599c3
-Short commit: dd0ee4f
-Commit subject: Guard rental quotes on low operator balance
+Last commit: ffd3c72373f03b175a335cf715a010864d1459c4
+Short commit: ffd3c72
+Commit subject: Unify rental unavailability across confirm flows
 Commit author: info14fourteen-creator
-Commit date: 2026-05-05T22:28:21+05:00
+Commit date: 2026-05-05T22:33:13+05:00
 
 ## Files changed in last commit
 
-- M	apps/api/src/services/gasstation/gasStation.js
 - M	apps/mobile/src/config/app-version.ts
+- M	apps/mobile/src/services/ambassador.ts
+- M	apps/mobile/src/ui/energy-resale-card.tsx
 
 ## Recent commits
 
+- ffd3c72 | 2026-05-05 | Unify rental unavailability across confirm flows
+- fea2d9d | 2026-05-05 | chore: update wallet AI bundle [skip ci]
 - dd0ee4f | 2026-05-05 | Guard rental quotes on low operator balance
 - 76dddf5 | 2026-05-05 | chore: update wallet AI bundle [skip ci]
 - 2f5744a | 2026-05-05 | Unify rental progress UX across confirm screens
@@ -24,5 +27,3 @@ Commit date: 2026-05-05T22:28:21+05:00
 - 2308e96 | 2026-05-05 | chore: update wallet AI bundle [skip ci]
 - bdc9c2c | 2026-05-05 | Revert "Add dev client setup for mobile development"
 - d79eacd | 2026-05-05 | chore: update wallet AI bundle [skip ci]
-- 8282085 | 2026-05-05 | Add dev client setup for mobile development
-- 81fd80c | 2026-05-05 | chore: update wallet AI bundle [skip ci]

@@ -1,23 +1,24 @@
 {
-  "generatedAt": "2026-05-05T17:28:45.887Z",
+  "generatedAt": "2026-05-05T17:33:33.521Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "dd0ee4fa593fc831845af9600e3c6768203599c3",
-    "shortHash": "dd0ee4f",
-    "subject": "Guard rental quotes on low operator balance",
+    "hash": "ffd3c72373f03b175a335cf715a010864d1459c4",
+    "shortHash": "ffd3c72",
+    "subject": "Unify rental unavailability across confirm flows",
     "author": "info14fourteen-creator",
-    "date": "2026-05-05T22:28:21+05:00"
+    "date": "2026-05-05T22:33:13+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/src/services/gasstation/gasStation.js",
-    "M\tapps/mobile/src/config/app-version.ts"
+    "M\tapps/mobile/src/config/app-version.ts",
+    "M\tapps/mobile/src/services/ambassador.ts",
+    "M\tapps/mobile/src/ui/energy-resale-card.tsx"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 9
+      "count": 10
     },
     {
       "file": "apps/api/src/services/gasstation/energyResale.js",
@@ -68,19 +69,19 @@
       "count": 2
     },
     {
-      "file": "apps/api/src/routes/ops.js",
-      "count": 1
-    },
-    {
       "file": "apps/api/src/routes/resources.js",
       "count": 1
     },
     {
-      "file": "apps/api/src/services/ops/events.js",
+      "file": "apps/mobile/src/i18n/dictionaries.ts",
       "count": 1
     },
     {
-      "file": "apps/mobile/src/i18n/dictionaries.ts",
+      "file": "apps/mobile/src/services/ambassador.ts",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/src/ui/energy-resale-card.tsx",
       "count": 1
     }
   ],
