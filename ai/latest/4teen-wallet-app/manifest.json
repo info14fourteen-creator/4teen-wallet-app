@@ -1,20 +1,20 @@
 {
-  "generatedAt": "2026-05-05T18:06:45.286Z",
+  "generatedAt": "2026-05-06T21:05:30.260Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "de16731e814d2c2afb0605cd3fc0ceda24760a76",
-    "shortHash": "de16731",
-    "subject": "Prepare 1.0.4 release baseline",
+    "hash": "4f8af1e50b772c594fc493c7abb41e892d185ab7",
+    "shortHash": "4f8af1e",
+    "subject": "Fix buy success exits and bump store version",
     "author": "info14fourteen-creator",
-    "date": "2026-05-05T23:06:24+05:00"
+    "date": "2026-05-07T02:05:08+05:00"
   },
   "changedFiles": [
     "M\tapps/mobile/app.json",
+    "M\tapps/mobile/app/buy-confirm.tsx",
     "M\tapps/mobile/package.json",
     "M\tapps/mobile/src/config/app-version.ts",
-    "M\tapps/mobile/src/services/tron/api.ts",
     "M\trelease/RELEASE_READINESS_STATUS.md",
     "M\trelease/STORE_FIELD_PACK.md",
     "M\trelease/STORE_METADATA.md",
@@ -26,11 +26,15 @@
       "count": 10
     },
     {
-      "file": "apps/api/src/services/gasstation/energyResale.js",
+      "file": "apps/mobile/package.json",
       "count": 4
     },
     {
-      "file": "apps/mobile/package.json",
+      "file": "apps/api/src/services/gasstation/energyResale.js",
+      "count": 3
+    },
+    {
+      "file": "apps/mobile/app/buy-confirm.tsx",
       "count": 3
     },
     {
@@ -38,7 +42,7 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/app/buy-confirm.tsx",
+      "file": "apps/mobile/app.json",
       "count": 2
     },
     {
@@ -46,12 +50,20 @@
       "count": 2
     },
     {
-      "file": "apps/api/src/routes/resources.js",
-      "count": 1
+      "file": "release/RELEASE_READINESS_STATUS.md",
+      "count": 2
     },
     {
-      "file": "apps/mobile/app.json",
-      "count": 1
+      "file": "release/STORE_FIELD_PACK.md",
+      "count": 2
+    },
+    {
+      "file": "release/STORE_METADATA.md",
+      "count": 2
+    },
+    {
+      "file": "release/STORE_RELEASE_CHECKLIST.md",
+      "count": 2
     },
     {
       "file": "apps/mobile/app/ambassador-confirm.tsx",
@@ -95,22 +107,6 @@
     },
     {
       "file": "apps/mobile/src/ui/screen-loading-overlay.tsx",
-      "count": 1
-    },
-    {
-      "file": "release/RELEASE_READINESS_STATUS.md",
-      "count": 1
-    },
-    {
-      "file": "release/STORE_FIELD_PACK.md",
-      "count": 1
-    },
-    {
-      "file": "release/STORE_METADATA.md",
-      "count": 1
-    },
-    {
-      "file": "release/STORE_RELEASE_CHECKLIST.md",
       "count": 1
     }
   ],
