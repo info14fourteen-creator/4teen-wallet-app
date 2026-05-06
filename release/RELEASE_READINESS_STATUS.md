@@ -20,7 +20,7 @@ The mobile app is locally release-ready from a code and bundling perspective.
 
 - App icon wired from the current 4TEEN brand mark
 - App display name set to `4TEEN`
-- Store version set to `1.0.4`
+- Store version set to `1.0.5`
 - `ITSAppUsesNonExemptEncryption` declared as `false`
 - Removed unused Android `RECORD_AUDIO` permission
 - Removed EAS channel config that was noisy without `expo-updates`

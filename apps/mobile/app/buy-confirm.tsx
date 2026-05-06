@@ -665,7 +665,7 @@ export default function BuyConfirmScreen() {
               <TouchableOpacity
                 activeOpacity={0.9}
                 style={styles.primaryButton}
-                onPress={() => router.push('/unlock-timeline')}
+                onPress={() => router.replace('/unlock-timeline')}
               >
                 <Text style={styles.primaryButtonText}>{t('OPEN UNLOCK TIMELINE')}</Text>
               </TouchableOpacity>
@@ -673,9 +673,9 @@ export default function BuyConfirmScreen() {
               <TouchableOpacity
                 activeOpacity={0.9}
                 style={styles.secondaryButton}
-                onPress={() => router.push('/earn')}
+                onPress={() => router.replace('/wallet')}
               >
-                <Text style={styles.secondaryButtonText}>{t('BACK TO EARN')}</Text>
+                <Text style={styles.secondaryButtonText}>{t('Go back to wallet home')}</Text>
               </TouchableOpacity>
             </View>
           ) : review ? (
