@@ -33,6 +33,7 @@ const JUSTMONEY_EXECUTOR_CONTRACT = env.JUSTMONEY_EXECUTOR_CONTRACT || 'TWrz68MR
 const SUN_V3_EXECUTOR_CONTRACT = env.SUN_V3_EXECUTOR_CONTRACT || 'TU8EwEWg4K594zwThvhTZxqzEuEYuR46xh';
 const FOURTEEN_VAULT_CONTRACT = env.FOURTEEN_VAULT_CONTRACT || 'TNwkuHA727RZGtpbowH7q5B1yZWk2JEZTq';
 const TEAM_LOCK_VAULT_CONTRACT = env.TEAM_LOCK_VAULT_CONTRACT || 'TYBfbgvMW6awPdZfSSwWoEX3nJjrKWZS3h';
+const SWAP_ROUTER_CONTRACT = env.FOURTEEN_SWAP_ROUTER_CONTRACT || 'TJ4NNy8xZEqsowCBhLvZ45LCqPdGjkET5j';
 
 const AIRDROP_WAVE_TIMES = [
   1765075065,
@@ -101,6 +102,7 @@ const ONE_4TEEN_RAW = '1000000';
 const SWAP_SAMPLE_AMOUNT = '25';
 const SWAP_SAMPLE_AMOUNT_RAW = '25000000';
 const SWAP_SAMPLE_ROUTE_COUNT = 3;
+const SWAP_TRANSFER_LIMIT = 8;
 const LOCK_WINDOW_DAYS = 14;
 const LOCK_WINDOW_MS = LOCK_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 const UNLOCK_EVENT_PAGE_LIMIT = 200;
@@ -612,6 +614,17 @@ async function fetchTrongridJson(path, query) {
   return jsonParseSafe(response.body);
 }
 
+async function fetchTronscanJson(path, query) {
+  const response = await proxyRequest({
+    provider: 'tronscan',
+    path,
+    query: query || {},
+    method: 'GET'
+  });
+
+  return jsonParseSafe(response.body);
+}
+
 async function fetchRouterQuote(toTokenAddress) {
   const response = await fetch(buildRouterQuoteUrl(toTokenAddress), {
     headers: {
@@ -806,10 +819,23 @@ async function buildSwapRouteSample(targetKey) {
   };
 }
 
+async function fetchSwapTransferRows(limit = SWAP_TRANSFER_LIMIT) {
+  const payload = await fetchTronscanJson('/token_trc20/transfers', {
+    limit: Math.max(1, Math.min(20, Number(limit) || SWAP_TRANSFER_LIMIT)),
+    start: 0,
+    sort: '-timestamp',
+    relatedAddress: SWAP_ROUTER_CONTRACT,
+    contract_address: FOURTEEN_TOKEN_CONTRACT
+  });
+
+  return Array.isArray(payload?.token_transfers) ? payload.token_transfers : [];
+}
+
 async function buildSwapSnapshot() {
-  const [trxResult, usdtResult] = await Promise.allSettled([
+  const [trxResult, usdtResult, transfersResult] = await Promise.allSettled([
     buildSwapRouteSample('TRX'),
-    buildSwapRouteSample('USDT')
+    buildSwapRouteSample('USDT'),
+    fetchSwapTransferRows()
   ]);
 
   const routes = [trxResult, usdtResult]
@@ -817,17 +843,70 @@ async function buildSwapSnapshot() {
     .map((result) => result.value)
     .filter(Boolean);
 
+  const transferRows =
+    transfersResult.status === 'fulfilled' ? transfersResult.value : [];
+  const transfers = transferRows
+    .map((row) => {
+      const txId = String(row?.transaction_id || '').trim();
+      const fromAddress = String(row?.from_address || '').trim();
+      const toAddress = String(row?.to_address || '').trim();
+      const happenedAt = normalizeTimestamp(row?.block_ts || row?.block_timestamp);
+      const amountRaw = BigInt(String(row?.quant || '0'));
+
+      if (!txId || !fromAddress || !toAddress || happenedAt <= 0 || amountRaw <= BigInt(0)) {
+        return null;
+      }
+
+      const direction =
+        toAddress === SWAP_ROUTER_CONTRACT
+          ? 'router_in'
+          : fromAddress === SWAP_ROUTER_CONTRACT
+            ? 'router_out'
+            : 'related';
+      const counterpartyAddress =
+        direction === 'router_in'
+          ? fromAddress
+          : direction === 'router_out'
+            ? toAddress
+            : fromAddress;
+      const counterpartyTag =
+        direction === 'router_in'
+          ? String(row?.from_address_tag?.from_address_tag || '').trim()
+          : direction === 'router_out'
+            ? String(row?.to_address_tag?.to_address_tag || '').trim()
+            : '';
+
+      return {
+        txId,
+        txUrl: `https://tronscan.org/#/transaction/${txId}`,
+        happenedAt,
+        amountRaw: amountRaw.toString(),
+        amountDisplay: formatTokenAmount(amountRaw),
+        fromAddress,
+        fromShort: shortenAddress(fromAddress),
+        toAddress,
+        toShort: shortenAddress(toAddress),
+        counterpartyAddress,
+        counterpartyShort: shortenAddress(counterpartyAddress),
+        counterpartyTag,
+        direction
+      };
+    })
+    .filter(Boolean);
+
   const successCount = routes.length;
   const routerState =
     successCount === 2 ? 'live' : successCount === 1 ? 'partial' : 'offline';
 
   return {
+    routerAddress: SWAP_ROUTER_CONTRACT,
     sampleAmount: SWAP_SAMPLE_AMOUNT,
     supportedTargets: 2,
     protectedRemainder: '0.000001 4TEEN',
     routerState,
     updatedAt: Date.now(),
-    routes
+    routes,
+    transfers
   };
 }
 
