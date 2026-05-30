@@ -173,10 +173,12 @@ router.post('/telegram/webhook/:secret', async (req, res) => {
       });
     }
 
-    const result = await handleTelegramWebhookUpdate(req.body || {});
+    void handleTelegramWebhookUpdate(req.body || {}).catch((error) => {
+      console.error('Telegram webhook processing failed:', error);
+    });
+
     return res.json({
-      ok: true,
-      result
+      ok: true
     });
   } catch (error) {
     return res.status(error.status || 500).json({
