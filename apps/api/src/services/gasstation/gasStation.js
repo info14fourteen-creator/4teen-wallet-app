@@ -512,7 +512,15 @@ function createGasStationClientFromEnv() {
   return createGasStationClient(credentials[index]);
 }
 
+function createPinnedGasStationClient() {
+  return createGasStationClientFromEnv();
+}
+
 function isRotatableGasStationError(error) {
+  if (error?.nonRotatable) {
+    return false;
+  }
+
   return ROTATABLE_ERROR_PATTERN.test(String(error?.message || ''));
 }
 
@@ -848,11 +856,14 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun, options = {}) 
 
   const topUpTxHash = await sendTrx(depositAddress, requiredTopUpSun);
 
+  let lastBalanceSun = currentGasBalanceSun;
+
   for (let i = 0; i < 15; i += 1) {
     await sleep(3000);
 
     const reloaded = await client.getBalance();
     const reloadedSun = toSun(reloaded?.balance || 0);
+    lastBalanceSun = reloadedSun;
 
     if (reloadedSun >= requiredAmountSun) {
       return {
@@ -867,7 +878,18 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun, options = {}) 
     }
   }
 
-  throw new Error('Gas Station balance did not update after top up');
+  const error = new Error('Gas Station balance did not update after top up');
+  error.nonRotatable = true;
+  error.details = {
+    depositAddress,
+    topUpTxHash,
+    topUpAmountSun: requiredTopUpSun,
+    requiredAmountSun: requiredSun,
+    gasStationBalanceSun: lastBalanceSun,
+    waitedForOperator: waited,
+    fundingTransfer
+  };
+  throw error;
 }
 
 async function replenishGasStationCost(
@@ -1105,7 +1127,9 @@ async function ensureOperatorResources() {
     throw new Error('Gas Station is disabled but operator resources are insufficient');
   }
 
-  return withGasStationClientPool(async (client) => {
+  const client = createPinnedGasStationClient();
+
+  return (async () => {
     const estimate = await estimateRentalCostSun(client, orders);
     const topUp = await topUpGasStationIfNeeded(client, estimate.totalAmountSun);
 
@@ -1161,7 +1185,7 @@ async function ensureOperatorResources() {
       topUp,
       gasStationAccount: client.label
     };
-  });
+  })();
 }
 
 async function quoteEnergyRental({ energyNum }) {
@@ -1251,7 +1275,9 @@ async function rentEnergyForWallet({
 
   const normalizedEnergyNum = normalizePositiveInteger(energyNum, 'energyNum');
 
-  return withGasStationClientPool(async (client) => {
+  const client = createPinnedGasStationClient();
+
+  return (async () => {
     const estimate = await estimateRentalCostSun(client, {
       energyQuantity: normalizedEnergyNum,
       bandwidthQuantity: 0
@@ -1297,7 +1323,7 @@ async function rentEnergyForWallet({
       backgroundReplenishment,
       gasStationAccount: client.label
     };
-  });
+  })();
 }
 
 async function rentResourcesForWallet({
@@ -1323,7 +1349,9 @@ async function rentResourcesForWallet({
     throw new Error('energyNum or bandwidthNum is required');
   }
 
-  return withGasStationClientPool(async (client) => {
+  const client = createPinnedGasStationClient();
+
+  return (async () => {
     const estimate = await estimateRentalCostSun(client, {
       energyQuantity,
       bandwidthQuantity
@@ -1397,7 +1425,7 @@ async function rentResourcesForWallet({
       backgroundReplenishment,
       gasStationAccount: client.label
     };
-  });
+  })();
 }
 
 async function getGasStationRuntimeState() {
