@@ -22,6 +22,7 @@ const TELEGRAM_API_BASE_URL = 'https://api.telegram.org';
 const SESSION_CALLBACK_PREFIX = 'airdrop_verify:';
 const CLAIM_QUEUE_LIMIT = 5;
 const CLAIM_DECIMALS = 6;
+const TELEGRAM_CLAIM_RENTAL_RETRY_MS = 15 * 60 * 1000;
 
 let claimDrainPromise = Promise.resolve();
 let webhookEnsurePromise = null;
@@ -330,7 +331,7 @@ function buildTelegramStatusMessage({ session, membership, guard, claim, link, r
     }
     if (claim?.meta_json?.rentalError) {
       lines.push('• AIRDROP_CONTROL_WALLET is being replenished from purchases.');
-      lines.push('• Please wait a bit, then tap CHECK AGAIN.');
+      lines.push('• Please wait a bit. CHECK AGAIN only refreshes the status.');
     }
     if (resourceState && !resourceState.hasEnough) {
       lines.push('• Waiting for airdrop wallet resources before send.');
@@ -419,10 +420,33 @@ async function sendAirdropTransaction(walletAddress, rewardAmount) {
 }
 
 async function processQueuedTelegramClaim(claim) {
+  const nowIso = new Date().toISOString();
   let resourceState = await hasEnoughAirdropResources();
   let rentalResult = null;
 
   if (!resourceState.hasEnough) {
+    const lastRentalAttemptAt = Date.parse(
+      normalizeValue(claim?.meta_json?.lastRentalAttemptAt || '')
+    );
+    const rentalRetryAt =
+      Number.isFinite(lastRentalAttemptAt) && lastRentalAttemptAt > 0
+        ? lastRentalAttemptAt + TELEGRAM_CLAIM_RENTAL_RETRY_MS
+        : 0;
+    const rentalCoolingDown = rentalRetryAt > Date.now();
+
+    if (rentalCoolingDown) {
+      return updateTelegramClaim({
+        claimId: claim.id,
+        status: 'queued',
+        metaPatch: {
+          waitingResources: true,
+          resourceState,
+          rentalRetryAt: new Date(rentalRetryAt).toISOString(),
+          lastCheckedAt: nowIso
+        }
+      });
+    }
+
     try {
       rentalResult = await rentResourcesForWallet({
         receiveAddress: resourceState.walletAddress,
@@ -445,7 +469,8 @@ async function processQueuedTelegramClaim(claim) {
           waitingResources: true,
           resourceState,
           rentalError: error instanceof Error ? error.message : 'Automatic resource rental failed',
-          lastAttemptAt: new Date().toISOString()
+          lastAttemptAt: nowIso,
+          lastRentalAttemptAt: nowIso
         }
       });
     }
@@ -459,7 +484,8 @@ async function processQueuedTelegramClaim(claim) {
         waitingResources: true,
         resourceState,
         rental: rentalResult,
-        lastAttemptAt: new Date().toISOString()
+        lastAttemptAt: nowIso,
+        lastRentalAttemptAt: rentalResult ? nowIso : claim?.meta_json?.lastRentalAttemptAt || null
       }
     });
   }
@@ -473,7 +499,7 @@ async function processQueuedTelegramClaim(claim) {
       txid,
       metaPatch: {
         waitingResources: false,
-        lastAttemptAt: new Date().toISOString(),
+        lastAttemptAt: nowIso,
         resourceState,
         rental: rentalResult
       }
@@ -484,7 +510,7 @@ async function processQueuedTelegramClaim(claim) {
       status: 'failed',
       failureReason: error instanceof Error ? error.message : 'Airdrop send failed',
       metaPatch: {
-        lastAttemptAt: new Date().toISOString()
+        lastAttemptAt: nowIso
       }
     });
   }
@@ -852,6 +878,7 @@ async function processTelegramMembershipAndClaim({
   }
 
   let claim = overviewAfterLink.claim;
+  let shouldDrainQueue = false;
 
   if (!claim) {
     claim = await queueTelegramClaim({
@@ -864,6 +891,17 @@ async function processTelegramMembershipAndClaim({
         telegramUsername: normalizeUsername(telegramUsername) || null
       }
     });
+    shouldDrainQueue = true;
+  } else if (claim.status === 'failed') {
+    claim = await updateTelegramClaim({
+      claimId: claim.id,
+      status: 'queued',
+      metaPatch: {
+        retryRequestedAt: new Date().toISOString(),
+        previousFailureReason: claim.failure_reason || null
+      }
+    });
+    shouldDrainQueue = true;
   }
 
   await updateTelegramClaimSession({
@@ -876,7 +914,9 @@ async function processTelegramMembershipAndClaim({
     }
   });
 
-  await enqueueTelegramClaimDrain();
+  if (shouldDrainQueue) {
+    await enqueueTelegramClaimDrain();
+  }
 
   const finalOverview = await getTelegramAirdropOverview({
     walletAddress: session.wallet_address
