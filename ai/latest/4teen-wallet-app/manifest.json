@@ -1,24 +1,18 @@
 {
-  "generatedAt": "2026-05-06T21:05:30.260Z",
+  "generatedAt": "2026-05-30T18:21:28.808Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "4f8af1e50b772c594fc493c7abb41e892d185ab7",
-    "shortHash": "4f8af1e",
-    "subject": "Fix buy success exits and bump store version",
+    "hash": "72b3e2099dff925cd9f88c7de10e290650fbe7c4",
+    "shortHash": "72b3e20",
+    "subject": "Stop repeated Telegram airdrop rental retries",
     "author": "info14fourteen-creator",
-    "date": "2026-05-07T02:05:08+05:00"
+    "date": "2026-05-30T21:20:58+05:00"
   },
   "changedFiles": [
-    "M\tapps/mobile/app.json",
-    "M\tapps/mobile/app/buy-confirm.tsx",
-    "M\tapps/mobile/package.json",
-    "M\tapps/mobile/src/config/app-version.ts",
-    "M\trelease/RELEASE_READINESS_STATUS.md",
-    "M\trelease/STORE_FIELD_PACK.md",
-    "M\trelease/STORE_METADATA.md",
-    "M\trelease/STORE_RELEASE_CHECKLIST.md"
+    "M\tapps/api/src/services/airdrop/telegramBot.js",
+    "M\tapps/mobile/src/config/app-version.ts"
   ],
   "activeFiles": [
     {
@@ -31,18 +25,14 @@
     },
     {
       "file": "apps/api/src/services/gasstation/energyResale.js",
-      "count": 3
-    },
-    {
-      "file": "apps/mobile/app/buy-confirm.tsx",
-      "count": 3
-    },
-    {
-      "file": "apps/api/src/services/gasstation/gasStation.js",
       "count": 2
     },
     {
       "file": "apps/mobile/app.json",
+      "count": 2
+    },
+    {
+      "file": "apps/mobile/app/buy-confirm.tsx",
       "count": 2
     },
     {
@@ -66,6 +56,14 @@
       "count": 2
     },
     {
+      "file": "apps/api/src/services/airdrop/telegramBot.js",
+      "count": 1
+    },
+    {
+      "file": "apps/api/src/services/gasstation/gasStation.js",
+      "count": 1
+    },
+    {
       "file": "apps/mobile/app/ambassador-confirm.tsx",
       "count": 1
     },
@@ -86,15 +84,7 @@
       "count": 1
     },
     {
-      "file": "apps/mobile/src/i18n/dictionaries.ts",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/src/services/ambassador.ts",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/src/services/energy-resale.ts",
       "count": 1
     },
     {
@@ -103,10 +93,6 @@
     },
     {
       "file": "apps/mobile/src/ui/energy-resale-card.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/src/ui/screen-loading-overlay.tsx",
       "count": 1
     }
   ],

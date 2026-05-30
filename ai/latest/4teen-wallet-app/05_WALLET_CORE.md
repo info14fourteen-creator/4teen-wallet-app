@@ -1,13 +1,13 @@
 # 4teen-wallet-app — WALLET CORE
 
-Generated: 2026-05-06T21:05:30.260Z
+Generated: 2026-05-30T18:21:28.807Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 4f8af1e50b772c594fc493c7abb41e892d185ab7
-Short commit: 4f8af1e
-Commit subject: Fix buy success exits and bump store version
+Last commit: 72b3e2099dff925cd9f88c7de10e290650fbe7c4
+Short commit: 72b3e20
+Commit subject: Stop repeated Telegram airdrop rental retries
 Commit author: info14fourteen-creator
-Commit date: 2026-05-07T02:05:08+05:00
+Commit date: 2026-05-30T21:20:58+05:00
 
 ## Included files
 
