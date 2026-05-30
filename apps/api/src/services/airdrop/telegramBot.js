@@ -4,11 +4,11 @@ const TronWebPackage = require('tronweb');
 const env = require('../../config/env');
 const {
   PLATFORM_TELEGRAM_BIT,
+  claimQueuedTelegramClaims,
   createTelegramClaimSession,
   getTelegramAirdropGuardStatus,
   getTelegramAirdropOverview,
   getTelegramClaimSessionByToken,
-  listQueuedTelegramClaims,
   queueTelegramClaim,
   updateTelegramClaim,
   updateTelegramClaimSession,
@@ -517,10 +517,21 @@ async function processQueuedTelegramClaim(claim) {
 }
 
 async function drainTelegramClaimQueue() {
-  const queuedClaims = await listQueuedTelegramClaims(CLAIM_QUEUE_LIMIT);
+  const queuedClaims = await claimQueuedTelegramClaims(CLAIM_QUEUE_LIMIT);
 
   for (const claim of queuedClaims) {
-    await processQueuedTelegramClaim(claim);
+    try {
+      await processQueuedTelegramClaim(claim);
+    } catch (error) {
+      await updateTelegramClaim({
+        claimId: claim.id,
+        status: 'queued',
+        metaPatch: {
+          processingCrash: error instanceof Error ? error.message : 'Queued claim processing crashed',
+          lastAttemptAt: new Date().toISOString()
+        }
+      }).catch(() => null);
+    }
   }
 
   return queuedClaims.length;
@@ -915,7 +926,7 @@ async function processTelegramMembershipAndClaim({
   });
 
   if (shouldDrainQueue) {
-    await enqueueTelegramClaimDrain();
+    void enqueueTelegramClaimDrain();
   }
 
   const finalOverview = await getTelegramAirdropOverview({

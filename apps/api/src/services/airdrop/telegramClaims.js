@@ -846,6 +846,74 @@ async function updateTelegramClaim({
   return result.rows[0] || null;
 }
 
+async function requeueStaleProcessingTelegramClaims(maxAgeMinutes = 15) {
+  await ensureTelegramAirdropTables();
+
+  const ageMinutes = Math.max(1, Number(maxAgeMinutes) || 15);
+
+  const result = await pool.query(
+    `
+      UPDATE airdrop_claims
+      SET
+        status = 'queued',
+        meta_json = jsonb_set(
+          COALESCE(meta_json, '{}'::jsonb),
+          '{processingRecoveredAt}',
+          to_jsonb(NOW()::TEXT),
+          true
+        )
+      WHERE platform = $1
+        AND status = 'processing'
+        AND COALESCE((meta_json->>'processingStartedAt')::timestamptz, queued_at) <
+          NOW() - ($2 * INTERVAL '1 minute')
+      RETURNING id
+    `,
+    [PLATFORM_TELEGRAM, ageMinutes]
+  );
+
+  return result.rowCount;
+}
+
+async function claimQueuedTelegramClaims(limit = 10) {
+  await ensureTelegramAirdropTables();
+
+  await requeueStaleProcessingTelegramClaims().catch(() => 0);
+
+  const result = await pool.query(
+    `
+      WITH next_claims AS (
+        SELECT id
+        FROM airdrop_claims
+        WHERE platform = $1
+          AND status = 'queued'
+        ORDER BY queued_at ASC, id ASC
+        LIMIT $2
+        FOR UPDATE SKIP LOCKED
+      )
+      UPDATE airdrop_claims AS claims
+      SET
+        status = 'processing',
+        meta_json = jsonb_set(
+          jsonb_set(
+            COALESCE(claims.meta_json, '{}'::jsonb),
+            '{processingStartedAt}',
+            to_jsonb(NOW()::TEXT),
+            true
+          ),
+          '{lastDequeuedAt}',
+          to_jsonb(NOW()::TEXT),
+          true
+        )
+      FROM next_claims
+      WHERE claims.id = next_claims.id
+      RETURNING claims.*
+    `,
+    [PLATFORM_TELEGRAM, Math.max(1, Number(limit) || 10)]
+  );
+
+  return result.rows;
+}
+
 async function listQueuedTelegramClaims(limit = 10) {
   await ensureTelegramAirdropTables();
 
@@ -872,10 +940,12 @@ module.exports = {
   getTelegramAirdropOverview,
   getTelegramAirdropGuardStatus,
   getTelegramClaimSessionByToken,
+  claimQueuedTelegramClaims,
   importLegacyTelegramClaims,
   isValidTronAddress,
   listQueuedTelegramClaims,
   queueTelegramClaim,
+  requeueStaleProcessingTelegramClaims,
   updateTelegramClaim,
   updateTelegramClaimSession,
   upsertTelegramAccountLink
