@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-05-30T18:58:02.322Z",
+  "generatedAt": "2026-05-30T19:07:12.786Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "850332a19283a06fde3cb948f2da6ecb78c8552a",
-    "shortHash": "850332a",
-    "subject": "Prevent repeated GasStation top-up retries in airdrop flow",
+    "hash": "aa6a5adcd9a8916895594a63b58a2a6996991c69",
+    "shortHash": "aa6a5ad",
+    "subject": "Pause repeated airdrop retries after pending top-up",
     "author": "info14fourteen-creator",
-    "date": "2026-05-30T21:57:32+05:00"
+    "date": "2026-05-30T22:06:36+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/src/services/gasstation/gasStation.js",
+    "M\tapps/api/src/services/airdrop/telegramBot.js",
     "M\tapps/mobile/src/config/app-version.ts"
   ],
   "activeFiles": [
@@ -21,7 +21,7 @@
     },
     {
       "file": "apps/api/src/services/airdrop/telegramBot.js",
-      "count": 2
+      "count": 3
     },
     {
       "file": "apps/api/src/services/gasstation/gasStation.js",
@@ -29,10 +29,6 @@
     },
     {
       "file": "apps/mobile/app.json",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/app/buy-confirm.tsx",
       "count": 2
     },
     {
@@ -64,15 +60,15 @@
       "count": 1
     },
     {
-      "file": "apps/api/src/services/gasstation/energyResale.js",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/app/ambassador-confirm.tsx",
       "count": 1
     },
     {
       "file": "apps/mobile/app/ambassador-withdraw-confirm.tsx",
+      "count": 1
+    },
+    {
+      "file": "apps/mobile/app/buy-confirm.tsx",
       "count": 1
     },
     {

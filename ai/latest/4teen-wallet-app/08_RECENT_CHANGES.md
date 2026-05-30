@@ -1,21 +1,23 @@
 # 4teen-wallet-app — RECENT CHANGES
 
-Generated: 2026-05-30T18:58:02.322Z
+Generated: 2026-05-30T19:07:12.785Z
 Repository: info14fourteen-creator/4teen-wallet-app
 Branch: main
-Last commit: 850332a19283a06fde3cb948f2da6ecb78c8552a
-Short commit: 850332a
-Commit subject: Prevent repeated GasStation top-up retries in airdrop flow
+Last commit: aa6a5adcd9a8916895594a63b58a2a6996991c69
+Short commit: aa6a5ad
+Commit subject: Pause repeated airdrop retries after pending top-up
 Commit author: info14fourteen-creator
-Commit date: 2026-05-30T21:57:32+05:00
+Commit date: 2026-05-30T22:06:36+05:00
 
 ## Files changed in last commit
 
-- M	apps/api/src/services/gasstation/gasStation.js
+- M	apps/api/src/services/airdrop/telegramBot.js
 - M	apps/mobile/src/config/app-version.ts
 
 ## Recent commits
 
+- aa6a5ad | 2026-05-30 | Pause repeated airdrop retries after pending top-up
+- ab3312e | 2026-05-30 | chore: update wallet AI bundle [skip ci]
 - 850332a | 2026-05-30 | Prevent repeated GasStation top-up retries in airdrop flow
 - 4a38888 | 2026-05-30 | chore: update wallet AI bundle [skip ci]
 - 5b946f4 | 2026-05-30 | Harden Telegram airdrop queue processing
@@ -24,5 +26,3 @@ Commit date: 2026-05-30T21:57:32+05:00
 - b71cdef | 2026-05-30 | chore: update wallet AI bundle [skip ci]
 - 72b3e20 | 2026-05-30 | Stop repeated Telegram airdrop rental retries
 - 79b45e0 | 2026-05-06 | chore: update wallet AI bundle [skip ci]
-- 4f8af1e | 2026-05-07 | Fix buy success exits and bump store version
-- 85a6aca | 2026-05-05 | chore: update wallet AI bundle [skip ci]
