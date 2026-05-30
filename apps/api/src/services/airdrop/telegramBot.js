@@ -23,6 +23,7 @@ const SESSION_CALLBACK_PREFIX = 'airdrop_verify:';
 const CLAIM_QUEUE_LIMIT = 5;
 const CLAIM_DECIMALS = 6;
 const TELEGRAM_CLAIM_RENTAL_RETRY_MS = 15 * 60 * 1000;
+const TELEGRAM_CLAIM_PENDING_TOPUP_RECHECK_MS = 2 * 60 * 60 * 1000;
 
 let claimDrainPromise = Promise.resolve();
 let webhookEnsurePromise = null;
@@ -333,6 +334,10 @@ function buildTelegramStatusMessage({ session, membership, guard, claim, link, r
       lines.push('• AIRDROP_CONTROL_WALLET is being replenished from purchases.');
       lines.push('• Please wait a bit. CHECK AGAIN only refreshes the status.');
     }
+    if (claim?.meta_json?.pendingTopUpTxHash) {
+      lines.push('• Previous resource top-up is still being reconciled.');
+      lines.push('• We are waiting before attempting another recharge.');
+    }
     if (resourceState && !resourceState.hasEnough) {
       lines.push('• Waiting for airdrop wallet resources before send.');
     } else {
@@ -425,6 +430,31 @@ async function processQueuedTelegramClaim(claim) {
   let rentalResult = null;
 
   if (!resourceState.hasEnough) {
+    const pendingTopUpAt = Date.parse(
+      normalizeValue(claim?.meta_json?.pendingTopUpAt || '')
+    );
+    const pendingTopUpWaitUntil =
+      Number.isFinite(pendingTopUpAt) && pendingTopUpAt > 0
+        ? pendingTopUpAt + TELEGRAM_CLAIM_PENDING_TOPUP_RECHECK_MS
+        : 0;
+    const pendingTopUpCoolingDown =
+      Boolean(normalizeValue(claim?.meta_json?.pendingTopUpTxHash || '')) &&
+      pendingTopUpWaitUntil > Date.now();
+
+    if (pendingTopUpCoolingDown) {
+      return updateTelegramClaim({
+        claimId: claim.id,
+        status: 'queued',
+        metaPatch: {
+          waitingResources: true,
+          resourceState,
+          rentalRetryAt: new Date(pendingTopUpWaitUntil).toISOString(),
+          pendingTopUpWaitUntil: new Date(pendingTopUpWaitUntil).toISOString(),
+          lastCheckedAt: nowIso
+        }
+      });
+    }
+
     const lastRentalAttemptAt = Date.parse(
       normalizeValue(claim?.meta_json?.lastRentalAttemptAt || '')
     );
@@ -462,6 +492,10 @@ async function processQueuedTelegramClaim(claim) {
 
       resourceState = await hasEnoughAirdropResources();
     } catch (error) {
+      const topUpTxHash = normalizeValue(error?.details?.topUpTxHash || '');
+      const topUpAmountSun = Number(error?.details?.topUpAmountSun || 0);
+      const depositAddress = normalizeValue(error?.details?.depositAddress || '');
+
       return updateTelegramClaim({
         claimId: claim.id,
         status: 'queued',
@@ -470,7 +504,14 @@ async function processQueuedTelegramClaim(claim) {
           resourceState,
           rentalError: error instanceof Error ? error.message : 'Automatic resource rental failed',
           lastAttemptAt: nowIso,
-          lastRentalAttemptAt: nowIso
+          lastRentalAttemptAt: nowIso,
+          pendingTopUpTxHash: topUpTxHash || null,
+          pendingTopUpAmountSun: topUpAmountSun > 0 ? topUpAmountSun : null,
+          pendingTopUpDepositAddress: depositAddress || null,
+          pendingTopUpAt: topUpTxHash ? nowIso : null,
+          pendingTopUpWaitUntil: topUpTxHash
+            ? new Date(Date.now() + TELEGRAM_CLAIM_PENDING_TOPUP_RECHECK_MS).toISOString()
+            : null
         }
       });
     }
@@ -485,7 +526,12 @@ async function processQueuedTelegramClaim(claim) {
         resourceState,
         rental: rentalResult,
         lastAttemptAt: nowIso,
-        lastRentalAttemptAt: rentalResult ? nowIso : claim?.meta_json?.lastRentalAttemptAt || null
+        lastRentalAttemptAt: rentalResult ? nowIso : claim?.meta_json?.lastRentalAttemptAt || null,
+        pendingTopUpTxHash: null,
+        pendingTopUpAmountSun: null,
+        pendingTopUpDepositAddress: null,
+        pendingTopUpAt: null,
+        pendingTopUpWaitUntil: null
       }
     });
   }
@@ -501,7 +547,12 @@ async function processQueuedTelegramClaim(claim) {
         waitingResources: false,
         lastAttemptAt: nowIso,
         resourceState,
-        rental: rentalResult
+        rental: rentalResult,
+        pendingTopUpTxHash: null,
+        pendingTopUpAmountSun: null,
+        pendingTopUpDepositAddress: null,
+        pendingTopUpAt: null,
+        pendingTopUpWaitUntil: null
       }
     });
   } catch (error) {
