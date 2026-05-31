@@ -344,11 +344,11 @@ function buildTelegramStatusMessage({ session, membership, guard, claim, link, r
       );
     }
     if (claim?.meta_json?.rentalError) {
-      lines.push('• AIRDROP_CONTROL_WALLET is being replenished from purchases.');
+      lines.push('• AIRDROP_CONTROL_WALLET is waiting for a clean resource retry window.');
       lines.push('• Please wait a bit. CHECK AGAIN only refreshes the status.');
     }
     if (claim?.meta_json?.pendingTopUpTxHash) {
-      lines.push('• Previous resource top-up is still being reconciled.');
+      lines.push('• Previous resource top-up from AIRDROP_CONTROL_WALLET is still being reconciled.');
       lines.push('• We are waiting before attempting another recharge.');
     }
     if (resourceState && !resourceState.hasEnough) {

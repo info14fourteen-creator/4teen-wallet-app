@@ -664,6 +664,15 @@ function getOperatorPrivateKey() {
   );
 }
 
+function getOperatorFundingConfig() {
+  return {
+    wallet: String(env.OPERATOR_WALLET || '').trim(),
+    privateKey: getOperatorPrivateKey(),
+    reserveSun: MIN_OPERATOR_RESERVE_SUN,
+    label: 'operator_wallet'
+  };
+}
+
 function getAirdropFundingConfig() {
   const wallet = String(env.AIRDROP_CONTROL_WALLET || '').trim();
   const privateKey = String(env.AIRDROP_CONTROL_WALLET_PRIVATE_KEY || '').trim();
@@ -685,7 +694,7 @@ function resolveFundingConfig(context = {}) {
     return getAirdropFundingConfig();
   }
 
-  return null;
+  return getOperatorFundingConfig();
 }
 
 async function sendTrxFromWallet({ fromAddress, privateKey, toAddress, amountSun, errorMessage }) {
@@ -705,16 +714,6 @@ async function sendTrxFromWallet({ fromAddress, privateKey, toAddress, amountSun
   return String(broadcast.txid || signedTx.txID || '');
 }
 
-async function sendTrx(toAddress, amountSun) {
-  return sendTrxFromWallet({
-    fromAddress: env.OPERATOR_WALLET,
-    privateKey: getOperatorPrivateKey(),
-    toAddress,
-    amountSun,
-    errorMessage: 'Failed to top up Gas Station deposit address'
-  });
-}
-
 async function resolveGasStationDepositAddress(client, gasBalance = null) {
   const configured = String(env.GASSTATION_DEPOSIT_ADDRESS || '').trim();
 
@@ -726,66 +725,33 @@ async function resolveGasStationDepositAddress(client, gasBalance = null) {
   return String(balance?.deposit_address || '').trim();
 }
 
-async function waitForOperatorTopUpCapacity(
-  requiredTopUpSun,
-  minRetainedSun = MIN_OPERATOR_RESERVE_SUN,
-  context = {}
-) {
+async function waitForTopUpCapacity(requiredTopUpSun, minRetainedSun = MIN_OPERATOR_RESERVE_SUN, context = {}) {
   const requiredSpendableSun = normalizeSunAmount(requiredTopUpSun);
-  const requiredRetainedSun = normalizeSunAmount(minRetainedSun);
-  let fundingTransfer = null;
+  const funding = resolveFundingConfig(context);
+
+  if (!funding?.wallet || !funding?.privateKey) {
+    const error = new Error('Gas Station funding wallet is not configured');
+    error.details = {
+      purpose: String(context?.purpose || '').trim() || null
+    };
+    throw error;
+  }
+
+  const requiredRetainedSun = Math.max(
+    normalizeSunAmount(minRetainedSun),
+    normalizeSunAmount(funding.reserveSun)
+  );
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const operator = await getOperatorState();
+    const fundingState = await getWalletState(funding.wallet);
 
-    if (operator.balanceSun >= requiredSpendableSun + requiredRetainedSun) {
+    if (fundingState.balanceSun >= requiredSpendableSun + requiredRetainedSun) {
       return {
-        operator,
-        fundingTransfer,
+        funding,
+        fundingState,
         waited: attempt > 0,
         attempts: attempt + 1
       };
-    }
-
-    if (!fundingTransfer) {
-      const funding = resolveFundingConfig(context);
-
-      if (funding && funding.wallet !== env.OPERATOR_WALLET) {
-        const shortfallSun = requiredSpendableSun + requiredRetainedSun - operator.balanceSun;
-
-        if (shortfallSun > 0) {
-          const fundingState = await getWalletState(funding.wallet);
-
-          if (fundingState.balanceSun < shortfallSun + funding.reserveSun) {
-            const fundingError = new Error(
-              `${funding.label} does not have enough confirmed TRX to fund operator wallet`
-            );
-            fundingError.details = {
-              fundingWallet: funding.wallet,
-              operatorWallet: env.OPERATOR_WALLET,
-              fundingBalanceSun: fundingState.balanceSun,
-              fundingRequiredSun: shortfallSun,
-              fundingReserveSun: funding.reserveSun
-            };
-            throw fundingError;
-          }
-
-          const txid = await sendTrxFromWallet({
-            fromAddress: funding.wallet,
-            privateKey: funding.privateKey,
-            toAddress: env.OPERATOR_WALLET,
-            amountSun: shortfallSun,
-            errorMessage: 'Failed to fund operator wallet from airdrop control wallet'
-          });
-
-          fundingTransfer = {
-            fromWallet: funding.wallet,
-            toWallet: env.OPERATOR_WALLET,
-            amountSun: shortfallSun,
-            txid
-          };
-        }
-      }
     }
 
     if (attempt < 19) {
@@ -793,13 +759,14 @@ async function waitForOperatorTopUpCapacity(
     }
   }
 
-  const operator = await getOperatorState();
-  const error = new Error('Operator wallet does not have enough confirmed TRX for Gas Station top up yet');
+  const fundingState = await getWalletState(funding.wallet);
+  const error = new Error(`${funding.label} does not have enough confirmed TRX for Gas Station top up yet`);
   error.details = {
+    fundingWallet: funding.wallet,
+    fundingLabel: funding.label,
     requiredTopUpSun: requiredSpendableSun,
-    minRetainedSun: requiredRetainedSun,
-    operatorBalanceSun: operator.balanceSun,
-    fundingTransfer
+    reserveSun: requiredRetainedSun,
+    fundingBalanceSun: fundingState.balanceSun
   };
   throw error;
 }
@@ -838,7 +805,7 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun, options = {}) 
   }
 
   const requiredTopUpSun = Math.max(0, requiredSun - currentGasBalanceSun);
-  const { waited, fundingTransfer } = await waitForOperatorTopUpCapacity(
+  const { waited, funding, fundingState } = await waitForTopUpCapacity(
     requiredTopUpSun,
     options.minOperatorRetainedSun ?? MIN_OPERATOR_RESERVE_SUN,
     options.context || {}
@@ -854,7 +821,13 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun, options = {}) 
     throw new Error('Gas Station did not return deposit_address');
   }
 
-  const topUpTxHash = await sendTrx(depositAddress, requiredTopUpSun);
+  const topUpTxHash = await sendTrxFromWallet({
+    fromAddress: funding.wallet,
+    privateKey: funding.privateKey,
+    toAddress: depositAddress,
+    amountSun: requiredTopUpSun,
+    errorMessage: `Failed to top up Gas Station deposit address from ${funding.label}`
+  });
 
   let lastBalanceSun = currentGasBalanceSun;
 
@@ -873,7 +846,10 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun, options = {}) 
         topUpTxHash,
         topUpAmountSun: requiredTopUpSun,
         waitedForOperator: waited,
-        fundingTransfer
+        fundingTransfer: null,
+        fundingWallet: funding.wallet,
+        fundingLabel: funding.label,
+        fundingBalanceSun: fundingState.balanceSun
       };
     }
   }
@@ -887,7 +863,10 @@ async function topUpGasStationIfNeeded(client, requiredAmountSun, options = {}) 
     requiredAmountSun: requiredSun,
     gasStationBalanceSun: lastBalanceSun,
     waitedForOperator: waited,
-    fundingTransfer
+    fundingTransfer: null,
+    fundingWallet: funding.wallet,
+    fundingLabel: funding.label,
+    fundingBalanceSun: fundingState.balanceSun
   };
   throw error;
 }
@@ -910,14 +889,20 @@ async function replenishGasStationCost(
     };
   }
 
-  const { waited, fundingTransfer } = await waitForOperatorTopUpCapacity(
+  const { waited, funding, fundingState } = await waitForTopUpCapacity(
     topUpAmountSun,
     minRetainedSun,
     context
   );
 
   const depositAddress = await resolveGasStationDepositAddress(client);
-  const topUpTxHash = await sendTrx(depositAddress, topUpAmountSun);
+  const topUpTxHash = await sendTrxFromWallet({
+    fromAddress: funding.wallet,
+    privateKey: funding.privateKey,
+    toAddress: depositAddress,
+    amountSun: topUpAmountSun,
+    errorMessage: `Failed to top up Gas Station deposit address from ${funding.label}`
+  });
 
   return {
     toppedUp: true,
@@ -926,7 +911,10 @@ async function replenishGasStationCost(
     depositAddress,
     topUpTxHash,
     waitedForOperator: waited,
-    fundingTransfer
+    fundingTransfer: null,
+    fundingWallet: funding.wallet,
+    fundingLabel: funding.label,
+    fundingBalanceSun: fundingState.balanceSun
   };
 }
 
