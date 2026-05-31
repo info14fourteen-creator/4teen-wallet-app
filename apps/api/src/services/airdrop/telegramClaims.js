@@ -886,6 +886,8 @@ async function claimQueuedTelegramClaims(limit = 10) {
         FROM airdrop_claims
         WHERE platform = $1
           AND status = 'queued'
+          AND COALESCE(NULLIF(meta_json->>'rentalRetryAt', '')::timestamptz, '-infinity'::timestamptz) <= NOW()
+          AND COALESCE(NULLIF(meta_json->>'pendingTopUpWaitUntil', '')::timestamptz, '-infinity'::timestamptz) <= NOW()
         ORDER BY queued_at ASC, id ASC
         LIMIT $2
         FOR UPDATE SKIP LOCKED

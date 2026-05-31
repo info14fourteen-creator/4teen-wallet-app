@@ -24,6 +24,7 @@ const CLAIM_QUEUE_LIMIT = 5;
 const CLAIM_DECIMALS = 6;
 const TELEGRAM_CLAIM_RENTAL_RETRY_MS = 15 * 60 * 1000;
 const TELEGRAM_CLAIM_PENDING_TOPUP_RECHECK_MS = 2 * 60 * 60 * 1000;
+const TELEGRAM_CLAIM_BALANCE_FAILURE_RECHECK_MS = 2 * 60 * 60 * 1000;
 
 let claimDrainPromise = Promise.resolve();
 let webhookEnsurePromise = null;
@@ -39,6 +40,18 @@ function normalizeUsername(value) {
 
 function normalizeTxid(value) {
   return normalizeValue(value).toLowerCase();
+}
+
+function shouldPauseTelegramClaimRental(error) {
+  const message = normalizeValue(error?.message || '').toLowerCase();
+
+  return (
+    message.includes('insufficient account balance') ||
+    message.includes('403 forbidden') ||
+    message.includes('energy rental is temporarily unavailable') ||
+    message.includes('operator wallet does not have enough confirmed trx') ||
+    message.includes('gas station balance did not update after top up')
+  );
 }
 
 function getBotToken() {
@@ -495,6 +508,14 @@ async function processQueuedTelegramClaim(claim) {
       const topUpTxHash = normalizeValue(error?.details?.topUpTxHash || '');
       const topUpAmountSun = Number(error?.details?.topUpAmountSun || 0);
       const depositAddress = normalizeValue(error?.details?.depositAddress || '');
+      const balanceFailureCoolingDown =
+        !topUpTxHash && shouldPauseTelegramClaimRental(error);
+      const rentalRetryAt = balanceFailureCoolingDown
+        ? new Date(Date.now() + TELEGRAM_CLAIM_BALANCE_FAILURE_RECHECK_MS).toISOString()
+        : new Date(Date.now() + TELEGRAM_CLAIM_RENTAL_RETRY_MS).toISOString();
+      const pendingTopUpWaitUntil = topUpTxHash
+        ? new Date(Date.now() + TELEGRAM_CLAIM_PENDING_TOPUP_RECHECK_MS).toISOString()
+        : null;
 
       return updateTelegramClaim({
         claimId: claim.id,
@@ -505,13 +526,12 @@ async function processQueuedTelegramClaim(claim) {
           rentalError: error instanceof Error ? error.message : 'Automatic resource rental failed',
           lastAttemptAt: nowIso,
           lastRentalAttemptAt: nowIso,
+          rentalRetryAt,
           pendingTopUpTxHash: topUpTxHash || null,
           pendingTopUpAmountSun: topUpAmountSun > 0 ? topUpAmountSun : null,
           pendingTopUpDepositAddress: depositAddress || null,
           pendingTopUpAt: topUpTxHash ? nowIso : null,
-          pendingTopUpWaitUntil: topUpTxHash
-            ? new Date(Date.now() + TELEGRAM_CLAIM_PENDING_TOPUP_RECHECK_MS).toISOString()
-            : null
+          pendingTopUpWaitUntil
         }
       });
     }
