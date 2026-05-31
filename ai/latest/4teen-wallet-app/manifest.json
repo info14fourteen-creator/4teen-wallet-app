@@ -1,16 +1,18 @@
 {
-  "generatedAt": "2026-05-31T09:09:50.276Z",
+  "generatedAt": "2026-05-31T18:21:18.271Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "7fceb28e9e79afd1d51c24053cb9699de7519fc9",
-    "shortHash": "7fceb28",
-    "subject": "Revert accidental mobile version bump",
+    "hash": "b908e87c3d4bc23b80182a9486ec15cc73243f3c",
+    "shortHash": "b908e87",
+    "subject": "Fund airdrop rental directly from airdrop wallet",
     "author": "info14fourteen-creator",
-    "date": "2026-05-31T12:09:00+05:00"
+    "date": "2026-05-31T21:20:34+05:00"
   },
   "changedFiles": [
+    "M\tapps/api/src/services/airdrop/telegramBot.js",
+    "M\tapps/api/src/services/gasstation/gasStation.js",
     "M\tapps/mobile/src/config/app-version.ts"
   ],
   "activeFiles": [
@@ -20,7 +22,7 @@
     },
     {
       "file": "apps/api/src/services/airdrop/telegramBot.js",
-      "count": 4
+      "count": 5
     },
     {
       "file": "apps/api/src/services/airdrop/telegramClaims.js",
