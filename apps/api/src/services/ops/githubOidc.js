@@ -40,6 +40,13 @@ function readWorkflowClaim(payload) {
   return normalizeValue(payload?.job_workflow_ref || payload?.workflow_ref || payload?.workflow || '');
 }
 
+function isAllowedWorkflowClaim(workflowClaim) {
+  return [
+    /\.github\/workflows\/ops-remote-runner\.yml@/i,
+    /\.github\/workflows\/daily-blog-publish\.yml@/i
+  ].some((pattern) => pattern.test(workflowClaim));
+}
+
 async function verifyGithubActionsOidcToken(token, options = {}) {
   const safeToken = normalizeValue(token);
   if (!safeToken) {
@@ -71,7 +78,7 @@ async function verifyGithubActionsOidcToken(token, options = {}) {
     throw error;
   }
 
-  if (workflowClaim && !/\.github\/workflows\/ops-remote-runner\.yml@/i.test(workflowClaim)) {
+  if (workflowClaim && !isAllowedWorkflowClaim(workflowClaim)) {
     const error = new Error('GitHub Actions token is not from the ops remote runner workflow');
     error.status = 403;
     throw error;
