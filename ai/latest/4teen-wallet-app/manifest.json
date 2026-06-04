@@ -1,24 +1,22 @@
 {
-  "generatedAt": "2026-05-31T18:21:18.271Z",
+  "generatedAt": "2026-06-04T10:48:41.659Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "b908e87c3d4bc23b80182a9486ec15cc73243f3c",
-    "shortHash": "b908e87",
-    "subject": "Fund airdrop rental directly from airdrop wallet",
+    "hash": "bf10c666bf830e40f23b83a042aac7ce5bce746c",
+    "shortHash": "bf10c66",
+    "subject": "Allow daily blog workflow OIDC",
     "author": "info14fourteen-creator",
-    "date": "2026-05-31T21:20:34+05:00"
+    "date": "2026-06-04T15:48:27+05:00"
   },
   "changedFiles": [
-    "M\tapps/api/src/services/airdrop/telegramBot.js",
-    "M\tapps/api/src/services/gasstation/gasStation.js",
-    "M\tapps/mobile/src/config/app-version.ts"
+    "M\tapps/api/src/services/ops/githubOidc.js"
   ],
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 11
+      "count": 10
     },
     {
       "file": "apps/api/src/services/airdrop/telegramBot.js",
@@ -61,19 +59,15 @@
       "count": 1
     },
     {
+      "file": "apps/api/src/services/ops/githubOidc.js",
+      "count": 1
+    },
+    {
       "file": "apps/mobile/app/buy-confirm.tsx",
       "count": 1
     },
     {
-      "file": "apps/mobile/src/services/ambassador.ts",
-      "count": 1
-    },
-    {
       "file": "apps/mobile/src/services/tron/api.ts",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/src/ui/energy-resale-card.tsx",
       "count": 1
     }
   ],
