@@ -9,6 +9,7 @@ const gasStationRouter = require('./routes/gasstation');
 const airdropRouter = require('./routes/airdrop');
 const siteRouter = require('./routes/site');
 const opsRouter = require('./routes/ops');
+const transferPassRouter = require('./routes/transfer-pass');
 
 const app = express();
 
@@ -57,5 +58,6 @@ app.use('/ambassador', ambassadorRouter);
 app.use('/airdrop', airdropRouter);
 app.use('/site', siteRouter);
 app.use('/ops', opsRouter);
+app.use('/transfer-pass', transferPassRouter);
 
 module.exports = app;
