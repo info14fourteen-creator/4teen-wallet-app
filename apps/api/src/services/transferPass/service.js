@@ -130,90 +130,102 @@ function parsePlansConfig() {
 
 async function ensureTransferPassTables() {
   assertDatabaseConfigured();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext('transfer_pass_schema_v1'))`);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS transfer_pass_plans (
-      id BIGSERIAL PRIMARY KEY,
-      code TEXT NOT NULL UNIQUE,
-      name TEXT NOT NULL,
-      monthly_price_usdt NUMERIC(18,6) NOT NULL DEFAULT 0,
-      included_transfers INTEGER NOT NULL DEFAULT 0,
-      overage_price_usdt NUMERIC(18,6) NOT NULL DEFAULT 0,
-      active BOOLEAN NOT NULL DEFAULT TRUE,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS transfer_pass_plans (
+        id BIGSERIAL PRIMARY KEY,
+        code TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        monthly_price_usdt NUMERIC(18,6) NOT NULL DEFAULT 0,
+        included_transfers INTEGER NOT NULL DEFAULT 0,
+        overage_price_usdt NUMERIC(18,6) NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS transfer_pass_subscriptions (
-      id BIGSERIAL PRIMARY KEY,
-      wallet_address TEXT NOT NULL,
-      plan_code TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending_payment',
-      period_start TIMESTAMPTZ,
-      period_end TIMESTAMPTZ,
-      transfers_used INTEGER NOT NULL DEFAULT 0,
-      transfers_remaining INTEGER NOT NULL DEFAULT 0,
-      note TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS transfer_pass_subscriptions (
+        id BIGSERIAL PRIMARY KEY,
+        wallet_address TEXT NOT NULL,
+        plan_code TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending_payment',
+        period_start TIMESTAMPTZ,
+        period_end TIMESTAMPTZ,
+        transfers_used INTEGER NOT NULL DEFAULT 0,
+        transfers_remaining INTEGER NOT NULL DEFAULT 0,
+        note TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_transfer_pass_subscriptions_wallet
-      ON transfer_pass_subscriptions (wallet_address, created_at DESC)
-  `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_transfer_pass_subscriptions_wallet
+        ON transfer_pass_subscriptions (wallet_address, created_at DESC)
+    `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS sponsored_transfers (
-      id BIGSERIAL PRIMARY KEY,
-      wallet_address TEXT NOT NULL,
-      recipient_address TEXT NOT NULL,
-      amount_usdt NUMERIC(18,6) NOT NULL DEFAULT 0,
-      quoted_fee_usdt NUMERIC(18,6) NOT NULL DEFAULT 0,
-      quoted_fee_trx NUMERIC(18,6) NOT NULL DEFAULT 0,
-      quoted_cost_trx NUMERIC(18,6) NOT NULL DEFAULT 0,
-      quoted_cost_usdt NUMERIC(18,6) NOT NULL DEFAULT 0,
-      energy_quantity INTEGER NOT NULL DEFAULT 0,
-      bandwidth_quantity INTEGER NOT NULL DEFAULT 0,
-      billing_mode TEXT NOT NULL DEFAULT 'one_off',
-      subscription_id BIGINT,
-      status TEXT NOT NULL DEFAULT 'quoted',
-      payment_address TEXT,
-      provider_order_json JSONB,
-      note TEXT,
-      failure_reason TEXT,
-      delivered_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sponsored_transfers (
+        id BIGSERIAL PRIMARY KEY,
+        wallet_address TEXT NOT NULL,
+        recipient_address TEXT NOT NULL,
+        amount_usdt NUMERIC(18,6) NOT NULL DEFAULT 0,
+        quoted_fee_usdt NUMERIC(18,6) NOT NULL DEFAULT 0,
+        quoted_fee_trx NUMERIC(18,6) NOT NULL DEFAULT 0,
+        quoted_cost_trx NUMERIC(18,6) NOT NULL DEFAULT 0,
+        quoted_cost_usdt NUMERIC(18,6) NOT NULL DEFAULT 0,
+        energy_quantity INTEGER NOT NULL DEFAULT 0,
+        bandwidth_quantity INTEGER NOT NULL DEFAULT 0,
+        billing_mode TEXT NOT NULL DEFAULT 'one_off',
+        subscription_id BIGINT,
+        status TEXT NOT NULL DEFAULT 'quoted',
+        payment_address TEXT,
+        provider_order_json JSONB,
+        note TEXT,
+        failure_reason TEXT,
+        delivered_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_sponsored_transfers_wallet
-      ON sponsored_transfers (wallet_address, created_at DESC)
-  `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_sponsored_transfers_wallet
+        ON sponsored_transfers (wallet_address, created_at DESC)
+    `);
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_sponsored_transfers_status
-      ON sponsored_transfers (status, created_at DESC)
-  `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_sponsored_transfers_status
+        ON sponsored_transfers (status, created_at DESC)
+    `);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS saved_recipients (
-      id BIGSERIAL PRIMARY KEY,
-      owner_wallet TEXT NOT NULL,
-      label TEXT NOT NULL,
-      recipient_wallet TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS saved_recipients (
+        id BIGSERIAL PRIMARY KEY,
+        owner_wallet TEXT NOT NULL,
+        label TEXT NOT NULL,
+        recipient_wallet TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
 
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_saved_recipients_owner_wallet
-      ON saved_recipients (owner_wallet, created_at DESC)
-  `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_saved_recipients_owner_wallet
+        ON saved_recipients (owner_wallet, created_at DESC)
+    `);
+
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => null);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function syncPlans() {
