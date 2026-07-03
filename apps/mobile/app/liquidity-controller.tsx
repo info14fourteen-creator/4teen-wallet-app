@@ -65,6 +65,11 @@ function shortenAddress(address: string) {
   return `${value.slice(0, 6)}...${value.slice(-6)}`;
 }
 
+function buildContractUrl(address: string | undefined, fallbackUrl: string) {
+  const value = String(address || '').trim();
+  return value ? `https://tronscan.org/#/contract/${value}` : fallbackUrl;
+}
+
 export default function LiquidityControllerScreen() {
   const router = useRouter();
   const { t } = useI18n();
@@ -211,13 +216,19 @@ export default function LiquidityControllerScreen() {
         label: t('JustMoney executor'),
         address: snapshot?.justMoneyExecutorAddress || '',
         body: t('AMM liquidity path'),
-        url: LIQUIDITY_JUSTMONEY_EXECUTOR_CONTRACT_URL,
+        url: buildContractUrl(
+          snapshot?.justMoneyExecutorAddress,
+          LIQUIDITY_JUSTMONEY_EXECUTOR_CONTRACT_URL
+        ),
       },
       {
         label: t('Sun.io V3 executor'),
         address: snapshot?.sunV3ExecutorAddress || '',
         body: t('concentrated liquidity path'),
-        url: LIQUIDITY_SUN_V3_EXECUTOR_CONTRACT_URL,
+        url: buildContractUrl(
+          snapshot?.sunV3ExecutorAddress,
+          LIQUIDITY_SUN_V3_EXECUTOR_CONTRACT_URL
+        ),
       },
     ],
     [

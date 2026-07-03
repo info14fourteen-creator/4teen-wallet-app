@@ -56,6 +56,15 @@ type LiquidityContract = {
   };
 };
 
+type LiquidityTargetContract = {
+  targetA: () => {
+    call: () => Promise<unknown>;
+  };
+  targetB: () => {
+    call: () => Promise<unknown>;
+  };
+};
+
 type TrongridEventsResponse = {
   data?: {
     transaction_id?: string;
@@ -150,6 +159,29 @@ function buildExecutorAbi() {
   ];
 }
 
+function buildControllerTargetAbi() {
+  return [
+    {
+      constant: true,
+      inputs: [],
+      name: 'targetA',
+      outputs: [{ name: '', type: 'address' }],
+      payable: false,
+      stateMutability: 'view',
+      type: 'function',
+    },
+    {
+      constant: true,
+      inputs: [],
+      name: 'targetB',
+      outputs: [{ name: '', type: 'address' }],
+      payable: false,
+      stateMutability: 'view',
+      type: 'function',
+    },
+  ];
+}
+
 function fromSun(value: unknown) {
   const numeric = Number(value || 0);
   if (!Number.isFinite(numeric) || numeric <= 0) return 0;
@@ -163,6 +195,29 @@ function normalizeTimestamp(value: unknown) {
 
 function buildExplorerUrl(txId: string) {
   return txId ? `https://tronscan.org/#/transaction/${txId}` : 'https://tronscan.org/';
+}
+
+function normalizeLiquidityAddress(tronWeb: TronWeb, value: unknown) {
+  const raw = String(
+    Array.isArray(value)
+      ? value[0] || ''
+      : (value as { _hex?: string; hex?: string; toString?: () => string })?._hex ||
+          (value as { hex?: string })?.hex ||
+          value ||
+          ''
+  ).trim();
+
+  if (!raw) return '';
+  if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(raw)) return raw;
+
+  const withoutPrefix = raw.replace(/^0x/i, '');
+  if (/^(41)?[0-9a-fA-F]{40}$/.test(withoutPrefix)) {
+    try {
+      return tronWeb.address.fromHex(withoutPrefix.startsWith('41') ? withoutPrefix : `41${withoutPrefix}`);
+    } catch {}
+  }
+
+  return '';
 }
 
 function extractTxId(result: unknown) {
@@ -247,6 +302,65 @@ async function fetchControllerEvents(eventName: 'LiquidityExecuted' | 'TRXReceiv
   return Array.isArray(response.data) ? response.data : [];
 }
 
+async function readControllerTargetAddresses() {
+  const tronWeb = createTronWeb(undefined, LIQUIDITY_CONTROLLER_ADDRESS);
+  const fallback = {
+    justMoneyExecutorAddress: LIQUIDITY_JUSTMONEY_EXECUTOR_ADDRESS,
+    sunV3ExecutorAddress: LIQUIDITY_SUN_V3_EXECUTOR_ADDRESS,
+  };
+
+  try {
+    const contract = (await tronWeb.contract(
+      buildControllerTargetAbi(),
+      LIQUIDITY_CONTROLLER_ADDRESS
+    )) as unknown as LiquidityTargetContract;
+    const [targetA, targetB] = await Promise.all([
+      contract.targetA().call(),
+      contract.targetB().call(),
+    ]);
+
+    return {
+      justMoneyExecutorAddress:
+        normalizeLiquidityAddress(tronWeb, targetA) || fallback.justMoneyExecutorAddress,
+      sunV3ExecutorAddress:
+        normalizeLiquidityAddress(tronWeb, targetB) || fallback.sunV3ExecutorAddress,
+    };
+  } catch (contractError) {
+    try {
+      const ownerHex = tronWeb.address.toHex(LIQUIDITY_CONTROLLER_ADDRESS);
+      const contractHex = tronWeb.address.toHex(LIQUIDITY_CONTROLLER_ADDRESS);
+      const [targetAResult, targetBResult] = await Promise.all([
+        tronWeb.transactionBuilder.triggerConstantContract(
+          contractHex,
+          'targetA()',
+          {},
+          [],
+          ownerHex
+        ),
+        tronWeb.transactionBuilder.triggerConstantContract(
+          contractHex,
+          'targetB()',
+          {},
+          [],
+          ownerHex
+        ),
+      ]);
+
+      return {
+        justMoneyExecutorAddress:
+          normalizeLiquidityAddress(tronWeb, targetAResult?.constant_result?.[0]) ||
+          fallback.justMoneyExecutorAddress,
+        sunV3ExecutorAddress:
+          normalizeLiquidityAddress(tronWeb, targetBResult?.constant_result?.[0]) ||
+          fallback.sunV3ExecutorAddress,
+      };
+    } catch {
+      console.warn('Liquidity target address read fallback:', contractError);
+      return fallback;
+    }
+  }
+}
+
 function mapExecutionEvents(events: TrongridEventsResponse['data']): LiquidityExecutionEvent[] {
   return (events || [])
     .map((event) => {
@@ -281,9 +395,10 @@ function mapReceivedEvents(events: TrongridEventsResponse['data']): LiquidityRec
 }
 
 async function readLiquiditySnapshot() {
-  const [executionEvents, receivedEvents] = await Promise.all([
+  const [executionEvents, receivedEvents, targetAddresses] = await Promise.all([
     fetchControllerEvents('LiquidityExecuted'),
     fetchControllerEvents('TRXReceived'),
+    readControllerTargetAddresses(),
   ]);
 
   const executions = mapExecutionEvents(executionEvents);
@@ -292,8 +407,8 @@ async function readLiquiditySnapshot() {
   return {
     controllerAddress: LIQUIDITY_CONTROLLER_ADDRESS,
     bootstrapperAddress: LIQUIDITY_BOOTSTRAPPER_ADDRESS,
-    justMoneyExecutorAddress: LIQUIDITY_JUSTMONEY_EXECUTOR_ADDRESS,
-    sunV3ExecutorAddress: LIQUIDITY_SUN_V3_EXECUTOR_ADDRESS,
+    justMoneyExecutorAddress: targetAddresses.justMoneyExecutorAddress,
+    sunV3ExecutorAddress: targetAddresses.sunV3ExecutorAddress,
     executions,
     received,
     lastExecuteAt: executions[0]?.timestamp || null,
