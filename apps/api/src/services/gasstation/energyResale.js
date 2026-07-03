@@ -6,6 +6,13 @@ const {
   quoteResourceRental,
   rentResourcesForWallet
 } = require('./gasStation');
+const {
+  createEnergyQuote: createTronixEnergyQuote,
+  createEnergyOrder: createTronixEnergyOrder,
+  getEnergyOrder: getTronixEnergyOrder,
+  submitEnergyOrderPayment: submitTronixEnergyOrderPayment,
+  isEnabled: isTronixRentEnabled
+} = require('../tronixRent/client');
 
 const SUN = 1_000_000n;
 const API_QUOTE_CACHE_TTL_MS = 30_000;
@@ -39,7 +46,11 @@ function normalizeTxid(value) {
 }
 
 function buildApiQuoteCacheKey({ purpose, requiredEnergy, requiredBandwidth }) {
-  return [purpose, Number(requiredEnergy || 0), Number(requiredBandwidth || 0)].join(':');
+  return [
+    purpose,
+    Number(requiredEnergy || 0),
+    Number(requiredBandwidth || 0)
+  ].join(':');
 }
 
 function readCachedApiQuote(key) {
@@ -65,7 +76,13 @@ function writeCachedApiQuote(key, value) {
 }
 
 function getEnergyRentalMode() {
-  const mode = String(env.GASSTATION_ENERGY_RENTAL_MODE || '').trim().toLowerCase();
+  const mode = String(
+    env.ENERGY_RENTAL_MODE || env.GASSTATION_ENERGY_RENTAL_MODE || ''
+  ).trim().toLowerCase();
+
+  if (mode === 'tronix' || mode === 'tronixrent' || mode === 'tronix_rent') {
+    return 'tronix';
+  }
 
   if (mode === 'api') {
     return 'api';
@@ -75,7 +92,7 @@ function getEnergyRentalMode() {
     return 'resale';
   }
 
-  return isGasStationApiEnabled() ? 'api' : 'resale';
+  return isTronixRentEnabled() ? 'tronix' : (isGasStationApiEnabled() ? 'api' : 'resale');
 }
 
 function isGasStationApiEnabled() {
@@ -230,6 +247,92 @@ function getApiRentalPaymentAddress() {
   return normalizeWallet(env.OPERATOR_WALLET);
 }
 
+function getDefaultRentalDurationSeconds() {
+  const parsed = Number(env.TRONIX_RENT_DEFAULT_DURATION_SECONDS || 3600);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 3600;
+  }
+
+  return Math.floor(parsed);
+}
+
+function mapTronixStatus(order) {
+  const paymentStatus = String(order?.paymentStatus || '').trim().toLowerCase();
+  const fulfillmentStatus = String(order?.fulfillmentStatus || '').trim().toLowerCase();
+
+  if (fulfillmentStatus === 'completed') {
+    return 'completed';
+  }
+
+  if (fulfillmentStatus === 'failed' || paymentStatus === 'failed' || paymentStatus === 'expired') {
+    return 'failed';
+  }
+
+  if (paymentStatus === 'confirmed' || paymentStatus === 'submitted') {
+    return 'processing_tronix';
+  }
+
+  return 'waiting_tronix_payment';
+}
+
+function mapTronixOrderToPackage({ purpose, wallet, quote, order, requiredEnergy, requiredBandwidth }) {
+  const energyQuantity = Number(order?.energyAmount || quote?.energyAmount || requiredEnergy || 0);
+  const bandwidthQuantity = Number(
+    order?.bandwidthAmount || quote?.bandwidthAmount || requiredBandwidth || 0
+  );
+  const amountSun = String(order?.paymentAmountSun || quote?.amountSun || '0');
+
+  return {
+    purpose,
+    mode: 'tronix',
+    provider: 'tronix_rent',
+    wallet,
+    paymentAddress: String(order?.paymentAddress || '').trim(),
+    amountSun,
+    amountTrx: String(order?.paymentAmountTrx || quote?.amountTrx || formatSunAsTrx(amountSun)),
+    energyQuantity,
+    readyEnergy: requiredEnergy > 0 ? requiredEnergy : energyQuantity,
+    bandwidthQuantity,
+    readyBandwidth: requiredBandwidth > 0 ? requiredBandwidth : bandwidthQuantity,
+    packageCount: 1,
+    requiredEnergy,
+    requiredBandwidth,
+    rentalPeriodSeconds: Number(order?.durationSeconds || quote?.durationSeconds || 0),
+    label: 'TronixRent Smart Router',
+    quoteId: String(order?.quoteId || quote?.quoteId || '').trim(),
+    orderId: String(order?.orderId || '').trim(),
+    expiresAt: order?.expiresAt || quote?.expiresAt || null,
+    route: order?.route || quote?.route || null,
+    included: order?.included || quote?.included || null
+  };
+}
+
+async function createTronixRentPackage({ purpose, wallet, requiredEnergy, requiredBandwidth }) {
+  if (!isValidTronAddress(wallet)) {
+    const error = new Error('wallet is required for TronixRent rental');
+    error.status = 400;
+    throw error;
+  }
+
+  const quote = await createTronixEnergyQuote({
+    receiverAddress: wallet,
+    energyAmount: requiredEnergy,
+    bandwidthAmount: requiredBandwidth,
+    durationSeconds: getDefaultRentalDurationSeconds()
+  });
+  const order = await createTronixEnergyOrder(quote.quoteId);
+
+  return mapTronixOrderToPackage({
+    purpose,
+    wallet,
+    quote,
+    order,
+    requiredEnergy,
+    requiredBandwidth
+  });
+}
+
 function shouldRetryPendingEnergyRentalError(error) {
   const message = String(error?.message || '').trim().toLowerCase();
 
@@ -273,6 +376,7 @@ function getResalePackage(purposeInput, requirements = {}) {
 
 async function getEnergyResalePackage(purposeInput, requirements = {}) {
   const purpose = normalizePurpose(purposeInput);
+  const wallet = normalizeWallet(requirements.wallet || requirements.walletAddress);
   const defaults = getDefaultPurposeRequirements(purpose);
   const requiredEnergy = normalizeResourceRequirement(
     requirements.requiredEnergy || requirements.energyShortfall
@@ -300,39 +404,38 @@ async function getEnergyResalePackage(purposeInput, requirements = {}) {
     }
 
     const quotePromise = (async () => {
-    const quote = await quoteResourceRental({
-      energyNum: requiredEnergy,
-      bandwidthNum: requiredBandwidth
-    });
-    const amountSun = String(Math.ceil(Number(quote.amountSun || 0)));
-
-      const result = {
-      purpose,
-      mode: 'api',
-      paymentAddress: getApiRentalPaymentAddress(),
-      amountSun,
-      amountTrx: formatSunAsTrx(amountSun),
-      costAmountSun: String(quote.costAmountSun || ''),
-      costAmountTrx: quote.costAmountTrx,
-      markupAmountSun: String(quote.markupAmountSun || ''),
-      markupAmountTrx: quote.markupAmountTrx,
-      markupBps: quote.markupBps,
-      minMarkupSun: String(quote.minMarkupSun || ''),
-      minMarkupTrx: quote.minMarkupTrx,
-      energyQuantity: Number(quote.energyQuantity || 0),
-      readyEnergy: requiredEnergy > 0 ? requiredEnergy : Number(quote.energyQuantity || 0),
-      bandwidthQuantity: Number(quote.bandwidthQuantity || 0),
-      readyBandwidth:
-        requiredBandwidth > 0 ? requiredBandwidth : Number(quote.bandwidthQuantity || 0),
-      packageCount: 1,
-      requiredEnergy,
-      requiredBandwidth,
-      rentalPeriodSeconds: 0,
-      label: String(purpose || 'resource-rental')
+      const quote = await quoteResourceRental({
+        energyNum: requiredEnergy,
+        bandwidthNum: requiredBandwidth
+      });
+      const amountSun = String(Math.ceil(Number(quote.amountSun || 0)));
+      const mapped = {
+        purpose,
+        mode: 'api',
+        paymentAddress: getApiRentalPaymentAddress(),
+        amountSun,
+        amountTrx: formatSunAsTrx(amountSun),
+        costAmountSun: String(quote.costAmountSun || ''),
+        costAmountTrx: quote.costAmountTrx,
+        markupAmountSun: String(quote.markupAmountSun || ''),
+        markupAmountTrx: quote.markupAmountTrx,
+        markupBps: quote.markupBps,
+        minMarkupSun: String(quote.minMarkupSun || ''),
+        minMarkupTrx: quote.minMarkupTrx,
+        energyQuantity: Number(quote.energyQuantity || 0),
+        readyEnergy: requiredEnergy > 0 ? requiredEnergy : Number(quote.energyQuantity || 0),
+        bandwidthQuantity: Number(quote.bandwidthQuantity || 0),
+        readyBandwidth:
+          requiredBandwidth > 0 ? requiredBandwidth : Number(quote.bandwidthQuantity || 0),
+        packageCount: 1,
+        requiredEnergy,
+        requiredBandwidth,
+        rentalPeriodSeconds: 0,
+        label: String(purpose || 'resource-rental')
       };
 
-      writeCachedApiQuote(cacheKey, result);
-      return result;
+      writeCachedApiQuote(cacheKey, mapped);
+      return mapped;
     })();
 
     apiQuoteInflight.set(cacheKey, quotePromise);
@@ -343,6 +446,19 @@ async function getEnergyResalePackage(purposeInput, requirements = {}) {
       apiQuoteInflight.delete(cacheKey);
     }
   };
+
+  if (
+    getEnergyRentalMode() === 'tronix' &&
+    isTronixRentEnabled() &&
+    isValidTronAddress(wallet)
+  ) {
+    return createTronixRentPackage({
+      purpose,
+      wallet,
+      requiredEnergy,
+      requiredBandwidth
+    });
+  }
 
   if (getEnergyRentalMode() === 'api' && isGasStationApiEnabled()) {
     return readApiQuote();
@@ -479,6 +595,202 @@ function buildSerializedOrderError(error) {
   };
 }
 
+function isCompletedTronixOrder(order) {
+  return String(order?.fulfillmentStatus || '').trim().toLowerCase() === 'completed';
+}
+
+function isFailedTronixOrder(order) {
+  const paymentStatus = String(order?.paymentStatus || '').trim().toLowerCase();
+  const fulfillmentStatus = String(order?.fulfillmentStatus || '').trim().toLowerCase();
+
+  return (
+    fulfillmentStatus === 'failed' ||
+    paymentStatus === 'failed' ||
+    paymentStatus === 'expired'
+  );
+}
+
+async function upsertTronixEnergyResaleOrder({
+  purpose,
+  wallet,
+  paymentTxHash,
+  payment,
+  packageConfig,
+  tronixOrder,
+  status
+}) {
+  await ensureEnergyResaleOrdersTable();
+
+  const rowJson = {
+    mode: 'tronix',
+    provider: 'tronix_rent',
+    package: packageConfig,
+    payment,
+    tronixOrder
+  };
+
+  const result = await pool.query(
+    `
+      INSERT INTO energy_resale_orders (
+        purpose,
+        wallet,
+        payment_tx_hash,
+        payment_address,
+        payment_amount_sun,
+        expected_amount_sun,
+        energy_quantity,
+        ready_energy,
+        status,
+        row_json
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
+      ON CONFLICT (payment_tx_hash)
+      DO UPDATE SET
+        status = EXCLUDED.status,
+        row_json = EXCLUDED.row_json,
+        updated_at = NOW()
+      RETURNING *
+    `,
+    [
+      purpose,
+      wallet,
+      paymentTxHash,
+      packageConfig.paymentAddress,
+      payment.amountSun,
+      packageConfig.amountSun,
+      packageConfig.energyQuantity,
+      packageConfig.readyEnergy,
+      status,
+      JSON.stringify(rowJson)
+    ]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function confirmTronixRentPayment({
+  purpose,
+  wallet,
+  paymentTxid,
+  rentalOrderId,
+  requiredEnergy,
+  requiredBandwidth
+}) {
+  const orderId = String(rentalOrderId || '').trim();
+
+  if (!orderId) {
+    const error = new Error('rentalOrderId is required for TronixRent confirmation');
+    error.status = 400;
+    throw error;
+  }
+
+  const [payment, tronixOrder] = await Promise.all([
+    readTrxPayment(paymentTxid),
+    getTronixEnergyOrder(orderId)
+  ]);
+
+  const packageConfig = mapTronixOrderToPackage({
+    purpose,
+    wallet,
+    quote: null,
+    order: tronixOrder,
+    requiredEnergy: normalizeResourceRequirement(requiredEnergy) || Number(tronixOrder.energyAmount || 0),
+    requiredBandwidth:
+      normalizeResourceRequirement(requiredBandwidth) || Number(tronixOrder.bandwidthAmount || 0)
+  });
+
+  if (String(tronixOrder.receiverAddress || '').trim().toLowerCase() !== wallet.toLowerCase()) {
+    const error = new Error('TronixRent order receiver does not match wallet');
+    error.status = 400;
+    throw error;
+  }
+
+  if (payment.owner !== wallet) {
+    const error = new Error('Payment sender does not match wallet');
+    error.status = 400;
+    throw error;
+  }
+
+  if (payment.recipient !== packageConfig.paymentAddress) {
+    const error = new Error('Payment recipient does not match TronixRent order');
+    error.status = 400;
+    throw error;
+  }
+
+  if (BigInt(payment.amountSun) < BigInt(packageConfig.amountSun)) {
+    const error = new Error('Payment amount is lower than TronixRent order price');
+    error.status = 400;
+    throw error;
+  }
+
+  const submitted = await submitTronixEnergyOrderPayment({
+    orderId,
+    paymentTxHash: paymentTxid
+  }).catch(async (error) => {
+    if (Number(error?.status || 0) === 409) {
+      return getTronixEnergyOrder(orderId);
+    }
+
+    throw error;
+  });
+  const latestOrder = submitted?.orderId ? submitted : await getTronixEnergyOrder(orderId);
+  const status = mapTronixStatus(latestOrder);
+  const row = await upsertTronixEnergyResaleOrder({
+    purpose,
+    wallet,
+    paymentTxHash: paymentTxid,
+    payment,
+    packageConfig,
+    tronixOrder: latestOrder,
+    status
+  });
+
+  if (isCompletedTronixOrder(latestOrder)) {
+    return row;
+  }
+
+  if (isFailedTronixOrder(latestOrder)) {
+    const error = new Error(latestOrder.errorMessage || 'TronixRent rental failed');
+    error.status = 502;
+    error.details = { orderId, tronixOrder: latestOrder };
+    throw error;
+  }
+
+  return buildPendingEnergyResaleResult({
+    paymentTxid,
+    orderStatus: status,
+    orderId
+  });
+}
+
+async function refreshTronixOrderRow(row) {
+  const orderId = String(row?.row_json?.tronixOrder?.orderId || row?.row_json?.package?.orderId || '').trim();
+
+  if (!orderId) {
+    return row;
+  }
+
+  try {
+    const tronixOrder = await getTronixEnergyOrder(orderId);
+    const status = mapTronixStatus(tronixOrder);
+    const updated = await updateEnergyResaleOrder(row.payment_tx_hash, {
+      status,
+      rowJson: {
+        ...(row.row_json || {}),
+        tronixOrder
+      }
+    });
+
+    return updated || row;
+  } catch (error) {
+    console.warn('[EnergyResale] failed to refresh TronixRent order status', {
+      orderId,
+      error: String(error?.message || error)
+    });
+    return row;
+  }
+}
+
 function scheduleApiEnergyResaleConfirmation({
   paymentTxHash,
   purpose,
@@ -554,6 +866,7 @@ async function confirmEnergyResalePayment({
   purpose,
   wallet,
   paymentTxid,
+  rentalOrderId,
   requiredEnergy,
   requiredBandwidth
 }) {
@@ -579,7 +892,19 @@ async function confirmEnergyResalePayment({
     throw error;
   }
 
+  if (getEnergyRentalMode() === 'tronix' && isTronixRentEnabled()) {
+    return confirmTronixRentPayment({
+      purpose: resolvedPurpose,
+      wallet: resolvedWallet,
+      paymentTxid: txid,
+      rentalOrderId,
+      requiredEnergy,
+      requiredBandwidth
+    });
+  }
+
   const packageConfig = await getEnergyResalePackage(resolvedPurpose, {
+    wallet: resolvedWallet,
     requiredEnergy,
     requiredBandwidth
   });
@@ -719,7 +1044,7 @@ async function confirmEnergyResalePayment({
   return updated.rows[0];
 }
 
-async function getEnergyResaleStatus({ purpose, wallet, requiredEnergy, requiredBandwidth }) {
+async function getEnergyResaleStatus({ purpose, wallet, rentalOrderId, requiredEnergy, requiredBandwidth }) {
   const resolvedPurpose = normalizePurpose(purpose);
   const resolvedWallet = normalizeWallet(wallet);
 
@@ -735,22 +1060,46 @@ async function getEnergyResaleStatus({ purpose, wallet, requiredEnergy, required
     throw error;
   }
 
-  const packageConfig = await getEnergyResalePackage(resolvedPurpose, {
-    requiredEnergy,
-    requiredBandwidth
-  });
   const energyState = await readWalletEnergyState(resolvedWallet);
-  const lastOrder = await pool.query(
+  const lastOrderResult = await pool.query(
     `
       SELECT *
       FROM energy_resale_orders
       WHERE purpose = $1
         AND lower(wallet) = lower($2)
+        AND (
+          NULLIF($3, '') IS NULL
+          OR row_json->'tronixOrder'->>'orderId' = $3
+          OR row_json->'package'->>'orderId' = $3
+        )
       ORDER BY created_at DESC
       LIMIT 1
     `,
-    [resolvedPurpose, resolvedWallet]
+    [resolvedPurpose, resolvedWallet, String(rentalOrderId || '').trim()]
   ).catch(() => ({ rows: [] }));
+  const lastOrderRow = lastOrderResult.rows[0]?.row_json?.mode === 'tronix'
+    ? await refreshTronixOrderRow(lastOrderResult.rows[0])
+    : lastOrderResult.rows[0];
+  const packageConfig = lastOrderRow?.row_json?.package || (
+    getEnergyRentalMode() === 'tronix' && isTronixRentEnabled()
+      ? {
+          purpose: resolvedPurpose,
+          mode: 'tronix',
+          provider: 'tronix_rent',
+          wallet: resolvedWallet,
+          energyQuantity: normalizeResourceRequirement(requiredEnergy),
+          readyEnergy: normalizeResourceRequirement(requiredEnergy),
+          bandwidthQuantity: normalizeResourceRequirement(requiredBandwidth),
+          readyBandwidth: normalizeResourceRequirement(requiredBandwidth),
+          requiredEnergy: normalizeResourceRequirement(requiredEnergy),
+          requiredBandwidth: normalizeResourceRequirement(requiredBandwidth)
+        }
+      : await getEnergyResalePackage(resolvedPurpose, {
+          wallet: resolvedWallet,
+          requiredEnergy,
+          requiredBandwidth
+        })
+  );
 
   const requiredReadyEnergy = Number(packageConfig.readyEnergy || packageConfig.energyQuantity || 0);
   const requiredReadyBandwidth = Number(
@@ -761,19 +1110,28 @@ async function getEnergyResaleStatus({ purpose, wallet, requiredEnergy, required
     purpose: resolvedPurpose,
     wallet: resolvedWallet,
     ready:
-      energyState.availableEnergy >= requiredReadyEnergy &&
-      energyState.availableBandwidth >= requiredReadyBandwidth,
+      lastOrderRow?.status === 'completed' ||
+      (
+        energyState.availableEnergy >= requiredReadyEnergy &&
+        energyState.availableBandwidth >= requiredReadyBandwidth
+      ),
     requiredEnergy: requiredReadyEnergy,
     requiredBandwidth: requiredReadyBandwidth,
     energyState,
     package: packageConfig,
-    lastOrder: lastOrder.rows[0]
+    lastOrder: lastOrderRow
       ? {
-          status: lastOrder.rows[0].status || null,
-          payment_tx_hash: lastOrder.rows[0].payment_tx_hash || null,
+          status: lastOrderRow.status || null,
+          payment_tx_hash: lastOrderRow.payment_tx_hash || null,
+          order_id:
+            lastOrderRow.row_json?.tronixOrder?.orderId ||
+            lastOrderRow.row_json?.package?.orderId ||
+            null,
           error_message:
-            lastOrder.rows[0].row_json?.error?.message
-              ? String(lastOrder.rows[0].row_json.error.message)
+            lastOrderRow.row_json?.error?.message
+              ? String(lastOrderRow.row_json.error.message)
+              : lastOrderRow.row_json?.tronixOrder?.errorMessage
+                ? String(lastOrderRow.row_json.tronixOrder.errorMessage)
               : null
         }
       : null

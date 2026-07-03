@@ -231,6 +231,9 @@ export type AmbassadorRegistrationEnergyQuote = {
   amountTrx: string;
   energyQuantity: number;
   readyEnergy?: number;
+  orderId?: string;
+  quoteId?: string;
+  expiresAt?: string | null;
 };
 
 export type AmbassadorRegistrationEnergyConfirmation = {
@@ -1367,6 +1370,9 @@ export async function getAmbassadorRegistrationEnergyQuote(input: {
     amountTrx: String(result.amountTrx || '0'),
     energyQuantity: Number(result.energyQuantity || 0),
     readyEnergy: Number(result.readyEnergy || 0) || undefined,
+    orderId: result.orderId ? String(result.orderId) : undefined,
+    quoteId: result.quoteId ? String(result.quoteId) : undefined,
+    expiresAt: result.expiresAt || null,
   };
 }
 
@@ -1374,6 +1380,7 @@ export async function confirmAmbassadorRegistrationEnergy(input: {
   wallet: string;
   slug: string;
   paymentTxId: string;
+  rentalOrderId?: string;
   requiredEnergy?: number;
   requiredBandwidth?: number;
 }): Promise<AmbassadorRegistrationEnergyConfirmation> {
@@ -1404,6 +1411,7 @@ export async function confirmAmbassadorRegistrationEnergy(input: {
       wallet,
       slug,
       paymentTxId,
+      rentalOrderId: input.rentalOrderId,
       requiredEnergy: input.requiredEnergy,
       requiredBandwidth: input.requiredBandwidth,
     }),

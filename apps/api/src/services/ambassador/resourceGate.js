@@ -1,6 +1,6 @@
 const env = require('../../config/env');
 const { tronWeb } = require('../tron/client');
-const { rentResourcesForWallet } = require('../gasstation/gasStation');
+const { rentResourcesWithTronixRent } = require('../tronixRent/autoRent');
 
 function normalizeValue(value) {
   return String(value || '').trim();
@@ -54,7 +54,7 @@ async function ensureAmbassadorAllocationResources(context = {}) {
   let rentalResult = null;
 
   if (!resourceState.hasEnough) {
-    rentalResult = await rentResourcesForWallet({
+    rentalResult = await rentResourcesWithTronixRent({
       receiveAddress: resourceState.walletAddress,
       energyNum: Number(env.AMBASSADOR_ALLOCATION_REQUIRED_ENERGY || 0),
       bandwidthNum: Number(env.AMBASSADOR_ALLOCATION_REQUIRED_BANDWIDTH || 0),

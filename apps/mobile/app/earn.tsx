@@ -356,7 +356,7 @@ export default function EarnScreen() {
             note={t('Fallback funding wallet that can top up the operator if rental needs extra TRX.')}
           />
           <RuntimeWalletRow
-            label={t('Gas Station deposit')}
+            label={t('Resource rental pool')}
             address={gasStationRuntime?.depositAddress || null}
             trxBalance={gasStationRuntime?.balanceTrx || '--'}
             energy={null}

@@ -1,6 +1,7 @@
 const env = require('../../config/env');
 const { pool } = require('../../db/pool');
-const { quoteResourceRental, rentResourcesForWallet } = require('../gasstation/gasStation');
+const { createEnergyQuote: createTronixEnergyQuote } = require('../tronixRent/client');
+const { rentResourcesWithTronixRent } = require('../tronixRent/autoRent');
 const { getTrxPriceInfo } = require('../proxy/walletSnapshot');
 
 const SUN = 1_000_000;
@@ -392,9 +393,11 @@ async function quoteTransferPassSend({ walletAddress, recipientAddress, amountUs
     listPlans(),
     getLatestSubscription(wallet),
     getTrxPriceInfo(),
-    quoteResourceRental({
-      energyNum: env.TRANSFER_PASS_DEFAULT_ENERGY,
-      bandwidthNum: env.TRANSFER_PASS_DEFAULT_BANDWIDTH
+    createTronixEnergyQuote({
+      receiverAddress: wallet,
+      energyAmount: env.TRANSFER_PASS_DEFAULT_ENERGY,
+      bandwidthAmount: env.TRANSFER_PASS_DEFAULT_BANDWIDTH,
+      durationSeconds: env.TRONIX_RENT_DEFAULT_DURATION_SECONDS
     })
   ]);
 
@@ -441,9 +444,9 @@ async function quoteTransferPassSend({ walletAddress, recipientAddress, amountUs
       trxPriceUsd
     },
     resources: {
-      energyQuantity: Number(rentalQuote.energyQuantity || env.TRANSFER_PASS_DEFAULT_ENERGY || 0),
+      energyQuantity: Number(rentalQuote.energyAmount || env.TRANSFER_PASS_DEFAULT_ENERGY || 0),
       bandwidthQuantity: Number(
-        rentalQuote.bandwidthQuantity || env.TRANSFER_PASS_DEFAULT_BANDWIDTH || 0
+        rentalQuote.bandwidthAmount || env.TRANSFER_PASS_DEFAULT_BANDWIDTH || 0
       )
     },
     subscription,
@@ -767,7 +770,7 @@ async function fulfillSponsoredTransferAdmin({ sendId, note }) {
   }
 
   try {
-    const rented = await rentResourcesForWallet({
+    const rented = await rentResourcesWithTronixRent({
       receiveAddress: sendRow.wallet_address,
       energyNum: Number(sendRow.energy_quantity || 0),
       bandwidthNum: Number(sendRow.bandwidth_quantity || 0),

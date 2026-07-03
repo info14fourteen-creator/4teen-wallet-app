@@ -810,6 +810,7 @@ export const dictionaries: Partial<Record<AppLanguageCode, Record<string, string
     'Fallback funding wallet that can top up the operator if rental needs extra TRX.':
       'Резервный кошелек пополнения, который может добавить TRX кошельку оператора, если для аренды нужен дополнительный TRX.',
     'Gas Station deposit': 'Депозит Gas Station',
+    'Resource rental pool': 'Пул аренды ресурсов',
     'provider {{account}} · automatic rental pool': 'провайдер {{account}} · автоматический пул аренды',
     'Automatic rental pool': 'Автоматический пул аренды',
     'Loading live allocation readiness for the ambassador engine...':

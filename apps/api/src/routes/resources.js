@@ -117,6 +117,7 @@ router.post('/rental/quote', async (req, res) => {
     });
 
     const packageConfig = await getEnergyResalePackage(purpose, {
+      wallet,
       requiredEnergy: req.body?.requiredEnergy || req.body?.energyShortfall,
       requiredBandwidth: req.body?.requiredBandwidth || req.body?.bandwidthShortfall
     });
@@ -160,6 +161,11 @@ router.post('/rental/confirm', async (req, res) => {
       purpose,
       wallet,
       paymentTxid: req.body?.paymentTxId || req.body?.paymentTxHash || req.body?.txid,
+      rentalOrderId:
+        req.body?.rentalOrderId ||
+        req.body?.orderId ||
+        req.body?.tronixOrderId ||
+        req.body?.metadata?.rentalOrderId,
       requiredEnergy: req.body?.requiredEnergy || req.body?.energyShortfall,
       requiredBandwidth: req.body?.requiredBandwidth || req.body?.bandwidthShortfall
     });
@@ -197,6 +203,7 @@ router.get('/rental/status', async (req, res) => {
     const result = await getEnergyResaleStatus({
       purpose: req.query?.purpose,
       wallet: req.query?.wallet,
+      rentalOrderId: req.query?.rentalOrderId || req.query?.orderId || req.query?.tronixOrderId,
       requiredEnergy: req.query?.requiredEnergy || req.query?.energyShortfall,
       requiredBandwidth: req.query?.requiredBandwidth || req.query?.bandwidthShortfall
     });

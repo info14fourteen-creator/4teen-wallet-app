@@ -39,7 +39,7 @@ function recommendationForEvent(event) {
   }
 
   if (source === 'liquidity' && category === 'execution' && type === 'daily_failed') {
-    return 'Что делать: проверить manager wallet, GasStation rental и статус bootstrapAndExecute.';
+    return 'Что делать: проверить manager wallet, TronixRent Smart Router и статус bootstrapAndExecute.';
   }
 
   if (source === 'clock' && category === 'liquidity' && type === 'liquidity_daily_failed') {
@@ -55,7 +55,7 @@ function recommendationForEvent(event) {
   }
 
   if (source === 'screeners' && type === 'ambassador_energy_quote') {
-    return 'Что делать: проверить quote на energy, режим GasStation и конфиг resale fallback.';
+    return 'Что делать: проверить quote на energy, режим TronixRent и fallback-конфиг.';
   }
 
   if (source === 'screeners' && type === 'telegram_airdrop_flow') {

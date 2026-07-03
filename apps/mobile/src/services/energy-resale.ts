@@ -29,6 +29,9 @@ export type EnergyResaleQuote = {
   packageCount?: number;
   rentalPeriodSeconds?: number;
   label?: string;
+  orderId?: string;
+  quoteId?: string;
+  expiresAt?: string | null;
 };
 
 export type EnergyResaleConfirmation = {
@@ -54,6 +57,7 @@ export type EnergyResaleStatus = {
   lastOrder?: {
     status?: string;
     payment_tx_hash?: string;
+    order_id?: string | null;
     error_message?: string | null;
   } | null;
 };
@@ -218,6 +222,7 @@ export async function confirmEnergyResalePayment(input: {
   purpose: EnergyResalePurpose;
   wallet: string;
   paymentTxId: string;
+  rentalOrderId?: string;
   requiredEnergy?: number;
   requiredBandwidth?: number;
   metadata?: Record<string, unknown>;
@@ -238,6 +243,7 @@ export async function confirmEnergyResalePayment(input: {
             purpose: input.purpose,
             wallet: input.wallet,
             paymentTxId: input.paymentTxId,
+            rentalOrderId: input.rentalOrderId,
             requiredEnergy: input.requiredEnergy,
             requiredBandwidth: input.requiredBandwidth,
             ...(input.metadata || {}),
@@ -271,6 +277,7 @@ export async function confirmEnergyResalePayment(input: {
     const status = await waitForEnergyResaleReady({
       purpose: input.purpose,
       wallet: input.wallet,
+      rentalOrderId: input.rentalOrderId,
       requiredEnergy: input.requiredEnergy,
       requiredBandwidth: input.requiredBandwidth,
       onProgress: input.onProgress,
@@ -289,6 +296,7 @@ export async function confirmEnergyResalePayment(input: {
 export async function getEnergyResaleStatus(input: {
   purpose: EnergyResalePurpose;
   wallet: string;
+  rentalOrderId?: string;
   requiredEnergy?: number;
   requiredBandwidth?: number;
 }): Promise<EnergyResaleStatus> {
@@ -301,6 +309,7 @@ export async function getEnergyResaleStatus(input: {
         url: buildApiUrl('/resources/rental/status', {
           purpose: input.purpose,
           wallet: input.wallet,
+          rentalOrderId: input.rentalOrderId || '',
           requiredEnergy: input.requiredEnergy ? String(input.requiredEnergy) : '',
           requiredBandwidth: input.requiredBandwidth ? String(input.requiredBandwidth) : '',
         }).replace(API_BASE_URL, baseUrl.replace(/\/+$/, '')),
@@ -321,6 +330,7 @@ export async function getEnergyResaleStatus(input: {
 async function waitForEnergyResaleReady(input: {
   purpose: EnergyResalePurpose;
   wallet: string;
+  rentalOrderId?: string;
   requiredEnergy?: number;
   requiredBandwidth?: number;
   onProgress?: (progress: EnergyResaleProgress) => void;
@@ -387,6 +397,7 @@ export async function rentEnergyForPurpose(input: {
     purpose: input.purpose,
     wallet: input.wallet,
     paymentTxId: payment.txId,
+    rentalOrderId: input.quote.orderId,
     requiredEnergy: input.quote.requiredEnergy,
     requiredBandwidth: input.quote.requiredBandwidth,
     metadata: input.metadata,

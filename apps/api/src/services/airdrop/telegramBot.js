@@ -14,7 +14,7 @@ const {
   updateTelegramClaimSession,
   upsertTelegramAccountLink
 } = require('./telegramClaims');
-const { rentResourcesForWallet } = require('../gasstation/gasStation');
+const { rentResourcesWithTronixRent } = require('../tronixRent/autoRent');
 
 const TronWeb = TronWebPackage.TronWeb || TronWebPackage.default || TronWebPackage;
 
@@ -491,7 +491,7 @@ async function processQueuedTelegramClaim(claim) {
     }
 
     try {
-      rentalResult = await rentResourcesForWallet({
+      rentalResult = await rentResourcesWithTronixRent({
         receiveAddress: resourceState.walletAddress,
         energyNum: Number(env.TELEGRAM_AIRDROP_REQUIRED_ENERGY || 0),
         bandwidthNum: Number(env.TELEGRAM_AIRDROP_REQUIRED_BANDWIDTH || 0),
