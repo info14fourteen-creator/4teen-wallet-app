@@ -138,6 +138,27 @@ async function createSenderEnergyOrder({
   });
 }
 
+async function createFrontedEnergyOrder({
+  receiverAddress,
+  energyAmount,
+  bandwidthAmount,
+  durationSeconds,
+  settlementType,
+  metadata
+}) {
+  return requestJson('/v1/internal/energy/fronted-orders', {
+    method: 'POST',
+    body: JSON.stringify({
+      receiverAddress,
+      energyAmount,
+      bandwidthAmount,
+      durationSeconds,
+      settlementType,
+      metadata
+    })
+  });
+}
+
 async function getEnergyOrder(orderId) {
   return requestJson(`/v1/energy/orders/${encodeURIComponent(orderId)}`);
 }
@@ -156,6 +177,7 @@ async function getDashboard({ force = false } = {}) {
 module.exports = {
   createEnergyQuote,
   createEnergyOrder,
+  createFrontedEnergyOrder,
   createSenderEnergyOrder,
   getEnergyOrder,
   submitEnergyOrderPayment,

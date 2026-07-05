@@ -3,6 +3,7 @@ const { tronWeb } = require('../tron/client');
 const {
   createEnergyQuote,
   createEnergyOrder,
+  createFrontedEnergyOrder,
   getEnergyOrder,
   submitEnergyOrderPayment,
   isEnabled: isTronixRentEnabled
@@ -84,6 +85,85 @@ function resolveFundingConfig(context = {}) {
   }
 
   return resolveOperatorFundingConfig();
+}
+
+function shouldUseFrontedOrder(context = {}) {
+  const purpose = normalizeValue(context.purpose).toLowerCase();
+  const settlement = normalizeValue(context.settlement || context.settlementType).toLowerCase();
+
+  return (
+    context.fronted === true ||
+    settlement === 'fronted' ||
+    purpose === 'liquidity_execute'
+  );
+}
+
+async function rentResourcesWithFrontedOrder({
+  receiveAddress,
+  energyNum,
+  bandwidthNum,
+  durationSeconds,
+  requestPrefix,
+  context = {}
+}) {
+  const receiverAddress = normalizeValue(receiveAddress);
+  const energyAmount = normalizeResourceAmount(energyNum);
+  const bandwidthAmount = normalizeResourceAmount(bandwidthNum);
+
+  if (!receiverAddress) {
+    const error = new Error('receiveAddress is required for TronixRent fronted rental');
+    error.status = 400;
+    throw error;
+  }
+
+  if (energyAmount <= 0 && bandwidthAmount <= 0) {
+    return {
+      mode: 'tronix_fronted',
+      provider: 'tronix_rent',
+      skipped: true,
+      reason: 'no resources requested',
+      receiveAddress: receiverAddress
+    };
+  }
+
+  const result = await createFrontedEnergyOrder({
+    receiverAddress,
+    energyAmount,
+    bandwidthAmount,
+    durationSeconds: normalizeDurationSeconds(durationSeconds),
+    settlementType: normalizeValue(context.settlementType) || normalizeValue(context.purpose) || 'wallet-internal',
+    metadata: {
+      requestPrefix: normalizeValue(requestPrefix) || null,
+      context
+    }
+  });
+  const order = result?.order || result;
+  const quote = result?.quote || {};
+
+  return {
+    mode: 'tronix_fronted',
+    provider: 'tronix_rent',
+    requestPrefix: normalizeValue(requestPrefix) || null,
+    receiveAddress: receiverAddress,
+    fundingWallet: null,
+    fundingLabel: 'internal_fronted',
+    quoteId: quote.quoteId || null,
+    orderId: order.orderId || null,
+    paymentAddress: null,
+    paymentAmountSun: '0',
+    paymentAmountTrx: '0',
+    paymentTxHash: null,
+    paymentStatus: order.paymentStatus || 'fronted',
+    fulfillmentStatus: order.fulfillmentStatus || null,
+    providerCode: order.providerCode || null,
+    providerOrderId: order.providerOrderId || null,
+    providerTxHash: order.providerTxHash || null,
+    energyAmount: order.energyAmount || quote.energyAmount || energyAmount,
+    bandwidthAmount: order.bandwidthAmount || quote.bandwidthAmount || bandwidthAmount,
+    route: quote.route || null,
+    latestOrder: order,
+    context
+  };
 }
 
 async function sendTrxPayment({ funding, toAddress, amountSun }) {
@@ -180,6 +260,29 @@ async function rentResourcesWithTronixRent({
       reason: 'no resources requested',
       receiveAddress: receiverAddress
     };
+  }
+
+  if (shouldUseFrontedOrder(context)) {
+    try {
+      return await rentResourcesWithFrontedOrder({
+        receiveAddress: receiverAddress,
+        energyNum: energyAmount,
+        bandwidthNum: bandwidthAmount,
+        durationSeconds,
+        requestPrefix,
+        context
+      });
+    } catch (frontedError) {
+      if (context.fronted === true || normalizeValue(context.settlement).toLowerCase() === 'fronted') {
+        throw frontedError;
+      }
+
+      console.warn('[tronix-rent] fronted rental failed, falling back to paid order', {
+        purpose: normalizeValue(context.purpose) || null,
+        receiveAddress: receiverAddress,
+        error: frontedError instanceof Error ? frontedError.message : String(frontedError)
+      });
+    }
   }
 
   const funding = resolveFundingConfig(context);
