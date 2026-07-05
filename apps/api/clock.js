@@ -7,9 +7,11 @@ const {
 const {
   enqueueAmbassadorReplayDrain
 } = require('./src/services/ambassador/replayQueue');
+const { runLiquidityDaily } = require('./src/services/liquidity/execution');
 const { refreshPublicSiteData } = require('./src/services/publicData/siteData');
-const { writeOpsHeartbeat } = require('./src/services/ops/events');
+const { recordOpsEvent, resolveOpsEvent, writeOpsHeartbeat } = require('./src/services/ops/events');
 const { getAirdropResourceSignal, getAmbassadorResourceSignal } = require('./src/services/ops/resourceSignals');
+const { broadcastLiquidityDailyReport } = require('./src/services/ops/telegramAdminBot');
 
 const HOUR_MS = 60 * 60 * 1000;
 const START_DELAY_MS = 15 * 1000;
@@ -72,6 +74,15 @@ async function runTick(trigger) {
       error: error instanceof Error ? error.message : 'public site refresh failed'
     }));
     const siteSummary = summarizeSiteRefresh(publicSiteData);
+    const liquidityDaily = await runLiquidityDaily({
+      now: new Date(),
+      trigger
+    }).catch((error) => ({
+      attempted: true,
+      ok: false,
+      status: 'failed',
+      error: error instanceof Error ? error.message : 'liquidity daily failed'
+    }));
 
     await writeOpsHeartbeat('clock.heartbeat', {
       status: 'ok',
@@ -85,8 +96,34 @@ async function runTick(trigger) {
         airdropHasEnough: resourceState?.hasEnough ?? null,
         ambassadorHasEnough: ambassadorResourceState?.hasEnough ?? null
       },
-      site: siteSummary
+      site: siteSummary,
+      liquidityDaily
     }).catch(() => null);
+
+    if (liquidityDaily?.attempted) {
+      await broadcastLiquidityDailyReport(liquidityDaily).catch(() => null);
+    }
+
+    if (liquidityDaily?.attempted && liquidityDaily?.ok === false) {
+      await recordOpsEvent({
+        source: 'clock',
+        category: 'liquidity',
+        type: 'liquidity_daily_failed',
+        severity: 'error',
+        title: 'Liquidity daily pass failed',
+        message: liquidityDaily.error || 'Liquidity daily execution failed.',
+        fingerprint: 'clock:liquidity_daily_failed',
+        details: liquidityDaily
+      }).catch(() => null);
+    } else if (liquidityDaily?.attempted && liquidityDaily?.ok === true) {
+      await resolveOpsEvent({
+        source: 'clock',
+        category: 'liquidity',
+        type: 'liquidity_daily_failed',
+        fingerprint: 'clock:liquidity_daily_failed',
+        message: 'Liquidity daily execution recovered.'
+      }).catch(() => null);
+    }
 
     console.info('[airdrop-clock] tick complete', {
       trigger,
@@ -96,7 +133,8 @@ async function runTick(trigger) {
       ambassadorProcessed,
       ambassadorResourceState,
       publicSiteData,
-      siteSummary
+      siteSummary,
+      liquidityDaily
     });
   } catch (error) {
     await writeOpsHeartbeat('clock.heartbeat', {
