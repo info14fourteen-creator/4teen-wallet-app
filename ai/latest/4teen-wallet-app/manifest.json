@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-06-04T10:48:41.659Z",
+  "generatedAt": "2026-07-06T11:54:00.601Z",
   "repository": "info14fourteen-creator/4teen-wallet-app",
   "branch": "main",
   "repoName": "4teen-wallet-app",
   "lastCommit": {
-    "hash": "bf10c666bf830e40f23b83a042aac7ce5bce746c",
-    "shortHash": "bf10c66",
-    "subject": "Allow daily blog workflow OIDC",
-    "author": "info14fourteen-creator",
-    "date": "2026-06-04T15:48:27+05:00"
+    "hash": "cb6688adbb17840ab4e0c96378f9d75b539b21a2",
+    "shortHash": "cb6688a",
+    "subject": "Restore daily blog publish config auth flow",
+    "author": "4teen Genesis",
+    "date": "2026-07-06T16:53:45+05:00"
   },
   "changedFiles": [
     "M\tapps/api/src/services/ops/githubOidc.js"
@@ -16,7 +16,7 @@
   "activeFiles": [
     {
       "file": "apps/mobile/src/config/app-version.ts",
-      "count": 10
+      "count": 8
     },
     {
       "file": "apps/api/src/services/airdrop/telegramBot.js",
@@ -31,27 +31,7 @@
       "count": 2
     },
     {
-      "file": "apps/mobile/app.json",
-      "count": 2
-    },
-    {
-      "file": "apps/mobile/package.json",
-      "count": 2
-    },
-    {
-      "file": "release/RELEASE_READINESS_STATUS.md",
-      "count": 2
-    },
-    {
-      "file": "release/STORE_FIELD_PACK.md",
-      "count": 2
-    },
-    {
-      "file": "release/STORE_METADATA.md",
-      "count": 2
-    },
-    {
-      "file": "release/STORE_RELEASE_CHECKLIST.md",
+      "file": "apps/api/src/services/ops/githubOidc.js",
       "count": 2
     },
     {
@@ -59,15 +39,7 @@
       "count": 1
     },
     {
-      "file": "apps/api/src/services/ops/githubOidc.js",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/app/buy-confirm.tsx",
-      "count": 1
-    },
-    {
-      "file": "apps/mobile/src/services/tron/api.ts",
+      "file": "apps/api/src/routes/ops.js",
       "count": 1
     }
   ],
