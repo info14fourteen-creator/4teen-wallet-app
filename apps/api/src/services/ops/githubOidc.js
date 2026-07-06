@@ -46,6 +46,10 @@ function isWorkflowAllowed(workflowClaim, options = {}) {
     return true;
   }
 
+  if (options.allowAnyWorkflow === true) {
+    return true;
+  }
+
   const patterns = Array.isArray(options.allowedWorkflowPatterns) && options.allowedWorkflowPatterns.length > 0
     ? options.allowedWorkflowPatterns
     : [/\.github\/workflows\/ops-remote-runner\.yml@/i];

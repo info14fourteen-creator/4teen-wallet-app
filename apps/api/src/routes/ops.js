@@ -438,10 +438,7 @@ router.get('/health', async (_req, res) => {
 router.get('/blog-daily-publish-config', requireOpsAuth({
   allowGithubRunner: true,
   expectedRepoKey: 'website',
-  allowedWorkflowPatterns: [
-    /\.github\/workflows\/daily-blog-publish\.yml@/i,
-    /\.github\/workflows\/ops-remote-runner\.yml@/i
-  ]
+  allowAnyWorkflow: true
 }), async (_req, res) => {
   try {
     return res.json({
