@@ -247,7 +247,11 @@ async function resolveOpsAuth(req, options = {}) {
 
   if (options.allowGithubRunner) {
     return verifyGithubActionsOidcToken(readBearerToken(req), {
-      repoKey: options.expectedRepoKey || ''
+      repoKey: options.expectedRepoKey || '',
+      allowAnyWorkflow: options.allowAnyWorkflow === true,
+      allowedWorkflowPatterns: Array.isArray(options.allowedWorkflowPatterns)
+        ? options.allowedWorkflowPatterns
+        : undefined
     });
   }
 
