@@ -98,6 +98,17 @@ function shouldUseFrontedOrder(context = {}) {
   );
 }
 
+function shouldRequireFrontedOrder(context = {}) {
+  const purpose = normalizeValue(context.purpose).toLowerCase();
+  const settlement = normalizeValue(context.settlement || context.settlementType).toLowerCase();
+
+  return (
+    context.fronted === true ||
+    settlement === 'fronted' ||
+    purpose === 'liquidity_execute'
+  );
+}
+
 async function rentResourcesWithFrontedOrder({
   receiveAddress,
   energyNum,
@@ -174,11 +185,23 @@ async function sendTrxPayment({ funding, toAddress, amountSun }) {
   }
 
   const amount = normalizeSunAmount(amountSun);
+  const fundingWallet = normalizeValue(funding.wallet);
+  const paymentAddress = normalizeValue(toAddress);
 
   if (amount <= 0n || amount > BigInt(Number.MAX_SAFE_INTEGER)) {
     const error = new Error('TronixRent payment amount is invalid');
     error.status = 400;
     error.details = { amountSun: amount.toString() };
+    throw error;
+  }
+
+  if (fundingWallet && paymentAddress && fundingWallet === paymentAddress) {
+    const error = new Error('TronixRent paid order would transfer TRX to the same account');
+    error.status = 409;
+    error.details = {
+      fundingWallet,
+      paymentAddress
+    };
     throw error;
   }
 
@@ -273,7 +296,7 @@ async function rentResourcesWithTronixRent({
         context
       });
     } catch (frontedError) {
-      if (context.fronted === true || normalizeValue(context.settlement).toLowerCase() === 'fronted') {
+      if (shouldRequireFrontedOrder(context)) {
         throw frontedError;
       }
 
