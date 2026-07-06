@@ -247,7 +247,11 @@ async function resolveOpsAuth(req, options = {}) {
 
   if (options.allowGithubRunner) {
     return verifyGithubActionsOidcToken(readBearerToken(req), {
-      repoKey: options.expectedRepoKey || ''
+      repoKey: options.expectedRepoKey || '',
+      allowAnyWorkflow: options.allowAnyWorkflow === true,
+      allowedWorkflowPatterns: Array.isArray(options.allowedWorkflowPatterns)
+        ? options.allowedWorkflowPatterns
+        : undefined
     });
   }
 
@@ -349,6 +353,29 @@ function buildRunnerConfigForExecutionRequest(executionRequest) {
   return config;
 }
 
+function buildBlogDailyPublishConfig() {
+  return {
+    databaseUrl: normalizeValue(env.DATABASE_URL),
+    blogDatabaseUrl: normalizeValue(env.DATABASE_URL),
+    openAiApiKey: normalizeValue(env.OPENAI_API_KEY),
+    openAiOrgId: normalizeValue(env.OPENAI_ORG_ID),
+    openAiProjectId: normalizeValue(env.OPENAI_PROJECT_ID),
+    cloudflareApiToken: normalizeValue(env.OPS_REMOTE_CLOUDFLARE_API_TOKEN),
+    feedUrl: 'https://rss.app/feeds/v1.1/tKryunfPwo68YKWa.json',
+    writerModel: 'gpt-5.5',
+    writerEffort: 'high',
+    triageModel: 'gpt-5-nano',
+    analysisModel: 'gpt-5-mini',
+    metadataModel: 'gpt-5-nano',
+    imageMode: 'openai-generate',
+    scanArticles: '24',
+    deepAnalysisArticles: '8',
+    maxArticles: '12',
+    lookbackHours: '24',
+    signature: 'Stan At, 4teen Founder'
+  };
+}
+
 router.get('/health', async (_req, res) => {
   try {
     await ensureOpsTables();
@@ -403,6 +430,24 @@ router.get('/health', async (_req, res) => {
               : []
           }
         : null
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      ok: false,
+      error: error.message
+    });
+  }
+});
+
+router.get('/blog-daily-publish-config', requireOpsAuth({
+  allowGithubRunner: true,
+  expectedRepoKey: 'website',
+  allowAnyWorkflow: true
+}), async (_req, res) => {
+  try {
+    return res.json({
+      ok: true,
+      result: buildBlogDailyPublishConfig()
     });
   } catch (error) {
     return res.status(error.status || 500).json({
