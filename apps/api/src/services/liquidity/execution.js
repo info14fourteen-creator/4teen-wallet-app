@@ -7,20 +7,6 @@ const { recordOpsEvent, resolveOpsEvent } = require('../ops/events');
 const LIQUIDITY_DAILY_STATE_KEY = 'liquidity.daily';
 const LIQUIDITY_DAILY_FINGERPRINT = 'liquidity:daily_failed';
 
-const TRONGRID_HEADERS = (() => {
-  const apiKey =
-    env.TRONGRID_API_KEY ||
-    env.TRONGRID_API_KEY_1 ||
-    env.TRONGRID_API_KEY_2 ||
-    env.TRONGRID_API_KEY_3;
-
-  return apiKey
-    ? {
-        'TRON-PRO-API-KEY': apiKey
-      }
-    : undefined;
-})();
-
 const BOOTSTRAPPER_ABI = [
   {
     inputs: [],
@@ -48,12 +34,88 @@ function getManagerPrivateKey() {
   );
 }
 
-function createManagerTronWeb() {
+function getTrongridApiKeys() {
+  return [
+    env.TRONGRID_API_KEY,
+    env.TRONGRID_API_KEY_1,
+    env.TRONGRID_API_KEY_2,
+    env.TRONGRID_API_KEY_3
+  ]
+    .map(normalizeValue)
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index);
+}
+
+function getTrongridHeaders(apiKey) {
+  return apiKey
+    ? {
+        'TRON-PRO-API-KEY': apiKey
+      }
+    : undefined;
+}
+
+function createManagerTronWeb({ apiKey } = {}) {
+  const keys = getTrongridApiKeys();
+  const selectedApiKey = normalizeValue(apiKey) || keys[0] || '';
+
   return new TronWeb({
     fullHost: env.TRON_FULL_HOST,
-    headers: TRONGRID_HEADERS,
+    headers: getTrongridHeaders(selectedApiKey),
     privateKey: getManagerPrivateKey()
   });
+}
+
+function errorStatus(error) {
+  return Number(
+    error?.status ||
+      error?.response?.status ||
+      error?.response?.statusCode ||
+      error?.code ||
+      0
+  );
+}
+
+function isRetriableTronGridError(error) {
+  const status = errorStatus(error);
+  const message = normalizeValue(error?.message || error);
+
+  return (
+    status === 429 ||
+    status === 503 ||
+    status === 504 ||
+    /status code 429|too many requests|rate limit|timeout|ECONNRESET|ETIMEDOUT/i.test(message)
+  );
+}
+
+async function withTrongridRetries(label, task, { maxAttempts } = {}) {
+  const apiKeys = getTrongridApiKeys();
+  const attempts = Math.max(1, maxAttempts || apiKeys.length || 1);
+  let lastError = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const apiKey = apiKeys.length > 0 ? apiKeys[attempt % apiKeys.length] : '';
+
+    try {
+      return await task({ apiKey, attempt });
+    } catch (error) {
+      lastError = error;
+
+      if (!isRetriableTronGridError(error) || attempt >= attempts - 1) {
+        break;
+      }
+
+      console.warn('[liquidity] TronGrid request failed; retrying', {
+        label,
+        attempt: attempt + 1,
+        attempts,
+        status: errorStatus(error) || null,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      await wait(1000 * (attempt + 1));
+    }
+  }
+
+  throw lastError;
 }
 
 function deriveAddressFromPrivateKey(privateKey) {
@@ -113,33 +175,29 @@ async function waitForTxInfo(tronWeb, txid, { attempts = 45, delayMs = 4000 } = 
 }
 
 async function getWalletResources(wallet) {
-  const tronWeb = createManagerTronWeb();
-  const [accountResult, resourcesResult, balanceResult] = await Promise.allSettled([
-    tronWeb.trx.getAccount(wallet),
-    tronWeb.trx.getAccountResources(wallet),
-    tronWeb.trx.getBalance(wallet)
-  ]);
+  return withTrongridRetries('wallet_resources', async ({ apiKey }) => {
+    const tronWeb = createManagerTronWeb({ apiKey });
+    const [account, resources, balance] = await Promise.all([
+      tronWeb.trx.getAccount(wallet),
+      tronWeb.trx.getAccountResources(wallet),
+      tronWeb.trx.getBalance(wallet)
+    ]);
+    const balanceSun = Number.isFinite(Number(balance || 0)) ? Number(balance || 0) : 0;
 
-  const account = accountResult.status === 'fulfilled' ? accountResult.value : null;
-  const resources = resourcesResult.status === 'fulfilled' ? resourcesResult.value : null;
-  const balanceSun =
-    balanceResult.status === 'fulfilled' && Number.isFinite(Number(balanceResult.value || 0))
-      ? Number(balanceResult.value || 0)
-      : 0;
+    const freeNetLimit = Number(account?.freeNetLimit || 0);
+    const freeNetUsed = Number(account?.freeNetUsed || 0);
+    const netLimit = Number(account?.NetLimit || 0);
+    const netUsed = Number(account?.NetUsed || 0);
+    const energyLimit = Number(resources?.EnergyLimit || 0);
+    const energyUsed = Number(resources?.EnergyUsed || 0);
 
-  const freeNetLimit = Number(account?.freeNetLimit || 0);
-  const freeNetUsed = Number(account?.freeNetUsed || 0);
-  const netLimit = Number(account?.NetLimit || 0);
-  const netUsed = Number(account?.NetUsed || 0);
-  const energyLimit = Number(resources?.EnergyLimit || 0);
-  const energyUsed = Number(resources?.EnergyUsed || 0);
-
-  return {
-    wallet,
-    balanceSun,
-    availableEnergy: Math.max(0, energyLimit - energyUsed),
-    availableBandwidth: Math.max(0, freeNetLimit - freeNetUsed) + Math.max(0, netLimit - netUsed)
-  };
+    return {
+      wallet,
+      balanceSun,
+      availableEnergy: Math.max(0, energyLimit - energyUsed),
+      availableBandwidth: Math.max(0, freeNetLimit - freeNetUsed) + Math.max(0, netLimit - netUsed)
+    };
+  });
 }
 
 function buildRentalPlan(snapshot) {
@@ -209,36 +267,38 @@ async function sendLiquidityExecution(wallet) {
     throw new Error('LIQUIDITY_BOOTSTRAPPER_CONTRACT is missing');
   }
 
-  const tronWeb = createManagerTronWeb();
-  const contract = await tronWeb.contract(BOOTSTRAPPER_ABI, bootstrapperAddress);
-  const rawResult = await contract.bootstrapAndExecute().send({
-    feeLimit: Number(env.LIQUIDITY_FEE_LIMIT_SUN || 300_000_000),
-    callValue: 0,
-    shouldPollResponse: false
+  return withTrongridRetries('bootstrapAndExecute', async ({ apiKey }) => {
+    const tronWeb = createManagerTronWeb({ apiKey });
+    const contract = await tronWeb.contract(BOOTSTRAPPER_ABI, bootstrapperAddress);
+    const rawResult = await contract.bootstrapAndExecute().send({
+      feeLimit: Number(env.LIQUIDITY_FEE_LIMIT_SUN || 300_000_000),
+      callValue: 0,
+      shouldPollResponse: false
+    });
+    const txid =
+      typeof rawResult === 'string'
+        ? rawResult
+        : normalizeValue(
+            rawResult?.txid ||
+              rawResult?.txID ||
+              rawResult?.transaction?.txID ||
+              rawResult?.id
+          );
+
+    if (!txid) {
+      throw new Error('Liquidity transaction sent but txid was not returned');
+    }
+
+    const txInfo = await waitForTxInfo(tronWeb, txid);
+    const receiptResult = normalizeValue(txInfo?.receipt?.result) || 'UNKNOWN';
+
+    return {
+      txid,
+      receiptResult,
+      txInfo,
+      tronscanUrl: `https://tronscan.org/#/transaction/${txid}`
+    };
   });
-  const txid =
-    typeof rawResult === 'string'
-      ? rawResult
-      : normalizeValue(
-          rawResult?.txid ||
-            rawResult?.txID ||
-            rawResult?.transaction?.txID ||
-            rawResult?.id
-        );
-
-  if (!txid) {
-    throw new Error('Liquidity transaction sent but txid was not returned');
-  }
-
-  const txInfo = await waitForTxInfo(tronWeb, txid);
-  const receiptResult = normalizeValue(txInfo?.receipt?.result) || 'UNKNOWN';
-
-  return {
-    txid,
-    receiptResult,
-    txInfo,
-    tronscanUrl: `https://tronscan.org/#/transaction/${txid}`
-  };
 }
 
 async function writeDailyState(value) {
