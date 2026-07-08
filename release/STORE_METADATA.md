@@ -1,6 +1,6 @@
 # 4TEEN Store Metadata
 
-Last updated: 2026-05-03
+Last updated: 2026-07-08
 
 ## Identity
 
@@ -113,6 +113,15 @@ It is ready to use as the first live store version. Future passes can optimize f
 
 ## Legal / Support
 
+- Legal operator:
+  `"AG PLUS" LLC`
+- D-U-N-S Number:
+  `933906683`
+- Support email:
+  `support@4teen.me`
+- WhatsApp / phone:
+  `+998 95 792 02 87`
+
 - Terms route exists in-app:
   `/terms`
 - Whitepaper route exists in-app:
@@ -125,7 +134,7 @@ It is ready to use as the first live store version. Future passes can optimize f
 - Support:
   `https://4teen.me/support`
 
-Verified live on 2026-05-02.
+Verified live on 2026-07-08 after the legal-page update and D&B mini seal deployment.
 
 ## Suggested Store Classification
 

@@ -1,6 +1,6 @@
 # 4TEEN App Review Notes
 
-Last updated: 2026-05-03
+Last updated: 2026-07-08
 
 ## Submission intent
 
@@ -47,6 +47,13 @@ Suggested reviewer path:
 - Privacy: `https://4teen.me/privacy`
 - Terms: `https://4teen.me/terms`
 - Support: `https://4teen.me/support`
+
+## Legal / support identity
+
+- Legal operator: `"AG PLUS" LLC`
+- D-U-N-S Number: `933906683`
+- Support email: `support@4teen.me`
+- WhatsApp / phone: `+998 95 792 02 87`
 
 ## Notes for Apple review
 

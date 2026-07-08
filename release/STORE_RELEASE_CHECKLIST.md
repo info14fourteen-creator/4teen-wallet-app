@@ -10,6 +10,10 @@
 - [x] Wire main app icon
 - [x] Add `eas.json`
 - [x] Add `.easignore`
+- [x] Confirm legal operator as `"AG PLUS" LLC`
+- [x] Confirm D-U-N-S Number `933906683`
+- [x] Confirm publication support email `support@4teen.me`
+- [x] Confirm publication WhatsApp / phone `+998 95 792 02 87`
 
 ## Verification
 
@@ -26,6 +30,7 @@
 
 - [x] Publish privacy policy page and final URL
 - [x] Publish support page or final support URL
+- [x] Verify public legal/support pages with updated AG PLUS, D-U-N-S, D&B seal, support email, and WhatsApp details
 - [ ] Decide final store subtitle / short description wording
 - [ ] Capture fresh App Store screenshots
 - [ ] Capture fresh Google Play screenshots

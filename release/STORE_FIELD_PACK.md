@@ -1,6 +1,6 @@
 # 4TEEN Store Field Pack
 
-Last updated: 2026-05-03
+Last updated: 2026-07-08
 
 This is the practical submission pack: exact values where we already know them, plus careful recommendations where the console asks policy-style questions.
 
@@ -17,6 +17,9 @@ This is the practical submission pack: exact values where we already know them, 
 - Terms: `https://4teen.me/terms`
 - Support URL: `https://4teen.me/support`
 - Support email: `support@4teen.me`
+- Legal operator: `"AG PLUS" LLC`
+- D-U-N-S Number: `933906683`
+- WhatsApp / phone: `+998 95 792 02 87`
 
 ## Apple App Store Connect
 
@@ -34,6 +37,9 @@ This is the practical submission pack: exact values where we already know them, 
 - Support URL: `https://4teen.me/support`
 - Marketing URL: `https://4teen.me`
 - Privacy Policy URL: `https://4teen.me/privacy`
+- Support email: `support@4teen.me`
+- Legal operator: `"AG PLUS" LLC`
+- D-U-N-S Number: `933906683`
 
 ### Promotional text
 

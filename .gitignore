@@ -16,3 +16,8 @@ archive
 *.orig
 *.tmp
 *~
+
+# Local/private outreach and investor pipeline artifacts.
+release/US_PARTNER_INVESTOR_OUTREACH.md
+release/outreach/
+release/investor_pipeline/

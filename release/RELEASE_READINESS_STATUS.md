@@ -1,6 +1,6 @@
 # Release Readiness Status
 
-Last checked: 2026-05-05 (Asia/Tashkent)
+Last checked: 2026-07-08 (Asia/Tashkent)
 
 ## Current state
 
@@ -121,6 +121,14 @@ Public pages now exist and were verified live:
 - `https://4teen.me/privacy`
 - `https://4teen.me/terms`
 - `https://4teen.me/support`
+
+The public legal/support pages now carry the release identity:
+
+- Legal operator: `"AG PLUS" LLC`
+- D-U-N-S Number: `933906683`
+- Support email: `support@4teen.me`
+- WhatsApp / phone: `+998 95 792 02 87`
+- D&B mini seal script: `https://dunsregistered.dnb.com/mini.js`
 
 ## Notes
 
