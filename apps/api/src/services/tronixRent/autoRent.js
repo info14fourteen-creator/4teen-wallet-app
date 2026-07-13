@@ -98,9 +98,17 @@ function shouldUseFrontedOrder(context = {}) {
   );
 }
 
+function allowsLiquidityPaidFallback() {
+  return normalizeValue(env.LIQUIDITY_RENTAL_ALLOW_PAID_FALLBACK).toLowerCase() !== 'false';
+}
+
 function shouldRequireFrontedOrder(context = {}) {
   const purpose = normalizeValue(context.purpose).toLowerCase();
   const settlement = normalizeValue(context.settlement || context.settlementType).toLowerCase();
+
+  if (purpose === 'liquidity_execute' && allowsLiquidityPaidFallback()) {
+    return false;
+  }
 
   return (
     context.fronted === true ||
@@ -303,6 +311,8 @@ async function rentResourcesWithTronixRent({
       console.warn('[tronix-rent] fronted rental failed, falling back to paid order', {
         purpose: normalizeValue(context.purpose) || null,
         receiveAddress: receiverAddress,
+        status: frontedError?.status || frontedError?.details?.status || null,
+        path: frontedError?.tronixPath || frontedError?.details?.path || null,
         error: frontedError instanceof Error ? frontedError.message : String(frontedError)
       });
     }

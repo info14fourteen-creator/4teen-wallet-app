@@ -851,7 +851,16 @@ function buildLiquidityDailyReportText(result) {
   const plan = resources.plan && typeof resources.plan === 'object' ? resources.plan : {};
   const before = resources.before && typeof resources.before === 'object' ? resources.before : {};
   const after = resources.after && typeof resources.after === 'object' ? resources.after : {};
+  const rentalError =
+    resources.rentalError && typeof resources.rentalError === 'object'
+      ? resources.rentalError
+      : {};
+  const directFallback =
+    resources.directFallback && typeof resources.directFallback === 'object'
+      ? resources.directFallback
+      : {};
   const rented = resources.rented === true;
+  const needsRental = Number(plan.shortEnergy || 0) > 0 || Number(plan.shortBandwidth || 0) > 0;
   const success = safe.ok === true;
   const attempted = safe.attempted === true;
 
@@ -866,7 +875,18 @@ function buildLiquidityDailyReportText(result) {
     `Кошелёк: ${shortenAddress(safe.wallet)}`,
     rented
       ? `Ресурсы: арендовал energy ${Number(plan.shortEnergy || 0)} и bandwidth ${Number(plan.shortBandwidth || 0)}`
-      : 'Ресурсы: дополнительная аренда не понадобилась',
+      : needsRental
+        ? `Ресурсы: нужна аренда energy ${Number(plan.shortEnergy || 0)} и bandwidth ${Number(plan.shortBandwidth || 0)}`
+        : 'Ресурсы: дополнительная аренда не понадобилась',
+    normalizeValue(rentalError.tronixPath) || normalizeValue(rentalError.status)
+      ? `Аренда: ${normalizeValue(rentalError.tronixPath) || 'TronixRent'}${normalizeValue(rentalError.status) ? ` HTTP ${rentalError.status}` : ''}`
+      : '',
+    directFallback.attempted === true
+      ? `Fallback: отправка напрямую с TRX feeLimit ${formatSunAsTrx(directFallback.feeLimitSun)}`
+      : '',
+    normalizeValue(safe.nextAttemptAfter)
+      ? `Следующая попытка: ${normalizeValue(safe.nextAttemptAfter)}`
+      : '',
     Number(before.balanceSun || 0) > 0 || Number(after.balanceSun || 0) > 0
       ? `TRX: было ${formatSunAsTrx(before.balanceSun)} -> стало ${formatSunAsTrx(after.balanceSun)}`
       : '',

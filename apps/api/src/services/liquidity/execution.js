@@ -21,6 +21,21 @@ function normalizeValue(value) {
   return String(value || '').trim();
 }
 
+function serializeError(error) {
+  if (!error) {
+    return null;
+  }
+
+  return {
+    message: error instanceof Error ? error.message : String(error),
+    status: errorStatus(error) || null,
+    stage: error?.liquidityStage || null,
+    tronixPath: error?.tronixPath || error?.details?.path || null,
+    retryAfter: error?.retryAfter || error?.details?.retryAfter || null,
+    details: error?.details || null
+  };
+}
+
 function isEnabled() {
   return normalizeValue(env.LIQUIDITY_AUTOMATION_ENABLED).toLowerCase().includes('true');
 }
@@ -89,7 +104,7 @@ function isRetriableTronGridError(error) {
 
 async function withTrongridRetries(label, task, { maxAttempts } = {}) {
   const apiKeys = getTrongridApiKeys();
-  const attempts = Math.max(1, maxAttempts || apiKeys.length || 1);
+  const attempts = Math.max(1, maxAttempts || apiKeys.length || 3);
   let lastError = null;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -156,6 +171,56 @@ function isTerminalProcessedStatus(status) {
   return safe === 'success' || safe === 'submitted';
 }
 
+function isBackoffStatus(status) {
+  const safe = normalizeValue(status).toLowerCase();
+  return safe === 'failed' || safe === 'deferred';
+}
+
+function getRetryBackoffMs() {
+  const minutes = Number(env.LIQUIDITY_RETRY_BACKOFF_MINUTES || 180);
+  const safeMinutes = Number.isFinite(minutes) && minutes > 0 ? minutes : 180;
+  return Math.max(15, Math.floor(safeMinutes)) * 60 * 1000;
+}
+
+function isTransientRentalError(error) {
+  const status = errorStatus(error);
+  const message = normalizeValue(error?.message || error);
+
+  return (
+    status === 429 ||
+    status === 503 ||
+    status === 504 ||
+    /rental pool is temporarily unavailable|rental is temporarily unavailable|temporarily unavailable|too many requests|rate limit|status code 429/i.test(message)
+  );
+}
+
+function allowsDirectTrxFallback() {
+  return normalizeValue(env.LIQUIDITY_ALLOW_DIRECT_TRX_FALLBACK).toLowerCase() !== 'false';
+}
+
+function getFeeLimitSun() {
+  const parsed = Number(env.LIQUIDITY_FEE_LIMIT_SUN || 300_000_000);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 300_000_000;
+}
+
+function getDirectFallbackReserveSun() {
+  const parsed = Number(env.LIQUIDITY_DIRECT_FALLBACK_RESERVE_SUN || 10_000_000);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 10_000_000;
+}
+
+function canUseDirectTrxFallback(snapshot) {
+  if (!allowsDirectTrxFallback()) {
+    return false;
+  }
+
+  const balanceSun = Number(snapshot?.balanceSun || 0);
+  return balanceSun >= getFeeLimitSun() + getDirectFallbackReserveSun();
+}
+
+function buildNextAttemptAfter(now = new Date()) {
+  return new Date(now.getTime() + getRetryBackoffMs()).toISOString();
+}
+
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -177,11 +242,11 @@ async function waitForTxInfo(tronWeb, txid, { attempts = 45, delayMs = 4000 } = 
 async function getWalletResources(wallet) {
   return withTrongridRetries('wallet_resources', async ({ apiKey }) => {
     const tronWeb = createManagerTronWeb({ apiKey });
-    const [account, resources, balance] = await Promise.all([
-      tronWeb.trx.getAccount(wallet),
-      tronWeb.trx.getAccountResources(wallet),
-      tronWeb.trx.getBalance(wallet)
-    ]);
+    const account = await tronWeb.trx.getAccount(wallet);
+    await wait(400);
+    const resources = await tronWeb.trx.getAccountResources(wallet);
+    await wait(400);
+    const balance = await tronWeb.trx.getBalance(wallet);
     const balanceSun = Number.isFinite(Number(balance || 0)) ? Number(balance || 0) : 0;
 
     const freeNetLimit = Number(account?.freeNetLimit || 0);
@@ -229,16 +294,55 @@ async function maybeRentManagerResources(wallet) {
     };
   }
 
-  const rental = await rentResourcesWithTronixRent({
-    receiveAddress: wallet,
-    energyNum: plan.shortEnergy,
-    bandwidthNum: plan.shortBandwidth,
-    requestPrefix: 'liquidity-execute',
-    context: {
-      purpose: 'liquidity_execute',
-      wallet
+  let rental;
+  try {
+    rental = await rentResourcesWithTronixRent({
+      receiveAddress: wallet,
+      energyNum: plan.shortEnergy,
+      bandwidthNum: plan.shortBandwidth,
+      requestPrefix: 'liquidity-execute',
+      context: {
+        purpose: 'liquidity_execute',
+        wallet
+      }
+    });
+  } catch (error) {
+    error.liquidityStage = 'resource_rental';
+    const rentalError = serializeError(error);
+    const directFallback = {
+      attempted: false,
+      allowed: allowsDirectTrxFallback(),
+      canCoverFeeLimit: canUseDirectTrxFallback(before),
+      feeLimitSun: getFeeLimitSun(),
+      reserveSun: getDirectFallbackReserveSun(),
+      balanceSun: Number(before.balanceSun || 0)
+    };
+
+    if (isTransientRentalError(error) && directFallback.canCoverFeeLimit) {
+      directFallback.attempted = true;
+      return {
+        rented: false,
+        before,
+        after: before,
+        plan,
+        rental: null,
+        rentalError,
+        directFallback
+      };
     }
-  });
+
+    error.resources = {
+      rented: false,
+      before,
+      after: before,
+      plan,
+      rental: null,
+      error: rentalError?.message || String(error),
+      rentalError,
+      directFallback
+    };
+    throw error;
+  }
 
   const after = await getWalletResources(wallet);
 
@@ -271,7 +375,7 @@ async function sendLiquidityExecution(wallet) {
     const tronWeb = createManagerTronWeb({ apiKey });
     const contract = await tronWeb.contract(BOOTSTRAPPER_ABI, bootstrapperAddress);
     const rawResult = await contract.bootstrapAndExecute().send({
-      feeLimit: Number(env.LIQUIDITY_FEE_LIMIT_SUN || 300_000_000),
+      feeLimit: getFeeLimitSun(),
       callValue: 0,
       shouldPollResponse: false
     });
@@ -340,6 +444,23 @@ async function runLiquidityDaily(input = {}) {
     };
   }
 
+  if (
+    currentValue?.day === today &&
+    isBackoffStatus(currentValue?.status) &&
+    currentValue?.nextAttemptAfter &&
+    new Date(currentValue.nextAttemptAfter).getTime() > now.getTime()
+  ) {
+    return {
+      attempted: false,
+      skipped: true,
+      reason: 'backoff_until_next_attempt',
+      today,
+      status: currentValue.status,
+      nextAttemptAfter: currentValue.nextAttemptAfter,
+      error: currentValue.error || null
+    };
+  }
+
   const wallet = getManagerWallet();
   const startedAt = new Date().toISOString();
 
@@ -375,13 +496,18 @@ async function runLiquidityDaily(input = {}) {
       ...result
     };
   } catch (error) {
+    const transientRentalFailure =
+      error?.liquidityStage === 'resource_rental' && isTransientRentalError(error);
     const failure = {
       day: today,
-      status: 'failed',
+      status: transientRentalFailure ? 'deferred' : 'failed',
       wallet,
       startedAt,
       finishedAt: new Date().toISOString(),
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      errorDetails: serializeError(error),
+      resources: error?.resources || null,
+      nextAttemptAfter: transientRentalFailure ? buildNextAttemptAfter(now) : null
     };
 
     await writeDailyState(failure).catch(() => null);
