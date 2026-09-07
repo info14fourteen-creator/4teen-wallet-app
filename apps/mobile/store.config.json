@@ -1,0 +1,95 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "version": "1.0.5",
+    "copyright": "2026 AG PLUS, MCHJ",
+    "release": {
+      "automaticRelease": true
+    },
+    "info": {
+      "en-US": {
+        "description": "4TEEN is a self-custody TRON wallet for creating, importing, and managing wallets while keeping signing control on your device.\n\nUse 4TEEN to:\n\n• Create and import multiple TRON wallets\n• Keep signing and watch-only wallets together\n• View TRX and supported TRC-20 token balances\n• Send and receive supported assets\n• Review wallet activity and token details\n• Manage visible and custom tokens\n• Save frequently used addresses\n• Scan and display QR codes\n• Open websites in a generic in-app browser\n• Protect access with a local passcode and biometrics\n\nPrivate keys and recovery phrases remain under the user’s control. 4TEEN does not take custody of assets or sign transactions without the user’s explicit approval.\n\nCryptocurrency activity involves risk. Token values, network availability, and transaction fees can change.",
+        "keywords": [
+          "TRON",
+          "TRX",
+          "wallet",
+          "crypto",
+          "blockchain",
+          "token",
+          "Web3",
+          "self custody",
+          "portfolio",
+          "browser"
+        ],
+        "marketingUrl": "https://4teen.me",
+        "promoText": "Create, import, and manage self-custody TRON wallets with secure local signing.",
+        "supportUrl": "https://4teen.me/support",
+        "title": "4TEEN",
+        "subtitle": "Self-custody TRON wallet",
+        "privacyPolicyUrl": "https://4teen.me/privacy",
+        "screenshots": {
+          "APP_IPHONE_67": [
+            "store/apple/screenshot/en-US/APP_IPHONE_67/01-wallet-access.png",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/02-wallet-assets.png",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/03-send.png",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/04-browser.png",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/05-wallet-manager.png",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/06-receive.png",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/07-token-details.png",
+            "store/apple/screenshot/en-US/APP_IPHONE_67/08-security.png"
+          ],
+          "APP_IPAD_PRO_3GEN_129": [
+            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/02-wallet-assets.png",
+            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/03-send.png",
+            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/04-browser.png",
+            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/05-wallet-manager.png",
+            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/06-receive.png",
+            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/07-token-details.png",
+            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/08-security.png"
+          ]
+        }
+      }
+    },
+    "categories": [
+      "FINANCE",
+      "UTILITIES"
+    ],
+    "advisory": {
+      "ageRatingOverride": "NONE",
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gambling": false,
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "kidsAgeBand": null,
+      "koreaAgeRatingOverride": "NONE",
+      "lootBox": false,
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "unrestrictedWebAccess": false,
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "advertising": false,
+      "ageAssurance": false,
+      "ageRatingOverrideV2": "NONE",
+      "developerAgeRatingInfoUrl": null,
+      "gunsOrOtherWeapons": "NONE",
+      "healthOrWellnessTopics": false,
+      "messagingAndChat": false,
+      "parentalControls": false,
+      "userGeneratedContent": false
+    },
+    "review": {
+      "firstName": "Stan",
+      "lastName": "Ataev",
+      "email": "genesis@4teen.me",
+      "phone": "+998957920287",
+      "demoRequired": false,
+      "notes": "4TEEN is a non-custodial self-custody TRON wallet. Reviewers do not need a separate account login. App access starts from local wallet creation or wallet import.\n\nThis iOS build does not provide cryptocurrency exchange services. Native Swap, Direct Buy, token purchase or token issuance, liquidity execution, and related transaction routes are unavailable on iOS. Airdrop, Ambassador, unlock-timeline, Whitepaper, and other protocol-specific surfaces are also unavailable on iOS, leaving only wallet functionality. These features are absent from navigation, search, onboarding, screenshots, and public listing copy. Direct navigation to former routes returns safely to Wallet.\n\nThe generic browser does not inject a wallet provider, expose private keys, or sign website transactions. It is a standard WebView for viewing user-entered URLs.\n\nThe iOS app is distributed in 169 countries or regions solely for self-custody wallet functionality. AG PLUS, MCHJ does not operate an exchange, submit orders to an exchange, or take custody of user assets in this iOS build.\n\nFor review without using funds, add this public address as a watch-only wallet:\nTN95o1fsA7mNwJGYGedvf3y7DJZKLH6TCT\n\nLocal app access code for the provided review setup:\n10102022\n\nWatch-only mode lets reviewers inspect wallet balances, assets, and wallet activity without accessing private keys or signing transactions.\n\nPublic verification:\nhttps://4teen.me\nhttps://4teen.me/privacy\nhttps://4teen.me/terms\nhttps://4teen.me/support"
+    }
+  }
+}

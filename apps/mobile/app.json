@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "4TEEN",
-    "slug": "4teen-wallet",
+    "slug": "stan-at",
     "version": "1.0.5",
-    "description": "4TEEN Wallet. Ecosystem connector for direct buys, swaps, wallet access, and on-chain protocol flows.",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "description": "4TEEN self-custody TRON wallet for creating, importing, and managing wallets with secure local signing.",
+    "orientation": "default",
+    "icon": "./assets/images/play-store-icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/images/splash-icon.png",
@@ -22,21 +22,27 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow 4TEEN to access your camera to scan QR codes."
+          "cameraPermission": "Allow 4TEEN to access your camera to scan QR codes.",
+          "recordAudioAndroid": false
         }
       ],
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font",
+      "expo-router"
     ],
     "android": {
       "package": "me.fourteen.wallet",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/play-store-icon.png",
+        "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
+      ],
       "permissions": [
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
@@ -46,6 +52,7 @@
     "ios": {
       "bundleIdentifier": "me.fourteen.wallet",
       "supportsTablet": true,
+      "buildNumber": "14",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
         "CFBundleDisplayName": "4TEEN",
@@ -61,8 +68,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "79f43c88-b088-4947-9f42-9334ef42dafd"
+        "projectId": "e59098ab-bd81-4c0f-97a3-f4c9022b1176"
       }
-    }
+    },
+    "owner": "ag-plus-llc"
   }
 }

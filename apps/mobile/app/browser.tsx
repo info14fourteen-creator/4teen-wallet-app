@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Keyboard,
   Linking,
-  SafeAreaView,
   Share,
   StyleSheet,
   Text,
@@ -11,11 +10,18 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 
 import { useI18n } from '../src/i18n';
+import {
+  canOpenInEmbeddedBrowser,
+  getBrowserAddressLabel,
+  normalizeBrowserUrl,
+  shouldOpenExternally,
+} from '../src/features/browser-url';
 import { colors, radius } from '../src/theme/tokens';
 
 import {
@@ -25,55 +31,6 @@ import {
   BrowserRefreshIcon,
   BrowserShareIcon,
 } from '../src/ui/ui-icons';
-
-const DEFAULT_URL = 'https://tronscan.org';
-
-function normalizeUrl(input?: string | string[]) {
-  const raw = Array.isArray(input) ? input[0] : input;
-
-  if (!raw || typeof raw !== 'string') {
-    return DEFAULT_URL;
-  }
-
-  const trimmed = raw.trim();
-
-  if (!trimmed) {
-    return DEFAULT_URL;
-  }
-
-  if (
-    trimmed.startsWith('http://') ||
-    trimmed.startsWith('https://') ||
-    trimmed.startsWith('mailto:') ||
-    trimmed.startsWith('tel:') ||
-    trimmed.startsWith('sms:') ||
-    trimmed.startsWith('tronlinkoutside://') ||
-    trimmed.startsWith('intent://')
-  ) {
-    return trimmed;
-  }
-
-  return `https://${trimmed}`;
-}
-
-function shouldOpenExternally(url: string) {
-  return (
-    url.startsWith('mailto:') ||
-    url.startsWith('tel:') ||
-    url.startsWith('sms:') ||
-    url.startsWith('tronlinkoutside://') ||
-    url.startsWith('intent://')
-  );
-}
-
-function getReadableDomain(url: string, fallbackLabel: string) {
-  try {
-    const parsed = new URL(url);
-    return parsed.hostname.replace(/^www\./, '');
-  } catch {
-    return url.replace(/^https?:\/\//, '').split('/')[0] || fallbackLabel;
-  }
-}
 
 function getReadableTitle(title: string) {
   const trimmed = title.trim();
@@ -87,20 +44,23 @@ export default function BrowserScreen() {
   const webViewRef = useRef<WebView>(null);
   const inputRef = useRef<TextInput>(null);
 
-  const initialUrl = useMemo(() => normalizeUrl(params.url), [params.url]);
+  const initialUrl = useMemo(() => normalizeBrowserUrl(params.url), [params.url]);
 
   const [currentUrl, setCurrentUrl] = useState(initialUrl);
-  const [draftUrl, setDraftUrl] = useState(initialUrl);
+  const [draftUrl, setDraftUrl] = useState(initialUrl ?? '');
   const [pageTitle, setPageTitle] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [loading, setLoading] = useState(Boolean(initialUrl));
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(!initialUrl);
   const [loadProgress, setLoadProgress] = useState(0.08);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
   const [editingUrl, setEditingUrl] = useState(false);
 
-  const domainLabel = useMemo(() => getReadableDomain(currentUrl, t('Browser')), [currentUrl, t]);
-  const titleLabel = useMemo(() => getReadableTitle(pageTitle), [pageTitle]);
+  const domainLabel = useMemo(() => getBrowserAddressLabel(currentUrl, t('Browser')), [currentUrl, t]);
+  const titleLabel = useMemo(
+    () => (currentUrl ? getReadableTitle(pageTitle) : t('Enter URL')),
+    [currentUrl, pageTitle, t]
+  );
 
   const closeScreen = useCallback(() => {
     if (router.canGoBack()) {
@@ -133,27 +93,27 @@ export default function BrowserScreen() {
   }, [currentUrl]);
 
   const submitUrl = useCallback(() => {
-    const normalized = normalizeUrl(draftUrl);
+    const normalized = normalizeBrowserUrl(draftUrl);
 
     Keyboard.dismiss();
     setEditingUrl(false);
-    setLoading(true);
-    setHasLoadedOnce(false);
-    setLoadProgress(0.08);
+    setLoading(Boolean(normalized));
+    setHasLoadedOnce(!normalized);
+    setLoadProgress(normalized ? 0.08 : 1);
     setCurrentUrl(normalized);
-    setDraftUrl(normalized);
+    setDraftUrl(normalized ?? '');
   }, [draftUrl]);
 
   const cancelEditing = useCallback(() => {
     Keyboard.dismiss();
-    setDraftUrl(currentUrl);
+    setDraftUrl(currentUrl ?? '');
     setEditingUrl(false);
   }, [currentUrl]);
 
   const handleStartEditing = useCallback(() => {
     if (editingUrl) return;
 
-    setDraftUrl(currentUrl);
+    setDraftUrl(currentUrl ?? '');
     setEditingUrl(true);
 
     requestAnimationFrame(() => {
@@ -175,11 +135,7 @@ export default function BrowserScreen() {
       return false;
     }
 
-    if (
-      nextUrl.startsWith('http://') ||
-      nextUrl.startsWith('https://') ||
-      nextUrl.startsWith('about:blank')
-    ) {
+    if (canOpenInEmbeddedBrowser(nextUrl)) {
       return true;
     }
 
@@ -237,8 +193,10 @@ export default function BrowserScreen() {
 
             <TouchableOpacity
               activeOpacity={0.85}
-              style={styles.headerIconButton}
+              style={[styles.headerIconButton, !currentUrl && styles.headerIconButtonDisabled]}
+              disabled={!currentUrl}
               onPress={() => {
+                if (!currentUrl) return;
                 setLoading(true);
                 setHasLoadedOnce(false);
                 setLoadProgress(0.08);
@@ -285,41 +243,49 @@ export default function BrowserScreen() {
         </View>
 
         <View style={styles.webviewWrap}>
-          <WebView
-            ref={webViewRef}
-            source={{ uri: currentUrl }}
-            style={[styles.webview, !hasLoadedOnce && styles.webviewHidden]}
-            containerStyle={styles.webviewContainer}
-            onLoadStart={() => {
-              setLoading(true);
-              setHasLoadedOnce(false);
-              setLoadProgress(0.12);
-            }}
-            onLoadProgress={({ nativeEvent }) => {
-              const progress =
-                typeof nativeEvent.progress === 'number' ? nativeEvent.progress : 0.12;
-              setLoadProgress(progress);
-            }}
-            onLoadEnd={() => {
-              setLoading(false);
-              setHasLoadedOnce(true);
-              setLoadProgress(1);
-            }}
-            onNavigationStateChange={(state) => {
-              setCurrentUrl(state.url);
-              setDraftUrl(state.url);
-              setPageTitle(state.title || '');
-              setCanGoBack(state.canGoBack);
-              setCanGoForward(state.canGoForward);
-            }}
-            onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
-            sharedCookiesEnabled
-            javaScriptEnabled
-            domStorageEnabled
-            allowsBackForwardNavigationGestures
-            setSupportMultipleWindows={false}
-            startInLoadingState={false}
-          />
+          {currentUrl ? (
+            <WebView
+              ref={webViewRef}
+              source={{ uri: currentUrl }}
+              style={[styles.webview, !hasLoadedOnce && styles.webviewHidden]}
+              containerStyle={styles.webviewContainer}
+              onLoadStart={() => {
+                setLoading(true);
+                setHasLoadedOnce(false);
+                setLoadProgress(0.12);
+              }}
+              onLoadProgress={({ nativeEvent }) => {
+                const progress =
+                  typeof nativeEvent.progress === 'number' ? nativeEvent.progress : 0.12;
+                setLoadProgress(progress);
+              }}
+              onLoadEnd={() => {
+                setLoading(false);
+                setHasLoadedOnce(true);
+                setLoadProgress(1);
+              }}
+              onNavigationStateChange={(state) => {
+                setCurrentUrl(state.url);
+                setDraftUrl(state.url);
+                setPageTitle(state.title || '');
+                setCanGoBack(state.canGoBack);
+                setCanGoForward(state.canGoForward);
+              }}
+              onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+              sharedCookiesEnabled
+              javaScriptEnabled
+              domStorageEnabled
+              allowsBackForwardNavigationGestures
+              setSupportMultipleWindows={false}
+              startInLoadingState={false}
+            />
+          ) : (
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.browserHome}
+              onPress={handleStartEditing}
+            />
+          )}
 
           {!hasLoadedOnce ? (
             <View style={styles.fullscreenLoader}>
@@ -391,6 +357,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+
+  headerIconButtonDisabled: {
+    opacity: 0.35,
   },
 
   addressCard: {
@@ -518,6 +488,11 @@ const styles = StyleSheet.create({
   },
 
   webview: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+
+  browserHome: {
     flex: 1,
     backgroundColor: '#000000',
   },
