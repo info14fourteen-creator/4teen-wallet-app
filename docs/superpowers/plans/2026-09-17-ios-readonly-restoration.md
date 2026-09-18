@@ -31,7 +31,7 @@
 - [x] Test parsers/capabilities, TypeScript, lint, iOS and Android export. Verify on iPhone/iPad without spending funds.
 - [ ] Update version/review notes/age metadata/screenshots accurately; build and upload 1.0.6 with the next remote build number.
 - [ ] In Chrome attach exact new build, review changes, submit, and verify Waiting for Review.
-- [ ] Commit the scoped, reproducible release changes and push to the existing remote branch as previously requested. Do not stage unrelated API/ops work.
+- [x] Commit the scoped, reproducible release changes and push to the existing remote branch as previously requested. Source commit: `3d51804`. Unrelated API/ops work remains unstaged.
 
 ## Added September 19: missing USDT on an unactivated address
 
@@ -41,3 +41,5 @@
 - [x] Confirm the same loader is present in the published Android release base.
 - [x] Correct independent review finding: partial UNLOCK failures must not hide healthy data.
 - [ ] Build iOS 16 / Android 17, upload and submit through store consoles. Android release is now explicitly authorized by the user because the shared defect was confirmed.
+
+iOS 16 build and upload finished; App Review submission remains pending Apple processing and console completion. Android 17 cloud build finished and its AAB was downloaded and integrity-checked. See `release/IOS_1.0.6_RELEASE.md` for IDs, exact pending actions, and the active release heartbeat; do not create duplicate builds/submissions.
