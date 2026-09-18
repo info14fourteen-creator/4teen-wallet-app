@@ -29,8 +29,8 @@
 - [x] Restore HOME/EARN animated navigation; restricted BUY/SWAP taps show localized status instead of asking for a signing wallet.
 - [x] Keep execution confirmation routes redirected; restore search only for actual read-only pages.
 - [x] Test parsers/capabilities, TypeScript, lint, iOS and Android export. Verify on iPhone/iPad without spending funds.
-- [ ] Update version/review notes/age metadata/screenshots accurately; build and upload 1.0.6 with the next remote build number.
-- [ ] In Chrome attach exact new build, review changes, submit, and verify Waiting for Review.
+- [x] Update version/review notes/age metadata/screenshots accurately; build and upload 1.0.6 with the next remote build number (16).
+- [x] In Chrome attach exact new build, review changes, submit, and verify Waiting for Review. Confirmed September 19, 00:42 Asia/Tashkent, submission `2aed8762-fcbb-4112-9d6e-b2c52b2c29a3`.
 - [x] Commit the scoped, reproducible release changes and push to the existing remote branch as previously requested. Source commit: `3d51804`. Unrelated API/ops work remains unstaged.
 
 ## Added September 19: missing USDT on an unactivated address
@@ -40,6 +40,6 @@
 - [x] Verify 100 USDT in the actual iOS wallet UI without activating or transferring funds.
 - [x] Confirm the same loader is present in the published Android release base.
 - [x] Correct independent review finding: partial UNLOCK failures must not hide healthy data.
-- [ ] Build iOS 16 / Android 17, upload and submit through store consoles. Android release is now explicitly authorized by the user because the shared defect was confirmed.
+- [x] Build iOS 16 / Android 17, upload and submit through store consoles. Android production 1.0.6 (17) is under «Изменения на проверке», preliminary automated checks in progress. Both submissions were explicitly authorized by the user.
 
-iOS 16 build and upload finished; App Review submission remains pending Apple processing and console completion. Android 17 cloud build finished and its AAB was downloaded and integrity-checked. See `release/IOS_1.0.6_RELEASE.md` for IDs, exact pending actions, and the active release heartbeat; do not create duplicate builds/submissions.
+Both store submissions are complete. Apple 1.0.6 (16): Waiting for Review. Google Play production 1.0.6 (17): changes under review, preliminary checks running. Automatic publication after approval is configured in both stores. See `release/IOS_1.0.6_RELEASE.md` for IDs and monitoring details; do not create duplicate builds/submissions.
