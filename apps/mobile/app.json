@@ -2,7 +2,7 @@
   "expo": {
     "name": "4TEEN",
     "slug": "stan-at",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "description": "4TEEN self-custody TRON wallet for creating, importing, and managing wallets with secure local signing.",
     "orientation": "default",
     "icon": "./assets/images/play-store-icon.png",
@@ -52,7 +52,7 @@
     "ios": {
       "bundleIdentifier": "me.fourteen.wallet",
       "supportsTablet": true,
-      "buildNumber": "14",
+      "buildNumber": "16",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
         "CFBundleDisplayName": "4TEEN",

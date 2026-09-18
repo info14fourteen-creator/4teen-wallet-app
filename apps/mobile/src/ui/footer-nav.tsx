@@ -23,6 +23,12 @@ import { ensureSigningWalletActive } from '../services/wallet/storage';
 import { shouldHideFooterByRoute } from './navigation-routes';
 import FourteenWalletLoader from './fourteen-wallet-loader';
 import LottieIcon from './lottie-icon';
+import {
+  getCoreWalletUtilityAction,
+  getWalletGrowthAction,
+  getWalletOverviewAction,
+  isDirectBuyEnabled,
+} from '../features/native-swap-access';
 
 const footerHomeCoreSource = require('../../assets/icons/footer/footer_home_orange.json');
 const footerHomeGridSource = require('../../assets/icons/footer/footer_home_red.json');
@@ -138,6 +144,12 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
   const notice = useNotice();
   const { hasWallet, activeWalletKind, footerTickerItems, chromeLoaderVisible } = useWalletSession();
   const { t } = useI18n();
+  const coreUtilityAction = getCoreWalletUtilityAction();
+  const walletGrowthAction = getWalletGrowthAction();
+  const walletOverviewAction = getWalletOverviewAction();
+  const showGrowthMenu = walletGrowthAction.kind !== 'assets';
+  const showSwapIcon = coreUtilityAction.kind !== 'browser';
+  const showUnavailable = () => notice.showNeutralNotice(t('This operation is unavailable in the iOS app.'), 3600);
 
   const [barWidth, setBarWidth] = useState(0);
   const [tickerIndex, setTickerIndex] = useState(0);
@@ -210,7 +222,10 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
     pathname === '/backup-private-key' ||
     pathname === '/multisig-transactions' ||
     pathname === '/connections';
-  const isSwapActive = pathname === '/swap' || pathname === '/swap-confirm';
+  const isCoreUtilityActive =
+    coreUtilityAction.kind === 'swap'
+      ? pathname === '/swap' || pathname === '/swap-confirm'
+      : pathname === '/browser';
   const isEarnRoute =
     pathname === '/buy' ||
     pathname === '/buy-confirm' ||
@@ -389,8 +404,13 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
     return null;
   }
 
-  const goHome = () => router.replace('/unlock-timeline' as any);
+  const goHome = () => router.replace(walletOverviewAction.route as any);
   const goHomeFromFooter = () => {
+    if (walletOverviewAction.kind === 'wallets') {
+      goHome();
+      return;
+    }
+
     playFirstAnimationThen(
       {
         source: footerHomeCoreSource,
@@ -444,6 +464,10 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
     );
   };
   const guardedGoSwap = async () => {
+    if (coreUtilityAction.kind === 'swap-unavailable') {
+      showUnavailable();
+      return;
+    }
     if (activeWalletKind === 'watch-only') {
       const signingWallet = await ensureSigningWalletActive();
 
@@ -458,13 +482,20 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
 
     router.push('/swap' as any);
   };
-  const goBuy = () => router.push('/buy' as any);
+  const goBrowser = () => router.push('/browser' as any);
+  const goWalletGrowth = () => router.push(walletGrowthAction.route as any);
+  const goBuy = () => isDirectBuyEnabled() ? router.push('/buy') : showUnavailable();
   const goAirdrop = () => router.push('/airdrop' as any);
   const goAmbassador = () => router.push('/ambassador-program' as any);
   const goUnlock = () => router.push('/unlock-timeline' as any);
   const goLiquidity = () => router.push('/liquidity-controller' as any);
   const goInfo = () => router.push('/earn' as any);
   const goEarnFromFooter = () => {
+    if (walletGrowthAction.kind === 'assets') {
+      goWalletGrowth();
+      return;
+    }
+
     playLastAnimationThen(
       {
         source: footerEarnOrangeSource,
@@ -479,7 +510,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
         });
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            goBuy();
+            goWalletGrowth();
           });
         });
       }
@@ -555,16 +586,31 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
       : footerMode === 'earn'
         ? [
             {
-              label: t('BUY'),
-              active: pathname === '/buy' || pathname === '/buy-confirm',
-              icon: 'cart-outline',
-              activeIcon: 'cart',
-              animatedSource: pathname === '/buy' || pathname === '/buy-confirm' ? footerBuySource : footerBuyIdleSource,
-              animatedFrame: pathname === '/buy' || pathname === '/buy-confirm' ? 89 : 149,
-              pressAnimatedSource: footerBuySource,
-              pressAnimationFrames: [0, 89],
-              pressAnimationSpeed: 2,
-              onPress: goBuy,
+              label: t(showGrowthMenu ? 'BUY' : 'ASSETS'),
+              active:
+                showGrowthMenu
+                  ? pathname === '/buy' || pathname === '/buy-confirm'
+                  : pathname === '/manage-crypto',
+              icon: showGrowthMenu ? 'cart-outline' : 'wallet-outline',
+              activeIcon: showGrowthMenu ? 'cart' : 'wallet',
+              animatedSource:
+                showGrowthMenu
+                  ? pathname === '/buy' || pathname === '/buy-confirm'
+                    ? footerBuySource
+                    : footerBuyIdleSource
+                  : undefined,
+              animatedFrame:
+                showGrowthMenu
+                  ? pathname === '/buy' || pathname === '/buy-confirm'
+                    ? 89
+                    : 149
+                  : undefined,
+              pressAnimatedSource:
+                showGrowthMenu ? footerBuySource : undefined,
+              pressAnimationFrames:
+                showGrowthMenu ? [0, 89] : undefined,
+              pressAnimationSpeed: showGrowthMenu ? 2 : undefined,
+              onPress: showGrowthMenu ? goBuy : goWalletGrowth,
             },
             {
               label: t('AIRDROP'),
@@ -602,12 +648,18 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
           ]
         : [
             {
-            label: t('HOME'),
-            active: false,
-            icon: 'home-variant-outline',
-            activeIcon: 'home-variant',
-            animatedSource: footerHomeCoreSource,
-            animatedProgress: 0,
+            label: t(walletOverviewAction.labelKey),
+            active:
+              walletOverviewAction.kind === 'wallets' && pathname === '/wallet-manager',
+            icon:
+              walletOverviewAction.kind === 'protocol'
+                ? 'home-variant-outline'
+                : 'wallet-outline',
+            activeIcon:
+              walletOverviewAction.kind === 'protocol' ? 'home-variant' : 'wallet',
+            animatedSource:
+              walletOverviewAction.kind === 'protocol' ? footerHomeCoreSource : undefined,
+            animatedProgress: walletOverviewAction.kind === 'protocol' ? 0 : undefined,
             onPress: goHomeFromFooter,
           },
             {
@@ -623,24 +675,30 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
               onPress: goSend,
             },
             {
-              label: t('SWAP'),
-              active: isSwapActive,
-              icon: 'swap-horizontal',
-              activeIcon: 'swap-horizontal-bold',
-              animatedSource: footerSwapSource,
-              animatedFrame: 119,
-              pressAnimatedSource: footerSwapSource,
-              pressAnimationFrames: [0, 119],
-              pressAnimationSpeed: 2,
-              onPress: guardedGoSwap,
+              label: t(coreUtilityAction.labelKey),
+              active: isCoreUtilityActive,
+              icon: showSwapIcon ? 'swap-horizontal' : 'web',
+              activeIcon: showSwapIcon ? 'swap-horizontal-bold' : 'web',
+              animatedSource:
+                showSwapIcon ? footerSwapSource : undefined,
+              animatedFrame: showSwapIcon ? 119 : undefined,
+              pressAnimatedSource:
+                showSwapIcon ? footerSwapSource : undefined,
+              pressAnimationFrames:
+                showSwapIcon ? [0, 119] : undefined,
+              pressAnimationSpeed: showSwapIcon ? 2 : undefined,
+              onPress: showSwapIcon ? guardedGoSwap : goBrowser,
             },
             {
-              label: t('EARN'),
-              active: false,
-              icon: 'chart-line',
-              activeIcon: 'chart-line-variant',
-              animatedSource: footerEarnOrangeSource,
-              animatedFrame: 0,
+              label: t(walletGrowthAction.labelKey),
+              active:
+                walletGrowthAction.kind === 'assets' && pathname === '/manage-crypto',
+              icon: showGrowthMenu ? 'chart-line' : 'wallet-outline',
+              activeIcon:
+                showGrowthMenu ? 'chart-line-variant' : 'wallet',
+              animatedSource:
+                showGrowthMenu ? footerEarnOrangeSource : undefined,
+              animatedFrame: showGrowthMenu ? 0 : undefined,
               onPress: goEarnFromFooter,
             },
           ];

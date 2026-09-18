@@ -9,9 +9,14 @@ import { ProductScreen } from '../src/ui/product-shell';
 
 import { colors, radius, spacing } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
+import { isDirectBuyEnabled, isNativeSwapEnabled } from '../src/features/native-swap-access';
 
 export default function TermsScreen() {
   const { t } = useI18n();
+  const directBuyEnabled = isDirectBuyEnabled();
+  const applicationInterfaces = isNativeSwapEnabled()
+    ? 'Direct buy and swap interfaces'
+    : 'Wallet send and receive interfaces';
   return (
     <ProductScreen eyebrow={t('TERMS OF SERVICE')} browVariant="backLink">
           <SectionCard
@@ -19,13 +24,20 @@ export default function TermsScreen() {
             title={t('Application access and agreement')}
           >
             <Paragraph>
-              {t('4TEEN Wallet is a non-custodial application providing access to blockchain-based tools, token interaction, and ecosystem features.')}
+              {t(
+                directBuyEnabled
+                  ? '4TEEN Wallet is a non-custodial application providing access to blockchain-based tools, token interaction, and ecosystem features.'
+                  : '4TEEN Wallet is a non-custodial application for creating or importing wallets, viewing blockchain data, and preparing user-authorized transfers.'
+              )}
             </Paragraph>
             <Paragraph>
               {t('By using the application, you agree to these Terms of Service.')}
             </Paragraph>
             <NoteBox>
-              {t('Contact: info@4teen.me • +1 646-217-8070 • https://4teen.me')}
+              {t('Contact: support@4teen.me • +998 95 792 02 87 • https://4teen.me')}
+            </NoteBox>
+            <NoteBox>
+              {'"AG PLUS" Limited Liability Company • TIN 312 696 228 • Registration 3080788 • D-U-N-S 933906683'}
             </NoteBox>
           </SectionCard>
 
@@ -35,13 +47,21 @@ export default function TermsScreen() {
           >
             <RuleList
               t={t}
-              items={[
-                'Wallet creation and import',
-                'Direct buy and swap interfaces',
-                'Unlock timeline and liquidity tracking',
-                'Ambassador and airdrop participation',
-                'Access to external dApps and services',
-              ]}
+              items={directBuyEnabled
+                ? [
+                    'Wallet creation and import',
+                    applicationInterfaces,
+                    'Unlock timeline and liquidity tracking',
+                    'Ambassador and airdrop participation',
+                    'Access to external dApps and services',
+                  ]
+                : [
+                    'Wallet creation and import',
+                    applicationInterfaces,
+                    'Wallet balances and transaction history',
+                    'Token information and address tracking',
+                    'Access to external websites',
+                  ]}
             />
 
             <Paragraph>
@@ -108,7 +128,11 @@ export default function TermsScreen() {
             title={t('Market behavior is external')}
           >
             <Paragraph>
-              {t('Token interfaces may display price, liquidity, and conversion data, but these values are not controlled by the application.')}
+              {t(
+                directBuyEnabled
+                  ? 'Token interfaces may display price, liquidity, and conversion data, but these values are not controlled by the application.'
+                  : 'Token interfaces may display balances, prices, and public blockchain information, but these values are not controlled by the application.'
+              )}
             </Paragraph>
 
             <Paragraph>
@@ -123,7 +147,7 @@ export default function TermsScreen() {
             <RuleList
               t={t}
               items={[
-                'DEX protocols',
+                ...(directBuyEnabled ? ['DEX protocols'] : []),
                 'External dApps',
                 'Websites and social platforms',
               ]}
@@ -134,23 +158,39 @@ export default function TermsScreen() {
             </Paragraph>
           </SectionCard>
 
-          <SectionCardPlain
-            eyebrow={t('8. Ambassador and Airdrop')}
-            title={t('Participation rules')}
-          >
-            <RuleList
-              t={t}
-              items={[
-                'Rewards may be delayed or denied',
-                'Fraud or abuse may lead to exclusion',
-                'Campaign rules may change',
-              ]}
-            />
+          {directBuyEnabled ? (
+            <SectionCardPlain
+              eyebrow={t('8. Ambassador and Airdrop')}
+              title={t('Participation rules')}
+            >
+              <RuleList
+                t={t}
+                items={[
+                  'Rewards may be delayed or denied',
+                  'Fraud or abuse may lead to exclusion',
+                  'Campaign rules may change',
+                ]}
+              />
 
-            <NoteBox>
-              {t('Participation does not guarantee rewards.')}
-            </NoteBox>
-          </SectionCardPlain>
+              <NoteBox>
+                {t('Participation does not guarantee rewards.')}
+              </NoteBox>
+            </SectionCardPlain>
+          ) : (
+            <SectionCardPlain
+              eyebrow={t('8. Privacy and Security')}
+              title={t('Local wallet protection')}
+            >
+              <RuleList
+                t={t}
+                items={[
+                  'Signing secrets remain on the user device',
+                  'Watch-only wallets cannot sign transactions',
+                  'Users must protect their recovery information',
+                ]}
+              />
+            </SectionCardPlain>
+          )}
 
           <SectionCard
             eyebrow={t('9. Acceptable Use')}
@@ -158,11 +198,17 @@ export default function TermsScreen() {
           >
             <RuleList
               t={t}
-              items={[
-                'No exploitation of logic',
-                'No manipulation of rewards',
-                'No interference with protocol behavior',
-              ]}
+              items={directBuyEnabled
+                ? [
+                    'No exploitation of logic',
+                    'No manipulation of rewards',
+                    'No interference with protocol behavior',
+                  ]
+                : [
+                    'No exploitation of application logic',
+                    'No unauthorized access attempts',
+                    'No interference with wallet operation',
+                  ]}
             />
           </SectionCard>
 

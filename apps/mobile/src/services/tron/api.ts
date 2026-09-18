@@ -49,9 +49,9 @@ const WALLET_SNAPSHOT_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACCOUNT_RESOURCES_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACCOUNT_INFO_CACHE_STORAGE_KEY_PREFIX = 'fourteen_account_info_cache_v1';
 const ACCOUNT_INFO_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_account_info_cache_';
-const ACCOUNT_TRC20_ASSETS_CACHE_STORAGE_KEY_PREFIX = 'fourteen_account_trc20_assets_cache_v1';
+const ACCOUNT_TRC20_ASSETS_CACHE_STORAGE_KEY_PREFIX = 'fourteen_account_trc20_assets_cache_v2';
 const ACCOUNT_TRC20_ASSETS_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_account_trc20_assets_cache_';
-const WALLET_SNAPSHOT_CACHE_STORAGE_KEY_PREFIX = 'fourteen_wallet_snapshot_cache_v1';
+const WALLET_SNAPSHOT_CACHE_STORAGE_KEY_PREFIX = 'fourteen_wallet_snapshot_cache_v2';
 const WALLET_SNAPSHOT_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_wallet_snapshot_cache_';
 const TRONGRID_ACCOUNT_CACHE_STORAGE_KEY_PREFIX = 'fourteen_trongrid_account_cache_v1';
 const TRONGRID_ACCOUNT_CACHE_STORAGE_KEY_PREFIX_ROOT = 'fourteen_trongrid_account_cache_';
@@ -4019,6 +4019,41 @@ export async function getAccountResources(
   }
 }
 
+async function readCoreTokenBalance(address: string, tokenId: string): Promise<RawTrc20Balance> {
+  assertTronConfig();
+  if (!TronWeb.isAddress(address)) throw new Error('Invalid balance address');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    // TRC20 funds can exist before the recipient's TRON account is activated.
+    // Account/token-list indexers may return [] in that case; query the ledger.
+    // This is a read-only simulation: no private key, signing or broadcast.
+    const response = await fetch(`${TRONGRID_BASE_URL}/wallet/triggerconstantcontract`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        owner_address: tokenId, // An existing account; recipient may not exist yet.
+        contract_address: tokenId,
+        function_selector: 'balanceOf(address)',
+        parameter: TronWeb.address.toHex(address).slice(2).padStart(64, '0'),
+        visible: true,
+      }),
+    });
+    if (!response.ok) throw new ProviderRequestError(response.status, await response.text());
+    const payload = await response.json() as {
+      result?: { result?: boolean }; constant_result?: string[];
+    };
+    const value = payload.constant_result?.[0];
+    if (payload.result?.result !== true || !value || !/^[0-9a-f]{64}$/i.test(value)) {
+      throw new Error('TRC20 contract balance unavailable');
+    }
+    return { tokenId, balance: BigInt(`0x${value}`).toString() };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function getAccountTrc20Assets(
   address: string,
   options?: { force?: boolean }
@@ -4063,7 +4098,8 @@ export async function getAccountTrc20Assets(
     let accountLookupFailed = false;
     let tronscanLookupFailed = false;
 
-    const [accountItem, tronscanData] = await Promise.all([
+    const coreTokens = [USDT_CONTRACT, FOURTEEN_CONTRACT];
+    const [accountItem, tronscanData, coreBalances] = await Promise.all([
       getCachedTrongridAccount(address, options).catch((error): TrongridAccountItem | null => {
         accountLookupFailed = true;
 
@@ -4085,14 +4121,28 @@ export async function getAccountTrc20Assets(
         console.warn('Failed to load Tronscan token balances:', address, error);
         return {};
       }),
+      Promise.allSettled(coreTokens.map(tokenId => readCoreTokenBalance(address, tokenId))),
     ]);
 
     const tronscanTokens = extractTokenList(tronscanData);
     const tronscanIndex = indexTronscanTokens(tronscanTokens);
-    const rawBalances = dedupeBalances([
+    const indexedBalances = dedupeBalances([
       ...extractTrc20BalancesFromTronscan(tronscanTokens),
       ...extractTrc20BalancesFromTrongrid(accountItem),
     ]);
+
+    const balancesByToken = new Map(indexedBalances.map(item => [item.tokenId, item]));
+    for (const [index, result] of coreBalances.entries()) {
+      const tokenId = coreTokens[index];
+      if (result.status === 'fulfilled') {
+        // An authoritative zero must also replace a stale positive index value.
+        balancesByToken.set(tokenId, result.value);
+      } else if (!balancesByToken.has(tokenId)) {
+        // Absence in an index cannot confirm zero for an unactivated account.
+        throw new Error(`TRC20 balance unavailable: ${getKnownTokenMeta(tokenId)?.tokenAbbr || tokenId}`);
+      }
+    }
+    const rawBalances = dedupeBalances([...balancesByToken.values()]);
 
     if (!rawBalances.length && accountLookupFailed && tronscanLookupFailed) {
       throw new Error(translateNow('All TRC20 balance providers failed.'));
@@ -4266,11 +4316,13 @@ export async function getWalletSnapshot(
 
       if (!isRateLimit) {
         console.warn(
-          'Failed to load TRC20 balances, using empty token fallback:',
+          'Failed to load TRC20 balances; retaining the previous portfolio if available:',
           address,
           trc20AssetsResult.reason
         );
       }
+      // Never cache a failed token lookup as a successful zero balance.
+      throw trc20AssetsResult.reason;
     }
 
     if (trxPriceResult.status === 'rejected') {

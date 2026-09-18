@@ -48,6 +48,7 @@ import ScreenLoadingState from '../src/ui/screen-loading-state';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import { isNativeSwapEnabled } from '../src/features/native-swap-access';
 
 type WalletSwitcherItem = {
   id: string;
@@ -86,6 +87,7 @@ function formatCardCurrency(value: number | null | undefined) {
 
 export default function UnlockTimelineScreen() {
   const router = useRouter();
+  const nativeSwapEnabled = isNativeSwapEnabled();
   const notice = useNotice();
   const { t } = useI18n();
   const { setPendingWalletSelectionId } = useWalletSession();
@@ -220,9 +222,13 @@ export default function UnlockTimelineScreen() {
   }, [now, snapshot?.events]);
 
   const canOpenSwap =
-    activeWallet?.kind !== 'watch-only' && (snapshot?.availableBalance ?? 0) > 0;
+    nativeSwapEnabled &&
+    activeWallet?.kind !== 'watch-only' &&
+    (snapshot?.availableBalance ?? 0) > 0;
   const hasUnlockedOnWatchOnly =
-    activeWallet?.kind === 'watch-only' && (snapshot?.availableBalance ?? 0) > 0;
+    nativeSwapEnabled &&
+    activeWallet?.kind === 'watch-only' &&
+    (snapshot?.availableBalance ?? 0) > 0;
 
   const historyStatusText =
     snapshot?.historyStatus === 'rate-limited'

@@ -6,7 +6,7 @@ import * as Linking from 'expo-linking';
 import { useFonts } from 'expo-font';
 import { Sora_600SemiBold, Sora_700Bold } from '@expo-google-fonts/sora';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AppState, StyleSheet, View } from 'react-native';
+import { AppState, LogBox, StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 import { Buffer } from 'buffer';
 import process from 'process';
@@ -34,6 +34,8 @@ import { getActiveWallet } from '../src/services/wallet/storage';
 import FourteenWalletLoader from '../src/ui/fourteen-wallet-loader';
 
 void SplashScreen.preventAutoHideAsync().catch(() => null);
+
+LogBox.ignoreLogs(['Sending `onAnimatedValueUpdate` with no listeners registered.']);
 
 if (!(globalThis as any).Buffer) {
   (globalThis as any).Buffer = Buffer;

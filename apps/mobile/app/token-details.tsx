@@ -39,6 +39,7 @@ import {
 import { formatCompactDisplayCurrency, formatDisplayCurrency } from '../src/ui/currency-format';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import { isNativeSwapEnabled } from '../src/features/native-swap-access';
 
 import {
   ShareIcon,
@@ -141,6 +142,7 @@ function dedupeHistory(items: TokenHistoryItem[]) {
 
 export default function TokenDetailsScreen() {
   const { t } = useI18n();
+  const nativeSwapEnabled = isNativeSwapEnabled();
   const router = useRouter();
   const notice = useNotice();
   const { walletDataRefreshKey } = useWalletSession();
@@ -701,39 +703,41 @@ export default function TokenDetailsScreen() {
                   <Text style={styles.tokenPrimaryButtonText}>{t('Send')}</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  style={styles.tokenSecondaryButton}
-                  onPress={() => void (async () => {
-                    const wallet = await getActiveWallet();
-                    let targetWalletId: string | undefined;
+                {nativeSwapEnabled ? (
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    style={styles.tokenSecondaryButton}
+                    onPress={() => void (async () => {
+                      const wallet = await getActiveWallet();
+                      let targetWalletId: string | undefined;
 
-                    if (wallet?.kind === 'watch-only') {
-                      const signingWallet = await ensureSigningWalletActive();
-                      if (!signingWallet) {
-                        notice.showNeutralNotice(
-                          t('Swap requires a signing wallet. Import or switch to a full-access wallet first.'),
-                          3200
-                        );
-                        return;
+                      if (wallet?.kind === 'watch-only') {
+                        const signingWallet = await ensureSigningWalletActive();
+                        if (!signingWallet) {
+                          notice.showNeutralNotice(
+                            t('Swap requires a signing wallet. Import or switch to a full-access wallet first.'),
+                            3200
+                          );
+                          return;
+                        }
+
+                        targetWalletId = signingWallet.id;
+                      } else if (wallet?.id) {
+                        targetWalletId = wallet.id;
                       }
 
-                      targetWalletId = signingWallet.id;
-                    } else if (wallet?.id) {
-                      targetWalletId = wallet.id;
-                    }
-
-                    router.push({
-                      pathname: '/swap',
-                      params: {
-                        tokenId: details.tokenId,
-                        walletId: targetWalletId,
-                      },
-                    } as any);
-                  })()}
-                >
-                  <Text style={styles.tokenSecondaryButtonText}>{t('Swap')}</Text>
-                </TouchableOpacity>
+                      router.push({
+                        pathname: '/swap',
+                        params: {
+                          tokenId: details.tokenId,
+                          walletId: targetWalletId,
+                        },
+                      } as any);
+                    })()}
+                  >
+                    <Text style={styles.tokenSecondaryButtonText}>{t('Swap')}</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
 
               <View style={styles.historyHeaderBar}>

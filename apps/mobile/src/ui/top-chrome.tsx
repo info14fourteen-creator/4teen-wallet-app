@@ -20,6 +20,7 @@ import { colors, fontFamilies, radius, spacing } from '../theme/tokens';
 import { getCompactVersionDisplayString } from '../config/app-version';
 import { openInAppBrowser } from '../utils/open-in-app-browser';
 import { checkForAppUpdate } from '../services/app-release';
+import { isDirectBuyEnabled, isNativeSwapEnabled } from '../features/native-swap-access';
 
 import LogoWhite from '../../assets/icons/ui/logo_white.svg';
 import { CloseIcon, InfoIcon, MenuIcon, ScanIcon, SearchIcon } from './ui-icons';
@@ -63,6 +64,7 @@ function ChromeBar({
   onToggle: () => void;
 }) {
   const { t } = useI18n();
+  const protocolSurfacesEnabled = isDirectBuyEnabled();
   return (
     <View style={styles.bar}>
       <TouchableOpacity activeOpacity={0.85} style={styles.iconButton} onPress={onToggle}>
@@ -73,7 +75,11 @@ function ChromeBar({
         <TextInput
           editable={false}
           pointerEvents="none"
-          placeholder={t('crypto, address, dapp...')}
+          placeholder={
+            protocolSurfacesEnabled
+              ? t('crypto, address, dapp...')
+              : t('crypto, address, wallet...')
+          }
           placeholderTextColor={colors.textDim}
           style={styles.input}
         />
@@ -196,6 +202,8 @@ export function TopChrome() {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<MenuView>('main');
   const [rateOpen, setRateOpen] = useState(false);
+  const directBuyEnabled = isDirectBuyEnabled();
+  const nativeSwapEnabled = isNativeSwapEnabled();
 
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const shellOpacity = useRef(new Animated.Value(0)).current;
@@ -312,15 +320,17 @@ export function TopChrome() {
                     <MenuItem label={t('Settings')} />
                   </View>
 
-                  <View style={styles.sectionBlock}>
-                    <SectionTitle>{t('ecosystem')}</SectionTitle>
-                    <MenuItem label={t('Direct buy')} />
-                    <MenuItem label={t('Swap')} />
-                    <MenuItem label={t('Unlock timeline')} />
-                    <MenuItem label={t('Liquidity')} />
-                    <MenuItem label={t('Ambassador')} />
-                    <MenuItem label={t('Airdrop')} />
-                  </View>
+                  {directBuyEnabled || nativeSwapEnabled ? (
+                    <View style={styles.sectionBlock}>
+                      <SectionTitle>{t('ecosystem')}</SectionTitle>
+                      {directBuyEnabled ? <MenuItem label={t('Direct buy')} /> : null}
+                      {nativeSwapEnabled ? <MenuItem label={t('Swap')} /> : null}
+                      {directBuyEnabled ? <MenuItem label={t('Unlock timeline')} /> : null}
+                      {directBuyEnabled ? <MenuItem label={t('Liquidity')} /> : null}
+                      <MenuItem label={t('Ambassador')} />
+                      <MenuItem label={t('Airdrop')} />
+                    </View>
+                  ) : null}
 
                   <View style={styles.menuBottomSpacer} />
                 </ScrollView>
@@ -356,7 +366,9 @@ export function TopChrome() {
                 <View style={styles.aboutCard}>
                   <AboutActionRow label={t('Version Update')} onPress={handleVersionUpdate} />
                   <AboutActionRow label={t('Terms of Service')} onPress={goTerms} />
-                  <AboutActionRow label={t('4TEEN Whitepaper')} onPress={goWhitepaper} />
+                  {directBuyEnabled ? (
+                    <AboutActionRow label={t('4TEEN Whitepaper')} onPress={goWhitepaper} />
+                  ) : null}
                   <AboutActionRow
                     label={`${t('Rate Us')} / ${t('Send Feedback')}`}
                     icon="star"

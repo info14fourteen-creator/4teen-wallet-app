@@ -1,18 +1,17 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useI18n, useLocaleLayout } from '../src/i18n';
 import NumericKeypad from '../src/ui/numeric-keypad';
-import { colors, layout, radius, spacing } from '../src/theme/tokens';
+import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
 import { clearPasscodeDraft, getPasscodeDraft, savePasscode } from '../src/security/local-auth';
 import { BackspaceIcon } from '../src/ui/ui-icons';
 import { useNotice } from '../src/notice/notice-provider';
-import { useNavigationInsets } from '../src/ui/navigation';
 import ScreenBrow from '../src/ui/screen-brow';
-import { useBottomInset } from '../src/ui/use-bottom-inset';
+import { getPasscodeContentInsets, getPasscodeLayoutMode } from '../src/ui/passcode-layout';
 
 export default function ConfirmPasscodeScreen() {
   const router = useRouter();
@@ -22,8 +21,15 @@ export default function ConfirmPasscodeScreen() {
   const nextPath = typeof params.next === 'string' ? params.next : '/import-wallet';
   const flow = typeof params.flow === 'string' ? params.flow : 'create-passcode';
   const notice = useNotice();
-  const navInsets = useNavigationInsets({ topExtra: 14 });
-  const contentBottomInset = useBottomInset();
+  const safeAreaInsets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const layoutMode = getPasscodeLayoutMode(width, height);
+  const compact = layoutMode === 'compact';
+  const contentInsets = getPasscodeContentInsets(
+    safeAreaInsets.top,
+    safeAreaInsets.bottom,
+    layoutMode
+  );
 
   const [digits, setDigits] = useState('');
   const [error, setError] = useState('');
@@ -86,19 +92,29 @@ export default function ConfirmPasscodeScreen() {
     <SafeAreaView style={styles.safe} edges={['left', 'right']}>
       <Stack.Screen options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
       <View style={styles.screen}>
-        <View style={[styles.content, { paddingTop: navInsets.top, paddingBottom: contentBottomInset }]}>
+        <ScrollView
+          style={styles.scroller}
+          bounces={false}
+          contentContainerStyle={[
+            styles.content,
+            compact && styles.contentCompact,
+            { paddingTop: contentInsets.contentPaddingTop },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <ScreenBrow label={isChangeFlow ? t('CHANGE PASSCODE') : t('CONFIRM PASSCODE')} rtl={locale.isRTL} />
-          <Text style={[styles.title, locale.textStart]}>
+          <Text style={[styles.title, compact && styles.titleCompact, locale.textStart]}>
             {isChangeFlow ? t('Confirm your new passcode') : t('Confirm your passcode')}
           </Text>
 
-          <Text style={[styles.lead, locale.textStart]}>
+          <Text style={[styles.lead, compact && styles.leadCompact, locale.textStart]}>
             {isChangeFlow
               ? t('Enter the same new 6 digits again. If they do not match, the confirm step resets.')
               : t('Enter the same 6 digits again. If they do not match, we reset the confirm step.')}
           </Text>
 
-          <View style={styles.card}>
+          <View style={[styles.card, compact && styles.cardCompact]}>
             <View style={styles.cardHeaderRow}>
               <Text style={[ui.sectionEyebrow, locale.textStart]}>{t('Confirm')}</Text>
               <Text style={[styles.cardHeaderErrorText, locale.textStart]} numberOfLines={1}>
@@ -117,6 +133,7 @@ export default function ConfirmPasscodeScreen() {
           </View>
 
           <NumericKeypad
+            compact={compact}
             onDigitPress={handleDigitPress}
             onBackspacePress={digits.length === 0 ? handleCancel : handleBackspace}
             backspaceIcon={
@@ -128,6 +145,9 @@ export default function ConfirmPasscodeScreen() {
             }
           />
 
+        </ScrollView>
+
+        <View style={[styles.actionWrap, { paddingBottom: contentInsets.actionPaddingBottom }]}>
           <TouchableOpacity
             activeOpacity={0.9}
             style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]}
@@ -156,9 +176,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.screenPaddingX,
   },
 
-  content: {
+  scroller: {
     flex: 1,
-    paddingBottom: spacing[7],
+  },
+
+  content: {
+    flexGrow: 1,
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+    paddingBottom: 12,
+  },
+
+  contentCompact: {
+    maxWidth: 920,
   },
 
   title: {
@@ -176,11 +207,23 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
   },
 
+  titleCompact: {
+    fontSize: 28,
+    lineHeight: 34,
+    minHeight: 0,
+  },
+
   lead: {
     ...ui.lead,
     marginTop: 14,
     marginBottom: 22,
     minHeight: 56,
+  },
+
+  leadCompact: {
+    marginTop: 8,
+    marginBottom: 12,
+    minHeight: 0,
   },
 
   card: {
@@ -190,6 +233,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: 16,
     marginBottom: 20,
+  },
+
+  cardCompact: {
+    paddingVertical: 12,
+    marginBottom: 12,
   },
 
   cardHeaderRow: {
@@ -238,7 +286,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    marginTop: 'auto',
+    marginTop: 4,
+  },
+
+  actionWrap: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+    paddingTop: 4,
   },
 
   primaryButtonDisabled: {

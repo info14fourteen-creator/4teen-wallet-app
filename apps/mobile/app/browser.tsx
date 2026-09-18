@@ -81,6 +81,7 @@ export default function BrowserScreen() {
   }, [canGoBack, closeScreen]);
 
   const handleShare = useCallback(async () => {
+    if (!currentUrl) return;
     try {
       await Clipboard.setStringAsync(currentUrl);
       await Share.share({

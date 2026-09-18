@@ -16,6 +16,7 @@ import { goBackOrReplace } from './safe-back';
 import LottieIcon from './lottie-icon';
 import { shouldRenderSharedNavigation } from './navigation-routes';
 import { useWalletSession } from '../wallet/wallet-session';
+import { isDirectBuyEnabled } from '../features/native-swap-access';
 
 const headerQrSource = require('../../assets/icons/header/header_qr.json');
 const headerSearchSource = require('../../assets/icons/search/search_magnifier.json');
@@ -50,6 +51,7 @@ export default function AppHeader({
   const { openSearch } = useGlobalSearch();
   const { hasWallet } = useWalletSession();
   const { t } = useI18n();
+  const protocolSurfacesEnabled = isDirectBuyEnabled();
   const [qrPlayToken, setQrPlayToken] = useState(0);
   const [searchPlayToken, setSearchPlayToken] = useState(0);
   const burgerProgress = useRef(new Animated.Value(showClose ? 1 : 0)).current;
@@ -233,7 +235,13 @@ export default function AppHeader({
                 frames={[0, 119]}
                 speed={1.8}
               />
-              <Text style={styles.searchText}>{t('crypto, address, dapp...')}</Text>
+              <Text style={styles.searchText}>
+                {t(
+                  protocolSurfacesEnabled
+                    ? 'crypto, address, dapp...'
+                    : 'crypto, address, wallet...'
+                )}
+              </Text>
             </View>
           </Pressable>
 

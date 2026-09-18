@@ -2355,8 +2355,8 @@ export const SETTINGS_TERMS_SLICE_UZ = {
     '4TEEN Wallet blokcheyn asosidagi vositalar, tokenlar bilan ishlash va ekotizim funksiyalariga kirishni ta’minlaydigan non-custodial ilovadir.',
   'By using the application, you agree to these Terms of Service.':
     'Ilovadan foydalanish orqali siz ushbu Foydalanish shartlariga rozilik bildirasiz.',
-  'Contact: info@4teen.me • +1 646-217-8070 • https://4teen.me':
-    'Aloqa: info@4teen.me • +1 646-217-8070 • https://4teen.me',
+  'Contact:  support@4teen.me • +998 95 792 02 87 • https://4teen.me':
+    'Aloqa:  support@4teen.me • +998 95 792 02 87 • https://4teen.me',
   '2. Nature of the Application': '2. Ilovaning tabiati',
   'Interface, not control layer': 'Bu boshqaruv qatlami emas, interfeys qatlamidir',
   'The application acts as an interface layer. It does not control assets or execute transactions without user authorization.':
@@ -2407,8 +2407,8 @@ export const SETTINGS_TERMS_SLICE_TR = {
     '4TEEN Wallet, blokzincir tabanlı araçlara, token etkileşimine ve ekosistem özelliklerine erişim sağlayan non-custodial bir uygulamadır.',
   'By using the application, you agree to these Terms of Service.':
     'Uygulamayı kullanarak bu Hizmet Şartlarını kabul etmiş olursunuz.',
-  'Contact: info@4teen.me • +1 646-217-8070 • https://4teen.me':
-    'İletişim: info@4teen.me • +1 646-217-8070 • https://4teen.me',
+  'Contact:  support@4teen.me • +998 95 792 02 87 • https://4teen.me':
+    'İletişim:  support@4teen.me • +998 95 792 02 87 • https://4teen.me',
   '2. Nature of the Application': '2. Uygulamanın Niteliği',
   'Interface, not control layer': 'Kontrol katmanı değil, arayüz katmanı',
   'The application acts as an interface layer. It does not control assets or execute transactions without user authorization.':

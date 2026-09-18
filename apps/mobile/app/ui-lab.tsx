@@ -24,6 +24,7 @@ import ScreenBrow from '../src/ui/screen-brow';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import { useWalletSession } from '../src/wallet/wallet-session';
 import LottieIcon from '../src/ui/lottie-icon';
+import { isDirectBuyEnabled } from '../src/features/native-swap-access';
 
 const AUTO_INTERVAL = 5200;
 const UI_LAB_LANGUAGE_GLOBE_SOURCE = require('../assets/icons/ui/ui_lab_language_globe.json');
@@ -34,7 +35,7 @@ type Slide = {
   bodyKey: string;
 };
 
-const slides: Slide[] = [
+const ALL_SLIDES: Slide[] = [
   {
     eyebrowKey: 'Wallet',
     titleKey: 'Reliable Wallet for TRON',
@@ -72,6 +73,9 @@ const slides: Slide[] = [
       'Move between supported assets without leaving the wallet shell and without the usual <red>fragmented mess</red>.',
   },
 ];
+
+const protocolSurfacesEnabled = isDirectBuyEnabled();
+const slides = protocolSurfacesEnabled ? ALL_SLIDES : ALL_SLIDES.slice(0, 1);
 
 export default function UiLab() {
   const router = useRouter();
@@ -274,6 +278,10 @@ export default function UiLab() {
   };
 
   const renderHeroTitle = () => {
+    if (!protocolSurfacesEnabled) {
+      return t('Reliable Wallet for TRON');
+    }
+
     const title = t('Your access point to the 4TEEN ecosystem and beyond');
     const brand = '4TEEN';
     const brandIndex = title.indexOf(brand);

@@ -1,4 +1,5 @@
 import type { SearchRouteEntry } from './search-types';
+import { filterNativeExchangeEntries } from '../features/native-swap-access';
 
 export const APP_SEARCH_ROUTES: SearchRouteEntry[] = [
   {
@@ -338,3 +339,20 @@ export const APP_SEARCH_ROUTES: SearchRouteEntry[] = [
     quickPageIcon: 'wallet',
   },
 ];
+
+export function getAppSearchRoutes(
+  platform: string | undefined = process.env.EXPO_OS
+): SearchRouteEntry[] {
+  const entries = filterNativeExchangeEntries(APP_SEARCH_ROUTES, platform);
+  if (platform !== 'ios') return entries;
+  const titles: Record<string, string> = {
+    'route-earn': 'Protocol overview',
+    'route-unlock-timeline': 'Unlock Timeline',
+    'route-liquidity-controller': 'LIQUIDITY',
+    'route-ambassador-program': 'Ambassador Cabinet',
+    'route-airdrop': 'Received distributions',
+  };
+  return entries.map(entry => titles[entry.id]
+    ? { ...entry, title: titles[entry.id], subtitle: 'Read-only', aliases: [], keywords: [titles[entry.id]] }
+    : entry);
+}

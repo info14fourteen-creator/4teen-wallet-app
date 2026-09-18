@@ -28,11 +28,13 @@ import {
   type ContractCallResourceEstimate,
 } from '../wallet/resources';
 import { translateNow } from '../../i18n';
+import { SUNIO_SMART_ROUTER_ADDRESS } from './disclosure';
 
 const TRX_CONTRACT = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 const USDT_LOGO = 'https://s2.coinmarketcap.com/static/img/coins/64x64/825.png';
 const ROUTER_URL = 'https://rot.endjgfsv.link/swap/routerUniversal';
-const SMART_ROUTER_ADDRESS = 'TJ4NNy8xZEqsowCBhLvZ45LCqPdGjkET5j';
+
+const SMART_ROUTER_ADDRESS = SUNIO_SMART_ROUTER_ADDRESS;
 const DEFAULT_FEE_LIMIT_SUN = 180_000_000;
 const DEFAULT_APPROVAL_EXECUTION_FEE_LIMIT_SUN = 180_000_000;
 const DEFAULT_SWAP_EXECUTION_FEE_LIMIT_SUN = 350_000_000;

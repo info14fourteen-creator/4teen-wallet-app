@@ -1,4 +1,6 @@
 import type { AppLanguageCode } from './index';
+import { SWAP_DISCLOSURE_SLICES } from './swap-disclosure-slices';
+import { PROTOCOL_READONLY_SLICES } from './protocol-readonly-slices';
 import {
   PROTOCOL_SLICE_AR,
   PROTOCOL_SLICE_DE,
@@ -1339,8 +1341,8 @@ export const dictionaries: Partial<Record<AppLanguageCode, Record<string, string
       '4TEEN Wallet — это некастодиальное приложение с доступом к ончейн-инструментам, токенам и функциям экосистемы.',
     'By using the application, you agree to these Terms of Service.':
       'Используя приложение, вы соглашаетесь с этими Условиями использования.',
-    'Contact: info@4teen.me • +1 646-217-8070 • https://4teen.me':
-      'Контакты: info@4teen.me • +1 646-217-8070 • https://4teen.me',
+    'Contact:  support@4teen.me • +998 95 792 02 87 • https://4teen.me':
+      'Контакты:  support@4teen.me • +998 95 792 02 87 • https://4teen.me',
     '2. Nature of the Application': '2. Суть приложения',
     'Interface, not control layer': 'Интерфейс, а не слой контроля',
     'Wallet creation and import': 'Создание и импорт кошелька',
@@ -4997,3 +4999,11 @@ export const dictionaries: Partial<Record<AppLanguageCode, Record<string, string
     ...REMAINING_SLICE_KO,
   },
 };
+
+for (const [language, disclosure] of Object.entries(SWAP_DISCLOSURE_SLICES)) {
+  Object.assign(dictionaries[language as AppLanguageCode] ?? {}, disclosure);
+}
+
+for (const [language, copy] of Object.entries(PROTOCOL_READONLY_SLICES)) {
+  Object.assign(dictionaries[language as AppLanguageCode] ?? {}, copy);
+}

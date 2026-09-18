@@ -18,7 +18,8 @@ import { colors, radius } from '../theme/tokens';
 import { APP_HEADER_HEIGHT, APP_HEADER_TOP_PADDING, APP_HEADER_DROP_OFFSET, APP_HEADER_SIDE_PADDING } from '../ui/app-header.constants';
 import ThinOrangeLoader from '../ui/thin-orange-loader';
 import LottieIcon from '../ui/lottie-icon';
-import { APP_SEARCH_ROUTES } from './search-routes';
+import { getAppSearchRoutes } from './search-routes';
+import { isDirectBuyEnabled } from '../features/native-swap-access';
 import type {
   SearchQuickPageIcon,
   SearchSuggestion,
@@ -65,6 +66,7 @@ import {
 
 const searchMagnifierSource = require('../../assets/icons/search/search_magnifier.json');
 const searchCloseSource = require('../../assets/icons/search/search_close.json');
+const APP_SEARCH_ROUTES = getAppSearchRoutes();
 
 function isTronAddress(value: string) {
   return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(value.trim());
@@ -273,6 +275,7 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
   const insets = useSafeAreaInsets();
   const notice = useNotice();
   const { t } = useI18n();
+  const protocolSurfacesEnabled = isDirectBuyEnabled();
   const inputRef = useRef<TextInput>(null);
 
   const [query, setQuery] = useState('');
@@ -772,7 +775,11 @@ export default function SearchSheet({ visible, onClose }: SearchSheetProps) {
                   ref={inputRef}
                   value={query}
                   onChangeText={setQuery}
-                  placeholder={t('crypto, address, dapp...')}
+                  placeholder={t(
+                    protocolSurfacesEnabled
+                      ? 'crypto, address, dapp...'
+                      : 'crypto, address, wallet...'
+                  )}
                   placeholderTextColor={colors.textDim}
                   style={styles.input}
                   autoCapitalize="none"

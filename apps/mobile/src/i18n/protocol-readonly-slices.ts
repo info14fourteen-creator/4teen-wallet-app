@@ -1,0 +1,29 @@
+const keys = [
+  'Read-only',
+  'This section displays records only. Transactions and participation are unavailable in this iOS version.',
+  'This operation is unavailable in the iOS app.',
+  'No matching records in the loaded history.',
+  'Some older records have not been loaded yet.',
+  'Data could not be loaded. Please try again.',
+  'Protocol overview',
+  'Received distributions',
+] as const;
+function slice(values: string[]) { return Object.fromEntries(keys.map((key, index) => [key, values[index]])); }
+export const PROTOCOL_READONLY_SLICES: Record<string, Record<string, string>> = {
+  en: slice([...keys]),
+  ru: slice(['Только просмотр', 'В этом разделе доступны только записи. Транзакции и участие недоступны в этой версии для iOS.', 'Эта операция недоступна в приложении для iOS.', 'В загруженной истории нет подходящих записей.', 'Более старые записи загружены не полностью.', 'Не удалось загрузить данные. Повторите попытку.', 'Обзор протокола', 'Полученные распределения']),
+  uz: slice(['Faqat ko‘rish', 'Bu bo‘limda faqat yozuvlar ko‘rsatiladi. iOS uchun ushbu versiyada tranzaksiyalar va ishtirok etish mavjud emas.', 'Bu amal iOS ilovasida mavjud emas.', 'Yuklangan tarixda mos yozuvlar yo‘q.', 'Ayrim eski yozuvlar hali yuklanmagan.', 'Ma’lumotlarni yuklab bo‘lmadi. Qayta urinib ko‘ring.', 'Protokol haqida', 'Olingan taqsimotlar']),
+  tr: slice(['Salt okunur', 'Bu bölüm yalnızca kayıtları gösterir. Bu iOS sürümünde işlem ve katılım kullanılamaz.', 'Bu işlem iOS uygulamasında kullanılamaz.', 'Yüklenen geçmişte eşleşen kayıt yok.', 'Bazı eski kayıtlar henüz yüklenmedi.', 'Veriler yüklenemedi. Tekrar deneyin.', 'Protokole genel bakış', 'Alınan dağıtımlar']),
+  de: slice(['Nur Ansicht', 'Dieser Bereich zeigt nur Aufzeichnungen. Transaktionen und Teilnahme sind in dieser iOS-Version nicht verfügbar.', 'Diese Aktion ist in der iOS-App nicht verfügbar.', 'Keine passenden Einträge im geladenen Verlauf.', 'Einige ältere Einträge wurden noch nicht geladen.', 'Daten konnten nicht geladen werden. Bitte erneut versuchen.', 'Protokollübersicht', 'Erhaltene Ausschüttungen']),
+  fr: slice(['Lecture seule', 'Cette section affiche uniquement les enregistrements. Les transactions et la participation ne sont pas disponibles dans cette version iOS.', 'Cette opération n’est pas disponible dans l’application iOS.', 'Aucun enregistrement correspondant dans l’historique chargé.', 'Certains enregistrements anciens ne sont pas encore chargés.', 'Impossible de charger les données. Réessayez.', 'Aperçu du protocole', 'Distributions reçues']),
+  es: slice(['Solo lectura', 'Esta sección solo muestra registros. Las transacciones y la participación no están disponibles en esta versión de iOS.', 'Esta operación no está disponible en la aplicación de iOS.', 'No hay registros coincidentes en el historial cargado.', 'Algunos registros antiguos aún no se han cargado.', 'No se pudieron cargar los datos. Inténtalo de nuevo.', 'Resumen del protocolo', 'Distribuciones recibidas']),
+  it: slice(['Sola lettura', 'Questa sezione mostra solo i registri. Transazioni e partecipazione non sono disponibili in questa versione iOS.', 'Questa operazione non è disponibile nell’app iOS.', 'Nessun record corrispondente nella cronologia caricata.', 'Alcuni record precedenti non sono ancora stati caricati.', 'Impossibile caricare i dati. Riprova.', 'Panoramica del protocollo', 'Distribuzioni ricevute']),
+  pt: slice(['Somente leitura', 'Esta seção exibe apenas registros. Transações e participação não estão disponíveis nesta versão para iOS.', 'Esta operação não está disponível no aplicativo iOS.', 'Nenhum registro correspondente no histórico carregado.', 'Alguns registros antigos ainda não foram carregados.', 'Não foi possível carregar os dados. Tente novamente.', 'Visão geral do protocolo', 'Distribuições recebidas']),
+  nl: slice(['Alleen-lezen', 'Dit onderdeel toont alleen gegevens. Transacties en deelname zijn niet beschikbaar in deze iOS-versie.', 'Deze handeling is niet beschikbaar in de iOS-app.', 'Geen overeenkomende gegevens in de geladen geschiedenis.', 'Sommige oudere gegevens zijn nog niet geladen.', 'Gegevens konden niet worden geladen. Probeer opnieuw.', 'Protocoloverzicht', 'Ontvangen uitkeringen']),
+  pl: slice(['Tylko odczyt', 'Ta sekcja wyświetla tylko zapisy. Transakcje i uczestnictwo są niedostępne w tej wersji iOS.', 'Ta operacja jest niedostępna w aplikacji iOS.', 'Brak pasujących wpisów we wczytanej historii.', 'Niektóre starsze wpisy nie zostały jeszcze wczytane.', 'Nie udało się wczytać danych. Spróbuj ponownie.', 'Przegląd protokołu', 'Otrzymane dystrybucje']),
+  ar: slice(['للقراءة فقط', 'يعرض هذا القسم السجلات فقط. المعاملات والمشاركة غير متاحتين في إصدار iOS هذا.', 'هذه العملية غير متاحة في تطبيق iOS.', 'لا توجد سجلات مطابقة في السجل المحمّل.', 'لم تُحمّل بعض السجلات القديمة بعد.', 'تعذر تحميل البيانات. حاول مرة أخرى.', 'نظرة عامة على البروتوكول', 'التوزيعات المستلمة']),
+  hi: slice(['केवल देखने के लिए', 'यह अनुभाग केवल रिकॉर्ड दिखाता है। इस iOS संस्करण में लेनदेन और भागीदारी उपलब्ध नहीं हैं।', 'यह कार्य iOS ऐप में उपलब्ध नहीं है।', 'लोड किए गए इतिहास में कोई मेल खाने वाला रिकॉर्ड नहीं है।', 'कुछ पुराने रिकॉर्ड अभी लोड नहीं हुए हैं।', 'डेटा लोड नहीं हो सका। फिर से कोशिश करें।', 'प्रोटोकॉल अवलोकन', 'प्राप्त वितरण']),
+  ja: slice(['閲覧専用', 'このセクションは記録の表示専用です。このiOS版では取引や参加は利用できません。', 'この操作はiOSアプリでは利用できません。', '読み込んだ履歴に一致する記録はありません。', '一部の古い記録はまだ読み込まれていません。', 'データを読み込めませんでした。もう一度お試しください。', 'プロトコル概要', '受領した配布']),
+  'zh-CN': slice(['仅供查看', '此部分仅显示记录。此 iOS 版本不支持交易或参与活动。', 'iOS 应用暂不支持此操作。', '已加载的历史记录中没有匹配项。', '部分较早的记录尚未加载。', '无法加载数据，请重试。', '协议概览', '已收到的分发']),
+  ko: slice(['읽기 전용', '이 섹션은 기록만 표시합니다. 이 iOS 버전에서는 거래 및 참여 기능을 사용할 수 없습니다.', 'iOS 앱에서는 이 작업을 사용할 수 없습니다.', '불러온 내역에 일치하는 기록이 없습니다.', '일부 이전 기록은 아직 불러오지 않았습니다.', '데이터를 불러오지 못했습니다. 다시 시도하세요.', '프로토콜 개요', '수령한 배포 내역']),
+};

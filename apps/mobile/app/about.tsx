@@ -17,6 +17,7 @@ import LottieIcon from '../src/ui/lottie-icon';
 import { useNotice } from '../src/notice/notice-provider';
 import { submitAppFeedback } from '../src/services/feedback';
 import { checkForAppUpdate } from '../src/services/app-release';
+import { isDirectBuyEnabled } from '../src/features/native-swap-access';
 
 import LogoWhite from '../assets/icons/ui/logo_white.svg';
 
@@ -50,6 +51,7 @@ export default function AboutScreen() {
   const router = useRouter();
   const notice = useNotice();
   const { t } = useI18n();
+  const directBuyEnabled = isDirectBuyEnabled();
 
   const handleVersionUpdate = async () => {
     const release = await checkForAppUpdate().catch(() => null);
@@ -125,8 +127,11 @@ export default function AboutScreen() {
 
       <View style={styles.card}>
         <ActionRow label={t('Version Update')} onPress={handleVersionUpdate} />
+        <ActionRow label={t('Privacy Policy')} onPress={() => void openInAppBrowser(router, 'https://4teen.me/privacy')} />
         <ActionRow label={t('Terms of Service')} onPress={() => router.push('/terms' as any)} />
-        <ActionRow label={t('4TEEN Whitepaper')} onPress={() => router.push('/whitepaper' as any)} />
+        {directBuyEnabled ? (
+          <ActionRow label={t('4TEEN Whitepaper')} onPress={() => router.push('/whitepaper' as any)} />
+        ) : null}
         <ActionRow label={`${t('Rate Us')} / ${t('Send Feedback')}`} icon="star" onPress={handleRateUs} />
         <ActionRow label={t('Open 4TEEN Website')} icon="external" onPress={() => void openInAppBrowser(router, 'https://4teen.me')} isLast />
       </View>

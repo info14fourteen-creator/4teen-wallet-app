@@ -56,7 +56,7 @@ type PortfolioCachePayload = {
   snapshot: WalletPortfolioSnapshot;
 };
 
-const PORTFOLIO_CACHE_PREFIX = 'fourteen_wallet_portfolio_cache_v3';
+const PORTFOLIO_CACHE_PREFIX = 'fourteen_wallet_portfolio_cache_v4';
 const PORTFOLIO_CACHE_PREFIX_ROOT = 'fourteen_wallet_portfolio_cache_';
 const PORTFOLIO_CACHE_TTL_MS = 2 * 60 * 1000;
 const PORTFOLIO_MARKET_VERSION = 'cmc-pool-v1';

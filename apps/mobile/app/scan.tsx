@@ -32,6 +32,7 @@ import { useNotice } from '../src/notice/notice-provider';
 import { translateNow, useI18n } from '../src/i18n';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { goBackOrReplace } from '../src/ui/safe-back';
+import { getCameraPermissionCopy } from '../src/ui/camera-permission-copy';
 
 const scanGallerySource = require('../assets/icons/scan/scan_gallery.json');
 
@@ -90,6 +91,7 @@ function getPrimaryButtonLabel(kind: ScanKind | null, mode: ScanMode) {
 
 export default function ScanScreen() {
   const { t } = useI18n();
+  const cameraPermissionCopy = getCameraPermissionCopy(t);
   const router = useRouter();
   const pathname = usePathname();
   const isFocused = useIsFocused();
@@ -438,14 +440,6 @@ export default function ScanScreen() {
     try {
       if (scanLockedRef.current || leavingRef.current || !mountedRef.current) return;
 
-      const mediaPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!mediaPermission.granted) {
-        if (mountedRef.current && !leavingRef.current) {
-          notice.showNeutralNotice(t('Allow photo access to scan QR from gallery.'), 1800);
-        }
-        return;
-      }
-
       const picked = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
@@ -514,10 +508,8 @@ export default function ScanScreen() {
 
             {permission && !permission.granted ? (
               <View style={styles.stubCard}>
-                <Text style={styles.stubTitle}>{t('Camera access required')}</Text>
-                <Text style={styles.stubText}>
-                  {t('Allow camera access to scan wallet addresses and QR codes.')}
-                </Text>
+                <Text style={styles.stubTitle}>{cameraPermissionCopy.title}</Text>
+                <Text style={styles.stubText}>{cameraPermissionCopy.body}</Text>
 
                 <TouchableOpacity
                   activeOpacity={0.9}
@@ -530,7 +522,7 @@ export default function ScanScreen() {
                     adjustsFontSizeToFit
                     minimumFontScale={0.78}
                   >
-                    {t('Allow Camera')}
+                    {cameraPermissionCopy.actionLabel}
                   </Text>
                 </TouchableOpacity>
               </View>

@@ -8,6 +8,7 @@ type NumericKeypadProps = {
   showDot?: boolean;
   onDotPress?: () => void;
   backspaceIcon?: React.ReactNode;
+  compact?: boolean;
 };
 
 const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -19,14 +20,15 @@ export default function NumericKeypad({
   showDot = false,
   onDotPress,
   backspaceIcon,
+  compact = false,
 }: NumericKeypadProps) {
   return (
-    <View style={styles.keypad}>
+    <View style={[styles.keypad, compact && styles.keypadCompact]}>
       {keys.map((key) => (
         <TouchableOpacity
           key={key}
           activeOpacity={0.9}
-          style={styles.key}
+          style={[styles.key, compact && styles.keyCompact]}
           onPress={() => onDigitPress(key)}
         >
           <Text style={styles.keyText}>{key}</Text>
@@ -35,7 +37,7 @@ export default function NumericKeypad({
 
       <TouchableOpacity
         activeOpacity={showDot ? 0.9 : 1}
-        style={[styles.key, !showDot && !leftSlot ? styles.keyEmpty : null]}
+        style={[styles.key, compact && styles.keyCompact, !showDot && !leftSlot ? styles.keyEmpty : null]}
         disabled={!showDot && !leftSlot}
         onPress={() => {
           if (showDot && onDotPress) onDotPress();
@@ -46,7 +48,7 @@ export default function NumericKeypad({
 
       <TouchableOpacity
         activeOpacity={0.9}
-        style={styles.key}
+        style={[styles.key, compact && styles.keyCompact]}
         onPress={() => onDigitPress('0')}
       >
         <Text style={styles.keyText}>0</Text>
@@ -54,7 +56,7 @@ export default function NumericKeypad({
 
       <TouchableOpacity
         activeOpacity={0.9}
-        style={styles.key}
+        style={[styles.key, compact && styles.keyCompact]}
         onPress={onBackspacePress}
       >
         {backspaceIcon ? backspaceIcon : <Text style={styles.keyText}>⌫</Text>}
@@ -73,6 +75,12 @@ const styles = StyleSheet.create({
     minHeight: 280,
   },
 
+  keypadCompact: {
+    rowGap: 8,
+    marginBottom: 12,
+    minHeight: 232,
+  },
+
   key: {
     width: '30.5%',
     minHeight: 64,
@@ -82,6 +90,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  keyCompact: {
+    minHeight: 52,
   },
 
   keyEmpty: {

@@ -24,6 +24,7 @@ import {
 } from '../src/security/local-auth';
 import { getCachedDisplayCurrency, getDisplayCurrency } from '../src/settings/display-currency';
 import SettingsRow from '../src/ui/settings-row';
+import { isDirectBuyEnabled } from '../src/features/native-swap-access';
 
 const CLEAR_HOLD_MS = 3500;
 const CLEAR_DISPLAY_MAX = 114;
@@ -214,6 +215,7 @@ function ClearCacheHoldRow({
   onPressOut: () => void;
 }) {
   const { t } = useI18n();
+  const protocolSurfacesEnabled = isDirectBuyEnabled();
 
   return (
     <Pressable
@@ -233,7 +235,9 @@ function ClearCacheHoldRow({
             <Text style={ui.actionLabel}>{t('Clear cache')}</Text>
             <Text style={styles.helperText}>
               {t(
-                'Clears market, portfolio, history, ambassador, unlock, liquidity, asset wallet, direct-buy, and resource-pricing cache. Wallets, passcode, address book, drafts, referrals, and token settings stay untouched.'
+                protocolSurfacesEnabled
+                  ? 'Clears market, portfolio, history, ambassador, unlock, liquidity, asset wallet, direct-buy, and resource-pricing cache. Wallets, passcode, address book, drafts, referrals, and token settings stay untouched.'
+                  : 'Clears market, portfolio, history, asset-wallet, and resource-pricing cache. Wallets, passcode, address book, drafts, and token settings stay untouched.'
               )}
             </Text>
           </View>

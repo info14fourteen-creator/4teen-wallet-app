@@ -41,6 +41,7 @@ import LottieIcon from '../src/ui/lottie-icon';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
 import { formatAdaptiveDisplayCurrency } from '../src/ui/currency-format';
+import { isNativeSwapEnabled } from '../src/features/native-swap-access';
 
 const APPROVAL_HISTORY_LIMIT = 100;
 const CONNECTIONS_INFO_ARROW_SOURCE = require('../assets/icons/ui/connections_info_arrow_down.json');
@@ -146,7 +147,9 @@ function mapApprovalItem(item: WalletHistoryItem): ApprovalItem | null {
     return null;
   }
 
-  const known = KNOWN_SPENDER_INDEX[spenderAddress.toLowerCase()];
+  const known = isNativeSwapEnabled()
+    ? KNOWN_SPENDER_INDEX[spenderAddress.toLowerCase()]
+    : undefined;
 
   return {
     txHash: item.txHash,
