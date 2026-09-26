@@ -52,7 +52,7 @@
     "ios": {
       "bundleIdentifier": "me.fourteen.wallet",
       "supportsTablet": true,
-      "buildNumber": "16",
+      "buildNumber": "17",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
         "CFBundleDisplayName": "4TEEN",

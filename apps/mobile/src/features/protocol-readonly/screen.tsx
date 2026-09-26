@@ -25,8 +25,7 @@ function sameWallet(left: WalletMeta | undefined, right: WalletMeta) {
   return left?.id === right.id && left.address === right.address;
 }
 const TITLES = { ambassador: 'AMBASSADOR', airdrop: 'AIRDROP', unlock: 'UNLOCK TIMELINE', info: 'INFO', liquidity: 'LIQUIDITY' };
-export const READ_ONLY_NOTICE = 'This section displays records only. Transactions and participation are unavailable in this iOS version.';
-export const OPERATION_UNAVAILABLE = 'This operation is unavailable in the iOS app.';
+export const READ_ONLY_NOTICE = 'View on-chain records, balances and contract details. This section does not create or sign transactions.';
 
 function ProtocolReadOnlyScreen({ section }: { section: Section }) {
   const router = useRouter();

@@ -1,13 +1,19 @@
 export type CoreWalletUtilityAction = {
-  kind: 'swap' | 'swap-unavailable' | 'browser';
-  route: '/swap' | '/browser';
-  labelKey: 'SWAP' | 'Browser';
+  kind: 'swap' | 'assets' | 'browser';
+  route: '/swap' | '/manage-crypto' | '/browser';
+  labelKey: 'SWAP' | 'ASSETS' | 'Browser';
 };
 
 export type WalletGrowthAction = {
   kind: 'direct-buy' | 'overview' | 'assets';
   route: '/buy' | '/ambassador-program' | '/manage-crypto';
-  labelKey: 'EARN' | 'ASSETS';
+  labelKey: 'EARN' | 'History' | 'ASSETS';
+};
+
+export type WalletGrowthPrimaryAction = {
+  kind: 'direct-buy' | 'assets';
+  route: '/buy' | '/manage-crypto';
+  labelKey: 'BUY' | 'ASSETS';
 };
 
 export type WalletOverviewAction = {
@@ -42,7 +48,7 @@ export function getCoreWalletUtilityAction(
   platform: string | undefined = process.env.EXPO_OS
 ): CoreWalletUtilityAction {
   if (platform === 'ios') {
-    return { kind: 'swap-unavailable', route: '/swap', labelKey: 'SWAP' };
+    return { kind: 'assets', route: '/manage-crypto', labelKey: 'ASSETS' };
   }
   if (isNativeSwapEnabled(platform)) {
     return {
@@ -63,7 +69,7 @@ export function getWalletGrowthAction(
   platform: string | undefined = process.env.EXPO_OS
 ): WalletGrowthAction {
   if (platform === 'ios') {
-    return { kind: 'overview', route: '/ambassador-program', labelKey: 'EARN' };
+    return { kind: 'overview', route: '/ambassador-program', labelKey: 'History' };
   }
   if (isDirectBuyEnabled(platform)) {
     return {
@@ -98,6 +104,16 @@ export function getWalletOverviewAction(
   };
 }
 
+// Every displayed menu entry must open a supported screen. Do not represent
+// an unavailable purchase with a disabled button or a placeholder notice.
+export function getWalletGrowthPrimaryAction(
+  platform: string | undefined = process.env.EXPO_OS
+): WalletGrowthPrimaryAction {
+  return isDirectBuyEnabled(platform)
+    ? { kind: 'direct-buy', route: '/buy', labelKey: 'BUY' }
+    : { kind: 'assets', route: '/manage-crypto', labelKey: 'ASSETS' };
+}
+
 export function filterNativeExchangeEntries<T extends { id: string }>(
   entries: readonly T[],
   platform: string | undefined = process.env.EXPO_OS
@@ -107,7 +123,7 @@ export function filterNativeExchangeEntries<T extends { id: string }>(
   }
 
   if (platform === 'ios') {
-    return entries.filter((entry) => !['route-swap', 'route-buy-4teen'].includes(entry.id));
+    return entries.filter((entry) => !['route-swap', 'route-buy-4teen', 'route-whitepaper'].includes(entry.id));
   }
 
   return entries.filter((entry) => !IOS_UNAVAILABLE_EXCHANGE_ROUTE_IDS.has(entry.id));

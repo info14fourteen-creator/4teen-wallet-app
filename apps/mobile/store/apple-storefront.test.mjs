@@ -62,7 +62,8 @@ test('gives App Review an explicit iOS no-exchange statement', () => {
   assert.match(reviewNotes, /generic browser does not inject a wallet provider/i);
   assert.match(reviewNotes, /read-only/i);
   assert.match(reviewNotes, /ambassador/i);
-  assert.doesNotMatch(reviewNotes, /features are absent from navigation/i);
+  assert.match(reviewNotes, /removed.*Swap.*Buy.*navigation/i);
+  assert.doesNotMatch(reviewNotes, /icons remain visible|only shows an unavailability notice/i);
   assert.doesNotMatch(reviewNotes, /10102022/);
 });
 

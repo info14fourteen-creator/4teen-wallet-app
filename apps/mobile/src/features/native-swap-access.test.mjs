@@ -6,6 +6,7 @@ import {
   getCoreWalletUtilityAction,
   getWalletOverviewAction,
   getWalletGrowthAction,
+  getWalletGrowthPrimaryAction,
   isDirectBuyEnabled,
   isNativeSwapEnabled,
 } from './native-swap-access.ts';
@@ -20,14 +21,15 @@ const SEARCH_FIXTURE = [
   { id: 'route-ambassador-program', route: '/ambassador-program' },
   { id: 'route-airdrop', route: '/airdrop' },
   { id: 'route-wallets', route: '/wallet-manager' },
+  { id: 'route-whitepaper', route: '/whitepaper' },
 ];
 
-test('shows iOS swap availability without enabling exchange execution', () => {
+test('replaces unavailable iOS swap with working asset management', () => {
   assert.equal(isNativeSwapEnabled('ios'), false);
   assert.deepEqual(getCoreWalletUtilityAction('ios'), {
-    kind: 'swap-unavailable',
-    route: '/swap',
-    labelKey: 'SWAP',
+    kind: 'assets',
+    route: '/manage-crypto',
+    labelKey: 'ASSETS',
   });
 });
 
@@ -45,6 +47,7 @@ test('removes exchange and token-purchase routes from the iOS search surface', (
 
   assert.equal(iosRoutes.some((item) => item.route === '/swap'), false);
   assert.equal(iosRoutes.some((item) => item.route === '/buy'), false);
+  assert.equal(iosRoutes.some((item) => item.route === '/whitepaper'), false);
   assert.equal(iosRoutes.some((item) => item.route === '/earn'), true);
   assert.equal(iosRoutes.some((item) => item.route === '/unlock-timeline'), true);
   assert.equal(iosRoutes.some((item) => item.route === '/liquidity-controller'), true);
@@ -67,8 +70,28 @@ test('opens the read-only cabinet from iOS growth without enabling purchases', (
   assert.deepEqual(getWalletGrowthAction('ios'), {
     kind: 'overview',
     route: '/ambassador-program',
-    labelKey: 'EARN',
+    labelKey: 'History',
   });
+});
+
+test('iOS history menu has a working assets action, not a BUY placeholder', () => {
+  assert.deepEqual(getWalletGrowthPrimaryAction('ios'), {
+    kind: 'assets', route: '/manage-crypto', labelKey: 'ASSETS',
+  });
+});
+
+test('Android retains its working BUY action', () => {
+  assert.deepEqual(getWalletGrowthPrimaryAction('android'), {
+    kind: 'direct-buy', route: '/buy', labelKey: 'BUY',
+  });
+});
+
+test('every iOS footer entry targets a supported functional screen', () => {
+  for (const action of [getCoreWalletUtilityAction('ios'), getWalletGrowthAction('ios'),
+    getWalletGrowthPrimaryAction('ios'), getWalletOverviewAction('ios')]) {
+    assert.ok(!['/swap', '/buy', '/buy-confirm', '/swap-confirm'].includes(action.route));
+    assert.ok(!['SWAP', 'BUY', 'EARN'].includes(action.labelKey));
+  }
 });
 
 test('keeps direct buy as the Android growth action', () => {
