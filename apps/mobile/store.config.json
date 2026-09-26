@@ -23,34 +23,23 @@
         ],
         "marketingUrl": "https://4teen.me",
         "promoText": "Create, import, and manage self-custody TRON wallets with secure local signing.",
-        "releaseNotes": "Fixed USDT and 4TEEN balances for addresses that have not yet been activated on TRON. Updated navigation with direct access to asset management and read-only history. View protocol information, token unlock records, received distributions, and existing ambassador records. Improved handling of partial data-loading failures.",
+        "releaseNotes": "Fixed USDT and 4TEEN balances for addresses that have not yet been activated on TRON. Updated navigation with direct access to asset management and read-only history. View protocol information, token unlock records, received distributions, and existing ambassador records. Improved handling of partial data-loading failures and continuing setup without biometrics.",
         "supportUrl": "https://4teen.me/support",
         "title": "4TEEN",
         "subtitle": "Self-custody TRON wallet",
         "privacyPolicyUrl": "https://4teen.me/privacy",
         "screenshots": {
           "APP_IPHONE_67": [
-            "store/apple/screenshot/en-US/APP_IPHONE_67/01-wallet-access.png",
-            "store/apple/screenshot/1.0.6/APP_IPHONE_67/02-wallet-assets.png",
-            "store/apple/screenshot/en-US/APP_IPHONE_67/03-send.png",
-            "store/apple/screenshot/en-US/APP_IPHONE_67/04-browser.png",
-            "store/apple/screenshot/en-US/APP_IPHONE_67/05-wallet-manager.png",
-            "store/apple/screenshot/en-US/APP_IPHONE_67/06-receive.png",
-            "store/apple/screenshot/en-US/APP_IPHONE_67/07-token-details.png",
-            "store/apple/screenshot/en-US/APP_IPHONE_67/08-security.png",
-            "store/apple/screenshot/1.0.6/APP_IPHONE_67/09-unlock-records.png",
-            "store/apple/screenshot/1.0.6/APP_IPHONE_67/10-ambassador-records.png"
+            "store/apple/screenshot/1.0.6-build17/APP_IPHONE_67/01-wallet.png",
+            "store/apple/screenshot/1.0.6-build17/APP_IPHONE_67/02-receive.png",
+            "store/apple/screenshot/1.0.6-build17/APP_IPHONE_67/03-token-history.png",
+            "store/apple/screenshot/1.0.6-build17/APP_IPHONE_67/04-unlock-records.png"
           ],
           "APP_IPAD_PRO_3GEN_129": [
-            "store/apple/screenshot/1.0.6/APP_IPAD_PRO_3GEN_129/02-wallet-assets.png",
-            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/03-send.png",
-            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/04-browser.png",
-            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/05-wallet-manager.png",
-            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/06-receive.png",
-            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/07-token-details.png",
-            "store/apple/screenshot/en-US/APP_IPAD_PRO_3GEN_129/review/08-security.png",
-            "store/apple/screenshot/1.0.6/APP_IPAD_PRO_3GEN_129/08-unlock-records.png",
-            "store/apple/screenshot/1.0.6/APP_IPAD_PRO_3GEN_129/09-ambassador-records.png"
+            "store/apple/screenshot/1.0.6-build17/APP_IPAD_PRO_3GEN_129/01-wallet.png",
+            "store/apple/screenshot/1.0.6-build17/APP_IPAD_PRO_3GEN_129/02-receive.png",
+            "store/apple/screenshot/1.0.6-build17/APP_IPAD_PRO_3GEN_129/03-token-history.png",
+            "store/apple/screenshot/1.0.6-build17/APP_IPAD_PRO_3GEN_129/04-unlock-records.png"
           ]
         }
       }
@@ -94,7 +83,7 @@
       "email": "genesis@4teen.me",
       "phone": "+998957920287",
       "demoRequired": false,
-      "notes": "4TEEN is a self-custody TRON wallet. No server account or login is required. On a fresh install, create a local passcode of your choice if prompted. There is no preset review passcode.\n\nGuideline 2.2 correction in replacement build 17:\nWe removed the nonfunctional Swap and Buy entries from iOS navigation. ASSETS opens the working token-management screen. HISTORY opens existing on-chain records. There are no exchange/purchase placeholder buttons or unavailable-operation notices in these menus. This behavior is the same for every user and region.\n\nWorking read-only sections:\n- HOME > UNLOCK: 4TEEN balances and recorded token unlock history.\n- HOME > LIQUIDITY: public contract balance and address only.\n- HOME > INFO: public protocol contract addresses.\n- HISTORY > AMBASSADOR: existing accrual totals and purchase/reward records only. No registration, referral promotion/sharing, withdrawal, replay, or participation controls.\n- HISTORY > AIRDROP: received on-chain distribution records only. No claim button, social tasks, subscriptions, referral rewards, or new token earning flow.\n\nThis iOS build does not provide cryptocurrency exchange services, token purchase or token issuance. Native Swap, Direct Buy, liquidity execution, and related transaction routes remain unavailable on iOS. No remote switch activates these features after review.\n\nThe generic browser does not inject a wallet provider, expose private keys, or sign website transactions. It is a standard WebView for user-entered URLs. Unrestricted Web Access is declared in the age rating.\n\nTo review without funds: Import Wallet > Import by Watch-Only Address, then enter this public address:\nTN95o1fsA7mNwJGYGedvf3y7DJZKLH6TCT\nA watch-only wallet supports balances, transaction history, and the read-only sections without signing or a private key. The sections display retrieved records and loading/error states; no sample rewards are generated.\n\nThe USDT/4TEEN balance fix for unactivated TRON accounts is included. Existing wallet send/receive functionality is unchanged. AG PLUS, MCHJ does not take custody of user assets.\n\nhttps://4teen.me/privacy\nhttps://4teen.me/terms\nhttps://4teen.me/support"
+      "notes": "4TEEN is a self-custody TRON wallet. No server account or login is required. On a fresh install, create a local passcode of your choice if prompted. There is no preset review passcode.\n\nGuideline 2.2 correction in replacement build 17:\nWe removed the nonfunctional Swap and Buy entries from iOS navigation. ASSETS opens the working token-management screen. HISTORY opens existing on-chain records. There are no exchange/purchase placeholder buttons or unavailable-operation notices in these menus. This behavior is the same for every user and region. The Continue Without Biometrics button now completes setup while retaining passcode protection when biometrics are unavailable or not enrolled.\n\nWorking read-only sections:\n- HOME > UNLOCK: 4TEEN balances and recorded token unlock history.\n- HOME > LIQUIDITY: public contract balance and address only.\n- HOME > INFO: public protocol contract addresses.\n- HISTORY > AMBASSADOR: existing accrual totals and purchase/reward records only. No registration, referral promotion/sharing, withdrawal, replay, or participation controls.\n- HISTORY > AIRDROP: received on-chain distribution records only. No claim button, social tasks, subscriptions, referral rewards, or new token earning flow.\n\nThis iOS build does not provide cryptocurrency exchange services, token purchase or token issuance. Native Swap, Direct Buy, liquidity execution, and related transaction routes remain unavailable on iOS. No remote switch activates these features after review.\n\nThe generic browser does not inject a wallet provider, expose private keys, or sign website transactions. It is a standard WebView for user-entered URLs. Unrestricted Web Access is declared in the age rating.\n\nTo review without funds: Import Wallet > Import by Watch-Only Address, then enter this public address:\nTN95o1fsA7mNwJGYGedvf3y7DJZKLH6TCT\nA watch-only wallet supports balances, transaction history, and the read-only sections without signing or a private key. The sections display retrieved records and loading/error states; no sample rewards are generated.\n\nThe USDT/4TEEN balance fix for unactivated TRON accounts is included. Existing wallet send/receive functionality is unchanged. AG PLUS, MCHJ does not take custody of user assets.\n\nhttps://4teen.me/privacy\nhttps://4teen.me/terms\nhttps://4teen.me/support"
     }
   }
 }

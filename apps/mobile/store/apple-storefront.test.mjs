@@ -28,11 +28,12 @@ test('keeps public iOS storefront copy accurate for wallet and read-only records
 test('uses wallet and read-only record screenshots for the iOS storefront', () => {
   const screenshots = appleInfo.screenshots.APP_IPHONE_67;
 
-  assert.equal(screenshots.length, 10);
-  assert.ok(screenshots.some(screenshot => screenshot.endsWith('09-unlock-records.png')));
-  assert.ok(screenshots.some(screenshot => screenshot.endsWith('10-ambassador-records.png')));
+  assert.equal(screenshots.length, 4);
+  assert.ok(screenshots.some(screenshot => screenshot.endsWith('04-unlock-records.png')));
+  assert.ok(screenshots.some(screenshot => screenshot.endsWith('03-token-history.png')));
 
   for (const screenshot of screenshots) {
+    assert.match(screenshot, /1\.0\.6-build17\//);
     assert.doesNotMatch(
       screenshot,
       /(?:direct[ -]?buy|swap|claim|withdraw|register)/i
@@ -44,8 +45,9 @@ test('uses wallet and read-only record screenshots for the iOS storefront', () =
 test('provides multiple in-app iPad screenshots for App Review', () => {
   const screenshots = appleInfo.screenshots.APP_IPAD_PRO_3GEN_129;
 
-  assert.equal(screenshots.length, 9);
+  assert.equal(screenshots.length, 4);
   for (const screenshot of screenshots) {
+    assert.match(screenshot, /1\.0\.6-build17\//);
     assert.doesNotMatch(
       screenshot,
       /(?:direct[ -]?buy|swap|claim|withdraw|register)/i
