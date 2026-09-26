@@ -49,12 +49,10 @@ export default function EnableBiometricsScreen() {
     }
 
     if (!available) {
-      notice.showNeutralNotice(
-        compatible
-          ? t('{{label}} is not enrolled on this device.', { label: supportedLabel })
-          : t('{{label}} is not available on this device.', { label: supportedLabel }),
-        2600
-      );
+      // The primary action is labelled "Continue Without Biometrics" here.
+      // Keep passcode protection and complete onboarding instead of a dead end.
+      await setBiometricsEnabled(false);
+      router.replace(nextPath as any);
       return;
     }
 
