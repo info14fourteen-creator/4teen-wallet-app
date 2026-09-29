@@ -44,6 +44,12 @@ This does not re-enable any restricted iOS exchange/purchase functionality.
   and the two pre-existing watch-only wallets remained visible with balances.
   This is simulator QA, NOT the physical
   device evidence requested by Apple and NOT execution of the store-signed IPA.
+- Native iPad simulator QA: Settings entry, wallet list, all-wallet warning,
+  disabled-until-acknowledged destructive button and Cancel were verified.
+  Cancel returned to the wallet list without deleting the existing watch wallet.
+- After the iPhone reload, direct storage inspection confirmed two original
+  watch-wallet records remained, the disposable record was absent, and no cache
+  key remained for its test address.
 - Test record public address: `TCY8FkwpNoSoMswdUsPKLBQKuuJLQibr7V`. No funds or
   signing keys were imported. Its watch-only record is recoverable by importing
   that address again. Existing user wallets were not deleted.
@@ -60,3 +66,23 @@ The clean release checkout is
 `/Users/stanataev/.codex/worktrees/ios-account-deletion/4teen-wallet-app`, branch
 `codex/ios-account-deletion`. It excludes unfinished personal notes and unrelated
 API/operations work in the main checkout.
+
+## Cloud build started — September 29, 2026
+
+- Source **f3ec3d3c58d0f4b934307ef0c70cb1b141a9796d** is pushed to
+  `origin/codex/ios-account-deletion`; the clean source excludes unrelated work.
+- EAS build **59352a7f-6b45-4a6e-801d-5dba5b3a8be0**, version **1.0.6 (18)**,
+  created **2026-09-29 08:45:37 UTC**. Last observed IN_PROGRESS.
+- No App Review submission or physical-device video has been completed yet.
+
+## Build and binary upload — September 29, 2026
+
+- EAS build **59352a7f-6b45-4a6e-801d-5dba5b3a8be0** finished at
+  **2026-09-29 08:51:52 UTC**. It is the store-signed iOS **1.0.6 (18)** binary
+  from source **f3ec3d3c58d0f4b934307ef0c70cb1b141a9796d**.
+- One EAS submission **6d3190e7-5b0c-4416-9073-95696363cb51** completed:
+  the binary was uploaded to App Store Connect and Apple began processing it.
+  This is not an App Review submission or publication.
+- The physical-device video and App Review response are still outstanding.
+  `devicectl` reports the AtStan iPhone as unavailable; iPhone Mirroring requires
+  Mac authentication. Chrome's Apple session also needs identity verification.
