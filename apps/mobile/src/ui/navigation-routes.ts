@@ -1,4 +1,5 @@
 const ROUTES_WITHOUT_SHARED_NAVIGATION = new Set([
+  '/delete-wallet',
   '/',
   '/index',
   '/unlock',

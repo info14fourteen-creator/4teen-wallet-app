@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../privacy/async-storage';
 import { TronWeb } from 'tronweb';
 
 import { getFourteenApiBaseUrls, TRONGRID_BASE_URL, buildTrongridHeaders } from '../config/tron';

@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../../privacy/async-storage';
 
 import type { SwapTokenMeta } from './sunio';
 

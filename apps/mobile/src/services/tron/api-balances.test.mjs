@@ -24,7 +24,7 @@ export function loadApi(fetchImpl) {
     multiRemove: async keys => { keys.forEach(key => stored.delete(key)); },
   };
   const dependencies = {
-    '@react-native-async-storage/async-storage': storage,
+    '../../privacy/async-storage': storage,
     tronweb: require('tronweb'),
     '../../config/tron': {
       assertTronConfig() {}, TRONGRID_BASE_URL: 'https://test.invalid/trongrid',

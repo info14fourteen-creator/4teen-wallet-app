@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../privacy/secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 
 export const PASSCODE_KEY = 'fourteen_wallet_local_passcode_v1';

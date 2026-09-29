@@ -1,5 +1,8 @@
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { reloadAppAsync } from 'expo';
+import { isLocalDeletionInProgress } from '../src/privacy/deletion-barrier';
+import { isWalletDeletionRunning, waitForWalletDeletion } from '../src/privacy/delete-wallet-data';
 import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useEffect, useRef, useState, type ErrorInfo } from 'react';
 import * as Linking from 'expo-linking';
@@ -349,6 +352,13 @@ function LayoutContent() {
         }
 
         void (async () => {
+          if (isWalletDeletionRunning() || isLocalDeletionInProgress()) {
+            // Never route into a stale wallet or bypass the normal startup lock
+            // after a destructive operation. Finish erasure before restarting.
+            await waitForWalletDeletion();
+            await reloadAppAsync().catch(() => setResumeShieldVisible(false));
+            return;
+          }
           const protectedApp = await hasPasscode().catch(() => false);
           protectedAppRef.current = protectedApp;
 
@@ -366,6 +376,13 @@ function LayoutContent() {
           }
 
           const elapsed = Date.now() - backgroundedAt;
+          // A deletion may have started while the asynchronous lock settings
+          // above were loading. Do not race its protected confirmation screen.
+          if (isWalletDeletionRunning() || isLocalDeletionInProgress()) {
+            await waitForWalletDeletion();
+            await reloadAppAsync().catch(() => setResumeShieldVisible(false));
+            return;
+          }
           const isUnlockRoute = pathname === '/unlock';
           const isPasscodeSetupRoute = pathname === '/create-passcode' || pathname === '/confirm-passcode';
           const isScanRoute = pathname === '/scan';

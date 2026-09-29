@@ -1,5 +1,5 @@
 import { TronWeb } from 'tronweb';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../privacy/async-storage';
 
 import { buildTrongridHeaders, FOURTEEN_API_BASE_URL, TRONGRID_BASE_URL } from '../config/tron';
 import { translateNow } from '../i18n';

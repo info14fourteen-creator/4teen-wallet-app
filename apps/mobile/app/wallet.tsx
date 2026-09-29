@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../src/privacy/async-storage';
 import {
   ActivityIndicator,
   Animated,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -38,7 +37,6 @@ import {
   canWalletExposePrivateKey,
   ensureSigningWalletActive,
   getActiveWalletId,
-  removeWallet,
   renameWallet,
   setActiveWalletId,
   type WalletMeta,
@@ -111,8 +109,6 @@ const WALLET_ACTION_ASSET_CROSS_SOURCE = require('../assets/icons/ui/wallet_acti
 const ASSET_SKELETON_ROWS = 4;
 const HISTORY_SKELETON_ROWS = 4;
 const MAX_WALLET_NAME_LENGTH = 18;
-const REMOVE_HOLD_MS = 7000;
-const REMOVE_DISPLAY_MAX = 114;
 
 const DEFAULT_HOME_VISIBLE_TOKEN_IDS = [
   TRX_TOKEN_ID,
@@ -599,12 +595,7 @@ export default function HomeScreen() {
 
   const [editingWalletId, setEditingWalletId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
-  const [removalWalletId, setRemovalWalletId] = useState<string | null>(null);
-  const [removalProgress, setRemovalProgress] = useState(0);
 
-  const removalStartedAtRef = useRef<number | null>(null);
-  const removalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const removalCompletedRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [entryLoading, setEntryLoading] = useState(true);
@@ -720,20 +711,6 @@ export default function HomeScreen() {
     activeWalletIdRef.current = activeWallet?.id ?? null;
   }, [activeWallet?.id]);
 
-  const clearRemovalTimer = useCallback(() => {
-    if (removalTimerRef.current) {
-      clearInterval(removalTimerRef.current);
-      removalTimerRef.current = null;
-    }
-  }, []);
-
-  const resetRemovalState = useCallback(() => {
-    clearRemovalTimer();
-    removalStartedAtRef.current = null;
-    removalCompletedRef.current = false;
-    setRemovalWalletId(null);
-    setRemovalProgress(0);
-  }, [clearRemovalTimer]);
 
   const applyHomePreferencesState = useCallback((preferences: WalletHomePreferences) => {
     const nextVisibleIds =
@@ -1027,11 +1004,6 @@ export default function HomeScreen() {
     };
   }, [activeWallet?.address, customTokenCatalog, homeVisibleTokenIds, resolvedActivePortfolio?.assets]);
 
-  useEffect(() => {
-    return () => {
-      clearRemovalTimer();
-    };
-  }, [clearRemovalTimer]);
 
   const visibleHistory = useMemo(() => {
     if (!activeWallet?.id) return [];
@@ -1389,7 +1361,7 @@ export default function HomeScreen() {
           setCurrentCardIndex(0);
           setEditingWalletId(null);
           setDraftName('');
-          resetRemovalState();
+
           return;
         }
 
@@ -1419,9 +1391,6 @@ export default function HomeScreen() {
           setDraftName('');
         }
 
-        if (removalWalletId && removalWalletId !== nextActiveWallet.id) {
-          resetRemovalState();
-        }
 
         let resolvedPortfolio =
           nextActiveItem.portfolio ??
@@ -1513,8 +1482,8 @@ export default function HomeScreen() {
       markProgrammaticWalletScroll,
       notice,
       primeHomePreferences,
-      removalWalletId,
-      resetRemovalState,
+
+
       scrollPagerToCardIndex,
       t,
     ]
@@ -1743,7 +1712,6 @@ export default function HomeScreen() {
       try {
         const requestId = ++walletViewRequestIdRef.current;
 
-        resetRemovalState();
         setEditingWalletId(null);
         setDraftName('');
         setResourceExpandedWalletId(null);
@@ -1840,7 +1808,7 @@ export default function HomeScreen() {
       notice,
       portfolioCache,
       primeHomePreferences,
-      resetRemovalState,
+
       scrollPagerToCardIndex,
       t,
       walletCards,
@@ -1859,7 +1827,7 @@ export default function HomeScreen() {
 
     setEditingWalletId(null);
     setDraftName('');
-    resetRemovalState();
+
 
     if (contentMode !== 'history') {
       setContentMode('history');
@@ -1868,7 +1836,7 @@ export default function HomeScreen() {
     }
 
     setContentMode('assets');
-  }, [activeWallet, contentMode, ensureWalletHistoryLoaded, notice, resetRemovalState, t]);
+  }, [activeWallet, contentMode, ensureWalletHistoryLoaded, notice, t]);
 
   const handleToggleMoreMode = useCallback(() => {
     if (!activeWallet) {
@@ -1878,9 +1846,9 @@ export default function HomeScreen() {
 
     setEditingWalletId(null);
     setDraftName('');
-    resetRemovalState();
+
     setContentMode((prev) => (prev === 'more' ? 'assets' : 'more'));
-  }, [activeWallet, notice, resetRemovalState, t]);
+  }, [activeWallet, notice, t]);
 
   const handleOpenWalletOptionRoute = useCallback(
     (pathname: '/export-mnemonic' | '/backup-private-key' | '/multisig-transactions' | '/connections') => {
@@ -1926,10 +1894,9 @@ export default function HomeScreen() {
       return;
     }
 
-    resetRemovalState();
     setEditingWalletId(activeWallet.id);
     setDraftName(activeWallet.name);
-  }, [activeWallet?.id, activeWallet?.name, notice, resetRemovalState, t]);
+  }, [activeWallet?.id, activeWallet?.name, notice, t]);
 
   const handleRenameCancel = useCallback(() => {
     setEditingWalletId(null);
@@ -1995,136 +1962,6 @@ export default function HomeScreen() {
       notice.showErrorNotice(t('Wallet rename failed.'), 2600);
     }
   }, [activeWallet, draftName, notice, t]);
-
-  const handleRemoveConfirmed = useCallback(async () => {
-    if (!activeWallet?.id) {
-      notice.showErrorNotice(t('No active wallet selected.'), 2200);
-      return;
-    }
-
-    try {
-      const removedWalletId = activeWallet.id;
-      resetRemovalState();
-      setEditingWalletId(null);
-      setDraftName('');
-
-      await removeWallet(removedWalletId);
-
-      const nextAggregate = await getAllWalletPortfolios({ force: true });
-      setAggregate(nextAggregate);
-
-      const nextItems = nextAggregate?.items ?? [];
-      if (nextItems.length === 0) {
-        setActiveWallet(null);
-        setPortfolio(null);
-        currentCardIndexRef.current = 0;
-        setCurrentCardIndex(0);
-        notice.showSuccessNotice(t('Wallet removed from this device.'), 2400);
-        return;
-      }
-
-      const nextIndex = Math.max(
-        0,
-        walletCards.findIndex((item) => item.wallet.id === removedWalletId)
-      );
-      const safeIndex = Math.min(nextIndex, nextItems.length - 1);
-      const nextActiveItem = nextItems[safeIndex] ?? nextItems[0];
-      const nextPagerIndex = nextItems.length > 1 ? nextItems.length + safeIndex : safeIndex;
-
-      suppressNextWalletRefreshForIdRef.current = nextActiveItem.wallet.id;
-      await setActiveWalletId(nextActiveItem.wallet.id);
-      setActiveWallet(nextActiveItem.wallet);
-      currentCardIndexRef.current = safeIndex;
-      currentPagerIndexRef.current = nextPagerIndex;
-      setCurrentCardIndex(safeIndex);
-      setCurrentPagerIndex(nextPagerIndex);
-      markProgrammaticWalletScroll(nextActiveItem.wallet.id);
-      requestAnimationFrame(() => {
-        markProgrammaticWalletScroll(nextActiveItem.wallet.id);
-        scrollPagerToCardIndex(safeIndex, false);
-      });
-
-      if (nextActiveItem.portfolio) {
-        setPortfolio(nextActiveItem.portfolio);
-        setPortfolioCache((prev) => ({
-          ...prev,
-          [nextActiveItem.wallet.id]: nextActiveItem.portfolio!,
-        }));
-      } else {
-        const nextPortfolio = await getWalletPortfolio(nextActiveItem.wallet.address, {
-          force: true,
-        });
-        setPortfolio(nextPortfolio);
-        setPortfolioCache((prev) => ({
-          ...prev,
-          [nextActiveItem.wallet.id]: nextPortfolio,
-        }));
-      }
-
-      if (contentMode === 'history') {
-        await ensureWalletHistoryLoaded(nextActiveItem.wallet, { force: true });
-      }
-
-      notice.showSuccessNotice(t('Wallet removed from this device.'), 2400);
-    } catch (error) {
-      suppressNextWalletRefreshForIdRef.current = null;
-      console.error(error);
-      resetRemovalState();
-      notice.showErrorNotice(t('Wallet removal failed.'), 2600);
-    }
-  }, [
-    activeWallet,
-    contentMode,
-    ensureWalletHistoryLoaded,
-    markProgrammaticWalletScroll,
-    notice,
-    resetRemovalState,
-    scrollPagerToCardIndex,
-    t,
-    walletCards,
-  ]);
-
-  const handleRemovePress = useCallback(() => {
-    notice.showNeutralNotice(t('Press and hold to remove this wallet.'), 2200);
-  }, [notice, t]);
-
-  const handleRemovePressIn = useCallback(() => {
-    if (!activeWallet?.id) {
-      notice.showErrorNotice(t('No active wallet selected.'), 2200);
-      return;
-    }
-
-    clearRemovalTimer();
-    removalCompletedRef.current = false;
-    removalStartedAtRef.current = Date.now();
-    setRemovalWalletId(activeWallet.id);
-    setRemovalProgress(0);
-
-    removalTimerRef.current = setInterval(() => {
-      const startedAt = removalStartedAtRef.current;
-      if (!startedAt) return;
-
-      const elapsed = Date.now() - startedAt;
-      const fraction = Math.max(0, Math.min(1, elapsed / REMOVE_HOLD_MS));
-      const displayProgress = Math.round(fraction * REMOVE_DISPLAY_MAX);
-
-      setRemovalProgress(displayProgress);
-
-      if (fraction >= 1 && !removalCompletedRef.current) {
-        removalCompletedRef.current = true;
-        clearRemovalTimer();
-        void handleRemoveConfirmed();
-      }
-    }, 50);
-  }, [activeWallet?.id, clearRemovalTimer, handleRemoveConfirmed, notice, t]);
-
-  const handleRemovePressOut = useCallback(() => {
-    if (removalCompletedRef.current) {
-      return;
-    }
-
-    resetRemovalState();
-  }, [resetRemovalState]);
 
   const handleHomeAction = useCallback(
     async (label: string) => {
@@ -2315,10 +2152,6 @@ export default function HomeScreen() {
   const historyButtonLabel = contentMode === 'history' ? t('Assets') : t('History');
   const moreButtonLabel = contentMode === 'more' ? t('Assets') : t('More');
 
-  const isRemovingActiveWallet = Boolean(activeWallet?.id) && removalWalletId === activeWallet?.id;
-  const removalFillWidth = `${Math.min(100, (removalProgress / REMOVE_DISPLAY_MAX) * 100)}%`;
-  const removalProgressColor =
-    removalProgress >= REMOVE_DISPLAY_MAX ? colors.white : colors.red;
 
   if (isInitialScreenLoading) {
     return <ScreenLoadingState label={t('Loading wallet...')} />;
@@ -3167,15 +3000,15 @@ export default function HomeScreen() {
                   <OpenRightIcon width={18} height={18} />
                 </TouchableOpacity>
 
-                <RemoveHoldRow
-                  active={isRemovingActiveWallet}
-                  progress={removalProgress}
-                  fillWidth={removalFillWidth}
-                  progressColor={removalProgressColor}
-                  onPress={handleRemovePress}
-                  onPressIn={handleRemovePressIn}
-                  onPressOut={handleRemovePressOut}
-                />
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  activeOpacity={0.9}
+                  style={styles.optionRow}
+                  onPress={() => activeWallet && router.push({ pathname: '/delete-wallet', params: { walletId: activeWallet.id } })}
+                >
+                  <Text style={styles.optionRowDestructiveText}>{t('Delete this wallet')}</Text>
+                  <OpenRightIcon width={18} height={18} />
+                </TouchableOpacity>
               </View>
             </>
           )}
@@ -3254,48 +3087,6 @@ function ActionButton({
       </View>
       <Text style={styles.actionLabel}>{label}</Text>
     </TouchableOpacity>
-  );
-}
-
-function RemoveHoldRow({
-  active,
-  progress,
-  fillWidth,
-  progressColor,
-  onPress,
-  onPressIn,
-  onPressOut,
-}: {
-  active: boolean;
-  progress: number;
-  fillWidth: string;
-  progressColor: string;
-  onPress: () => void;
-  onPressIn: () => void;
-  onPressOut: () => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <Pressable
-      style={styles.removeHoldRow}
-      onPress={onPress}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-    >
-      <>
-        {active ? <View style={[styles.removeHoldFill, { width: fillWidth as any }]} /> : null}
-        <Text style={[styles.optionRowDestructiveText, active && styles.removeHoldLabelActive]}>
-          {t('Remove Wallet')}
-        </Text>
-        {active ? (
-          <Text style={[styles.removeHoldProgress, { color: progressColor }]}>
-            {progress}%
-          </Text>
-        ) : (
-          <Text style={styles.removeHoldArrowPlaceholder} />
-        )}
-      </>
-    </Pressable>
   );
 }
 

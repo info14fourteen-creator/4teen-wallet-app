@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -23,7 +22,6 @@ import {
   canWalletExposePrivateKey,
   getActiveWalletId,
   listWallets,
-  removeWallet,
   renameWallet,
   setActiveWalletId,
   type WalletMeta,
@@ -52,8 +50,6 @@ function formatWalletKind(kind: WalletMeta['kind']) {
 }
 
 const MAX_WALLET_NAME_LENGTH = 18;
-const REMOVE_HOLD_MS = 7000;
-const REMOVE_DISPLAY_MAX = 114;
 
 export default function WalletsScreen() {
   const { t } = useI18n();
@@ -69,28 +65,6 @@ export default function WalletsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   useChromeLoading(loading || refreshing);
-
-  const [removalWalletId, setRemovalWalletId] = useState<string | null>(null);
-  const [removalProgress, setRemovalProgress] = useState(0);
-
-  const removalStartedAtRef = useRef<number | null>(null);
-  const removalTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const removalCompletedRef = useRef(false);
-
-  const clearRemovalTimer = useCallback(() => {
-    if (removalTimerRef.current) {
-      clearInterval(removalTimerRef.current);
-      removalTimerRef.current = null;
-    }
-  }, []);
-
-  const resetRemovalState = useCallback(() => {
-    clearRemovalTimer();
-    removalStartedAtRef.current = null;
-    removalCompletedRef.current = false;
-    setRemovalWalletId(null);
-    setRemovalProgress(0);
-  }, [clearRemovalTimer]);
 
   const load = useCallback(async () => {
     try {
@@ -131,12 +105,6 @@ export default function WalletsScreen() {
     }, [load])
   );
 
-  useEffect(() => {
-    return () => {
-      clearRemovalTimer();
-    };
-  }, [clearRemovalTimer]);
-
   const aggregateIndex = useMemo(() => {
     return new Map((aggregate?.items ?? []).map((item) => [item.wallet.id, item] as const));
   }, [aggregate?.items]);
@@ -170,74 +138,7 @@ export default function WalletsScreen() {
     }
   };
 
-  const handleRemoveConfirmed = useCallback(
-    async (wallet: WalletMeta) => {
-      try {
-        await removeWallet(wallet.id);
-
-        if (expandedWalletId === wallet.id) {
-          setExpandedWalletId(null);
-        }
-
-        if (editingWalletId === wallet.id) {
-          setEditingWalletId(null);
-          setDraftName('');
-        }
-
-        resetRemovalState();
-        await load();
-        notice.showSuccessNotice(t('Wallet removed from this device.'), 2400);
-      } catch (error) {
-        console.warn(error);
-        resetRemovalState();
-        notice.showErrorNotice(t('Wallet removal failed.'), 2600);
-      }
-    },
-    [editingWalletId, expandedWalletId, load, notice, resetRemovalState, t]
-  );
-
-  const handleRemovePress = useCallback(() => {
-    notice.showNeutralNotice(t('Press and hold to remove this wallet.'), 2200);
-  }, [notice, t]);
-
-  const handleRemovePressIn = useCallback(
-    (wallet: WalletMeta) => {
-      clearRemovalTimer();
-      removalCompletedRef.current = false;
-      removalStartedAtRef.current = Date.now();
-      setRemovalWalletId(wallet.id);
-      setRemovalProgress(0);
-
-      removalTimerRef.current = setInterval(() => {
-        const startedAt = removalStartedAtRef.current;
-        if (!startedAt) return;
-
-        const elapsed = Date.now() - startedAt;
-        const fraction = Math.max(0, Math.min(1, elapsed / REMOVE_HOLD_MS));
-        const displayProgress = Math.round(fraction * REMOVE_DISPLAY_MAX);
-
-        setRemovalProgress(displayProgress);
-
-        if (fraction >= 1 && !removalCompletedRef.current) {
-          removalCompletedRef.current = true;
-          clearRemovalTimer();
-          void handleRemoveConfirmed(wallet);
-        }
-      }, 50);
-    },
-    [clearRemovalTimer, handleRemoveConfirmed]
-  );
-
-  const handleRemovePressOut = useCallback(() => {
-    if (removalCompletedRef.current) {
-      return;
-    }
-
-    resetRemovalState();
-  }, [resetRemovalState]);
-
   const handleRenameStart = (wallet: WalletMeta) => {
-    resetRemovalState();
     setExpandedWalletId(wallet.id);
     setEditingWalletId(wallet.id);
     setDraftName(wallet.name);
@@ -377,13 +278,6 @@ export default function WalletsScreen() {
                 const balanceDisplay =
                   item.portfolio?.totalBalanceDisplay ?? formatAdaptiveDisplayCurrency(0);
                 const editing = editingWalletId === wallet.id;
-                const removing = removalWalletId === wallet.id;
-                const removalFillWidth = `${Math.min(
-                  100,
-                  (removalProgress / REMOVE_DISPLAY_MAX) * 100
-                )}%`;
-                const removalProgressColor =
-                  removalProgress >= REMOVE_DISPLAY_MAX ? colors.white : colors.red;
 
                 return (
                   <View key={wallet.id} style={styles.walletGroup}>
@@ -391,7 +285,6 @@ export default function WalletsScreen() {
                       activeOpacity={0.9}
                       style={[styles.walletRow, active ? styles.walletRowActive : styles.walletRowInactive]}
                       onPress={() => {
-                        resetRemovalState();
                         setExpandedWalletId((prev) => (prev === wallet.id ? null : wallet.id));
                         setEditingWalletId((prev) => (prev === wallet.id ? prev : null));
                       }}
@@ -500,15 +393,14 @@ export default function WalletsScreen() {
                           onPress={() => router.push('/connections')}
                         />
 
-                        <RemoveHoldRow
-                          active={removing}
-                          progress={removalProgress}
-                          fillWidth={removalFillWidth}
-                          progressColor={removalProgressColor}
-                          onPress={handleRemovePress}
-                          onPressIn={() => handleRemovePressIn(wallet)}
-                          onPressOut={handleRemovePressOut}
-                        />
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          style={styles.removeHoldRow}
+                          onPress={() => router.push({ pathname: '/delete-wallet', params: { walletId: wallet.id } })}
+                        >
+                          <Text style={styles.destructiveLabel}>{t('Delete this wallet')}</Text>
+                          <OpenRightIcon width={18} height={18} />
+                        </TouchableOpacity>
                       </View>
                     ) : null}
                   </View>
@@ -541,47 +433,6 @@ function StubRow({
       <Text style={ui.actionLabel}>{label}</Text>
       <OpenRightIcon width={18} height={18} />
     </TouchableOpacity>
-  );
-}
-
-function RemoveHoldRow({
-  active,
-  progress,
-  fillWidth,
-  progressColor,
-  onPress,
-  onPressIn,
-  onPressOut,
-}: {
-  active: boolean;
-  progress: number;
-  fillWidth: string;
-  progressColor: string;
-  onPress: () => void;
-  onPressIn: () => void;
-  onPressOut: () => void;
-}) {
-  return (
-    <Pressable
-      style={styles.removeHoldRow}
-      onPress={onPress}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-    >
-      <>
-        {active ? <View style={[styles.removeHoldFill, { width: fillWidth as any }]} /> : null}
-        <Text style={[styles.destructiveLabel, active && styles.removeHoldLabelActive]}>
-          Remove Wallet
-        </Text>
-        {active ? (
-          <Text style={[styles.removeHoldProgress, { color: progressColor }]}>
-            {progress}%
-          </Text>
-        ) : (
-          <OpenRightIcon width={18} height={18} />
-        )}
-      </>
-    </Pressable>
   );
 }
 

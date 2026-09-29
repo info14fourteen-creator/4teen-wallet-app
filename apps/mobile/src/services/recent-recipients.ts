@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../privacy/secure-store';
 
 export type RecentRecipient = {
   id: string;

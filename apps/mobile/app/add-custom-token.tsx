@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../src/privacy/async-storage';
 import {
   ActivityIndicator,
   RefreshControl,

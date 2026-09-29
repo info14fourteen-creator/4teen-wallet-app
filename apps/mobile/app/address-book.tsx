@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../src/privacy/secure-store';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import KeyboardView from '../src/ui/KeyboardView';

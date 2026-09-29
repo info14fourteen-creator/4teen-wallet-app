@@ -192,6 +192,11 @@ export default function SettingsScreen() {
               onPressIn={handleClearPressIn}
               onPressOut={handleClearPressOut}
             />
+            <SettingsRow
+              label={t('Delete wallet and data')}
+              hint={t('Delete a local wallet or all saved wallets and wallet data.')}
+              onPress={() => router.push('/delete-wallet')}
+            />
           </View>
     </ProductScreen>
   );

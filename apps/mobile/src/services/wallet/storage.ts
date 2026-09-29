@@ -1,5 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '../../privacy/async-storage';
+import * as SecureStore from '../../privacy/secure-store';
 import { translateNow } from '../../i18n';
 
 export type WalletKind = 'mnemonic' | 'private-key' | 'watch-only';
@@ -248,33 +248,4 @@ export async function renameWallet(id: string, nextName: string): Promise<Wallet
   await AsyncStorage.setItem(WALLET_LIST_KEY, JSON.stringify(next));
 
   return updated;
-}
-
-export async function removeWallet(id: string): Promise<void> {
-  const current = await listWallets();
-  const target = current.find((item) => item.id === id);
-
-  if (!target) {
-    throw new Error(translateNow('Wallet not found.'));
-  }
-
-  const next = current.filter((item) => item.id !== id);
-
-  await AsyncStorage.setItem(WALLET_LIST_KEY, JSON.stringify(next));
-  await SecureStore.deleteItemAsync(buildSecretKey(id));
-  await AsyncStorage.multiRemove([
-    buildWalletHomeVisibleTokensStorageKey(id),
-    buildWalletCustomTokenCatalogStorageKey(id),
-  ]);
-
-  const activeId = await getActiveWalletId();
-
-  if (activeId === id) {
-    if (next.length > 0) {
-      await setActiveWalletId(next[0].id);
-    } else {
-      await AsyncStorage.removeItem(ACTIVE_WALLET_ID_KEY);
-      notifyActiveWalletChange(null);
-    }
-  }
 }

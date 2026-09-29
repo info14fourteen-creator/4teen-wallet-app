@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../src/privacy/async-storage';
 import { useRouter } from 'expo-router';
 import { useI18n } from '../src/i18n';
 import { colors, fontFamilies, spacing, typography } from '../src/theme/tokens';

@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../../privacy/async-storage';
 
 import { listWallets, type WalletMeta } from './storage';
 import { getDisplayCurrency, type DisplayCurrencyCode } from '../../settings/display-currency';
