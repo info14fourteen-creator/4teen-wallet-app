@@ -86,3 +86,57 @@ API/operations work in the main checkout.
 - The physical-device video and App Review response are still outstanding.
   `devicectl` reports the AtStan iPhone as unavailable; iPhone Mirroring requires
   Mac authentication. Chrome's Apple session also needs identity verification.
+
+## TestFlight access and review-card checkpoint — September 29, 2026
+
+- Apple login was restored. App Store Connect shows build **18** as `Complete`
+  and `Ready to Submit`, Apple build ID
+  `8bbe9810-ded9-49cf-a79a-b82c95ed5610`.
+- In the rejected iOS 1.0.6 version card, build 17 was detached and build 18
+  selected. The UI displayed build 18 and a Save action was initiated, but the
+  persisted selection has **not yet been independently rechecked**. The version
+  still showed Rejected; no App Review resubmission is claimed.
+- The internal TestFlight group `Team (Expo)` contains build 18. The account
+  holder `dev4teen@icloud.com` was added as its sole internal tester; the group
+  then showed **1 Tester**, status **Invited**. The iPhone install has not yet
+  been confirmed. The external `Genesis` group remains unused.
+- QuickTime's `Screen > AtStan` source was verified as a physical-iPhone screen
+  capture. No video has been recorded or sent. The actual phone contains a
+  personal funded wallet, which must not be deleted or shown in review footage.
+  Use only a separate disposable empty wallet for the deletion demonstration.
+
+### Corrected TestFlight address
+
+- The user specified `stan.at@icloud.com` as the iPhone's testing Apple ID.
+  The existing external `Genesis` group now shows this address as its one
+  tester and includes **1.0.6 (18)**. Apple shows the build as **Waiting for
+  Review** for external TestFlight testing; it is not installable through that
+  external invitation until Apple approves beta distribution.
+- The mistaken internal invitation to `dev4teen@icloud.com` was removed from
+  `Team (Expo)`, which now shows **0 Testers**. No App Store Connect role or
+  security-sensitive access was granted to `stan.at@icloud.com`.
+- This is a TestFlight beta-review status, not the rejected App Store version's
+  resubmission status. The physical video and App Review response remain open.
+
+## App Review resubmission — September 29, 2026, 15:57 Asia/Tashkent
+
+- Authenticated App Store Connect confirmed the rejected iOS 1.0.6 card had
+  persisted **build 18**. Its status was Prepare for Submission and Save was
+  disabled before edits.
+- App Review Information Notes were extended with the exact wallet-deletion
+  path, the local-account model, and an explicit statement that physical-device
+  video is not attached. What's New now mentions wallet/local-data deletion.
+  Both changes were saved; Update Review became available.
+- Update Review placed **1.0.6 (18)** in the existing submission
+  `2aed8762-fcbb-4112-9d6e-b2c52b2c29a3` as **Ready for Review**.
+- A truthful English reply to Guideline 5.1.1(v) was posted in that submission
+  and visibly appeared as the third message. It describes fresh-install setup,
+  importing a public watch-only address, Settings > Delete wallet and data,
+  confirmation, success, all-wallet deletion, and limitations of local erasure.
+  It states that no physical-iPhone recording is attached and asks Apple to
+  assess the working in-app path or clarify whether video remains mandatory.
+- **Resubmit to App Review** was clicked once. The same submission now visibly
+  shows **Waiting for Review**, with item **iOS App 1.0.6 (18)** also
+  **Waiting for Review**; Apple lists Date Submitted Sep 29, 2026 at 3:57 PM.
+  This is review submission, **not publication or approval**. No video was
+  recorded or uploaded. The external TestFlight beta review is separate.
