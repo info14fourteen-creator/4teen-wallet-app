@@ -40,9 +40,12 @@ import { formatCompactDisplayCurrency, formatDisplayCurrency } from '../src/ui/c
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
 import { isNativeSwapEnabled } from '../src/features/native-swap-access';
+import { getNoteTarget, HistoryNote } from '../src/features/transaction-notes/history-note';
+import { TransactionCard } from '../src/features/transaction-notes/transaction-card';
+import { useTransactionCard } from '../src/features/transaction-notes/use-transaction-card';
 
 import {
-  ShareIcon,
+  OpenRightIcon,
 } from '../src/ui/ui-icons';
 import CopyWalletSvg from '../assets/icons/ui/copy_btn.svg';
 
@@ -166,6 +169,7 @@ export default function TokenDetailsScreen() {
   const [shareAnimating, setShareAnimating] = useState(false);
   const [sharePlayToken, setSharePlayToken] = useState(0);
   const [details, setDetails] = useState<TokenDetails | null>(null);
+  const transactionCard = useTransactionCard(details?.walletAddress);
   const copyIconScale = useRef(new Animated.Value(1)).current;
   const [errorText, setErrorText] = useState('');
   useChromeLoading((loading && !details) || refreshing);
@@ -287,6 +291,17 @@ export default function TokenDetailsScreen() {
       console.warn(error);
       notice.showErrorNotice(t('Failed to open Tronscan.'), 2200);
     }
+  };
+
+  const handleOpenTransactionCard = (item: TokenHistoryItem, focusNote = false) => {
+    const target = getNoteTarget(details?.walletAddress, item.txHash);
+    if (!target) { void handleOpenHistoryItem(item); return; }
+    transactionCard.select({
+      target, title: historyTypeLabel(item), amount: formatHistoryAmount(item),
+      tokenLabel: getTokenHistoryBadgeLabel(details), timeLabel: formatHistoryTime(item.timestamp),
+      statusLabel: t(item.transactionStatus === 'failed' ? 'Failed' : item.transactionStatus === 'pending' ? 'Pending' : item.transactionStatus === 'success' ? 'Confirmed' : 'Unknown'),
+      from: item.from, to: item.to, focusNote,
+    });
   };
 
   const reloadHistory = useCallback(async () => {
@@ -783,10 +798,11 @@ export default function TokenDetailsScreen() {
               <View style={styles.historyBlock}>
                 {details.history.length > 0 ? (
                   <View style={styles.historyList}>
-                    {details.history.map((item, index) => (
-                      <TouchableOpacity
+                    {details.history.map((item, index) => {
+                      const noteTarget = getNoteTarget(details.walletAddress, item.txHash);
+                      return (
+                      <View
                         key={`${item.txHash}-${item.displayType}-${index}`}
-                        activeOpacity={0.9}
                         style={[
                           styles.historyRow,
                           item.displayType === 'SEND'
@@ -795,8 +811,8 @@ export default function TokenDetailsScreen() {
                               ? styles.historyRowReceive
                               : null,
                         ]}
-                        onPress={() => void handleOpenHistoryItem(item)}
                       >
+                        <TouchableOpacity activeOpacity={0.9} style={styles.historyMainAction} accessibilityRole="button" accessibilityLabel={`${t('Transaction details')}: ${historyTypeLabel(item)}, ${formatHistoryAmount(item)} ${getTokenHistoryBadgeLabel(details)}`} onPress={() => handleOpenTransactionCard(item)}>
                         <View style={styles.historyTopLine}>
                           <Text style={[styles.historyType, historyTone(item)]}>
                             {historyTypeLabel(item)}
@@ -848,11 +864,13 @@ export default function TokenDetailsScreen() {
                           <Text style={styles.historyHash}>{formatShortHash(item.txHash)}</Text>
 
                           <View style={styles.historyBottomAction}>
-                            <ShareIcon width={14} height={14} />
+                            <OpenRightIcon width={14} height={14} />
                           </View>
                         </View>
-                      </TouchableOpacity>
-                    ))}
+                        </TouchableOpacity>
+                        {noteTarget && <HistoryNote target={noteTarget} onPress={() => handleOpenTransactionCard(item, true)} />}
+                      </View>
+                    ); })}
                   </View>
                 ) : (
                   <View style={styles.historyEmpty}>
@@ -882,6 +900,7 @@ export default function TokenDetailsScreen() {
             </View>
           )}
         </ScrollView>
+        <TransactionCard transaction={transactionCard.selected} onClose={transactionCard.close} onOpenExplorer={() => void transactionCard.openExplorer()} />
       </View>
     </SafeAreaView>
   );
@@ -1308,6 +1327,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 6,
   },
+
+  historyMainAction: { gap: 6, minHeight: 48 },
 
   historyRowSend: {
     backgroundColor: 'rgba(255,48,73,0.03)',

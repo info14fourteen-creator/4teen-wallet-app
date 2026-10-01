@@ -45,7 +45,13 @@ function harness(wallets = [A, B]) {
       if (!(k === secret(A) && faults.silentSecret)) secure.delete(k);
     },
   };
-  const modules = { '@react-native-async-storage/async-storage': storage, 'expo-secure-store': nativeSecure };
+  const deletedNoteAddresses = [];
+  const modules = {
+    '@react-native-async-storage/async-storage': storage, 'expo-secure-store': nativeSecure,
+    '../features/transaction-notes/storage': {
+      deleteNotesForAddress: async (network, address) => { assert.equal(network, 'tron-mainnet'); deletedNoteAddresses.push(address); },
+    },
+  };
   function load(name) {
     if (name in modules) return modules[name];
     const filename = name.replace(/^\.\//, '');
@@ -56,11 +62,12 @@ function harness(wallets = [A, B]) {
     modules[name] = exports;
     return exports;
   }
-  return { data, secure, faults, engine: load('./delete-wallet-data'), barrier: load('./deletion-barrier'), storage: load('./async-storage').default, keychain: load('./secure-store') };
+  return { data, secure, faults, deletedNoteAddresses, engine: load('./delete-wallet-data'), barrier: load('./deletion-barrier'), storage: load('./async-storage').default, keychain: load('./secure-store') };
 }
 
 test('single deletion erases its secret, all scoped caches, contacts and active drafts, preserving another wallet', async () => {
   const h = harness(); await h.engine.deleteWalletData(request);
+  assert.deepEqual(h.deletedNoteAddresses, [A.address]);
   assert.equal(h.secure.has(secret(A)), false);
   assert.equal(h.secure.get(secret(B)), 'test-only B');
   assert.deepEqual(JSON.parse(h.data.get(LIST)), [B]); assert.equal(h.data.get(ACTIVE), B.id);
@@ -148,7 +155,10 @@ test('all production storage mutations use guarded adapters; old unauthenticated
   const root = new URL('../../', import.meta.url);
   function walk(dir) { return readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]); }
   for (const file of [...walk(fileURLToPath(new URL('app', root))), ...walk(fileURLToPath(new URL('src', root)))].filter(f => /\.tsx?$/.test(f))) {
-    if (/\/privacy\/(async-storage|secure-store|delete-wallet-data)\.ts$/.test(file)) continue;
+    // Transaction notes use the native store for both ordinary guarded writes
+    // and the explicit post-freeze deletion sweep.
+    if (/\/privacy\/(async-storage|secure-store|delete-wallet-data)\.ts$/.test(file) ||
+      /\/features\/transaction-notes\/storage\.ts$/.test(file)) continue;
     const source = readFileSync(file, 'utf8');
     assert.doesNotMatch(source, /from ['"](?:@react-native-async-storage\/async-storage|expo-secure-store)['"]/, file);
     assert.doesNotMatch(source, /\bremoveWallet\(/, file);

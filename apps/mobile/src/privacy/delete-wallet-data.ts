@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { freezeLocalWrites } from './deletion-barrier';
 import type { WalletMeta } from '../services/wallet/storage';
+import { deleteNotesForAddress } from '../features/transaction-notes/storage';
 
 const LIST = 'fourteen_wallet_list_v1';
 const ACTIVE = 'fourteen_active_wallet_id_v1';
@@ -106,6 +107,13 @@ export async function deleteWalletData(request: DeletionRequest): Promise<void> 
     for (const { key, value } of current.contactUpdates) {
       if (value === null) await SecureStore.deleteItemAsync(key);
       else await SecureStore.setItemAsync(key, value);
+    }
+    // A second wallet entry can point to the same public address. Retain its
+    // notes until the last entry for that address is deleted.
+    for (const address of new Set(current.targets.map(wallet => wallet.address))) {
+      if (!current.remaining.some(wallet => wallet.address === address)) {
+        await deleteNotesForAddress('tron-mainnet', address);
+      }
     }
     // Keep the registry until secrets are erased so a failed deletion can be retried.
     for (const wallet of current.targets) {

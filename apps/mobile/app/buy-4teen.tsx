@@ -1,4 +1,5 @@
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
+import { Platform } from 'react-native';
 
 import { useI18n } from '../src/i18n';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
@@ -15,6 +16,8 @@ import {
 export default function Buy4teenScreen() {
   const router = useRouter();
   const { t } = useI18n();
+
+  if (Platform.OS === 'ios') return <Redirect href="/wallet" />;
 
   return (
     <ProductScreen eyebrow={t('BUY 4TEEN')}>

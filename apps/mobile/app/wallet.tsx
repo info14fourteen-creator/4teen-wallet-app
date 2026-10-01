@@ -70,6 +70,9 @@ import {
 } from '../src/services/tron/api';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import { getNoteTarget, HistoryNote } from '../src/features/transaction-notes/history-note';
+import { TransactionCard } from '../src/features/transaction-notes/transaction-card';
+import { useTransactionCard } from '../src/features/transaction-notes/use-transaction-card';
 import {
   formatAdaptiveDisplayCurrency,
   formatAdaptiveSignedDisplayCurrency,
@@ -84,7 +87,6 @@ import {
   OpenRightIcon,
   ReceiveIcon,
   SendIcon,
-  ShareIcon,
   WatchOnlyIcon,
 } from '../src/ui/ui-icons';
 import AzSortButtonSvg from '../assets/icons/ui/az_sort_btn.svg';
@@ -559,6 +561,7 @@ export default function HomeScreen() {
 
   const [aggregate, setAggregate] = useState<WalletPortfolioAggregate | null>(null);
   const [activeWallet, setActiveWallet] = useState<WalletMeta | null>(null);
+  const transactionCard = useTransactionCard(activeWallet?.address);
   const [portfolio, setPortfolio] = useState<WalletPortfolioSnapshot | null>(null);
   const [portfolioCache, setPortfolioCache] = useState<Record<string, WalletPortfolioSnapshot>>({});
   const [portfolioLoadingWalletId, setPortfolioLoadingWalletId] = useState<string | null>(null);
@@ -2059,6 +2062,17 @@ export default function HomeScreen() {
     [notice, router, t]
   );
 
+  const handleOpenTransactionCard = (row: WalletHistoryRenderRow, focusNote = false) => {
+    const target = getNoteTarget(activeWallet?.address, row.txHash);
+    if (!target) { void handleOpenHistoryItem(row.openItem); return; }
+    transactionCard.select({
+      target, title: historyRenderTypeLabel(row), amount: row.amount,
+      tokenLabel: row.tokenLabel, timeLabel: formatHistoryTime(row.timestamp),
+      statusLabel: t(row.status === 'failed' ? 'Failed' : row.status === 'pending' ? 'Pending' : 'Confirmed'),
+      focusNote,
+    });
+  };
+
   const handleToggleAssetSort = useCallback(() => {
     assetSortIconScale.stopAnimation();
     assetSortIconScale.setValue(0.92);
@@ -2816,13 +2830,14 @@ export default function HomeScreen() {
                 ) : visibleHistory.length > 0 ? (
                   <>
                     <View style={styles.historyList}>
-                      {visibleHistoryRows.map((row) => (
-                        <TouchableOpacity
+                      {visibleHistoryRows.map((row) => {
+                        const noteTarget = getNoteTarget(activeWallet?.address, row.txHash);
+                        return (
+                        <View
                           key={row.id}
-                          activeOpacity={0.9}
                           style={[styles.historyRow, historyRenderRowTone(row)]}
-                          onPress={() => void handleOpenHistoryItem(row.openItem)}
                         >
+                          <TouchableOpacity activeOpacity={0.9} style={styles.historyMainAction} accessibilityRole="button" accessibilityLabel={`${t('Transaction details')}: ${historyRenderTypeLabel(row)}, ${row.amount} ${row.tokenLabel}`} onPress={() => handleOpenTransactionCard(row)}>
                           <View style={styles.historyTopLine}>
                             <View style={styles.historyTitleStack}>
                               <Text style={[styles.historyType, historyRenderToneStyle(row)]}>
@@ -2878,11 +2893,13 @@ export default function HomeScreen() {
                             </Text>
 
                             <View style={styles.historyBottomAction}>
-                              <ShareIcon width={14} height={14} />
+                              <OpenRightIcon width={14} height={14} />
                             </View>
                           </View>
-                        </TouchableOpacity>
-                      ))}
+                          </TouchableOpacity>
+                          {noteTarget && <HistoryNote target={noteTarget} onPress={() => handleOpenTransactionCard(row, true)} />}
+                        </View>
+                      ); })}
                     </View>
 
                     {activeHistoryHasMore ? (
@@ -3014,6 +3031,7 @@ export default function HomeScreen() {
           )}
         </ScrollView>
 
+        <TransactionCard transaction={transactionCard.selected} onClose={transactionCard.close} onOpenExplorer={() => void transactionCard.openExplorer()} />
         <AddressQrModal
           visible={qrVisible}
           walletName={qrWallet?.name}
@@ -3850,6 +3868,8 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     gap: 9,
   },
+
+  historyMainAction: { gap: 9, minHeight: 48 },
 
   historyRowSend: {
     backgroundColor: 'rgba(255,48,73,0.03)',

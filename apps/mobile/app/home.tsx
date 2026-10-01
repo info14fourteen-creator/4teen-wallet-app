@@ -1,7 +1,9 @@
 import { useRouter } from 'expo-router';
+import { Platform } from 'react-native';
 
 import { useI18n } from '../src/i18n';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
+import { ProtocolInfoScreen } from '../src/features/protocol-readonly/screen';
 import {
   ProductActionRow,
   ProductHero,
@@ -14,6 +16,10 @@ import {
 export default function HomeScreen() {
   const router = useRouter();
   const { t } = useI18n();
+
+  // Keep the rich product-shell layout on iOS, but never expose Android's
+  // purchase CTA from a search result or a direct /home navigation.
+  if (Platform.OS === 'ios') return <ProtocolInfoScreen />;
 
   return (
     <ProductScreen eyebrow={t('HOME')} browVariant="plain">
