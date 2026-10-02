@@ -18,6 +18,5 @@ Source commit: `6f01ee8cee8819a05bf3a33ef58fd9466d0f2bec` on `codex/ios-account-
 ## Build and store status
 
 - iOS EAS production build `ba30736f-0ff6-416d-ba5a-8cba1a1b66e3`: version `1.0.7 (19)`, finished. EAS submission `873a05f4-92ba-4896-b6c3-b08206212a51` was scheduled; successful App Store Connect processing and App Review submission are not yet verified.
-- Android EAS production build `95b05cca-f7af-4890-9ab9-fd3546eab42c`: version `1.0.7 (18)`, finished. AAB was uploaded to Google Play production release 4 with English and Russian notes, 100% rollout to all existing target countries. Console confirmed `Изменения на проверке` for `4TEEN 1.0.7 (18)` on 1 October 2026; preliminary common-issues check was still running. This is review submission, not publication.
+- Android EAS production build `95b05cca-f7af-4890-9ab9-fd3546eab42c`: version `1.0.7 (18)`, finished. AAB was uploaded to Google Play production release 4 with English and Russian notes, 100% rollout to all existing target countries. On 2 October 2026 Google Play Console confirmed `4TEEN 1.0.7 (18)` as the latest production release, rollout 100%, no unpublished changes; the notification said the app update was published on 1 October.
 - App Store Connect session currently requires sign-in. Check existing iOS 1.0.6 (18) review status before submitting 1.0.7; do not mistake a completed EAS build for App Review submission.
-- Google Play 1.0.6 (17) remains the last confirmed published Android release.
