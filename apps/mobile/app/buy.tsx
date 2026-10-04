@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
+  Platform,
   LayoutChangeEvent,
   Pressable,
   RefreshControl,
@@ -55,6 +56,7 @@ import { setActiveWalletId, type WalletMeta } from '../src/services/wallet/stora
 import { useWalletSession } from '../src/wallet/wallet-session';
 import { formatAdaptiveDisplayCurrency } from '../src/ui/currency-format';
 import { BackspaceIcon, CloseIcon } from '../src/ui/ui-icons';
+import IOSExchangeInfoScreen from '../src/features/ios-exchange-info/screen';
 
 const BUY_INFO_TITLE = 'How direct buy works';
 const BUY_INFO_TEXT =
@@ -151,7 +153,7 @@ type WalletSwitcherItem = {
   balanceDisplay: string;
 };
 
-export default function BuyScreen() {
+function AndroidBuyScreen() {
   const { t } = useI18n();
   const router = useRouter();
   const params = useLocalSearchParams<{ amount?: string | string[] }>();
@@ -592,6 +594,10 @@ export default function BuyScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+export default function BuyScreen() {
+  return Platform.OS === 'ios' ? <IOSExchangeInfoScreen mode="buy" /> : <AndroidBuyScreen />;
 }
 
 const styles = StyleSheet.create({

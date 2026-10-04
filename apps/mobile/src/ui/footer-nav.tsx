@@ -149,8 +149,8 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
   const growthPrimaryAction = getWalletGrowthPrimaryAction();
   const walletOverviewAction = getWalletOverviewAction();
   const showGrowthMenu = walletGrowthAction.kind !== 'assets';
-  const showSwapIcon = coreUtilityAction.kind === 'swap';
-  const showBuyAction = growthPrimaryAction.kind === 'direct-buy';
+  const showSwapIcon = coreUtilityAction.route === '/swap';
+  const showBuyAction = growthPrimaryAction.route === '/buy';
 
   const [barWidth, setBarWidth] = useState(0);
   const [tickerIndex, setTickerIndex] = useState(0);
@@ -684,7 +684,7 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
               pressAnimationFrames:
                 showSwapIcon ? [0, 119] : undefined,
               pressAnimationSpeed: showSwapIcon ? 2 : undefined,
-              onPress: showSwapIcon ? guardedGoSwap : goCoreUtility,
+              onPress: coreUtilityAction.kind === 'swap' ? guardedGoSwap : goCoreUtility,
             },
             {
               label: t(walletGrowthAction.labelKey),

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ScreenBrow from '../src/ui/screen-brow';
@@ -121,7 +122,7 @@ function formatLockReleaseParts(unixSeconds: number) {
   };
 }
 
-export default function BuyConfirmScreen() {
+function AndroidBuyConfirmScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     amountTrx?: string | string[];
@@ -900,6 +901,10 @@ export default function BuyConfirmScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+export default function BuyConfirmScreen() {
+  return Platform.OS === 'ios' ? <Redirect href="/buy" /> : <AndroidBuyConfirmScreen />;
 }
 
 const styles = StyleSheet.create({

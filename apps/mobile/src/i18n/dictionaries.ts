@@ -1,6 +1,7 @@
 import type { AppLanguageCode } from './index';
 import { SWAP_DISCLOSURE_SLICES } from './swap-disclosure-slices';
 import { PROTOCOL_READONLY_SLICES } from './protocol-readonly-slices';
+import { IOS_EXCHANGE_INFO_SLICES } from './ios-exchange-info-slices';
 import { WALLET_DELETION_SLICES } from './wallet-deletion-slices';
 import { TRANSACTION_NOTES_SLICES } from './transaction-notes-slices';
 import {
@@ -5007,6 +5008,10 @@ for (const [language, disclosure] of Object.entries(SWAP_DISCLOSURE_SLICES)) {
 }
 
 for (const [language, copy] of Object.entries(PROTOCOL_READONLY_SLICES)) {
+  Object.assign(dictionaries[language as AppLanguageCode] ?? {}, copy);
+}
+
+for (const [language, copy] of Object.entries(IOS_EXCHANGE_INFO_SLICES)) {
   Object.assign(dictionaries[language as AppLanguageCode] ?? {}, copy);
 }
 

@@ -1,5 +1,5 @@
 export type CoreWalletUtilityAction = {
-  kind: 'swap' | 'assets' | 'browser';
+  kind: 'swap' | 'swap-info' | 'assets' | 'browser';
   route: '/swap' | '/manage-crypto' | '/browser';
   labelKey: 'SWAP' | 'ASSETS' | 'Browser';
 };
@@ -11,7 +11,7 @@ export type WalletGrowthAction = {
 };
 
 export type WalletGrowthPrimaryAction = {
-  kind: 'direct-buy' | 'assets';
+  kind: 'direct-buy' | 'buy-info' | 'assets';
   route: '/buy' | '/manage-crypto';
   labelKey: 'BUY' | 'ASSETS';
 };
@@ -48,7 +48,7 @@ export function getCoreWalletUtilityAction(
   platform: string | undefined = process.env.EXPO_OS
 ): CoreWalletUtilityAction {
   if (platform === 'ios') {
-    return { kind: 'assets', route: '/manage-crypto', labelKey: 'ASSETS' };
+    return { kind: 'swap-info', route: '/swap', labelKey: 'SWAP' };
   }
   if (isNativeSwapEnabled(platform)) {
     return {
@@ -109,6 +109,7 @@ export function getWalletOverviewAction(
 export function getWalletGrowthPrimaryAction(
   platform: string | undefined = process.env.EXPO_OS
 ): WalletGrowthPrimaryAction {
+  if (platform === 'ios') return { kind: 'buy-info', route: '/buy', labelKey: 'BUY' };
   return isDirectBuyEnabled(platform)
     ? { kind: 'direct-buy', route: '/buy', labelKey: 'BUY' }
     : { kind: 'assets', route: '/manage-crypto', labelKey: 'ASSETS' };
@@ -123,7 +124,7 @@ export function filterNativeExchangeEntries<T extends { id: string }>(
   }
 
   if (platform === 'ios') {
-    return entries.filter((entry) => !['route-swap', 'route-buy-4teen', 'route-whitepaper'].includes(entry.id));
+    return entries.filter((entry) => entry.id !== 'route-whitepaper');
   }
 
   return entries.filter((entry) => !IOS_UNAVAILABLE_EXCHANGE_ROUTE_IDS.has(entry.id));

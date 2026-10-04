@@ -1,5 +1,5 @@
-import { Redirect } from 'expo-router';
+import IOSExchangeInfoScreen from '../ios-exchange-info/screen';
 
-export default function NativeSwapUnavailableScreen() {
-  return <Redirect href="/wallet" />;
+export default function IOSSwapScreen() {
+  return <IOSExchangeInfoScreen mode="swap" />;
 }

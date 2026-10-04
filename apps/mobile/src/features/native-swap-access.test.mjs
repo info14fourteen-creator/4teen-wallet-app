@@ -24,12 +24,12 @@ const SEARCH_FIXTURE = [
   { id: 'route-whitepaper', route: '/whitepaper' },
 ];
 
-test('replaces unavailable iOS swap with working asset management', () => {
+test('restores iOS swap as a read-only asset overview without native exchange', () => {
   assert.equal(isNativeSwapEnabled('ios'), false);
   assert.deepEqual(getCoreWalletUtilityAction('ios'), {
-    kind: 'assets',
-    route: '/manage-crypto',
-    labelKey: 'ASSETS',
+    kind: 'swap-info',
+    route: '/swap',
+    labelKey: 'SWAP',
   });
 });
 
@@ -42,11 +42,11 @@ test('keeps the existing native swap footer action on Android', () => {
   });
 });
 
-test('removes exchange and token-purchase routes from the iOS search surface', () => {
+test('iOS search exposes only informational buy and swap routes', () => {
   const iosRoutes = filterNativeExchangeEntries(SEARCH_FIXTURE, 'ios');
 
-  assert.equal(iosRoutes.some((item) => item.route === '/swap'), false);
-  assert.equal(iosRoutes.some((item) => item.route === '/buy'), false);
+  assert.equal(iosRoutes.some((item) => item.route === '/swap'), true);
+  assert.equal(iosRoutes.some((item) => item.route === '/buy'), true);
   assert.equal(iosRoutes.some((item) => item.route === '/whitepaper'), false);
   assert.equal(iosRoutes.some((item) => item.route === '/earn'), true);
   assert.equal(iosRoutes.some((item) => item.route === '/unlock-timeline'), true);
@@ -74,9 +74,9 @@ test('opens the read-only cabinet from iOS growth without enabling purchases', (
   });
 });
 
-test('iOS history menu has a working assets action, not a BUY placeholder', () => {
+test('iOS growth menu opens contract records rather than a purchase confirmation', () => {
   assert.deepEqual(getWalletGrowthPrimaryAction('ios'), {
-    kind: 'assets', route: '/manage-crypto', labelKey: 'ASSETS',
+    kind: 'buy-info', route: '/buy', labelKey: 'BUY',
   });
 });
 
@@ -86,11 +86,10 @@ test('Android retains its working BUY action', () => {
   });
 });
 
-test('every iOS footer entry targets a supported functional screen', () => {
+test('iOS footer retains informational pages without confirmation routes', () => {
   for (const action of [getCoreWalletUtilityAction('ios'), getWalletGrowthAction('ios'),
     getWalletGrowthPrimaryAction('ios'), getWalletOverviewAction('ios')]) {
-    assert.ok(!['/swap', '/buy', '/buy-confirm', '/swap-confirm'].includes(action.route));
-    assert.ok(!['SWAP', 'BUY', 'EARN'].includes(action.labelKey));
+    assert.ok(!['/buy-confirm', '/swap-confirm'].includes(action.route));
   }
 });
 
