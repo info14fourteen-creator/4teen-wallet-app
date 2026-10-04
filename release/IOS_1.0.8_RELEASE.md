@@ -12,6 +12,7 @@ Source branch: `codex/ios-account-deletion`. This update restores visible Buy an
 
 ## Store status
 
+- 5 October simulator QA found that `app/buy.ios.tsx` still redirected to the wallet, overriding the intended Buy information screen. The route was fixed locally and verified in a Release-mode simulator build. The previously queued EAS 1.0.8 (20) build predates this fix and must not be submitted as the corrected Buy experience. Swap and corrected Buy simulator captures are in `release/screenshots/ios-1.0.8/`.
 - Before creating an App Review submission, verify the current 1.0.6 (18) submission and the processed 1.0.7 (19) build in App Store Connect. Do not duplicate or cancel an existing submission without reason.
 - App Store Connect Chrome session currently fails Apple identity verification. A fresh user sign-in/2FA has been requested.
 - Do not call an EAS build or binary upload an App Review submission or publication.
