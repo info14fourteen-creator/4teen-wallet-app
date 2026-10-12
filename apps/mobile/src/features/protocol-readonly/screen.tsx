@@ -39,6 +39,7 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
   const [error, setError] = useState(false);
   const [sectionErrors, setSectionErrors] = useState<SectionErrors>({});
   const [noWallet, setNoWallet] = useState(false);
+  const [noticeExpanded, setNoticeExpanded] = useState(false);
 
   const load = useCallback(async () => {
     request.current?.abort();
@@ -157,31 +158,48 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
       // ProductScreen overlays all data when refreshing=true. Use the inline
       // indicator so a slow section cannot mask another section's results.
       refreshControl={<RefreshControl refreshing={false} onRefresh={() => void load()} tintColor={colors.accent} />}>
-      <View style={[styles.notice, locale.row]}>
-        <MaterialCommunityIcons name="eye-outline" size={24} color={colors.accent} />
-        <View style={styles.noticeText}>
-          <Text style={[styles.heading, locale.textStart]}>{t('Read-only')}</Text>
-          {text(READ_ONLY_NOTICE)}
+      <TouchableOpacity accessibilityRole="button" onPress={() => setNoticeExpanded(value => !value)} style={styles.notice}>
+        <View style={[styles.noticeHeader, locale.row]}>
+          <MaterialCommunityIcons name="eye-outline" size={18} color={colors.accent} />
+          <Text style={styles.noticeLabel}>{t('Read-only')}</Text>
+          <MaterialCommunityIcons name={noticeExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textDim} />
         </View>
-      </View>
+        {noticeExpanded ? text(READ_ONLY_NOTICE) : null}
+      </TouchableOpacity>
       {snapshot ? (
         <View style={styles.wallet}>
-          <Text style={[styles.heading, locale.textStart]}>{snapshot.wallet.name}</Text>
+          <Text style={[styles.walletName, locale.textStart]}>{snapshot.wallet.name}</Text>
           <Text selectable style={[styles.address, locale.textStart]}>{snapshot.wallet.address}</Text>
-          {action('Wallets', () => router.push('/wallet-manager'))}
         </View>
       ) : null}
       {busy ? <ActivityIndicator color={colors.accent} size="large" style={styles.spinner} /> : null}
       {error ? <View style={styles.wallet}>{text('Data could not be loaded. Please try again.')}{action('Retry', () => void load())}</View> : null}
       {noWallet ? action('Wallet Setup', () => router.push('/wallet-access')) : null}
-      {section === 'ambassador' && snapshot?.cabinet === null ? text('No matching records in the loaded history.') : null}
+      {section === 'ambassador' && snapshot?.cabinet === null ? <View style={styles.rewardHero}>
+        <Text style={styles.rewardEyebrow}>{t('AMBASSADOR')}</Text>
+        <Text style={styles.rewardValue}>— TRX</Text>
+        <Text style={styles.rewardFoot}>{t('No matching records in the loaded history.')}</Text>
+      </View> : null}
+      {section === 'airdrop' && snapshot ? <View style={styles.airdropHero}>
+        <View style={styles.airdropMark}><MaterialCommunityIcons name="gift-outline" size={28} color={colors.accent} /></View>
+        <View style={styles.airdropHeroText}>
+          <Text style={styles.rewardEyebrow}>{t('AIRDROP')}</Text>
+          <Text style={styles.airdropTitle}>4TEEN</Text>
+        </View>
+      </View> : null}
 
       {summary ? <>
+        <View style={styles.rewardHero}>
+          <Text style={styles.rewardEyebrow}>{t('Claimable now')}</Text>
+          <Text style={styles.rewardValue}>{formatUnits(summary.claimable_rewards_sun)} TRX</Text>
+          <Text style={styles.rewardFoot}>{t('Pending')}: {formatUnits(summary.buyers_pending_reward_sun ?? 0)} TRX</Text>
+          <Text style={styles.rewardFoot}>{t('Accrued total')}: {formatUnits(summary.total_rewards_accrued_sun)} TRX</Text>
+        </View>
         <ProductStatGrid items={[
-          { eyebrow: t('Accrued total'), value: `${formatUnits(summary.total_rewards_accrued_sun)} TRX`, body: t('ON-CHAIN') },
+          { eyebrow: t('Slug'), value: snapshot?.cabinet?.profile.slug || '—', body: t('AMBASSADOR') },
+          { eyebrow: t('Level'), value: String(summary.effective_level ?? '—'), body: t('ON-CHAIN') },
+          { eyebrow: t('Reward'), value: `${summary.reward_percent ?? 0}%`, body: t('Current effective reward') },
           { eyebrow: t('Claimed total'), value: `${formatUnits(summary.total_rewards_claimed_sun)} TRX`, body: t('History') },
-          { eyebrow: t('Claimable now'), value: `${formatUnits(summary.claimable_rewards_sun)} TRX`, body: t('Read-only') },
-          { eyebrow: t('Pending'), value: `${formatUnits(summary.buyers_pending_reward_sun)} TRX`, body: t('Read-only') },
         ]} />
         <ProductSection eyebrow={t('AMBASSADOR')} title={t('History')}>
           {summary.last_chain_sync_at ? text(`${t('Updated')}: ${new Date(summary.last_chain_sync_at).toLocaleString(getLanguageLocaleTag(language))}`) : null}
@@ -241,12 +259,22 @@ export function ProtocolInfoScreen() { return <ProtocolReadOnlyScreen section="i
 export function LiquidityReadOnlyScreen() { return <ProtocolReadOnlyScreen section="liquidity" />; }
 
 const styles = StyleSheet.create({
-  notice: { gap: 12, padding: 18, borderRadius: radius.lg, backgroundColor: 'rgba(255,153,0,0.08)', borderWidth: 1, borderColor: 'rgba(255,153,0,0.24)' },
-  noticeText: { flex: 1, gap: 8 },
+  notice: { gap: 8, paddingHorizontal: 14, paddingVertical: 11, borderRadius: radius.md, backgroundColor: 'rgba(255,153,0,0.06)', borderWidth: 1, borderColor: 'rgba(255,153,0,0.18)' },
+  noticeHeader: { alignItems: 'center', gap: 8 },
+  noticeLabel: { flex: 1, color: colors.textDim, fontSize: 12, fontWeight: '700' },
   heading: { color: colors.white, fontSize: 16, fontWeight: '700' },
   body: { color: colors.textDim, fontSize: 14, lineHeight: 21 },
   address: { color: colors.textDim, fontSize: 12, lineHeight: 20 },
-  wallet: { padding: 18, gap: 8, borderRadius: radius.lg, backgroundColor: 'rgba(255,255,255,0.035)' },
+  wallet: { paddingHorizontal: 2, paddingVertical: 12, gap: 2 },
+  walletName: { color: colors.white, fontSize: 14, fontWeight: '700' },
+  rewardHero: { marginTop: 4, padding: 22, gap: 12, borderRadius: radius.lg, backgroundColor: 'rgba(255,105,0,0.10)', borderWidth: 1, borderColor: colors.lineStrong },
+  rewardEyebrow: { color: colors.accent, fontSize: 12, fontWeight: '800' },
+  rewardValue: { color: colors.white, fontSize: 32, fontWeight: '800' },
+  rewardFoot: { color: colors.textDim, fontSize: 11, fontWeight: '700' },
+  airdropHero: { marginTop: 4, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: radius.lg, backgroundColor: 'rgba(255,105,0,0.10)', borderWidth: 1, borderColor: colors.lineStrong },
+  airdropMark: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.graphite, alignItems: 'center', justifyContent: 'center' },
+  airdropHeroText: { flex: 1, gap: 6 },
+  airdropTitle: { color: colors.white, fontSize: 20, fontWeight: '800' },
   action: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   actionText: { flex: 1, color: colors.accent, fontSize: 14, fontWeight: '600' },
   record: { paddingVertical: 12, gap: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },

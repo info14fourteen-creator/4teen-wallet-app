@@ -70,7 +70,7 @@ test('opens the read-only cabinet from iOS growth without enabling purchases', (
   assert.deepEqual(getWalletGrowthAction('ios'), {
     kind: 'overview',
     route: '/ambassador-program',
-    labelKey: 'History',
+    labelKey: 'EARN',
   });
 });
 

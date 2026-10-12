@@ -12,6 +12,7 @@ import {
 } from '../src/services/wallet/storage';
 import { getWalletPortfolio } from '../src/services/wallet/portfolio';
 import { getCustomTokenCatalog } from '../src/services/tron/api';
+import FourteenWalletLoader from '../src/ui/fourteen-wallet-loader';
 
 const INITIAL_PROGRESS = 4;
 const STAGE_WEIGHTS = {
@@ -174,6 +175,7 @@ export default function BootScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.center}>
+        <FourteenWalletLoader active size={180} />
         <Text style={[styles.percent, { color }]}>
           {progress}%
         </Text>
@@ -196,6 +198,7 @@ const styles = StyleSheet.create({
   center: {
     width: '76%',
     alignItems: 'center',
+    gap: spacing[3],
   },
   percent: {
     fontSize: typography.bootPercent,

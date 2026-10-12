@@ -85,21 +85,21 @@ function harness(platform, pathname = '/wallet', kind = 'full-access') {
   };
 }
 
-test('iOS main footer preserves five working destinations with no exchange placeholder', async () => {
+test('iOS main footer preserves five working informational destinations', async () => {
   const h = harness('ios');
-  assert.deepEqual(h.labels(), ['HOME', 'SEND', 'WALLET', 'ASSETS', 'History']);
-  await h.press('ASSETS');
-  assert.deepEqual(h.calls, ['/manage-crypto']);
+  assert.deepEqual(h.labels(), ['HOME', 'SEND', 'WALLET', 'SWAP', 'EARN']);
+  await h.press('SWAP');
+  assert.deepEqual(h.calls, ['/swap']);
   assert.equal(h.signingChecks, 0);
   assert.deepEqual(h.notices, []);
 });
 
 for (const path of ['/ambassador-program', '/airdrop']) {
-  test(`iOS ${path} has no BUY button and assets opens normally`, async () => {
+  test(`iOS ${path} opens the informational BUY screen`, async () => {
     const h = harness('ios', path, 'watch-only');
-    assert.deepEqual(h.labels(), ['ASSETS', 'AIRDROP', 'WALLET', 'AMBASSADOR', 'MAIN']);
-    await h.press('ASSETS');
-    assert.deepEqual(h.calls, ['/manage-crypto']);
+    assert.deepEqual(h.labels(), ['BUY', 'AIRDROP', 'WALLET', 'AMBASSADOR', 'MAIN']);
+    await h.press('BUY');
+    assert.deepEqual(h.calls, ['/buy']);
     assert.equal(h.signingChecks, 0);
     assert.deepEqual(h.notices, []);
   });
@@ -107,7 +107,7 @@ for (const path of ['/ambassador-program', '/airdrop']) {
 
 for (const [path, label, destination] of [
   ['/wallet', 'HOME', '/unlock-timeline'],
-  ['/wallet', 'History', '/ambassador-program'],
+  ['/wallet', 'EARN', '/ambassador-program'],
   ['/unlock-timeline', 'LIQUIDITY', '/liquidity-controller'],
   ['/unlock-timeline', 'INFO', '/earn'],
   ['/ambassador-program', 'AIRDROP', '/airdrop'],

@@ -69,7 +69,7 @@ export function getWalletGrowthAction(
   platform: string | undefined = process.env.EXPO_OS
 ): WalletGrowthAction {
   if (platform === 'ios') {
-    return { kind: 'overview', route: '/ambassador-program', labelKey: 'History' };
+    return { kind: 'overview', route: '/ambassador-program', labelKey: 'EARN' };
   }
   if (isDirectBuyEnabled(platform)) {
     return {
