@@ -1,11 +1,11 @@
 # 4TEEN 1.0.9 release candidate
 
-Prepared 13 October 2026 (Asia/Tashkent) in `codex/ios-account-deletion`. This is a source candidate, **not** an uploaded or published store build.
+Prepared 13 October 2026 (Asia/Tashkent) in `codex/ios-account-deletion`. These are EAS build jobs, **not** uploaded or published store versions.
 
 ## Version and baseline
 
 - Marketing version: `1.0.9` in Expo config, mobile package, and in-app version label.
-- EAS uses `appVersionSource: remote` and production `autoIncrement: true`. The actual next iOS build number and Android versionCode must be read from completed EAS builds; neither is asserted here. A stale local iOS build number was removed from Expo config.
+- EAS uses `appVersionSource: remote` and production `autoIncrement: true`. A stale local iOS build number was removed from Expo config. Current target jobs: iOS build `22`, Android versionCode `20`; verify completion before calling them binaries.
 - Existing store state checked 12–13 October: App Store iOS 1.0.6 (18) Ready for Distribution; TestFlight iOS 1.0.7 (19) Ready to Submit; Google Play 1.0.7 (18) active. The previously queued iOS 1.0.8 (20) predates the corrected BUY route and is not this candidate.
 - The 114% startup progress is intentional and preserved. An animated brand mark has been added to the app boot screen; its behavior in a fresh native build still needs verification. The old static splash asset was removed from Expo config, but an existing generated native checkout may still contain it.
 - Transaction notes: 120 Unicode characters, encrypted/device-local, shown in wallet and token history. Android persistence was previously checked on an emulator; iOS editor was checked in a simulator without saving a note in the current QA pass.
@@ -16,7 +16,8 @@ Prepared 13 October 2026 (Asia/Tashkent) in `codex/ios-account-deletion`. This i
 - TypeScript and Expo lint passed.
 - iOS and Android Hermes exports passed for the 1.0.9 source candidate. These exports are not signed store binaries.
 - `expo config` resolves to version `1.0.9`; `git diff --check` passed.
-- EAS CLI is not installed in this workspace. A transient CLI availability check did not complete, so no remote build number or signed binary was created in this pass.
+- EAS CLI 21.4.0 was available through the local npx cache. Source `fb9f61d` built iOS 1.0.9 (21) successfully but Android 1.0.9 (19) failed in `:app:processReleaseResources`: missing `drawable/splashscreen_logo`. No store upload followed.
+- Source `ec29a13` restores a branded native splash image from the existing app icon while the in-app animated mark remains. Android prebuild generated the required density resources. Replacement jobs started: iOS 1.0.9 (22) `62308356-d284-46b6-86a9-ab1be11c63fc`; Android 1.0.9 (20) `cf1f5da3-457d-454a-8cbd-7575b348adba`. Both outcomes still need verification.
 
 ## Required before store submission
 
@@ -27,6 +28,12 @@ Prepared 13 October 2026 (Asia/Tashkent) in `codex/ios-account-deletion`. This i
 
 ## Draft store notes — verify against the final binary
 
-English: "Improved wallet startup and navigation. Transaction notes remain private on your device. Updated the iOS protocol overview and wallet asset screens."
+Apple English: "Improved wallet startup and navigation. Transaction notes remain private on your device. Updated the protocol overview and wallet asset screens."
 
-Russian: "Улучшены запуск кошелька и навигация. Заметки к операциям остаются личными и хранятся на устройстве. Обновлены информационные экраны протокола и активов на iOS."
+Apple Russian: "Улучшены запуск кошелька и навигация. Заметки к операциям остаются личными и хранятся на устройстве. Обновлены информационные экраны протокола и активов."
+
+Google Play English: "Improved wallet startup and navigation. Transaction notes remain private on your device."
+
+Google Play Russian: "Улучшены запуск кошелька и навигация. Заметки к операциям остаются личными и хранятся на устройстве."
+
+Current local iOS simulator QA screenshots are in `release/screenshots/ios-ui-refresh/`. They are untracked and include a test wallet's public address/balances; they are **not** store-ready and must not be uploaded as-is. BUY/SWAP and participation screens are read-only information on iOS, not native trading or participation flows.
