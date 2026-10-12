@@ -14,6 +14,19 @@
     },
     "plugins": [
       [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#09090B",
+          "ios": {
+            "backgroundColor": "#09090B"
+          },
+          "android": {
+            "image": "./assets/images/play-store-icon.png",
+            "backgroundColor": "#FFFFFF"
+          }
+        }
+      ],
+      [
         "expo-local-authentication",
         {
           "faceIDPermission": "Allow 4TEEN to use Face ID."
