@@ -550,6 +550,9 @@ export default function HomeScreen() {
   const programmaticWalletSelectionRef = useRef<string | null>(null);
   const ignoreWalletCardSnapUntilRef = useRef(0);
   const walletCardDragActiveRef = useRef(false);
+  const walletCardSnapFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const walletPagerOffsetXRef = useRef(0);
+  const walletSelectionInFlightRef = useRef<string | null>(null);
   const suppressNextWalletRefreshForIdRef = useRef<string | null>(null);
   const walletViewRequestIdRef = useRef(0);
   const resourceLoadingWalletIdRef = useRef<string | null>(null);
@@ -642,6 +645,8 @@ export default function HomeScreen() {
   }, [requestedWalletId, requestedWalletNonce]);
 
   const walletCards = useMemo(() => aggregate?.items ?? [], [aggregate]);
+  const walletViewMatchesCard =
+    walletCards.length === 0 || walletCards[currentCardIndex]?.wallet.id === activeWallet?.id;
   useEffect(() => {
     resourceLoadingWalletIdRef.current = resourceLoadingWalletId;
   }, [resourceLoadingWalletId]);
@@ -696,6 +701,15 @@ export default function HomeScreen() {
     programmaticWalletSelectionRef.current = null;
     ignoreWalletCardSnapUntilRef.current = 0;
   }, []);
+
+  const clearWalletCardSnapFallback = useCallback(() => {
+    if (walletCardSnapFallbackRef.current) {
+      clearTimeout(walletCardSnapFallbackRef.current);
+      walletCardSnapFallbackRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearWalletCardSnapFallback, [clearWalletCardSnapFallback]);
 
   useEffect(() => {
     currentCardIndexRef.current = currentCardIndex;
@@ -1643,6 +1657,7 @@ export default function HomeScreen() {
 
   const handleWalletCardSnap = useCallback(
     async (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      clearWalletCardSnapFallback();
       if (cardWidth <= 0 || walletCards.length === 0) {
         walletCardDragActiveRef.current = false;
         return;
@@ -1665,7 +1680,9 @@ export default function HomeScreen() {
 
       const programmaticWalletId = programmaticWalletSelectionRef.current;
       const isProgrammaticSnapWindow = Date.now() < ignoreWalletCardSnapUntilRef.current;
-      const isUserDrag = walletCardDragActiveRef.current;
+      const isUserDrag =
+        walletCardDragActiveRef.current ||
+        (!programmaticWalletId && nextItem.wallet.id !== activeWallet?.id);
 
       if (!isUserDrag) {
         const targetIndex = programmaticWalletId
@@ -1712,7 +1729,12 @@ export default function HomeScreen() {
         return;
       }
 
+      if (walletSelectionInFlightRef.current === nextItem.wallet.id) {
+        return;
+      }
+
       try {
+        walletSelectionInFlightRef.current = nextItem.wallet.id;
         const requestId = ++walletViewRequestIdRef.current;
 
         setEditingWalletId(null);
@@ -1762,6 +1784,9 @@ export default function HomeScreen() {
           setPortfolioLoadingWalletId(nextItem.wallet.id);
 
           const nextPortfolio = await getWalletPortfolio(nextItem.wallet.address);
+          if (walletViewRequestIdRef.current !== requestId) {
+            return;
+          }
           setPortfolio(nextPortfolio);
           setPortfolioLoadingWalletId(null);
 
@@ -1798,6 +1823,10 @@ export default function HomeScreen() {
         setHistoryLoadingWalletId(null);
         setHistoryLoadingMoreWalletId(null);
         notice.showErrorNotice(t('Wallet switch failed.'), 2400);
+      } finally {
+        if (walletSelectionInFlightRef.current === nextItem.wallet.id) {
+          walletSelectionInFlightRef.current = null;
+        }
       }
     },
     [
@@ -1805,6 +1834,7 @@ export default function HomeScreen() {
       applyHomePreferencesState,
       cardWidth,
       clearProgrammaticWalletScroll,
+      clearWalletCardSnapFallback,
       contentMode,
       ensureWalletHistoryLoaded,
       homePreferencesCache,
@@ -1968,6 +1998,9 @@ export default function HomeScreen() {
 
   const handleHomeAction = useCallback(
     async (label: string) => {
+      if (walletCardsRef.current[currentCardIndexRef.current]?.wallet.id !== activeWalletIdRef.current) {
+        return;
+      }
       if (activeWallet?.kind === 'watch-only' && label === 'Send') {
         const signingWallet = await ensureSigningWalletActive();
 
@@ -2063,6 +2096,9 @@ export default function HomeScreen() {
   );
 
   const handleOpenTransactionCard = (row: WalletHistoryRenderRow, focusNote = false) => {
+    if (walletCardsRef.current[currentCardIndexRef.current]?.wallet.id !== activeWalletIdRef.current) {
+      return;
+    }
     const target = getNoteTarget(activeWallet?.address, row.txHash);
     if (!target) { void handleOpenHistoryItem(row.openItem); return; }
     transactionCard.select({
@@ -2140,11 +2176,13 @@ export default function HomeScreen() {
         (Boolean(aggregate?.items?.length) && !resolvedActivePortfolio)));
   useChromeLoading(isInitialScreenLoading || refreshing);
   const isActivePortfolioLoading =
-    Boolean(activeWallet?.id) &&
-    portfolioLoadingWalletId === activeWallet?.id &&
-    !resolvedActivePortfolio;
+    !walletViewMatchesCard ||
+    (Boolean(activeWallet?.id) &&
+      portfolioLoadingWalletId === activeWallet?.id &&
+      !resolvedActivePortfolio);
   const isActiveHistoryLoading =
-    Boolean(activeWallet?.id) && historyLoadingWalletId === activeWallet?.id;
+    !walletViewMatchesCard ||
+    (Boolean(activeWallet?.id) && historyLoadingWalletId === activeWallet?.id);
   const isActiveHistoryLoadingMore =
     Boolean(activeWallet?.id) && historyLoadingMoreWalletId === activeWallet?.id;
   const knownManagedTokenIds = useMemo(() => {
@@ -2233,7 +2271,50 @@ export default function HomeScreen() {
                 onScrollBeginDrag={() => {
                   walletCardDragActiveRef.current = true;
                   clearProgrammaticWalletScroll();
+                  clearWalletCardSnapFallback();
                 }}
+                onScroll={(event) => {
+                  walletPagerOffsetXRef.current = event.nativeEvent.contentOffset.x;
+                  if (
+                    programmaticWalletSelectionRef.current &&
+                    Date.now() >= ignoreWalletCardSnapUntilRef.current
+                  ) {
+                    clearProgrammaticWalletScroll();
+                  }
+                  if (programmaticWalletSelectionRef.current || cardWidth <= 0 || walletCards.length === 0) return;
+                  const rawIndex = Math.round(event.nativeEvent.contentOffset.x / cardWidth);
+                  const nextIndex = ((rawIndex % walletCards.length) + walletCards.length) % walletCards.length;
+                  if (nextIndex !== currentCardIndexRef.current) {
+                    currentCardIndexRef.current = nextIndex;
+                    setCurrentCardIndex(nextIndex);
+                  }
+                  if (
+                    walletCards[nextIndex]?.wallet.id !== activeWalletIdRef.current &&
+                    walletSelectionInFlightRef.current !== walletCards[nextIndex]?.wallet.id
+                  ) {
+                    clearWalletCardSnapFallback();
+                    walletCardSnapFallbackRef.current = setTimeout(() => {
+                      walletCardSnapFallbackRef.current = null;
+                      void handleWalletCardSnap({
+                        nativeEvent: { contentOffset: { x: walletPagerOffsetXRef.current, y: 0 } },
+                      } as NativeSyntheticEvent<NativeScrollEvent>);
+                    }, 180);
+                  }
+                }}
+                scrollEventThrottle={16}
+                onScrollEndDrag={(event) => {
+                  // iOS can finish a short swipe without firing onMomentumScrollEnd.
+                  // Defer briefly so a real momentum event can take precedence.
+                  walletPagerOffsetXRef.current = event.nativeEvent.contentOffset.x;
+                  clearWalletCardSnapFallback();
+                  walletCardSnapFallbackRef.current = setTimeout(() => {
+                    walletCardSnapFallbackRef.current = null;
+                    void handleWalletCardSnap({
+                      nativeEvent: { contentOffset: { x: walletPagerOffsetXRef.current, y: 0 } },
+                    } as NativeSyntheticEvent<NativeScrollEvent>);
+                  }, 180);
+                }}
+                onMomentumScrollBegin={clearWalletCardSnapFallback}
                 onMomentumScrollEnd={handleWalletCardSnap}
                 contentContainerStyle={styles.walletPagerContent}
                 style={[styles.walletPager, !pagerReady ? styles.walletPagerHidden : null]}
