@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   RefreshControl,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -329,7 +330,7 @@ export default function UnlockTimelineScreen() {
           </View>
         )}
 
-        <View style={styles.heroActions}>
+        {Platform.OS !== 'ios' ? <View style={styles.heroActions}>
           <TouchableOpacity
             activeOpacity={0.88}
             style={styles.primaryAction}
@@ -355,7 +356,7 @@ export default function UnlockTimelineScreen() {
               <Text style={styles.secondaryActionLabel}>{t('SWAP')}</Text>
             </TouchableOpacity>
           ) : null}
-        </View>
+        </View> : null}
 
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
@@ -435,7 +436,7 @@ export default function UnlockTimelineScreen() {
             <Text style={styles.historyEyebrow}>{t('UNLOCK HISTORY')}</Text>
           </View>
 
-          <TouchableOpacity
+          {Platform.OS !== 'ios' ? <TouchableOpacity
             activeOpacity={0.85}
             style={styles.historyAction}
             accessibilityRole="button"
@@ -443,7 +444,7 @@ export default function UnlockTimelineScreen() {
             onPress={() => router.push('/buy')}
           >
             <MaterialCommunityIcons name="cart-outline" size={18} color={colors.accent} />
-          </TouchableOpacity>
+          </TouchableOpacity> : null}
         </View>
 
         {historyRows.length > 0 ? (

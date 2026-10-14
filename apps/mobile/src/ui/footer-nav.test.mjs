@@ -94,6 +94,21 @@ test('iOS main footer preserves five working informational destinations', async 
   assert.deepEqual(h.notices, []);
 });
 
+for (const platform of ['ios', 'android']) {
+  for (const pathname of ['/wallet', '/unlock-timeline', '/ambassador-program']) {
+    test(`${platform} ${pathname} footer keeps every label on one line`, () => {
+      const tree = harness(platform, pathname).render();
+      const labels = nodes(tree).filter(node => node.type === 'Text' && node.props?.style?.some?.(style => style?.fontFamily === 'Sora_600SemiBold'));
+      assert.ok(labels.length >= 5);
+      for (const label of labels) {
+        assert.equal(label.props.numberOfLines, 1, text(label));
+        assert.equal(label.props.ellipsizeMode, 'tail', text(label));
+        assert.equal(label.props.adjustsFontSizeToFit, true, text(label));
+      }
+    });
+  }
+}
+
 for (const path of ['/ambassador-program', '/airdrop']) {
   test(`iOS ${path} opens the informational BUY screen`, async () => {
     const h = harness('ios', path, 'watch-only');

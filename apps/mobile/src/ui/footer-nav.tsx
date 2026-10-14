@@ -907,7 +907,8 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
                     style={styles.navIcon}
                   />
                 )}
-                <Text style={[styles.label, footerItems[0].active && { color: footerActiveColor, opacity: 1 }]}>
+                <Text numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.72}
+                  style={[styles.label, footerItems[0].active && { color: footerActiveColor, opacity: 1 }]}>
                   {footerItems[0].label}
                 </Text>
               </TouchableOpacity>
@@ -966,6 +967,10 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
               </Animated.View>
 
               <Text
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                adjustsFontSizeToFit
+                minimumFontScale={0.72}
                 style={[
                   styles.centerLabel,
                   isWalletActive && { color: footerActiveColor },
@@ -1099,7 +1104,8 @@ export default function FooterNav({ forceVisible = false, style }: FooterNavProp
                     style={styles.navIcon}
                   />
                 )}
-                <Text style={[styles.label, footerItems[3].active && { color: footerActiveColor, opacity: 1 }]}>
+                <Text numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.72}
+                  style={[styles.label, footerItems[3].active && { color: footerActiveColor, opacity: 1 }]}>
                   {footerItems[3].label}
                 </Text>
               </TouchableOpacity>
@@ -1157,7 +1163,8 @@ function FooterItem({
           style={styles.navIcon}
         />
       )}
-      <Text style={[styles.label, active && { color: activeColor, opacity: 1 }]}>{label}</Text>
+      <Text numberOfLines={1} ellipsizeMode="tail" adjustsFontSizeToFit minimumFontScale={0.72}
+        style={[styles.label, active && { color: activeColor, opacity: 1 }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -1279,6 +1286,7 @@ const styles = StyleSheet.create({
   },
 
   label: {
+    alignSelf: 'stretch',
     fontSize: 9,
     lineHeight: 11,
     fontFamily: 'Sora_600SemiBold',
@@ -1336,6 +1344,7 @@ const styles = StyleSheet.create({
   },
 
   centerLabel: {
+    alignSelf: 'stretch',
     marginTop: 7,
     fontSize: 11,
     lineHeight: 13,

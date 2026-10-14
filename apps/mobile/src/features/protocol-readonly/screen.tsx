@@ -5,11 +5,17 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getLanguageLocaleTag, useI18n, useLocaleLayout } from '../../i18n';
 import { getActiveWallet, subscribeActiveWalletChange, type WalletMeta } from '../../services/wallet/storage';
 import type { AmbassadorCabinetDashboard } from '../../services/ambassador';
+import { getTelegramAirdropOverview, getWalletAirdropOnChainSnapshot, type AirdropVaultOnChainSnapshot, type TelegramAirdropOverview } from '../../services/airdrop';
 import { ProductScreen, ProductSection, ProductStatGrid } from '../../ui/product-shell';
 import { colors, radius } from '../../theme/tokens';
 import { openInAppBrowser } from '../../utils/open-in-app-browser';
 import { loadCabinet, loadHistory, loadLiquidityBalance, loadTokenBalances, PROTOCOL_CONTRACTS } from './data';
 import { formatUnits, type HistoryRow } from './model';
+import TelegramIcon from '../../../assets/icons/ui/socials/telegram_social.svg';
+import InstagramIcon from '../../../assets/icons/ui/socials/instagram_social.svg';
+import XIcon from '../../../assets/icons/ui/socials/x_social.svg';
+import FacebookIcon from '../../../assets/icons/ui/socials/facebook_social.svg';
+import YoutubeIcon from '../../../assets/icons/ui/socials/youtube_social.svg';
 
 type Section = 'ambassador' | 'airdrop' | 'unlock' | 'info' | 'liquidity';
 type Snapshot = {
@@ -19,12 +25,15 @@ type Snapshot = {
   cursor?: string;
   balances?: { total: string; locked: string };
   liquidity?: string;
+  airdrop?: AirdropVaultOnChainSnapshot;
+  telegram?: TelegramAirdropOverview | null;
 };
-type SectionErrors = { history?: 'refresh' | 'more'; balances?: boolean };
+type SectionErrors = { history?: 'refresh' | 'more'; balances?: boolean; airdrop?: boolean };
 function sameWallet(left: WalletMeta | undefined, right: WalletMeta) {
   return left?.id === right.id && left.address === right.address;
 }
 const TITLES = { ambassador: 'AMBASSADOR', airdrop: 'AIRDROP', unlock: 'UNLOCK TIMELINE', info: 'INFO', liquidity: 'LIQUIDITY' };
+const SOCIAL_ICONS = { telegram: TelegramIcon, instagram: InstagramIcon, x: XIcon, facebook: FacebookIcon, youtube: YoutubeIcon };
 export const READ_ONLY_NOTICE = 'View on-chain records, balances and contract details. This section does not create or sign transactions.';
 
 function ProtocolReadOnlyScreen({ section }: { section: Section }) {
@@ -87,7 +96,18 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
             if (!signal.aborted) setSectionErrors(previous => ({ ...previous, balances: true }));
           }
         })();
-        await Promise.all([historyRequest, balancesRequest]);
+        const airdropRequest = (async () => {
+          if (section !== 'airdrop') return;
+          const [onChain, telegram] = await Promise.allSettled([
+            getWalletAirdropOnChainSnapshot(wallet.address),
+            getTelegramAirdropOverview(wallet.address),
+          ]);
+          if (signal.aborted) return;
+          if (onChain.status === 'fulfilled') publish({ airdrop: onChain.value });
+          else setSectionErrors(previous => ({ ...previous, airdrop: true }));
+          publish({ telegram: telegram.status === 'fulfilled' ? telegram.value : null });
+        })();
+        await Promise.all([historyRequest, balancesRequest, airdropRequest]);
       }
       if (section === 'liquidity') publish({ liquidity: await loadLiquidityBalance(signal) });
     } catch {
@@ -175,11 +195,11 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
       {busy ? <ActivityIndicator color={colors.accent} size="large" style={styles.spinner} /> : null}
       {error ? <View style={styles.wallet}>{text('Data could not be loaded. Please try again.')}{action('Retry', () => void load())}</View> : null}
       {noWallet ? action('Wallet Setup', () => router.push('/wallet-access')) : null}
-      {section === 'ambassador' && snapshot?.cabinet === null ? <View style={styles.rewardHero}>
-        <Text style={styles.rewardEyebrow}>{t('AMBASSADOR')}</Text>
-        <Text style={styles.rewardValue}>— TRX</Text>
-        <Text style={styles.rewardFoot}>{t('No matching records in the loaded history.')}</Text>
-      </View> : null}
+      {section === 'ambassador' && snapshot?.cabinet === null ? <ProductSection
+        eyebrow={t('AMBASSADOR REGISTRATION')} title={t('No ambassador profile for this wallet')}>
+        {text('This wallet has no registered ambassador identity. Registration and reward withdrawal are unavailable in this iOS version.')}
+        {action('Wallet', () => router.push('/wallet'))}
+      </ProductSection> : null}
       {section === 'airdrop' && snapshot ? <View style={styles.airdropHero}>
         <View style={styles.airdropMark}><MaterialCommunityIcons name="gift-outline" size={28} color={colors.accent} /></View>
         <View style={styles.airdropHeroText}>
@@ -200,6 +220,9 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
           { eyebrow: t('Level'), value: String(summary.effective_level ?? '—'), body: t('ON-CHAIN') },
           { eyebrow: t('Reward'), value: `${summary.reward_percent ?? 0}%`, body: t('Current effective reward') },
           { eyebrow: t('Claimed total'), value: `${formatUnits(summary.total_rewards_claimed_sun)} TRX`, body: t('History') },
+          { eyebrow: t('Linked buyers'), value: String(summary.buyers_count ?? summary.total_buyers ?? 0), body: t('ON-CHAIN') },
+          { eyebrow: t('Attributed volume'), value: `${formatUnits(summary.buyers_total_purchase_amount_sun ?? summary.total_volume_sun ?? 0)} TRX`, body: t('History') },
+          { eyebrow: t('Pending reward'), value: `${formatUnits(summary.buyers_pending_reward_sun ?? 0)} TRX`, body: t('Pending rows') },
         ]} />
         <ProductSection eyebrow={t('AMBASSADOR')} title={t('History')}>
           {summary.last_chain_sync_at ? text(`${t('Updated')}: ${new Date(summary.last_chain_sync_at).toLocaleString(getLanguageLocaleTag(language))}`) : null}
@@ -218,6 +241,40 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
       </> : null}
 
       {walletReady && sectionErrors.balances ? sectionError('Balance', () => void load()) : null}
+      {walletReady && sectionErrors.airdrop ? sectionError('AIRDROP', () => void load()) : null}
+      {section === 'airdrop' && snapshot?.airdrop ? <View style={styles.socialGrid}>
+        {(['telegram', 'instagram', 'x', 'facebook', 'youtube'] as const).map(platform => {
+          const claim = snapshot.airdrop!.platforms[platform];
+          const queued = platform === 'telegram' && snapshot.telegram?.claim?.status === 'queued';
+          const sent = platform === 'telegram' && snapshot.telegram?.claim?.status === 'sent';
+          const status = claim.claimed || sent ? 'RECEIVED' : queued ? 'QUEUED' : platform === 'telegram' ? 'Not received yet' : 'NOT LIVE';
+          const Icon = SOCIAL_ICONS[platform];
+          const received = claim.claimed || sent;
+          return <View key={platform} style={[styles.socialCard, received ? styles.socialCardGreen : queued ? styles.socialCardOrange : styles.socialCardRed]}>
+            <View style={styles.socialHeader}>
+              <Icon width={54} height={54} />
+              <View style={styles.socialHeaderCopy}>
+                <Text style={styles.socialKicker}>{t('SOCIAL AIRDROP')}</Text>
+                <Text style={styles.socialTitle}>{t(claim.title)}</Text>
+              </View>
+              <View style={[styles.socialStatusPill, received ? styles.socialStatusPillGreen : !queued && styles.socialStatusPillRed]}>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={[styles.socialStatus, received ? styles.socialStatusGreen : !queued && styles.socialStatusRed]}>{t(status)}</Text>
+              </View>
+            </View>
+            <View style={styles.socialMetaGrid}>
+              <View style={styles.socialMetaCard}>
+                <Text style={styles.socialMetaLabel}>{t('Amount')}</Text>
+                <Text style={styles.socialAmount}>{claim.claimed ? `${claim.amountDisplay} 4TEEN` : t('TBA')}</Text>
+              </View>
+              <View style={styles.socialMetaCard}>
+                <Text style={styles.socialMetaLabel}>{t('Received')}</Text>
+                <Text style={styles.socialWhen}>{claim.claimed ? claim.claimedAtLabel : t('Not received yet')}</Text>
+              </View>
+            </View>
+            {claim.explorerUrl ? action('VIEW TX', () => void openInAppBrowser(router, claim.explorerUrl!)) : null}
+          </View>;
+        })}
+      </View> : null}
       {snapshot?.balances ? <ProductStatGrid items={[
         { eyebrow: t('Balance'), value: `${formatUnits(snapshot.balances.total)} 4TEEN`, body: t('ON-CHAIN') },
         { eyebrow: t('Locked'), value: `${formatUnits(snapshot.balances.locked)} 4TEEN`, body: t('ON-CHAIN') },
@@ -280,4 +337,24 @@ const styles = StyleSheet.create({
   record: { paddingVertical: 12, gap: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
   value: { color: colors.white, fontSize: 28, fontWeight: '700' },
   spinner: { marginVertical: 30 },
+  socialGrid: { gap: 14 },
+  socialCard: { width: '100%', minHeight: 176, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 14, gap: 12 },
+  socialCardGreen: { backgroundColor: 'rgba(24,224,58,0.06)', borderColor: 'rgba(24,224,58,0.18)' },
+  socialCardOrange: { backgroundColor: 'rgba(255,105,0,0.06)', borderColor: 'rgba(255,105,0,0.18)' },
+  socialCardRed: { backgroundColor: 'rgba(255,66,66,0.06)', borderColor: 'rgba(255,66,66,0.18)' },
+  socialHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  socialHeaderCopy: { flex: 1, gap: 2 },
+  socialKicker: { color: colors.textDim, fontSize: 10, lineHeight: 12, fontWeight: '700', letterSpacing: 0.5 },
+  socialTitle: { color: colors.white, fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  socialStatusPill: { maxWidth: 132, minHeight: 30, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, backgroundColor: 'rgba(255,105,0,0.12)', borderColor: 'rgba(255,105,0,0.22)' },
+  socialStatusPillGreen: { backgroundColor: 'rgba(24,224,58,0.12)', borderColor: 'rgba(24,224,58,0.22)' },
+  socialStatusPillRed: { backgroundColor: 'rgba(255,66,66,0.12)', borderColor: 'rgba(255,66,66,0.22)' },
+  socialStatus: { color: colors.accent, fontSize: 11, lineHeight: 14, fontWeight: '700', letterSpacing: 0.4 },
+  socialStatusGreen: { color: colors.green },
+  socialStatusRed: { color: '#ff6262' },
+  socialMetaGrid: { flexDirection: 'row', gap: 10 },
+  socialMetaCard: { flex: 1, minHeight: 64, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.04)', paddingHorizontal: 12, paddingVertical: 10, gap: 6, justifyContent: 'center' },
+  socialMetaLabel: { color: colors.textDim, fontSize: 11, lineHeight: 14, fontWeight: '600' },
+  socialAmount: { color: colors.white, fontSize: 16, lineHeight: 20, fontWeight: '700' },
+  socialWhen: { color: colors.textSoft, fontSize: 12, lineHeight: 16, fontWeight: '600' },
 });

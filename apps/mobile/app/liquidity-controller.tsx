@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   RefreshControl,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -168,6 +169,7 @@ export default function LiquidityControllerScreen() {
   );
 
   const handleExecute = useCallback(async () => {
+    if (Platform.OS === 'ios') return;
     if (!activeWallet) {
       setStatusText('');
       setErrorText(t('Create or import a wallet before execution.'));
@@ -310,7 +312,7 @@ export default function LiquidityControllerScreen() {
 
             <Text style={styles.emptyWalletTitle}>{t('No wallet connected')}</Text>
             <Text style={styles.emptyWalletBody}>
-              {t('Create or import a signing wallet to execute liquidity routing.')}
+              {t(Platform.OS === 'ios' ? 'Create or import a wallet first.' : 'Create or import a signing wallet to execute liquidity routing.')}
             </Text>
             <TouchableOpacity
               activeOpacity={0.88}
@@ -323,14 +325,14 @@ export default function LiquidityControllerScreen() {
         )}
 
         <View style={styles.heroActions}>
-          <TouchableOpacity
+          {Platform.OS !== 'ios' ? <TouchableOpacity
             activeOpacity={0.88}
             style={[styles.primaryAction, !activeWallet && styles.actionDisabled]}
             disabled={!activeWallet}
             onPress={() => void handleExecute()}
           >
             <Text style={styles.primaryActionLabel}>{t('TRIGGER LIQUIDITY')}</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> : null}
 
           <TouchableOpacity
             activeOpacity={0.88}

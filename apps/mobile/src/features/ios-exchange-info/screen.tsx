@@ -81,7 +81,7 @@ export default function IOSExchangeInfoScreen({ mode }: { mode: Mode }) {
   const tokenTrx = swapAssets.find(asset => asset.symbol === 'TRX');
 
   return (
-    <ProductScreen eyebrow={t(mode === 'buy' ? 'BUY' : 'SWAP')}
+    <ProductScreen eyebrow={t(mode === 'buy' ? 'DIRECT BUY' : 'SWAP')}
       headerInfo={{ title: t('Read-only'), text: t(description), expanded: infoExpanded, onToggle: () => setInfoExpanded(value => !value) }}
       refreshControl={<RefreshControl refreshing={false} onRefresh={() => {
         void load();
@@ -107,14 +107,22 @@ export default function IOSExchangeInfoScreen({ mode }: { mode: Mode }) {
             <Text style={styles.heroBottomLabel}>{t('Locked')}</Text>
             <Text style={styles.heroBottomValue}>{formatUnits(snapshot.balance?.locked ?? '0')} 4TEEN</Text>
           </View></> : <>
-            <View style={styles.pair}>
-              <View style={styles.pairRow}><Text style={styles.pairSymbol}>4TEEN</Text><Text style={styles.pairBalance}>{token4teen?.amountDisplay ?? '0'}</Text></View>
-              <View style={styles.pairDivider} />
-              <View style={styles.pairRow}><Text style={styles.pairSymbol}>TRX</Text><Text style={styles.pairBalance}>{tokenTrx?.amountDisplay ?? '0'}</Text></View>
-            </View>
             <View style={styles.heroBottom}><Text style={styles.heroBottomLabel}>{t('Wallet assets')}</Text><Text style={styles.heroBottomValue}>{snapshot.portfolio?.totalBalanceDisplay ?? '—'}</Text></View>
           </>}
         </View>
+        {mode === 'buy' ? <View style={styles.flow}>
+          <Text style={styles.sectionEyebrow}>{t('BUY AMOUNT')}</Text>
+          <View style={styles.flowField}><Text style={styles.flowPlaceholder}>—</Text><Text style={styles.flowTicker}>TRX</Text></View>
+          <Text style={styles.muted}>{t(description)}</Text>
+          <Text style={styles.sectionEyebrow}>{t('YOU RECEIVE')}</Text>
+          <View style={styles.flowField}><Text style={styles.flowPlaceholder}>—</Text><Text style={styles.flowTicker}>4TEEN</Text></View>
+        </View> : <View style={styles.flow}>
+          <Text style={styles.sectionEyebrow}>{t('FROM')}</Text>
+          <View style={styles.flowField}><View style={styles.flowFieldCopy}><Text style={styles.flowTicker}>4TEEN</Text><Text style={styles.muted}>{t('Balance')}: {token4teen?.amountDisplay ?? '0'}</Text></View><Text style={styles.flowPlaceholder}>—</Text></View>
+          <Text style={styles.sectionEyebrow}>{t('TO')}</Text>
+          <View style={styles.flowField}><View style={styles.flowFieldCopy}><Text style={styles.flowTicker}>TRX</Text><Text style={styles.muted}>{t('Balance')}: {tokenTrx?.amountDisplay ?? '0'}</Text></View><Text style={styles.flowPlaceholder}>—</Text></View>
+          <Text style={styles.muted}>{t(description)}</Text>
+        </View>}
         <View style={styles.walletLine}>
           <Text style={styles.walletName}>{snapshot.name}</Text>
           <Text selectable numberOfLines={1} style={styles.walletAddress}>{snapshot.address}</Text>
@@ -153,11 +161,6 @@ const styles = StyleSheet.create({
   heroBottom: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.lineStrong, paddingTop: 14 },
   heroBottomLabel: { color: colors.textDim, fontSize: 14 },
   heroBottomValue: { color: colors.text, fontSize: 14, fontWeight: '700' },
-  pair: { borderRadius: radius.md, backgroundColor: colors.surfaceSoft, borderWidth: 1, borderColor: colors.lineSoft, overflow: 'hidden' },
-  pairRow: { minHeight: 58, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  pairSymbol: { color: colors.text, fontSize: 18, fontWeight: '800' },
-  pairBalance: { color: colors.textSoft, fontSize: 16, fontWeight: '700' },
-  pairDivider: { height: 1, backgroundColor: colors.lineSoft },
   delta: { color: colors.green, fontSize: 14, fontWeight: '600' },
   walletLine: { paddingHorizontal: 2, paddingVertical: 14, gap: 4 },
   walletName: { color: colors.text, fontSize: 14, fontWeight: '700' },
@@ -174,4 +177,9 @@ const styles = StyleSheet.create({
   record: { paddingVertical: 12, gap: 4 },
   recordTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
   spinner: { marginVertical: 24 },
+  flow: { marginTop: 10, gap: 10 },
+  flowField: { minHeight: 70, paddingHorizontal: 18, borderRadius: radius.md, backgroundColor: colors.surfaceSoft, borderWidth: 1, borderColor: colors.lineStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  flowPlaceholder: { color: colors.text, fontSize: 25, fontWeight: '800' },
+  flowFieldCopy: { flex: 1, gap: 4 },
+  flowTicker: { color: colors.accent, fontSize: 16, fontWeight: '800' },
 });

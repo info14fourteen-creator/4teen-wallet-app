@@ -1,0 +1,34 @@
+# 4TEEN 1.0.10 — UI parity work in progress
+
+15 October 2026 (Asia/Tashkent). This is a **device-QA candidate, not approved for store submission**. One 1.0.10 EAS production-profile build per platform was started; no 1.0.10 store upload or review submission has been started. Existing 1.0.9 submissions are unchanged.
+
+## Verified so far
+
+- Expo and mobile package marketing version set to 1.0.10; EAS remotely incremented Android versionCode to 22 and iOS buildNumber to 24.
+- Footer labels use a single line and shrink/ellipsize rather than wrap. iPhone simulator checked on Wallet, SWAP, Airdrop, Ambassador, Unlock, Liquidity, and Info routes.
+- iOS Unlock Timeline, Liquidity Controller, and Info now resolve to the shared Android-style screens instead of the simplified iOS replacements. iOS BUY CTA is hidden on Unlock; liquidity execution is hidden on iOS. On-chain data and layout appeared on the iPhone simulator.
+- iOS Airdrop now reads the shared on-chain social status and Telegram overview and renders social cards in the Android style. This remains read-only; no claim/session action is exposed. The visible portion of the cards was checked on the simulator.
+- BUY and SWAP now use Android-like amount/asset rows on iOS while clearly separating wallet balances from transaction amounts; quote, mint and signing controls remain unavailable. The SWAP screen was checked on the iPhone simulator. The full lower page has not yet been verified by a successful scroll gesture.
+- iOS Ambassador shows more cabinet fields when a profile exists, but its no-profile state still differs from Android because iOS registration is unavailable. It needs product review.
+- Shared Home hub was adapted for iOS, but the footer MAIN route opens Wallet, not `/home`; that hub has not been visually reviewed in navigation.
+- Transaction-note behavior remains covered by mobile unit tests. 167 mobile tests, TypeScript, lint, and diff whitespace checks passed after these changes. iOS and Android Hermes exports passed before the later visual-parity edits and must be rerun.
+
+## Blocking before a production build
+
+1. Complete BUY and SWAP visual parity beyond the current read-only layout; Android has interactive quotes and purchase amounts that iOS cannot honestly display as executable. Do not imply a purchase can complete on iOS if it cannot.
+2. Review Ambassador and Airdrop against Android on real data and small-screen/large-text layouts. Verify full scroll to the last card above the footer; Simulator UI automation did not complete this gesture.
+3. Reconcile the stale `apps/mobile/store.config.json` (still 1.0.6), and prepare accurate 1.0.10 release notes/screenshots. Do not reuse 1.0.6 screenshots or review claims.
+4. Verify the in-progress signed EAS builds. Do not submit either binary until the user has seen and accepted the screens and the metadata is current.
+
+## 15 October 2026 QA continuation
+
+- 167 mobile tests, `npx tsc --noEmit`, `npx eslint app src --quiet`, `git diff --check`, and both iOS/Android Hermes exports pass after the latest BUY/SWAP/Airdrop/Ambassador changes.
+- EAS Android 1.0.10 (22) build `9e959774-9f33-4758-b6d9-c3bb26df7ee6` and iOS 1.0.10 (24) build `708d9ab6-93a0-4bf1-8774-5fa0eeefdc86` both started and returned `IN_PROGRESS`. Build artifacts and installation are not yet verified. The signing profile is `production`, but no upload to either store was requested or performed.
+- iOS build `708d9ab6-93a0-4bf1-8774-5fa0eeefdc86` subsequently finished. IPA: https://expo.dev/artifacts/eas/PYrXEBnXwJFbREHIGA_2DyfBBcqB48t2xasPlyTD4e8.ipa . Android build remains in progress at this observation.
+
+## Draft update text — not submitted
+
+- English: Improved navigation and screen layout, including single-line bottom labels. Refined wallet activity and on-chain protocol views. On iOS, BUY and SWAP display wallet information without offering purchase or exchange transactions. Minor stability improvements.
+- Русский: Улучшены навигация и расположение элементов, включая нижнее меню без переноса подписей. Доработаны история кошелька и просмотр данных протокола. На iOS экраны BUY и SWAP показывают информацию кошелька, но не проводят покупку или обмен. Повышена стабильность.
+
+Screenshots must be captured from the final binary and reviewed before any store submission; the 1.0.6 paths in `store.config.json` are stale and must not be reused.

@@ -3,7 +3,6 @@ import { Platform } from 'react-native';
 
 import { useI18n } from '../src/i18n';
 import { openInAppBrowser } from '../src/utils/open-in-app-browser';
-import { ProtocolInfoScreen } from '../src/features/protocol-readonly/screen';
 import {
   ProductActionRow,
   ProductHero,
@@ -17,9 +16,35 @@ export default function HomeScreen() {
   const router = useRouter();
   const { t } = useI18n();
 
-  // Keep the rich product-shell layout on iOS, but never expose Android's
-  // purchase CTA from a search result or a direct /home navigation.
-  if (Platform.OS === 'ios') return <ProtocolInfoScreen />;
+  // Keep the same hub layout on both platforms. iOS destinations remain
+  // informational and cannot create or sign protocol transactions.
+  if (Platform.OS === 'ios') return <ProductScreen eyebrow={t('HOME')} browVariant="plain">
+    <ProductHero eyebrow={t('4TEEN SURFACES')} title={t('Protocol overview')}
+      body={t('View on-chain records, balances and contract details. This section does not create or sign transactions.')}>
+      <ProductActionRow primaryLabel={t('Open Website')}
+        onPrimaryPress={() => void openInAppBrowser(router, 'https://4teen.me')}
+        secondaryLabel={t('Whitepaper')} onSecondaryPress={() => router.push('/whitepaper')} />
+    </ProductHero>
+    <ProductStatGrid items={[
+      { eyebrow: t('Visibility'), value: '14D', body: t('UNLOCK TIMELINE') },
+      { eyebrow: t('Liquidity'), value: t('ON-CHAIN'), body: t('LIQUIDITY') },
+      { eyebrow: t('Architecture'), value: t('INFO'), body: t('Contract details') },
+    ]} />
+    <ProductSection eyebrow={t('LIVE WIDGETS')} title={t('Main protocol surfaces')}>
+      <ProductRouteCard eyebrow={t('UNLOCK TIMELINE')} title={t('Track locked 4TEEN releases by purchase')}
+        body={t('View confirmed purchase locks and their release time.')} value={t('14 DAYS')}
+        icon="timeline-clock-outline" primaryLabel={t('Open Timeline')}
+        onPrimaryPress={() => router.push('/unlock-timeline')} />
+      <ProductRouteCard eyebrow={t('LIQUIDITY CONTROLLER')} title={t('Follow daily release and execution logic')}
+        body={t('View on-chain liquidity records without executing a transaction.')} value={t('ON-CHAIN')}
+        icon="chart-timeline-variant" primaryLabel={t('Open Controller')}
+        onPrimaryPress={() => router.push('/liquidity-controller')} />
+      <ProductRouteCard eyebrow={t('INFO')} title={t('Contracts, routing, vaults and executors')}
+        body={t('View contract addresses and verification links.')} value={t('ON-CHAIN')}
+        icon="information-outline" primaryLabel={t('Open Info')}
+        onPrimaryPress={() => router.push('/earn')} />
+    </ProductSection>
+  </ProductScreen>;
 
   return (
     <ProductScreen eyebrow={t('HOME')} browVariant="plain">

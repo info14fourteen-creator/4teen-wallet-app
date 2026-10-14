@@ -39,6 +39,8 @@ function harness(screen = 'UnlockReadOnlyScreen') {
     balances: async () => ({ total: '11000000', locked: '3000000' }),
     liquidity: async () => '346164949',
     cabinet: async () => null,
+    airdrop: async () => ({ platforms: Object.fromEntries(['telegram', 'instagram', 'x', 'facebook', 'youtube'].map(key => [key, { title: key, claimed: key === 'telegram', amountDisplay: key === 'telegram' ? '114' : '0', explorerUrl: null }])) }),
+    telegram: async () => null,
     wallet: async () => activeWallet,
   };
   const jsx = (type, props) => ({ type, props });
@@ -73,9 +75,18 @@ function harness(screen = 'UnlockReadOnlyScreen') {
       getActiveWallet: () => api.wallet(),
       subscribeActiveWalletChange: listener => { listeners.add(listener); return () => listeners.delete(listener); },
     },
+    '../../services/airdrop': {
+      getWalletAirdropOnChainSnapshot: (...args) => { calls.push({ kind: 'airdrop', args }); return api.airdrop(...args); },
+      getTelegramAirdropOverview: (...args) => { calls.push({ kind: 'telegram', args }); return api.telegram(...args); },
+    },
     '../../ui/product-shell': { ProductScreen: 'ProductScreen', ProductSection: 'ProductSection', ProductStatGrid: 'ProductStatGrid' },
     '../../theme/tokens': { colors: {}, radius: {} },
     '../../utils/open-in-app-browser': { openInAppBrowser() {} },
+    '../../../assets/icons/ui/socials/telegram_social.svg': { default: 'TelegramIcon' },
+    '../../../assets/icons/ui/socials/instagram_social.svg': { default: 'InstagramIcon' },
+    '../../../assets/icons/ui/socials/x_social.svg': { default: 'XIcon' },
+    '../../../assets/icons/ui/socials/facebook_social.svg': { default: 'FacebookIcon' },
+    '../../../assets/icons/ui/socials/youtube_social.svg': { default: 'YoutubeIcon' },
     './model': { formatUnits },
     './data': {
       loadHistory: (...args) => { calls.push({ kind: 'history', args }); return api.history(...args); },
@@ -126,7 +137,7 @@ test('history failure still displays successful balances and a history-specific 
   assert.deepEqual(balanceValues(tree), ['11 4TEEN', '3 4TEEN']);
   assertSectionError(tree, 'History');
   assert.equal(errors(tree).length, 1);
-  assert.ok(!textOf(tree).includes('No matching records'));
+  assert.ok(!textOf(tree).includes('No ambassador profile'));
 });
 
 test('balance failure still displays successful history and a balance-specific error', async () => {
@@ -368,9 +379,19 @@ test('ambassador loading keeps its spinner after publishing the wallet context',
   let tree = await h.settle();
   assert.ok(textOf(tree).includes('Wallet A'));
   assert.ok(nodes(tree).some(node => node.type === 'ActivityIndicator'));
-  assert.ok(!textOf(tree).includes('No matching records'));
+  assert.ok(!textOf(tree).includes('No ambassador profile'));
   waiting.resolve(null);
   tree = await h.settle();
   assert.ok(!nodes(tree).some(node => node.type === 'ActivityIndicator'));
-  assert.ok(textOf(tree).includes('No matching records'));
+  assert.ok(textOf(tree).includes('No ambassador profile'));
+});
+
+test('iOS airdrop reads the Android on-chain social snapshot without claim controls', async () => {
+  const h = harness('AirdropReadOnlyScreen');
+  h.focus();
+  const tree = await h.settle();
+  assert.ok(h.calls.some(call => call.kind === 'airdrop' && call.args[0] === walletA.address));
+  assert.ok(h.calls.some(call => call.kind === 'telegram' && call.args[0] === walletA.address));
+  assert.match(textOf(tree), /telegram.*RECEIVED.*114 4TEEN/i);
+  assert.doesNotMatch(textOf(tree), /CONNECT NOW|CLAIM NOW|OPEN TELEGRAM/);
 });
