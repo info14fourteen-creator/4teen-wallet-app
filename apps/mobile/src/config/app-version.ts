@@ -1,14 +1,14 @@
 export const APP_VERSION = {
   major: 1,
   minor: 0,
-  patch: 9,
+  patch: 10,
   channel: 'release',
   iteration: 1,
 };
 
 export const APP_BUILD = {
-  buildNumber: '202610130004',
-  generatedAtIso: '2026-10-12T19:04:22.000Z',
+  buildNumber: '202610150206',
+  generatedAtIso: '2026-10-14T21:06:42.352Z',
 };
 
 export function getVersionLabel() {
