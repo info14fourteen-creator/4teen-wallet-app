@@ -37,3 +37,11 @@
 - Русский: Улучшены навигация и расположение элементов, включая нижнее меню без переноса подписей. Доработаны история кошелька и просмотр данных протокола. На iOS экраны BUY и SWAP показывают информацию кошелька, но не проводят покупку или обмен. Повышена стабильность.
 
 Screenshots must be captured from the final binary and reviewed before any store submission; the 1.0.6 paths in `store.config.json` are stale and must not be reused.
+
+## 15 October — Ambassador/Airdrop compact-layout QA iteration
+
+- iOS Ambassador now displays the Android cabinet's core stat tiles, claimable/claimed/pending rewards, and expandable identity, overview, buyers, purchases and pending sections when a profile exists. Registration and signing actions remain unavailable on iOS. The empty-profile state was visually checked on an iPhone simulator; a populated real cabinet has **not** been visually verified.
+- iOS Airdrop now distinguishes Telegram available, verification, live session, queued, legacy-used and received states from the same read sources as Android. Social cards render while reads are pending instead of leaving a blank page; the UI does not invent a claim result when the read fails. A 20-second read timeout was added so the page does not wait indefinitely for either source.
+- Android Airdrop status pills and metadata cards can shrink/wrap on narrow widths; Ambassador reward and action grids wrap instead of compressing below readable widths. The local Android debug APK built and installed on a Pixel_8 emulator configured to 360x640 at 320 dpi. Its window was not exposed to the available visual-control tool, so an actual Android screenshot/visual pass remains outstanding.
+- iOS simulator build succeeded. The Airdrop screen and first scroll were visually inspected; the final bottom-card/footer clearance could not be confirmed because simulator input became unavailable on subsequent scroll attempts. Real-device QA remains outstanding.
+- TypeScript, targeted ESLint, 167 mobile unit tests, and Hermes exports for iOS and Android passed for this iteration. These checks do not replace device QA. Do not submit new binaries to either store until visual QA, metadata and screenshots are complete.

@@ -697,7 +697,7 @@ function SocialDropCard({
         </View>
 
         <View style={[styles.socialStatusPill, toneStyles.pill]}>
-          <Text style={[styles.socialStatus, toneStyles.pillText]}>{card.status}</Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={[styles.socialStatus, toneStyles.pillText]}>{card.status}</Text>
         </View>
       </View>
 
@@ -885,6 +885,7 @@ const styles = StyleSheet.create({
   },
   socialHeaderCopy: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   socialKicker: {
@@ -901,6 +902,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_700Bold',
   },
   socialStatusPill: {
+    maxWidth: '38%',
+    flexShrink: 1,
     minHeight: 30,
     borderRadius: radius.sm,
     paddingHorizontal: 10,
@@ -938,10 +941,12 @@ const styles = StyleSheet.create({
   },
   socialMetaGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
   socialMetaCard: {
     flex: 1,
+    flexBasis: 124,
     minHeight: 64,
     borderRadius: 14,
     borderWidth: 1,

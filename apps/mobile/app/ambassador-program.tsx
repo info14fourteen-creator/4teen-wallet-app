@@ -1211,6 +1211,7 @@ const styles = StyleSheet.create({
   },
   actionGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
   actionPill: {
@@ -1218,6 +1219,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: 12,
     flex: 1,
+    flexBasis: 130,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
@@ -1328,11 +1330,13 @@ const styles = StyleSheet.create({
   },
   statusGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'stretch',
     gap: 10,
   },
   rewardStatusCard: {
     flex: 1,
+    flexBasis: 104,
     minHeight: 74,
     borderRadius: radius.sm,
     borderWidth: 1,

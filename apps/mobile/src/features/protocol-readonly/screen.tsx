@@ -35,6 +35,13 @@ function sameWallet(left: WalletMeta | undefined, right: WalletMeta) {
 const TITLES = { ambassador: 'AMBASSADOR', airdrop: 'AIRDROP', unlock: 'UNLOCK TIMELINE', info: 'INFO', liquidity: 'LIQUIDITY' };
 const SOCIAL_ICONS = { telegram: TelegramIcon, instagram: InstagramIcon, x: XIcon, facebook: FacebookIcon, youtube: YoutubeIcon };
 export const READ_ONLY_NOTICE = 'View on-chain records, balances and contract details. This section does not create or sign transactions.';
+function limitRead<T>(read: Promise<T>, milliseconds = 20000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    read,
+    new Promise<T>((_, reject) => { timer = setTimeout(() => reject(new Error('Read timed out')), milliseconds); }),
+  ]).finally(() => { if (timer) clearTimeout(timer); });
+}
 
 function ProtocolReadOnlyScreen({ section }: { section: Section }) {
   const router = useRouter();
@@ -49,6 +56,7 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
   const [sectionErrors, setSectionErrors] = useState<SectionErrors>({});
   const [noWallet, setNoWallet] = useState(false);
   const [noticeExpanded, setNoticeExpanded] = useState(false);
+  const [cabinetOpen, setCabinetOpen] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     request.current?.abort();
@@ -99,8 +107,8 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
         const airdropRequest = (async () => {
           if (section !== 'airdrop') return;
           const [onChain, telegram] = await Promise.allSettled([
-            getWalletAirdropOnChainSnapshot(wallet.address),
-            getTelegramAirdropOverview(wallet.address),
+            limitRead(getWalletAirdropOnChainSnapshot(wallet.address)),
+            limitRead(getTelegramAirdropOverview(wallet.address)),
           ]);
           if (signal.aborted) return;
           if (onChain.status === 'fulfilled') publish({ airdrop: onChain.value });
@@ -172,6 +180,24 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
     </View>
   );
   const summary = snapshot?.cabinet?.summary;
+  const cabinet = snapshot?.cabinet;
+  const cabinetSection = (key: string, title: string, rows: Record<string, unknown>[], total: number, describe: (row: Record<string, unknown>) => string) => (
+    <View style={styles.cabinetSection}>
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: Boolean(cabinetOpen[key]) }} style={styles.cabinetToggle}
+        onPress={() => setCabinetOpen(current => ({ ...current, [key]: !current[key] }))}>
+        <Text style={styles.cabinetTitle}>{t(title)} · {total}</Text>
+        <MaterialCommunityIcons name={cabinetOpen[key] ? 'chevron-up' : 'chevron-down'} size={22} color={colors.accent} />
+      </TouchableOpacity>
+      {cabinetOpen[key] ? <View style={styles.cabinetRows}>
+        {rows.length ? rows.map((row, index) => <Text key={`${key}-${index}`} style={styles.cabinetRow}>{describe(row)}</Text>) : text('No matching records in the loaded history.')}
+        {total > rows.length ? text('Some older records have not been loaded yet.') : null}
+      </View> : null}
+    </View>
+  );
+  const rowValue = (row: Record<string, unknown>, ...keys: string[]) => {
+    const key = keys.find(item => row[item] !== undefined && row[item] !== null && String(row[item]).trim());
+    return key ? String(row[key]) : '—';
+  };
 
   return (
     <ProductScreen eyebrow={t(TITLES[section])} browVariant="backLink"
@@ -192,7 +218,7 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
           <Text selectable style={[styles.address, locale.textStart]}>{snapshot.wallet.address}</Text>
         </View>
       ) : null}
-      {busy ? <ActivityIndicator color={colors.accent} size="large" style={styles.spinner} /> : null}
+      {busy && section !== 'airdrop' ? <ActivityIndicator color={colors.accent} size="large" style={styles.spinner} /> : null}
       {error ? <View style={styles.wallet}>{text('Data could not be loaded. Please try again.')}{action('Retry', () => void load())}</View> : null}
       {noWallet ? action('Wallet Setup', () => router.push('/wallet-access')) : null}
       {section === 'ambassador' && snapshot?.cabinet === null ? <ProductSection
@@ -209,69 +235,70 @@ function ProtocolReadOnlyScreen({ section }: { section: Section }) {
       </View> : null}
 
       {summary ? <>
-        <View style={styles.rewardHero}>
-          <Text style={styles.rewardEyebrow}>{t('Claimable now')}</Text>
-          <Text style={styles.rewardValue}>{formatUnits(summary.claimable_rewards_sun)} TRX</Text>
-          <Text style={styles.rewardFoot}>{t('Pending')}: {formatUnits(summary.buyers_pending_reward_sun ?? 0)} TRX</Text>
-          <Text style={styles.rewardFoot}>{t('Accrued total')}: {formatUnits(summary.total_rewards_accrued_sun)} TRX</Text>
-        </View>
         <ProductStatGrid items={[
-          { eyebrow: t('Slug'), value: snapshot?.cabinet?.profile.slug || '—', body: t('AMBASSADOR') },
-          { eyebrow: t('Level'), value: String(summary.effective_level ?? '—'), body: t('ON-CHAIN') },
+          { eyebrow: t('Slug'), value: cabinet?.profile.slug || '—', body: t(cabinet?.profile.status === 'inactive' ? 'INACTIVE' : 'ACTIVE') },
+          { eyebrow: t('Level'), value: String(summary.effective_level ?? '—'), body: t('{{percent}}% reward tier', { percent: summary.reward_percent || 0 }) },
           { eyebrow: t('Reward'), value: `${summary.reward_percent ?? 0}%`, body: t('Current effective reward') },
-          { eyebrow: t('Claimed total'), value: `${formatUnits(summary.total_rewards_claimed_sun)} TRX`, body: t('History') },
-          { eyebrow: t('Linked buyers'), value: String(summary.buyers_count ?? summary.total_buyers ?? 0), body: t('ON-CHAIN') },
-          { eyebrow: t('Attributed volume'), value: `${formatUnits(summary.buyers_total_purchase_amount_sun ?? summary.total_volume_sun ?? 0)} TRX`, body: t('History') },
-          { eyebrow: t('Pending reward'), value: `${formatUnits(summary.buyers_pending_reward_sun ?? 0)} TRX`, body: t('Pending rows') },
+          { eyebrow: t('Claimable'), value: `${formatUnits(summary.claimable_rewards_sun)} TRX`, body: t('{{amount}} TRX accrued', { amount: formatUnits(summary.total_rewards_accrued_sun) }) },
         ]} />
-        <ProductSection eyebrow={t('AMBASSADOR')} title={t('History')}>
-          {summary.last_chain_sync_at ? text(`${t('Updated')}: ${new Date(summary.last_chain_sync_at).toLocaleString(getLanguageLocaleTag(language))}`) : null}
-          {(snapshot?.cabinet?.purchasesRows ?? []).length === 0 ? text('No matching records in the loaded history.') : null}
-          {(snapshot?.cabinet?.purchasesRows ?? []).map((row, index) => {
-            const txId = String(row.tx_hash ?? '');
-            return <View key={`${txId}:${index}`} style={styles.record}>
-              <Text style={[styles.heading, locale.textStart]}>{formatUnits(row.purchase_amount_sun)} TRX</Text>
-              {text(`${t('Reward')}: ${formatUnits(row.ambassador_reward_sun)} TRX`)}
-              {text(row.controller_processed === true ? 'Processed' : 'Pending')}
-              {/^[a-f0-9]{64}$/i.test(txId) ? action('View on Tronscan', () => void openInAppBrowser(router, `https://tronscan.org/#/transaction/${txId}`)) : null}
-            </View>;
-          })}
-          {(snapshot?.cabinet?.purchasesTotal ?? 0) > (snapshot?.cabinet?.purchasesRows.length ?? 0) ? text('Some older records have not been loaded yet.') : null}
-        </ProductSection>
+        <View style={styles.cabinetStatusGrid}>
+          {([
+            ['Claimable now', summary.claimable_rewards_sun],
+            ['Claimed total', summary.total_rewards_claimed_sun],
+            ['Pending', summary.buyers_pending_reward_sun],
+          ] as const).map(([label, amount]) => <View key={label} style={styles.cabinetStatusCard}>
+            <Text style={styles.rewardEyebrow}>{t(label)}</Text>
+            <Text adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={1} style={styles.cabinetStatusValue}>{formatUnits(amount ?? 0)} TRX</Text>
+          </View>)}
+        </View>
+        {cabinetSection('identity', 'Identity', [{ slug: cabinet?.profile.slug, wallet: cabinet?.profile.wallet, status: cabinet?.profile.status, level: summary.effective_level, reward_percent: `${summary.reward_percent ?? 0}%` }], 1,
+          row => `${t('Slug')}: ${rowValue(row, 'slug')}\n${t('Wallet')}: ${rowValue(row, 'wallet')}\n${t('Status')}: ${rowValue(row, 'status')}\n${t('Level')}: ${rowValue(row, 'level')}\n${t('Reward percent')}: ${rowValue(row, 'reward_percent')}`)}
+        {cabinetSection('overview', 'Overview', [{ buyers: summary.buyers_count ?? summary.total_buyers, volume: `${formatUnits(summary.buyers_total_purchase_amount_sun ?? summary.total_volume_sun ?? 0)} TRX`, accrued: `${formatUnits(summary.total_rewards_accrued_sun)} TRX`, processed: summary.processed_count, pending: cabinet?.pendingTotal }], 1,
+          row => `${t('Linked buyers')}: ${rowValue(row, 'buyers')}\n${t('Attributed volume')}: ${rowValue(row, 'volume')}\n${t('Accrued total')}: ${rowValue(row, 'accrued')}\n${t('Processed rows')}: ${rowValue(row, 'processed')}\n${t('Pending rows')}: ${rowValue(row, 'pending')}`)}
+        {cabinet ? <>
+          {cabinetSection('buyers', 'Bound buyers', cabinet.buyersRows, cabinet.buyersTotal, row => `${rowValue(row, 'buyer_wallet', 'buyer', 'wallet')}\n${t('Attributed volume')}: ${formatUnits(rowValue(row, 'total_purchase_amount_sun', 'purchase_amount_sun'))} TRX`)}
+          {cabinetSection('purchases', 'Tracked purchases', cabinet.purchasesRows, cabinet.purchasesTotal, row => `${rowValue(row, 'buyer_wallet', 'buyer', 'wallet')}\n${t('Amount')}: ${formatUnits(rowValue(row, 'purchase_amount_sun'))} TRX · ${t('Reward')}: ${formatUnits(rowValue(row, 'ambassador_reward_sun', 'reward_sun'))} TRX`)}
+          {cabinetSection('pending', 'Pending allocation', cabinet.pendingRows, cabinet.pendingTotal, row => `${rowValue(row, 'buyer_wallet', 'buyer', 'wallet')}\n${t('Amount')}: ${formatUnits(rowValue(row, 'purchase_amount_sun'))} TRX · ${t('Reward')}: ${formatUnits(rowValue(row, 'ambassador_reward_sun', 'reward_sun'))} TRX`)}
+        </> : null}
       </> : null}
 
       {walletReady && sectionErrors.balances ? sectionError('Balance', () => void load()) : null}
       {walletReady && sectionErrors.airdrop ? sectionError('AIRDROP', () => void load()) : null}
-      {section === 'airdrop' && snapshot?.airdrop ? <View style={styles.socialGrid}>
+      {section === 'airdrop' && snapshot ? <View style={styles.socialGrid}>
         {(['telegram', 'instagram', 'x', 'facebook', 'youtube'] as const).map(platform => {
-          const claim = snapshot.airdrop!.platforms[platform];
-          const queued = platform === 'telegram' && snapshot.telegram?.claim?.status === 'queued';
-          const sent = platform === 'telegram' && snapshot.telegram?.claim?.status === 'sent';
-          const status = claim.claimed || sent ? 'RECEIVED' : queued ? 'QUEUED' : platform === 'telegram' ? 'Not received yet' : 'NOT LIVE';
+          const claim = snapshot.airdrop?.platforms[platform];
+          const telegram = platform === 'telegram' ? snapshot.telegram : null;
+          const queued = telegram?.claim?.status === 'queued';
+          const sent = telegram?.claim?.status === 'sent';
+          const legacyUsed = Boolean(telegram?.guard.walletBlockedByLegacyClaim || telegram?.guard.telegramBlockedByLegacyClaim);
+          const status = !snapshot.airdrop ? (sectionErrors.airdrop ? 'Data unavailable' : 'Loading...') : claim?.claimed || sent ? 'RECEIVED' : queued ? 'QUEUED' : legacyUsed ? 'LEGACY USED' : telegram?.session?.status === 'wallet_verified' ? 'SESSION LIVE' : telegram?.session?.status === 'awaiting_membership' ? 'VERIFY NOW' : platform === 'telegram' ? 'AVAILABLE' : 'NOT LIVE';
           const Icon = SOCIAL_ICONS[platform];
-          const received = claim.claimed || sent;
-          return <View key={platform} style={[styles.socialCard, received ? styles.socialCardGreen : queued ? styles.socialCardOrange : styles.socialCardRed]}>
+          const received = Boolean(claim?.claimed || sent || legacyUsed);
+          const orange = queued || (platform === 'telegram' && !received);
+          const amount = !snapshot.airdrop ? '—' : claim?.claimed ? claim.amountDisplay : sent || queued ? String(telegram?.claim?.reward_amount || '0') : platform === 'telegram' ? '0' : 'TBA';
+          const receivedAt = !snapshot.airdrop ? t(sectionErrors.airdrop ? 'Data unavailable' : 'Loading...') : claim?.claimed ? claim.claimedAtLabel : sent ? String(telegram?.claim?.sent_at || t('Not received yet')) : queued ? String(telegram?.claim?.queued_at || t('Not received yet')) : platform === 'telegram' ? t('Not received yet') : t('Rollout pending');
+          return <View key={platform} style={[styles.socialCard, received ? styles.socialCardGreen : orange ? styles.socialCardOrange : styles.socialCardRed]}>
             <View style={styles.socialHeader}>
               <Icon width={54} height={54} />
               <View style={styles.socialHeaderCopy}>
                 <Text style={styles.socialKicker}>{t('SOCIAL AIRDROP')}</Text>
-                <Text style={styles.socialTitle}>{t(claim.title)}</Text>
+                <Text style={styles.socialTitle}>{t(claim?.title ?? (platform === 'x' ? 'X' : platform.charAt(0).toUpperCase() + platform.slice(1)))}</Text>
               </View>
-              <View style={[styles.socialStatusPill, received ? styles.socialStatusPillGreen : !queued && styles.socialStatusPillRed]}>
-                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={[styles.socialStatus, received ? styles.socialStatusGreen : !queued && styles.socialStatusRed]}>{t(status)}</Text>
+              <View style={[styles.socialStatusPill, received ? styles.socialStatusPillGreen : !orange && styles.socialStatusPillRed]}>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={[styles.socialStatus, received ? styles.socialStatusGreen : !orange && styles.socialStatusRed]}>{t(status)}</Text>
               </View>
             </View>
             <View style={styles.socialMetaGrid}>
               <View style={styles.socialMetaCard}>
                 <Text style={styles.socialMetaLabel}>{t('Amount')}</Text>
-                <Text style={styles.socialAmount}>{claim.claimed ? `${claim.amountDisplay} 4TEEN` : t('TBA')}</Text>
+                <Text style={styles.socialAmount}>{amount === 'TBA' ? t('TBA') : amount === '—' ? amount : `${amount} 4TEEN`}</Text>
               </View>
               <View style={styles.socialMetaCard}>
                 <Text style={styles.socialMetaLabel}>{t('Received')}</Text>
-                <Text style={styles.socialWhen}>{claim.claimed ? claim.claimedAtLabel : t('Not received yet')}</Text>
+                <Text style={styles.socialWhen}>{receivedAt}</Text>
               </View>
             </View>
-            {claim.explorerUrl ? action('VIEW TX', () => void openInAppBrowser(router, claim.explorerUrl!)) : null}
+            {claim?.explorerUrl ? action('VIEW TX', () => void openInAppBrowser(router, claim.explorerUrl!)) : null}
           </View>;
         })}
       </View> : null}
@@ -316,6 +343,14 @@ export function ProtocolInfoScreen() { return <ProtocolReadOnlyScreen section="i
 export function LiquidityReadOnlyScreen() { return <ProtocolReadOnlyScreen section="liquidity" />; }
 
 const styles = StyleSheet.create({
+  cabinetSection: { borderWidth: 1, borderColor: colors.lineSoft, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.surfaceSoft },
+  cabinetToggle: { minHeight: 54, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  cabinetTitle: { flex: 1, color: colors.white, fontSize: 14, fontWeight: '700' },
+  cabinetRows: { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
+  cabinetRow: { color: colors.textSoft, fontSize: 12, lineHeight: 20, borderTopWidth: 1, borderTopColor: colors.lineSoft, paddingTop: 10 },
+  cabinetStatusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  cabinetStatusCard: { minWidth: 118, flexGrow: 1, flexBasis: 130, minHeight: 84, padding: 12, borderRadius: radius.md, backgroundColor: colors.surfaceSoft, borderWidth: 1, borderColor: colors.lineSoft, justifyContent: 'space-between' },
+  cabinetStatusValue: { color: colors.white, fontSize: 16, fontWeight: '700' },
   notice: { gap: 8, paddingHorizontal: 14, paddingVertical: 11, borderRadius: radius.md, backgroundColor: 'rgba(255,153,0,0.06)', borderWidth: 1, borderColor: 'rgba(255,153,0,0.18)' },
   noticeHeader: { alignItems: 'center', gap: 8 },
   noticeLabel: { flex: 1, color: colors.textDim, fontSize: 12, fontWeight: '700' },
@@ -337,23 +372,23 @@ const styles = StyleSheet.create({
   record: { paddingVertical: 12, gap: 6, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)' },
   value: { color: colors.white, fontSize: 28, fontWeight: '700' },
   spinner: { marginVertical: 30 },
-  socialGrid: { gap: 14 },
+  socialGrid: { gap: 14, marginTop: 14 },
   socialCard: { width: '100%', minHeight: 176, borderRadius: radius.sm, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 14, gap: 12 },
   socialCardGreen: { backgroundColor: 'rgba(24,224,58,0.06)', borderColor: 'rgba(24,224,58,0.18)' },
   socialCardOrange: { backgroundColor: 'rgba(255,105,0,0.06)', borderColor: 'rgba(255,105,0,0.18)' },
   socialCardRed: { backgroundColor: 'rgba(255,66,66,0.06)', borderColor: 'rgba(255,66,66,0.18)' },
   socialHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  socialHeaderCopy: { flex: 1, gap: 2 },
+  socialHeaderCopy: { flex: 1, minWidth: 0, gap: 2 },
   socialKicker: { color: colors.textDim, fontSize: 10, lineHeight: 12, fontWeight: '700', letterSpacing: 0.5 },
   socialTitle: { color: colors.white, fontSize: 15, lineHeight: 20, fontWeight: '700' },
-  socialStatusPill: { maxWidth: 132, minHeight: 30, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, backgroundColor: 'rgba(255,105,0,0.12)', borderColor: 'rgba(255,105,0,0.22)' },
+  socialStatusPill: { maxWidth: '38%', flexShrink: 1, minHeight: 30, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', borderWidth: 1, backgroundColor: 'rgba(255,105,0,0.12)', borderColor: 'rgba(255,105,0,0.22)' },
   socialStatusPillGreen: { backgroundColor: 'rgba(24,224,58,0.12)', borderColor: 'rgba(24,224,58,0.22)' },
   socialStatusPillRed: { backgroundColor: 'rgba(255,66,66,0.12)', borderColor: 'rgba(255,66,66,0.22)' },
   socialStatus: { color: colors.accent, fontSize: 11, lineHeight: 14, fontWeight: '700', letterSpacing: 0.4 },
   socialStatusGreen: { color: colors.green },
   socialStatusRed: { color: '#ff6262' },
-  socialMetaGrid: { flexDirection: 'row', gap: 10 },
-  socialMetaCard: { flex: 1, minHeight: 64, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.04)', paddingHorizontal: 12, paddingVertical: 10, gap: 6, justifyContent: 'center' },
+  socialMetaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  socialMetaCard: { flex: 1, flexBasis: 124, minHeight: 64, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.04)', paddingHorizontal: 12, paddingVertical: 10, gap: 6, justifyContent: 'center' },
   socialMetaLabel: { color: colors.textDim, fontSize: 11, lineHeight: 14, fontWeight: '600' },
   socialAmount: { color: colors.white, fontSize: 16, lineHeight: 20, fontWeight: '700' },
   socialWhen: { color: colors.textSoft, fontSize: 12, lineHeight: 16, fontWeight: '600' },
