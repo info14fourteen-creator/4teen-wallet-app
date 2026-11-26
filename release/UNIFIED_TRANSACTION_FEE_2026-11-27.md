@@ -60,8 +60,11 @@ refunds and guaranteed execution after an ambiguous paid order are not claimed.
 - Current iOS source tests: 226 passed. Both source commits were pushed to
   `origin/codex/ios-account-deletion` (`9dc1743`, `0b970d4`). Unrelated older
   storefront metadata and screenshots were not included.
-- Visual inspection reached the wallet passcode screen. The fee screens still
-  require wallet unlock; no authorization or transfer was attempted.
+- After the user unlocked the wallet, visual inspection confirmed the current
+  wallet interface and opened the Send form. iPhone Mirroring then disconnected
+  due to direct phone use and required Mac authentication on reconnect.
+  The fee confirmation rows have NOT yet been visually verified. A read-only
+  buy-review deep link was opened; no payment authorization or transfer occurred.
 - Before financial activation: provider Energy and Bandwidth delivery, actual
   on-chain costs, failure recovery, and the final confirmation layout require
   the separately authorized end-to-end/device acceptance test.
