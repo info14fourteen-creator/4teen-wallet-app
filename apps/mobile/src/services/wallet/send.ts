@@ -26,6 +26,8 @@ import {
 import { getDisplayCurrency } from '../../settings/display-currency';
 import { formatDisplayCurrency } from '../../ui/currency-format';
 import { translateNow } from '../../i18n';
+import { executeContractOperation } from './contract-operation';
+import type { OperationFeeApproval } from './operation-fee';
 
 const DEFAULT_TRC20_FEE_LIMIT_SUN = 100_000_000;
 const DEFAULT_TRC20_EXECUTION_FEE_LIMIT_SUN = 150_000_000;
@@ -57,6 +59,11 @@ export type SendAssetTransferInput = {
   toAddress: string;
   amount: string;
   feeLimitSun?: number;
+  expectedWalletAddress?: string;
+  requireResources?: boolean;
+  maxNetworkFeeSun?: number;
+  feeApproval?: OperationFeeApproval;
+  beforeBroadcast?: (txId: string, signedTransaction?: unknown) => Promise<void>;
 };
 
 export type SendAssetTransferResult = {
@@ -106,6 +113,17 @@ function createTronWeb(privateKey?: string) {
     headers: buildTrongridHeaders(),
     privateKey,
   });
+}
+
+async function readLiveResources(tronWeb: TronWeb, address: string): Promise<WalletAccountResources> {
+  const resources = await tronWeb.trx.getAccountResources(address);
+  return {
+    address,
+    energyLimit: Number(resources.EnergyLimit || 0),
+    energyUsed: Number(resources.EnergyUsed || 0),
+    bandwidthLimit: Number(resources.freeNetLimit || 0) + Number(resources.NetLimit || 0),
+    bandwidthUsed: Number(resources.freeNetUsed || 0) + Number(resources.NetUsed || 0),
+  };
 }
 
 function normalizePrivateKey(value: string) {
@@ -331,7 +349,8 @@ async function estimateTrc20TransferEnergy(
   walletAddress: string,
   toAddress: string,
   amountRaw: string,
-  feeLimitSun: number
+  feeLimitSun: number,
+  strict = false
 ) {
   const parameters = [
     { type: 'address', value: toAddress },
@@ -382,6 +401,7 @@ async function estimateTrc20TransferEnergy(
     }
   } catch {}
 
+  if (strict) throw new Error('Unable to verify transfer Energy requirements. The transfer has not been sent.');
   return DEFAULT_TRC20_TRANSFER_ESTIMATED_ENERGY;
 }
 
@@ -439,6 +459,9 @@ export async function sendAssetTransfer(
   }
 
   const { wallet, privateKey } = await getSigningContext();
+  if (input.expectedWalletAddress && wallet.address !== input.expectedWalletAddress) {
+    throw new Error('Active wallet changed. Reopen the transfer.');
+  }
   const tronWeb = createTronWeb(privateKey);
   const trxBalance = await getTokenDetails(wallet.address, TRX_TOKEN_ID, false, wallet.id);
 
@@ -461,7 +484,9 @@ export async function sendAssetTransfer(
 
     const signedTx = await tronWeb.trx.sign(unsignedTx, privateKey);
     const pricing = await getResourceUnitPricing(tronWeb);
-    const available = await getAccountResources(wallet.address);
+    const available = input.requireResources || input.maxNetworkFeeSun !== undefined
+      ? await readLiveResources(tronWeb, wallet.address)
+      : await getAccountResources(wallet.address);
     const estimatedBandwidth = estimateSignedTransactionBandwidth(unsignedTx, signedTx);
     const availableBandwidth = getAvailableResource(available, 'bandwidth');
     const bandwidthShortfall = getResourceShortfall(estimatedBandwidth, availableBandwidth);
@@ -471,10 +496,19 @@ export async function sendAssetTransfer(
     });
     const totalRequiredSun = Number(amountRaw) + estimatedBurnSun;
 
+    if (input.maxNetworkFeeSun !== undefined && (
+      !Number.isSafeInteger(input.maxNetworkFeeSun) || input.maxNetworkFeeSun < 0 ||
+      estimatedBurnSun > input.maxNetworkFeeSun
+    )) throw new Error('Transaction fee changed. Refresh and confirm the new amount.');
+
     if (Number(trxBalance.balanceRaw || '0') < totalRequiredSun) {
       throw new Error(translateNow('Not enough TRX to cover amount and network burn. Top up TRX first.'));
     }
 
+    if (input.requireResources && bandwidthShortfall > 0) {
+      throw new Error('Bandwidth is not ready. The transfer has not been sent.');
+    }
+    await input.beforeBroadcast?.(String(signedTx.txID || ''), signedTx);
     const receipt = await tronWeb.trx.sendRawTransaction(signedTx);
 
     const txId =
@@ -519,11 +553,33 @@ export async function sendAssetTransfer(
     { type: 'uint256', value: amountRaw },
   ];
 
+  const guardedBurn = input.maxNetworkFeeSun !== undefined;
+  if (input.feeApproval) {
+    const txId = await executeContractOperation({ tronWeb, privateKey, wallet: wallet.address,
+      approval: input.feeApproval, identity: JSON.stringify(['send', tokenId, toAddress, amountRaw]),
+      contractAddress: token.address, functionSelector: 'transfer(address,uint256)', parameters,
+      beforeBroadcast: input.beforeBroadcast });
+    return { txId, explorerUrl: `https://tronscan.org/#/transaction/${txId}`, receipt: null };
+  }
+  const available = input.requireResources || guardedBurn
+    ? await readLiveResources(tronWeb, wallet.address)
+    : await getAccountResources(wallet.address);
+  const pricing = await getResourceUnitPricing(tronWeb);
+  // Bound bandwidth separately because a contract fee_limit covers Energy only.
+  const bandwidthReserveSun = Math.ceil(1000 * pricing.bandwidthSun);
+  const contractFeeLimitSun = guardedBurn
+    ? Math.min(feeLimitSun, Number(input.maxNetworkFeeSun) - bandwidthReserveSun)
+    : feeLimitSun;
+  if (guardedBurn && (!Number.isSafeInteger(input.maxNetworkFeeSun) ||
+      !Number.isSafeInteger(contractFeeLimitSun) || contractFeeLimitSun <= 0)) {
+    throw new Error('Transaction fee changed. Refresh and confirm the new amount.');
+  }
+
   const triggerResult = await tronWeb.transactionBuilder.triggerSmartContract(
     token.address,
     'transfer(address,uint256)',
     {
-      feeLimit: feeLimitSun,
+      feeLimit: contractFeeLimitSun,
       callValue: 0,
     },
     parameters,
@@ -539,15 +595,14 @@ export async function sendAssetTransfer(
   }
 
   const signedTx = await tronWeb.trx.sign(unsignedTx, privateKey);
-  const available = await getAccountResources(wallet.address);
-  const pricing = await getResourceUnitPricing(tronWeb);
   const estimatedEnergy = await estimateTrc20TransferEnergy(
     tronWeb,
     token.address,
     wallet.address,
     toAddress,
     amountRaw,
-    feeLimitSun
+    contractFeeLimitSun,
+    input.requireResources === true || guardedBurn
   );
   const estimatedBandwidth = estimateSignedTransactionBandwidth(unsignedTx, signedTx);
   const availableEnergy = getAvailableResource(available, 'energy');
@@ -561,10 +616,20 @@ export async function sendAssetTransfer(
     bandwidthPriceSun: pricing.bandwidthSun,
   });
 
+  if (guardedBurn && (estimatedBandwidth > 1000 ||
+      estimatedBurnSun > Number(input.maxNetworkFeeSun) ||
+      energyShortfall * pricing.energySun > contractFeeLimitSun)) {
+    throw new Error('Transaction fee changed. Refresh and confirm the new amount.');
+  }
+
   if (Number(trxBalance.balanceRaw || '0') < estimatedBurnSun) {
     throw new Error(translateNow('Not enough TRX to cover network burn. Top up TRX first.'));
   }
 
+  if (input.requireResources && (energyShortfall > 0 || bandwidthShortfall > 0)) {
+    throw new Error('Resources are not ready. The transfer has not been sent.');
+  }
+  await input.beforeBroadcast?.(String(signedTx.txID || ''), signedTx);
   const receipt = await tronWeb.trx.sendRawTransaction(signedTx);
 
   const txId =
@@ -587,6 +652,37 @@ export async function sendAssetTransfer(
     explorerUrl: `https://tronscan.org/#/transaction/${txId}`,
     receipt,
   };
+}
+
+export async function waitForTransferConfirmation(txId: string, signedTransaction?: unknown): Promise<SendAssetTransferResult> {
+  const tronWeb = createTronWeb();
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    let info: any = null;
+    try {
+      info = await tronWeb.trx.getTransactionInfo(txId);
+    } catch {
+      // A temporarily unavailable node is not proof that a transaction failed.
+    }
+    if (info?.id === txId && typeof info.blockNumber === 'number') {
+      const result = info.receipt?.result || info.result;
+      if (result && result !== 'SUCCESS') throw new Error(`Transaction failed: ${result} (${txId})`);
+      return { txId, explorerUrl: `https://tronscan.org/#/transaction/${txId}`, receipt: info };
+    }
+    if (attempt === 0 && signedTransaction) {
+      const transaction = signedTransaction as any;
+      if (transaction.txID !== txId) throw new Error('Stored transaction hash mismatch');
+      if (Number(transaction.raw_data?.expiration || 0) > Date.now()) {
+        try {
+          // Rebroadcast the identical signed transaction, never create a new payment.
+          await tronWeb.trx.sendRawTransaction(transaction);
+        } catch {
+          // A duplicate response or lost acknowledgement still requires a chain read.
+        }
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 3000));
+  }
+  throw new Error(`Transaction confirmation is pending. Retry to check the same transaction: ${txId}`);
 }
 
 export async function estimateAssetTransfer(

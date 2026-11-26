@@ -1,3 +1,5 @@
+import { formatOperationSun } from '../src/services/wallet/operation-fee';
+import { useOperationFee } from '../src/services/wallet/use-operation-fee';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,8 +19,6 @@ import ApprovalAuthModal from '../src/ui/approval-auth-modal';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
-import EnergyResaleCard from '../src/ui/energy-resale-card';
-import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import { SendIcon } from '../src/ui/ui-icons';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { goBackOrReplace } from '../src/ui/safe-back';
@@ -38,11 +38,11 @@ import {
 import {
   getEnergyResaleQuote,
   rentEnergyForPurpose,
+  completeEnergyRental,
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
   formatTrxFromSunAmount,
-  getAvailableResource,
 } from '../src/services/wallet/resources';
 import { colors, layout, radius } from '../src/theme/tokens';
 import { ui } from '../src/theme/ui';
@@ -91,6 +91,11 @@ export default function AmbassadorConfirmScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
+  const operationFee = useOperationFee({ wallet: review?.wallet.address, purpose: 'ambassador_registration',
+    burnSun: review?.resources.estimatedBurnSun, resources: review?.resources, quote: energyQuote, loading: energyQuoteLoading });
+  const feeText = operationFee.plan
+    ? `${formatOperationSun(operationFee.plan.feeSun)} TRX (${t('no more than {{amount}} TRX', { amount: formatOperationSun(operationFee.plan.maxFeeSun) })})`
+    : t('Calculating...');
   const [energyRenting, setEnergyRenting] = useState(false);
   const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
   const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
@@ -102,21 +107,17 @@ export default function AmbassadorConfirmScreen() {
 
   useChromeLoading(loading || refreshing);
 
-  const energyAvailable = review ? getAvailableResource(review.resources.available, 'energy') : 0;
-  const bandwidthAvailable = review
-    ? getAvailableResource(review.resources.available, 'bandwidth')
-    : 0;
   const hasResourceShortfall = Boolean(
     review &&
       (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
   const canRentResources = Boolean(
     review &&
-      (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
+      (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
   const approvalProcessing = !passcodeOpen && (submitting || energyRenting);
-  const isApproveDisabled = submitting || !review || !hasTrxForBurn;
+  const isApproveDisabled = !operationFee.plan || submitting || !review || !hasTrxForBurn;
 
   const load = useCallback(async () => {
     try {
@@ -216,9 +217,9 @@ export default function AmbassadorConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'ambassador_registration',
       wallet: review.wallet.address,
-      requiredEnergy: review.resources.energyShortfall || review.resources.estimatedEnergy,
+      requiredEnergy: review.resources.energyShortfall,
       requiredBandwidth:
-        review.resources.bandwidthShortfall || review.resources.estimatedBandwidth,
+        review.resources.bandwidthShortfall,
       metadata: {
         slug: requestedSlug,
       },
@@ -319,6 +320,7 @@ export default function AmbassadorConfirmScreen() {
       setApprovalStatusMessage(t('Submitting ambassador registration to the network...'));
 
       const receipt = await registerAmbassadorWithOptions(requestedSlug, {
+        feeApproval: operationFee.approved.current ?? undefined,
         feeLimitSun: review.resources.recommendedFeeLimitSun,
       });
 
@@ -329,6 +331,7 @@ export default function AmbassadorConfirmScreen() {
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
       notice.showSuccessNotice(t('Ambassador registered: {{slug}}', { slug: receipt.slug }), 3000);
+      await completeEnergyRental('ambassador_registration', review.wallet.address);
       router.replace('/ambassador-program');
     } catch (error) {
       console.warn(error);
@@ -341,7 +344,7 @@ export default function AmbassadorConfirmScreen() {
       setApprovalStatusTitle('');
       setApprovalStatusMessage('');
     }
-  }, [notice, requestedSlug, review, router, submitting, t, triggerWalletDataRefresh]);
+  }, [operationFee.approved, notice, requestedSlug, review, router, submitting, t, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -481,16 +484,13 @@ export default function AmbassadorConfirmScreen() {
   }, [canUseBiometrics, handleBiometricApproval]);
 
   const handleApprove = useCallback(async () => {
+    if (!operationFee.plan) return;
+    operationFee.approved.current = operationFee.plan;
     if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
 
     openApprovalAuth('burn');
-  }, [openApprovalAuth, review, submitting]);
+  }, [operationFee.plan, operationFee.approved, openApprovalAuth, review, submitting]);
 
-  const handleRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || submitting || energyRenting) return;
-
-    openApprovalAuth('rent');
-  }, [energyQuote, energyRenting, openApprovalAuth, review, submitting]);
 
   if (loading && !review && !errorText) {
     return <ScreenLoadingState label={t('Building ambassador confirmation')} />;
@@ -547,9 +547,9 @@ export default function AmbassadorConfirmScreen() {
                 </View>
 
                 <View style={styles.heroMetaRow}>
-                  <Text style={styles.heroMetaLabel}>{t('Estimated burn')}</Text>
+                  <Text style={styles.heroMetaLabel}>{t('Transaction fee')}</Text>
                   <Text style={[styles.heroMetaValue, hasResourceShortfall ? styles.heroMetaValueRisk : null]}>
-                    {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
+                    {feeText}
                   </Text>
                 </View>
               </View>
@@ -574,17 +574,6 @@ export default function AmbassadorConfirmScreen() {
                 )}
               </TouchableOpacity>
 
-              <EnergyResaleCard
-                quote={energyQuote}
-                loading={energyQuoteLoading}
-                processing={energyRenting}
-                disabled={submitting || energyRenting}
-                showUnavailable={canRentResources}
-                actionLabel={t('REGISTER')}
-                estimatedBurnSun={review.resources.estimatedBurnSun}
-                onRent={() => void handleRentEnergy()}
-              />
-
               <View style={styles.sectionBlock}>
                 <Text style={styles.sectionEyebrow}>{t('REGISTRATION REVIEW')}</Text>
                 <View style={styles.detailCard}>
@@ -601,27 +590,9 @@ export default function AmbassadorConfirmScreen() {
                       <SendIcon width={16} height={16} color={colors.textSoft} />
                     </View>
                   </TouchableOpacity>
-                  <DetailRow label={t('Fee Cap')} value={`${formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX`} />
-                  <DetailRow label={t('TRX Available')} value={review.trxCoverage.trxBalanceDisplay} />
+                                    <DetailRow label={t('TRX Available')} value={review.trxCoverage.trxBalanceDisplay} />
                 </View>
               </View>
-
-              <ConfirmNetworkLoadCard
-                estimatedEnergy={review.resources.estimatedEnergy}
-                estimatedBandwidth={review.resources.estimatedBandwidth}
-                availableEnergy={energyAvailable}
-                availableBandwidth={bandwidthAvailable}
-                energyShortfall={review.resources.energyShortfall}
-                bandwidthShortfall={review.resources.bandwidthShortfall}
-                message={
-                  !review.trxCoverage.canCoverBurn
-                    ? t('Not enough TRX to cover the estimated burn.')
-                    : hasResourceShortfall
-                      ? t('You are short on resources. The burn estimate above already includes this gap.')
-                      : t('You have enough resources for this action. Extra burn is unlikely.')
-                }
-                messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
-              />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>
@@ -772,6 +743,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
   heroMetaValue: {
+    flexShrink: 1,
+    textAlign: 'right',
     color: colors.white,
     fontSize: 14,
     lineHeight: 18,

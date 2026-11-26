@@ -1,3 +1,4 @@
+import { formatOperationSun } from '../src/services/wallet/operation-fee';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,8 +18,6 @@ import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ApprovalAuthModal from '../src/ui/approval-auth-modal';
-import EnergyResaleCard from '../src/ui/energy-resale-card';
-import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import useChromeLoading from '../src/ui/use-chrome-loading';
@@ -31,16 +30,20 @@ import {
   clearWalletRuntimeCaches,
   prependTokenHistoryCacheItem,
   prependWalletHistoryCacheItem,
+  TRX_TOKEN_ID,
 } from '../src/services/tron/api';
-import { applyOutgoingTransferToPortfolioCache } from '../src/services/wallet/portfolio';
 import {
   estimateAssetTransfer,
-  sendAssetTransfer,
   type SendAssetTransferEstimate,
 } from '../src/services/wallet/send';
+import { sendWithResources } from '../src/services/wallet/resource-transfer';
+import { calculateTransferFeeSun } from '../src/services/wallet/transfer-fee';
+import { acknowledgeRecordedTransfer, getRecordedTransfer } from '../src/services/wallet/recorded-transfer';
+import { getActiveWallet } from '../src/services/wallet/storage';
 import {
   getEnergyResaleQuote,
-  rentEnergyForPurpose,
+  getPendingEnergyRentalQuote,
+  completeEnergyRental,
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
@@ -53,6 +56,7 @@ import {
   verifyPasscode,
 } from '../src/security/local-auth';
 import { useWalletSession } from '../src/wallet/wallet-session';
+import { useOperationFee } from '../src/services/wallet/use-operation-fee';
 
 function resolveParam(value: string | string[] | undefined) {
   if (typeof value === 'string') return value;
@@ -93,7 +97,13 @@ export default function SendConfirmScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
-  const [energyRenting, setEnergyRenting] = useState(false);
+  const operationFee = useOperationFee({ wallet: estimate && !estimate.token.isNative ? estimate.wallet.address : undefined,
+    purpose: 'send_transfer', burnSun: estimate?.resources.estimatedBurnSun, resources: estimate?.resources,
+    quote: energyQuote, loading: energyQuoteLoading });
+  const [transactionFeeSun, setTransactionFeeSun] = useState<number | null>(null);
+  const energyRenting = sending;
+  const sendLock = useRef(false);
+  const approvedFeeRef = useRef<number | null>(null);
   const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
   const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
   const [pendingApprovalMode, setPendingApprovalMode] = useState<'send' | 'rent'>('send');
@@ -114,6 +124,15 @@ export default function SendConfirmScreen() {
         );
       }
 
+      const wallet = await getActiveWallet();
+      const pending = wallet ? await getRecordedTransfer(`send:${wallet.address}`) : null;
+      if (pending) {
+        if (pending.identity !== JSON.stringify([wallet!.address, tokenId, address, amount]) || !pending.context) {
+          throw new Error(`A previous transfer needs confirmation: ${pending.txId}`);
+        }
+        setEstimate(pending.context as SendAssetTransferEstimate);
+        return;
+      }
       const nextEstimate = await estimateAssetTransfer({
         tokenId,
         toAddress: address,
@@ -170,12 +189,12 @@ export default function SendConfirmScreen() {
   useEffect(() => {
     if (!estimate) return;
 
-    if (!estimate.trxCoverage.canCoverBurn) {
+    if (!estimate.trxCoverage.canCoverBurn && estimate.resources.energyShortfall === 0 && estimate.resources.bandwidthShortfall === 0) {
       if (burnWarningShownRef.current) return;
 
       burnWarningShownRef.current = true;
       notice.showErrorNotice(
-        t('Not enough TRX for network burn. Top up at least {{amount}} TRX first.', {
+        t('Not enough TRX. Top up at least {{amount}} TRX first.', {
           amount: formatTrxFromSunAmount(estimate.trxCoverage.missingTrxSun),
         }),
         3200
@@ -202,44 +221,60 @@ export default function SendConfirmScreen() {
     setChromeHidden(passcodeOpen);
   }, [passcodeOpen, setChromeHidden]);
 
-  const energyAvailable = estimate
-    ? getAvailableResource(estimate.resources.available, 'energy')
-    : 0;
-  const bandwidthAvailable = estimate
-    ? getAvailableResource(estimate.resources.available, 'bandwidth')
-    : 0;
-
-  const hasResourceShortfall = Boolean(
-    estimate &&
+  const canRentEnergyForSend = Boolean(
+    estimate && !estimate.token.isNative &&
       (estimate.resources.energyShortfall > 0 || estimate.resources.bandwidthShortfall > 0)
   );
-  const canRentEnergyForSend = Boolean(
-    estimate &&
-      !estimate.token.isNative &&
-      (estimate.resources.estimatedEnergy > 0 || estimate.resources.estimatedBandwidth > 0)
-  );
-  const hasTrxForBurn = Boolean(estimate?.trxCoverage.canCoverBurn);
-  const isApproveDisabled = sending || !estimate || !hasTrxForBurn;
+  const isApproveDisabled = sending || !estimate || energyQuoteLoading || transactionFeeSun === null ||
+    (!estimate.token.isNative && !operationFee.plan);
+  const feeText = estimate?.token.isNative
+    ? (transactionFeeSun === null ? t('Calculating...') : `${formatTrxFromSunAmount(transactionFeeSun)} TRX`)
+    : operationFee.plan
+      ? `${formatOperationSun(operationFee.plan.feeSun)} TRX (${t('no more than {{amount}} TRX', { amount: formatOperationSun(operationFee.plan.maxFeeSun) })})`
+      : t('Calculating...');
   const approvalProcessing = !passcodeOpen && (sending || energyRenting);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!estimate || !canRentEnergyForSend || estimate.wallet.kind === 'watch-only') {
+    if (!estimate || estimate.wallet.kind === 'watch-only') {
       setEnergyQuote(null);
       setEnergyQuoteLoading(false);
       return;
     }
 
+    if (estimate.token.isNative) {
+      setEnergyQuote(null);
+      setEnergyQuoteLoading(false);
+      setTransactionFeeSun(estimate.resources.estimatedBurnSun);
+      return;
+    }
+
     setEnergyQuoteLoading(true);
-    getEnergyResaleQuote({
+    setTransactionFeeSun(null);
+    getPendingEnergyRentalQuote('send_transfer', estimate.wallet.address).then(pending => pending || (canRentEnergyForSend ? getEnergyResaleQuote({
       purpose: 'send_transfer',
       wallet: estimate.wallet.address,
-      requiredEnergy: estimate.resources.energyShortfall || estimate.resources.estimatedEnergy,
+      requiredEnergy: estimate.resources.energyShortfall,
       requiredBandwidth:
-        estimate.resources.bandwidthShortfall || estimate.resources.estimatedBandwidth,
-    }).then((quote) => {
-      if (!cancelled) setEnergyQuote(quote);
+        Math.max(estimate.resources.bandwidthShortfall, Math.ceil(
+          // Reserve bandwidth for the fee payment before the original transfer.
+          estimate.resources.estimatedBandwidth + 400 - getAvailableResource(estimate.resources.available, 'bandwidth')
+        )),
+    }) : null)).then(async (quote) => {
+      const payment = quote ? await estimateAssetTransfer({
+        tokenId: TRX_TOKEN_ID, toAddress: quote.paymentAddress, amount: quote.amountTrx,
+      }) : null;
+      if (payment && payment.wallet.address !== estimate.wallet.address) throw new Error('Active wallet changed.');
+      // A contract burn budget includes the sender's conservative bandwidth reserve.
+      const burnBudget = !quote && canRentEnergyForSend && !estimate.token.isNative
+        ? Math.ceil(estimate.resources.energyShortfall * estimate.resources.energyPriceSun +
+            1000 * estimate.resources.bandwidthPriceSun)
+        : estimate.resources.estimatedBurnSun;
+      const fee = calculateTransferFeeSun(burnBudget, quote, payment?.resources.estimatedBurnSun);
+      if (!cancelled) { setEnergyQuote(quote); setTransactionFeeSun(fee); }
+    }).catch(() => {
+      if (!cancelled) { setEnergyQuote(null); setErrorText(t('Unable to calculate transaction fee. Please try again.')); }
     }).finally(() => {
       if (!cancelled) setEnergyQuoteLoading(false);
     });
@@ -247,7 +282,7 @@ export default function SendConfirmScreen() {
     return () => {
       cancelled = true;
     };
-  }, [canRentEnergyForSend, estimate]);
+  }, [canRentEnergyForSend, estimate, t]);
 
   const handleReject = useCallback(() => {
     if (sending) return;
@@ -256,51 +291,10 @@ export default function SendConfirmScreen() {
     goBackOrReplace(router, { fallback: '/send' });
   }, [notice, router, sending, t]);
 
-  const performRentEnergy = useCallback(async () => {
-    if (!estimate || !energyQuote || energyRenting) return false;
-
-    try {
-      setErrorText('');
-      setEnergyRenting(true);
-      setApprovalStatusTitle(t('Preparing transfer'));
-      setApprovalStatusMessage(t('Sending Energy rental payment...'));
-      await rentEnergyForPurpose({
-        purpose: 'send_transfer',
-        wallet: estimate.wallet.address,
-        quote: energyQuote,
-        onProgress: (progress) => {
-          setApprovalStatusTitle(
-            progress.step === 'energy-ready' ? t('Energy is ready') : t('Preparing transfer')
-          );
-          setApprovalStatusMessage(progress.message);
-        },
-      });
-      clearWalletRuntimeCaches(estimate.wallet.address);
-      preserveNoticeOnExitRef.current = true;
-      setApprovalStatusTitle(t('Sending transfer'));
-      setApprovalStatusMessage(t('Energy is live. Sending transfer...'));
-      await load();
-      return true;
-    } catch (error) {
-      console.warn(error);
-      setErrorText(error instanceof Error ? error.message : t('Energy rental failed.'));
-      notice.showErrorNotice(
-        error instanceof Error ? error.message : t('Energy rental failed.'),
-        4200
-      );
-      return false;
-    } finally {
-      setEnergyRenting(false);
-      setApprovalStatusTitle('');
-      setApprovalStatusMessage('');
-      setPasscodeOpen(false);
-      setPasscodeDigits('');
-      setPasscodeError('');
-    }
-  }, [energyQuote, energyRenting, estimate, load, notice, t]);
-
   const performSend = useCallback(async () => {
-    if (!estimate || sending) return;
+    if (!estimate || sendLock.current || approvedFeeRef.current === null) return;
+    sendLock.current = true;
+    let completed = false;
 
     try {
       setSending(true);
@@ -313,7 +307,15 @@ export default function SendConfirmScreen() {
         );
       }
 
-      const result = await sendAssetTransfer({
+      const result = await sendWithResources({
+        wallet: estimate.wallet.address,
+        quote: energyQuote,
+        review: estimate,
+        approvedFeeSun: approvedFeeRef.current,
+        feeApproval: estimate.token.isNative ? undefined : operationFee.approved.current ?? undefined,
+        allowBurnFallback: !energyQuote,
+        onProgress: progress => setApprovalStatusMessage(progress.step === 'energy-ready'
+          ? t('Sending transfer...') : t('Preparing transfer...')),
         tokenId: estimate.token.tokenId,
         toAddress: estimate.recipientAddress,
         amount: estimate.token.amount,
@@ -364,15 +366,11 @@ export default function SendConfirmScreen() {
         isKnownContact: Boolean(contactName),
         tronscanUrl: result.explorerUrl,
       });
-      await applyOutgoingTransferToPortfolioCache({
-        walletAddress: estimate.wallet.address,
-        tokenId: estimate.token.tokenId,
-        tokenDecimals: estimate.token.decimals,
-        amountRaw: estimate.token.amountRaw,
-        estimatedBurnSun: estimate.resources.estimatedBurnSun,
-      });
       clearWalletRuntimeCaches(estimate.wallet.address);
       triggerWalletDataRefresh();
+      await completeEnergyRental('send_transfer', estimate.wallet.address);
+      await acknowledgeRecordedTransfer(`send:${estimate.wallet.address}`, result.txId);
+      completed = true;
       notice.showSuccessNotice(
         t('{{token}} sent. It will appear in history shortly.', {
           token: estimate.token.symbol,
@@ -389,11 +387,12 @@ export default function SendConfirmScreen() {
         3200
       );
     } finally {
+      sendLock.current = completed;
       setSending(false);
       setApprovalStatusTitle('');
       setApprovalStatusMessage('');
     }
-  }, [contactName, estimate, notice, router, sending, t, triggerWalletDataRefresh]);
+  }, [operationFee.approved, contactName, energyQuote, estimate, notice, router, t, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if ((sending || energyRenting) || passcodeDigits.length !== 6) return;
@@ -412,21 +411,13 @@ export default function SendConfirmScreen() {
       setPasscodeDigits('');
       setPasscodeError('');
 
-      if (pendingApprovalMode === 'rent') {
-        const rented = await performRentEnergy();
-        if (rented) {
-          await performSend();
-        }
-        return;
-      }
-
       await performSend();
     } catch (error) {
       console.warn(error);
       setPasscodeError(t('Failed to verify passcode.'));
       setPasscodeDigits('');
     }
-  }, [energyRenting, passcodeDigits, pendingApprovalMode, performRentEnergy, performSend, sending, t]);
+  }, [energyRenting, passcodeDigits, performSend, sending, t]);
 
   useEffect(() => {
     if (passcodeOpen && passcodeDigits.length === 6) {
@@ -495,19 +486,11 @@ export default function SendConfirmScreen() {
       setPasscodeDigits('');
       setPasscodeError('');
 
-      if (mode === 'rent') {
-        const rented = await performRentEnergy();
-        if (rented) {
-          await performSend();
-        }
-        return;
-      }
-
       await performSend();
     } catch (error) {
       console.warn(error);
     }
-  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performRentEnergy, performSend, t]);
+  }, [canUseBiometrics, openPasscodeEntry, pendingApprovalMode, performSend, t]);
 
   const openApprovalAuth = useCallback((mode: 'send' | 'rent', preferPasscode = false) => {
     setPendingApprovalMode(mode);
@@ -524,15 +507,11 @@ export default function SendConfirmScreen() {
   }, [canUseBiometrics, handleBiometricApproval]);
 
   const handleApprove = useCallback(async () => {
-    if (!estimate || sending) return;
-    if (!estimate.trxCoverage.canCoverBurn) return;
-    openApprovalAuth('send');
-  }, [estimate, openApprovalAuth, sending]);
-
-  const handleRentEnergy = useCallback(async () => {
-    if (!estimate || !energyQuote || sending || energyRenting) return;
-    openApprovalAuth('rent');
-  }, [energyQuote, energyRenting, estimate, openApprovalAuth, sending]);
+    if (isApproveDisabled) return;
+    operationFee.approved.current = operationFee.plan;
+    approvedFeeRef.current = estimate?.token.isNative ? transactionFeeSun : operationFee.plan?.maxFeeSun ?? null;
+    openApprovalAuth(canRentEnergyForSend || energyQuote ? 'rent' : 'send');
+  }, [canRentEnergyForSend, energyQuote, isApproveDisabled, openApprovalAuth, transactionFeeSun, operationFee.plan, operationFee.approved, estimate]);
 
   const handleRefresh = useCallback(async () => {
     if (sending) return;
@@ -609,14 +588,15 @@ export default function SendConfirmScreen() {
                   </View>
 
                   <View style={styles.heroTokenSide}>
-                    <Text style={styles.heroBurnSideLabel}>{t('BURN')}</Text>
+                    <Text style={styles.heroBurnSideLabel}>{t('Transaction fee')}</Text>
                     <Text
                       style={[
                         styles.heroBurnSideValue,
-                        hasResourceShortfall ? styles.heroBurnValueRisk : null,
                       ]}
+                      numberOfLines={3}
+                      adjustsFontSizeToFit
                     >
-                      {formatTrxFromSunAmount(estimate.resources.estimatedBurnSun)} TRX
+                      {feeText}
                     </Text>
                   </View>
                 </View>
@@ -648,21 +628,10 @@ export default function SendConfirmScreen() {
                     adjustsFontSizeToFit
                     minimumFontScale={0.78}
                   >
-                    {hasTrxForBurn ? t('APPROVE & SEND') : t('TOP UP TRX')}
+                    {t('APPROVE & SEND')}
                   </Text>
                 )}
               </TouchableOpacity>
-
-              <EnergyResaleCard
-                quote={energyQuote}
-                loading={energyQuoteLoading}
-                processing={energyRenting}
-                disabled={sending}
-                showUnavailable={canRentEnergyForSend}
-                actionLabel={t('SEND')}
-                estimatedBurnSun={estimate.resources.estimatedBurnSun}
-                onRent={() => void handleRentEnergy()}
-              />
 
               <View style={styles.sectionBlock}>
                 <Text style={styles.sectionEyebrow}>{t('TRANSFER REVIEW')}</Text>
@@ -678,9 +647,9 @@ export default function SendConfirmScreen() {
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{t('Estimated Burn')}</Text>
+                    <Text style={styles.detailLabel}>{t('Transaction fee')}</Text>
                     <Text style={styles.detailValueAccent}>
-                      {formatTrxFromSunAmount(estimate.resources.estimatedBurnSun)} TRX
+                      {feeText}
                     </Text>
                   </View>
 
@@ -689,31 +658,8 @@ export default function SendConfirmScreen() {
                     <Text style={styles.detailValue}>{estimate.trxCoverage.trxBalanceDisplay}</Text>
                   </View>
 
-                  {!estimate.token.isNative ? (
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>{t('Fee Limit')}</Text>
-                      <Text style={styles.detailValue}>
-                        {formatTrxFromSunAmount(estimate.token.recommendedFeeLimitSun)} TRX
-                      </Text>
-                    </View>
-                  ) : null}
                 </View>
               </View>
-
-              <ConfirmNetworkLoadCard
-                estimatedEnergy={estimate.resources.estimatedEnergy}
-                estimatedBandwidth={estimate.resources.estimatedBandwidth}
-                availableEnergy={energyAvailable}
-                availableBandwidth={bandwidthAvailable}
-                energyShortfall={estimate.resources.energyShortfall}
-                bandwidthShortfall={estimate.resources.bandwidthShortfall}
-                message={
-                  hasResourceShortfall
-                    ? t('You are short on resources. The burn estimate above already includes this gap.')
-                    : t('You have enough resources for this action. Extra burn is unlikely.')
-                  }
-                messageRisk={hasResourceShortfall}
-              />
 
               <TouchableOpacity
                 activeOpacity={0.9}
@@ -736,11 +682,7 @@ export default function SendConfirmScreen() {
         <ApprovalAuthModal
           visible={passcodeOpen}
           eyebrow={t('Transaction Approval')}
-          actionLabel={
-            pendingApprovalMode === 'rent'
-              ? t('Energy rental and transfer')
-              : t('transfer')
-          }
+          actionLabel={t('transfer')}
           passcodeError={passcodeError}
           digitsLength={passcodeDigits.length}
           canUseBiometrics={canUseBiometrics}
@@ -840,7 +782,8 @@ const styles = StyleSheet.create({
   },
 
   heroTokenSide: {
-    width: 70,
+    width: 120,
+    maxWidth: '45%',
     alignItems: 'flex-end',
     justifyContent: 'flex-end',
     paddingBottom: 2,
@@ -851,7 +794,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 13,
     fontFamily: 'Sora_700Bold',
-    letterSpacing: 0.5,
+    letterSpacing: 0,
     textAlign: 'right',
   },
 
