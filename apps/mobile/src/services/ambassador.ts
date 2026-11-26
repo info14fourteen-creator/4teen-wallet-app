@@ -19,6 +19,9 @@ import {
   getWalletSecret,
   type WalletMeta,
 } from './wallet/storage';
+import { executeContractOperation } from './wallet/contract-operation';
+import type { OperationFeeApproval } from './wallet/operation-fee';
+import { readCompletedOperation, readOperationLedger } from './wallet/operation-ledger';
 
 export const FOURTEEN_CONTROLLER_ADDRESS = 'TF8yhohRfMxsdVRr7fFrYLh5fxK8sAFkeZ';
 export const AMBASSADOR_REFERRAL_BASE_URL = 'https://4teen.me/?r=';
@@ -32,11 +35,9 @@ const AMBASSADOR_CACHE_TTL_MS = 45_000;
 const AMBASSADOR_POSITIVE_IDENTITY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const AMBASSADOR_ALLOCATION_HEALTH_CACHE_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_REGISTER_FEE_LIMIT_SUN = 180_000_000;
-const DEFAULT_REGISTER_EXECUTION_FEE_LIMIT_SUN = 180_000_000;
 const DEFAULT_REGISTER_ESTIMATED_ENERGY = 98_297;
 const DEFAULT_REGISTER_ESTIMATED_BANDWIDTH = 345;
 const DEFAULT_WITHDRAW_FEE_LIMIT_SUN = 120_000_000;
-const DEFAULT_WITHDRAW_EXECUTION_FEE_LIMIT_SUN = 120_000_000;
 const DEFAULT_WITHDRAW_ESTIMATED_ENERGY = 80_000;
 const DEFAULT_WITHDRAW_ESTIMATED_BANDWIDTH = 420;
 const LOCAL_AMBASSADOR_SLUG_KEY_PREFIX = 'fourteen_ambassador_local_slug_v1';
@@ -1061,27 +1062,6 @@ async function getControllerContract(tronWeb?: TronWeb) {
   )) as unknown as FourteenControllerContract;
 }
 
-function extractTxid(result: unknown) {
-  if (!result) return '';
-  if (typeof result === 'string') return result;
-
-  const candidate = result as {
-    txid?: string;
-    txID?: string;
-    transaction?: string | { txID?: string };
-    receipt?: { txID?: string };
-    id?: string;
-  };
-
-  if (typeof candidate.txid === 'string') return candidate.txid;
-  if (typeof candidate.txID === 'string') return candidate.txID;
-  if (typeof candidate.transaction === 'string') return candidate.transaction;
-  if (typeof candidate.transaction?.txID === 'string') return candidate.transaction.txID;
-  if (typeof candidate.receipt?.txID === 'string') return candidate.receipt.txID;
-  if (typeof candidate.id === 'string') return candidate.id;
-
-  return '';
-}
 
 export function buildAmbassadorSlugHash(slug: string) {
   const normalized = normalizeAmbassadorSlug(slug);
@@ -1128,7 +1108,7 @@ export async function registerAmbassador(slug: string): Promise<AmbassadorRegist
 
 export async function registerAmbassadorWithOptions(
   slug: string,
-  options?: { feeLimitSun?: number }
+  options?: { feeLimitSun?: number; feeApproval?: OperationFeeApproval }
 ): Promise<AmbassadorRegistrationReceipt> {
   const normalizedSlug = normalizeAmbassadorSlug(slug);
 
@@ -1137,29 +1117,21 @@ export async function registerAmbassadorWithOptions(
   }
 
   const { wallet, privateKey } = await getSigningWalletContext();
-  const existing = await lookupAmbassadorOnChain(wallet.address, { force: true });
-
-  if (existing) {
-    throw new Error(translateNow('This wallet is already registered as ambassador.'));
+  const pending = options?.feeApproval
+    ? await readCompletedOperation(options.feeApproval) ?? await readOperationLedger(wallet.address, 'ambassador_registration')
+    : null;
+  if (!pending) {
+    const existing = await lookupAmbassadorOnChain(wallet.address, { force: true });
+    if (existing) throw new Error(translateNow('This wallet is already registered as ambassador.'));
+    await checkAmbassadorSlugAvailability(normalizedSlug);
   }
-
-  await checkAmbassadorSlugAvailability(normalizedSlug);
 
   const slugHash = buildAmbassadorSlugHash(normalizedSlug);
   const tronWeb = createTronWeb(privateKey, wallet.address);
-  const contract = await getControllerContract(tronWeb);
-  const feeLimitSun = Math.max(
-    1_000_000,
-    Math.max(
-      DEFAULT_REGISTER_EXECUTION_FEE_LIMIT_SUN,
-      Math.min(DEFAULT_REGISTER_FEE_LIMIT_SUN, Number(options?.feeLimitSun || DEFAULT_REGISTER_FEE_LIMIT_SUN))
-    )
-  );
-  const result = await contract.registerAsAmbassador(slugHash, ZERO_BYTES32).send({
-    feeLimit: feeLimitSun,
-    shouldPollResponse: false,
-  });
-  const txId = extractTxid(result);
+  const txId = await executeContractOperation({ tronWeb, privateKey, wallet: wallet.address,
+    approval: options?.feeApproval, identity: JSON.stringify(['register', slugHash]),
+    contractAddress: FOURTEEN_CONTROLLER_ADDRESS, functionSelector: 'registerAsAmbassador(bytes32,bytes32)',
+    parameters: [{ type: 'bytes32', value: slugHash }, { type: 'bytes32', value: ZERO_BYTES32 }] });
 
   if (!txId) {
     throw new Error(translateNow('Registration transaction sent but txid was not returned.'));
@@ -1420,15 +1392,12 @@ export async function confirmAmbassadorRegistrationEnergy(input: {
   return payload?.result || {};
 }
 
-export async function withdrawAmbassadorRewards(): Promise<AmbassadorWithdrawalReceipt> {
+export async function withdrawAmbassadorRewards(feeApproval?: OperationFeeApproval): Promise<AmbassadorWithdrawalReceipt> {
   const { wallet, privateKey } = await getSigningWalletContext();
   const tronWeb = createTronWeb(privateKey, wallet.address);
-  const contract = await getControllerContract(tronWeb);
-  const result = await contract.withdrawRewards().send({
-    feeLimit: DEFAULT_WITHDRAW_EXECUTION_FEE_LIMIT_SUN,
-    shouldPollResponse: false,
-  });
-  const txId = extractTxid(result);
+  const txId = await executeContractOperation({ tronWeb, privateKey, wallet: wallet.address,
+    approval: feeApproval, identity: JSON.stringify(['withdraw', FOURTEEN_CONTROLLER_ADDRESS]),
+    contractAddress: FOURTEEN_CONTROLLER_ADDRESS, functionSelector: 'withdrawRewards()' });
 
   if (!txId) {
     throw new Error(translateNow('Withdrawal transaction sent but txid was not returned.'));

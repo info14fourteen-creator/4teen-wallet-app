@@ -1,7 +1,9 @@
 import { FOURTEEN_API_BASE_URL, getFourteenApiBaseUrls } from '../config/tron';
 import { translateNow } from '../i18n';
 import { TRX_TOKEN_ID } from './tron/api';
-import { sendAssetTransfer } from './wallet/send';
+import AsyncStorage from '../privacy/async-storage';
+import { sendAssetTransfer, waitForTransferConfirmation } from './wallet/send';
+import { getRecordedTransfer, runRecordedTransfer } from './wallet/recorded-transfer';
 
 const API_BASE_URL = FOURTEEN_API_BASE_URL.replace(/\/+$/, '');
 
@@ -149,7 +151,7 @@ async function fetchJsonOrThrow<T>(url: string, options: RequestInit): Promise<T
   const response = await fetch(url, options);
   const payload = await readJson(response);
 
-  if (!response.ok || payload?.ok === false) {
+  if (!response.ok || response.status === 202 || payload?.ok === false) {
     throw new EnergyResaleApiError(
       payload?.error ||
         translateNow('Request failed with status {{status}}.', {
@@ -252,12 +254,11 @@ export async function confirmEnergyResalePayment(input: {
       })
     );
 
-    input.onProgress?.({
-      step: 'energy-ready',
-      message: translateNow('Energy rental confirmed. Continuing transaction...'),
-    });
-
-    return payload.result || {};
+    if (!payload.result || payload.result.status !== 'completed') {
+      throw new EnergyResaleApiError('Energy delivery pending', 202);
+    }
+    await waitForEnergyResaleReady(input);
+    return payload.result;
   } catch (error) {
     if (isServerSideRentalError(error)) {
       throw toUserFacingEnergyResaleError(error);
@@ -340,7 +341,13 @@ async function waitForEnergyResaleReady(input: {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     lastStatus = await getEnergyResaleStatus(input);
 
-    if (lastStatus.ready) {
+    if (lastStatus.lastOrder?.status === 'failed') {
+      throw new Error(toUserFacingEnergyResaleFailureMessage(lastStatus.lastOrder.error_message));
+    }
+    const resourcesReady =
+      Number(lastStatus.energyState?.availableEnergy ?? -1) >= Number(input.requiredEnergy || 0) &&
+      Number(lastStatus.energyState?.availableBandwidth ?? -1) >= Number(input.requiredBandwidth || 0);
+    if (lastStatus.ready && resourcesReady) {
       input.onProgress?.({
         step: 'energy-ready',
         message: translateNow('Energy is live. Continuing transaction...'),
@@ -373,17 +380,72 @@ async function waitForEnergyResaleReady(input: {
   );
 }
 
-export async function rentEnergyForPurpose(input: {
+const rentalInflight = new Map<string, Promise<unknown>>();
+function pendingRentalKey(purpose: string, wallet: string) {
+  return `pending-rental:v1:${wallet}:${purpose}`;
+}
+
+export async function getPendingEnergyRentalQuote(purpose: EnergyResalePurpose, wallet: string): Promise<EnergyResaleQuote | null> {
+  const raw = await AsyncStorage.getItem(pendingRentalKey(purpose, wallet));
+  if (raw === null) return null;
+  const quote = JSON.parse(raw) as EnergyResaleQuote;
+  if (quote.wallet !== wallet || quote.purpose !== purpose || !quote.orderId || quote.mode !== 'tronix') {
+    throw new Error('Stored rental requires reconciliation');
+  }
+  return quote;
+}
+
+export async function completeEnergyRental(purpose: EnergyResalePurpose, wallet: string) {
+  const { finishOperationLedger } = await import('./wallet/operation-ledger');
+  await AsyncStorage.removeItem(pendingRentalKey(purpose, wallet));
+  await finishOperationLedger(wallet, purpose);
+}
+
+type RentalInput = {
+  maxPaymentNetworkFeeSun?: number;
   purpose: EnergyResalePurpose;
   wallet: string;
   quote: EnergyResaleQuote;
   metadata?: Record<string, unknown>;
   onProgress?: (progress: EnergyResaleProgress) => void;
-}) {
-  const payment = await sendAssetTransfer({
-    tokenId: TRX_TOKEN_ID,
-    toAddress: input.quote.paymentAddress,
-    amount: input.quote.amountTrx,
+};
+
+export function rentEnergyForPurpose(input: RentalInput) {
+  const key = pendingRentalKey(input.purpose, input.wallet);
+  const existing = rentalInflight.get(key);
+  if (existing) return existing;
+  const promise = rentEnergyOnce(input);
+  rentalInflight.set(key, promise);
+  void promise.finally(() => rentalInflight.delete(key)).catch(() => {});
+  return promise;
+}
+
+async function rentEnergyOnce(input: RentalInput) {
+  const saved = await getPendingEnergyRentalQuote(input.purpose, input.wallet);
+  const quote = saved || input.quote;
+  if (quote.mode !== 'tronix' || !quote.orderId || quote.wallet !== input.wallet || quote.purpose !== input.purpose) {
+    throw new Error('A valid TronixRent order is required before payment');
+  }
+  if (quote.expiresAt && Date.parse(quote.expiresAt) <= Date.now()) {
+    const payment = await getRecordedTransfer(`rental:${input.wallet}:${quote.orderId}`);
+    if (!payment) {
+      if (saved) await AsyncStorage.removeItem(pendingRentalKey(input.purpose, input.wallet));
+      throw new Error('Transaction fee expired. Refresh before approval.');
+    }
+  }
+  if (!saved) await AsyncStorage.setItem(pendingRentalKey(input.purpose, input.wallet), JSON.stringify(quote));
+  const payment = await runRecordedTransfer({
+    key: `rental:${input.wallet}:${quote.orderId}`,
+    identity: JSON.stringify([input.wallet, quote.orderId, quote.paymentAddress, quote.amountTrx]),
+    send: beforeBroadcast => sendAssetTransfer({
+      tokenId: TRX_TOKEN_ID,
+      toAddress: quote.paymentAddress,
+      amount: quote.amountTrx,
+      expectedWalletAddress: input.wallet,
+      maxNetworkFeeSun: input.maxPaymentNetworkFeeSun,
+      beforeBroadcast,
+    }),
+    confirm: waitForTransferConfirmation,
   });
 
   input.onProgress?.({
@@ -397,9 +459,9 @@ export async function rentEnergyForPurpose(input: {
     purpose: input.purpose,
     wallet: input.wallet,
     paymentTxId: payment.txId,
-    rentalOrderId: input.quote.orderId,
-    requiredEnergy: input.quote.requiredEnergy,
-    requiredBandwidth: input.quote.requiredBandwidth,
+    rentalOrderId: quote.orderId,
+    requiredEnergy: quote.requiredEnergy,
+    requiredBandwidth: quote.requiredBandwidth,
     metadata: input.metadata,
     onProgress: input.onProgress,
   });

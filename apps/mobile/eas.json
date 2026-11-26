@@ -4,6 +4,10 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "device-qa": {
+      "extends": "preview",
+      "autoIncrement": true
+    },
     "development": {
       "developmentClient": true,
       "distribution": "internal"

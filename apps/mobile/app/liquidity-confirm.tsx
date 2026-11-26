@@ -1,3 +1,5 @@
+import { formatOperationSun } from '../src/services/wallet/operation-fee';
+import { useOperationFee } from '../src/services/wallet/use-operation-fee';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,8 +19,6 @@ import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ApprovalAuthModal from '../src/ui/approval-auth-modal';
-import EnergyResaleCard from '../src/ui/energy-resale-card';
-import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import { useI18n } from '../src/i18n';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -36,11 +36,11 @@ import {
 import {
   getEnergyResaleQuote,
   rentEnergyForPurpose,
+  completeEnergyRental,
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
   formatTrxFromSunAmount,
-  getAvailableResource,
 } from '../src/services/wallet/resources';
 import {
   getBiometricsEnabled,
@@ -76,6 +76,11 @@ export default function LiquidityConfirmScreen() {
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
+  const operationFee = useOperationFee({ wallet: review?.wallet.address, purpose: 'liquidity_execute',
+    burnSun: review?.resources.estimatedBurnSun, resources: review?.resources, quote: energyQuote, loading: energyQuoteLoading });
+  const feeText = operationFee.plan
+    ? `${formatOperationSun(operationFee.plan.feeSun)} TRX (${t('no more than {{amount}} TRX', { amount: formatOperationSun(operationFee.plan.maxFeeSun) })})`
+    : t('Calculating...');
   const [energyRenting, setEnergyRenting] = useState(false);
   const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
   const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
@@ -86,21 +91,17 @@ export default function LiquidityConfirmScreen() {
 
   useChromeLoading(loading || refreshing);
 
-  const energyAvailable = review ? getAvailableResource(review.resources.available, 'energy') : 0;
-  const bandwidthAvailable = review
-    ? getAvailableResource(review.resources.available, 'bandwidth')
-    : 0;
   const hasResourceShortfall = Boolean(
     review &&
       (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
   const canRentResources = Boolean(
     review &&
-      (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
+      (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
   const approvalProcessing = !passcodeOpen && (submitting || energyRenting);
-  const isApproveDisabled = submitting || !review || !hasTrxForBurn;
+  const isApproveDisabled = !operationFee.plan || submitting || !review || !hasTrxForBurn;
 
   useEffect(() => {
     let cancelled = false;
@@ -115,9 +116,9 @@ export default function LiquidityConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'liquidity_execute',
       wallet: review.wallet.address,
-      requiredEnergy: review.resources.energyShortfall || review.resources.estimatedEnergy,
+      requiredEnergy: review.resources.energyShortfall,
       requiredBandwidth:
-        review.resources.bandwidthShortfall || review.resources.estimatedBandwidth,
+        review.resources.bandwidthShortfall,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {
@@ -275,8 +276,10 @@ export default function LiquidityConfirmScreen() {
       setApprovalStatusTitle(t('Triggering liquidity'));
       setApprovalStatusMessage(t('Submitting liquidity execution to the network...'));
       const receipt = await executeLiquidityController({
+        feeApproval: operationFee.approved.current ?? undefined,
         feeLimitSun: review.resources.recommendedFeeLimitSun,
       });
+      await completeEnergyRental('liquidity_execute', review.wallet.address);
 
       setPasscodeOpen(false);
       setPasscodeEntryOpen(false);
@@ -299,7 +302,7 @@ export default function LiquidityConfirmScreen() {
       setApprovalStatusTitle('');
       setApprovalStatusMessage('');
     }
-  }, [notice, review, router, submitting, triggerWalletDataRefresh, t]);
+  }, [operationFee.approved, notice, review, router, submitting, triggerWalletDataRefresh, t]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -439,15 +442,12 @@ export default function LiquidityConfirmScreen() {
   }, [canUseBiometrics, handleBiometricApproval]);
 
   const handleApprove = useCallback(async () => {
+    if (!operationFee.plan) return;
+    operationFee.approved.current = operationFee.plan;
     if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
     openApprovalAuth('execute');
-  }, [openApprovalAuth, review, submitting]);
+  }, [operationFee.plan, operationFee.approved, openApprovalAuth, review, submitting]);
 
-  const handleRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || submitting || energyRenting) return;
-
-    openApprovalAuth('rent');
-  }, [energyQuote, energyRenting, openApprovalAuth, review, submitting]);
 
   if (loading && !review) {
     return <ScreenLoadingState label={t('Building liquidity confirmation')} />;
@@ -527,14 +527,14 @@ export default function LiquidityConfirmScreen() {
                 </View>
 
                 <View style={styles.heroMetaRow}>
-                  <Text style={styles.heroMetaLabel}>{t('Estimated burn')}</Text>
+                  <Text style={styles.heroMetaLabel}>{t('Transaction fee')}</Text>
                   <Text
                     style={[
                       styles.heroMetaValue,
                       hasResourceShortfall ? styles.heroMetaValueRisk : null,
                     ]}
                   >
-                    {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
+                    {feeText}
                   </Text>
                 </View>
               </View>
@@ -559,17 +559,6 @@ export default function LiquidityConfirmScreen() {
                 )}
               </TouchableOpacity>
 
-              <EnergyResaleCard
-                quote={energyQuote}
-                loading={energyQuoteLoading}
-                processing={energyRenting}
-                disabled={submitting}
-                showUnavailable={canRentResources}
-                actionLabel={t('EXECUTE')}
-                estimatedBurnSun={review.resources.estimatedBurnSun}
-                onRent={() => void handleRentEnergy()}
-              />
-
               <View style={styles.sectionBlock}>
                 <Text style={styles.sectionEyebrow}>{t('EXECUTION REVIEW')}</Text>
                 <View style={styles.detailCard}>
@@ -589,16 +578,9 @@ export default function LiquidityConfirmScreen() {
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{t('Estimated Burn')}</Text>
+                    <Text style={styles.detailLabel}>{t('Transaction fee')}</Text>
                     <Text style={styles.detailValueAccent}>
-                      {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
-                    </Text>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{t('Fee Cap')}</Text>
-                    <Text style={styles.detailValue}>
-                      {formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX
+                      {feeText}
                     </Text>
                   </View>
 
@@ -608,23 +590,6 @@ export default function LiquidityConfirmScreen() {
                   </View>
                 </View>
               </View>
-
-              <ConfirmNetworkLoadCard
-                estimatedEnergy={review.resources.estimatedEnergy}
-                estimatedBandwidth={review.resources.estimatedBandwidth}
-                availableEnergy={energyAvailable}
-                availableBandwidth={bandwidthAvailable}
-                energyShortfall={review.resources.energyShortfall}
-                bandwidthShortfall={review.resources.bandwidthShortfall}
-                message={
-                  !review.trxCoverage.canCoverBurn
-                    ? t('Not enough TRX to cover the estimated burn.')
-                    : hasResourceShortfall
-                      ? t('You are short on resources. The burn estimate above already includes this gap.')
-                      : t('You have enough resources for this action. Extra burn is unlikely.')
-                }
-                messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
-              />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>
@@ -827,6 +792,8 @@ const styles = StyleSheet.create({
   },
 
   heroMetaValue: {
+    flexShrink: 1,
+    textAlign: 'right',
     color: colors.white,
     fontSize: 12,
     lineHeight: 16,

@@ -1,3 +1,5 @@
+import { formatOperationSun } from '../../services/wallet/operation-fee';
+import { useOperationFee } from '../../services/wallet/use-operation-fee';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,8 +20,6 @@ import ScreenLoadingOverlay from '../../ui/screen-loading-overlay';
 import ScreenLoadingState from '../../ui/screen-loading-state';
 import SunioDisclosureCard from '../../ui/sunio-disclosure-card';
 import ApprovalAuthModal from '../../ui/approval-auth-modal';
-import EnergyResaleCard from '../../ui/energy-resale-card';
-import ConfirmNetworkLoadCard from '../../ui/confirm-network-load-card';
 import { useNavigationInsets } from '../../ui/navigation';
 import { useBottomInset } from '../../ui/use-bottom-inset';
 import useChromeLoading from '../../ui/use-chrome-loading';
@@ -50,11 +50,10 @@ import { useWalletSession } from '../../wallet/wallet-session';
 import {
   getEnergyResaleQuote,
   rentEnergyForPurpose,
+  completeEnergyRental,
   type EnergyResaleQuote,
 } from '../../services/energy-resale';
 import {
-  formatTrxFromSunAmount,
-  getAvailableResource,
   normalizeResourceAmount,
 } from '../../services/wallet/resources';
 
@@ -135,6 +134,11 @@ export default function SwapConfirmScreen() {
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
+  const operationFee = useOperationFee({ wallet: review?.wallet.address, purpose: 'swap',
+    burnSun: review?.resources.estimatedBurnSun, resources: review?.resources, quote: energyQuote, loading: energyQuoteLoading });
+  const feeText = operationFee.plan
+    ? `${formatOperationSun(operationFee.plan.feeSun)} TRX (${t('no more than {{amount}} TRX', { amount: formatOperationSun(operationFee.plan.maxFeeSun) })})`
+    : t('Calculating...');
   const [energyRenting, setEnergyRenting] = useState(false);
   const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
   const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
@@ -145,34 +149,19 @@ export default function SwapConfirmScreen() {
 
   useChromeLoading(loading || refreshing);
 
-  const approvalAvailableEnergy = review?.resources.approval
-    ? getAvailableResource(review.resources.approval.available, 'energy')
-    : 0;
-  const swapAvailableEnergy = review?.resources.swap
-    ? getAvailableResource(review.resources.swap.available, 'energy')
-    : 0;
-  const approvalAvailableBandwidth = review?.resources.approval
-    ? getAvailableResource(review.resources.approval.available, 'bandwidth')
-    : 0;
-  const swapAvailableBandwidth = review?.resources.swap
-    ? getAvailableResource(review.resources.swap.available, 'bandwidth')
-    : 0;
   const estimatedEnergy =
     normalizeResourceAmount(review?.resources.approval?.estimatedEnergy) +
     normalizeResourceAmount(review?.resources.swap?.estimatedEnergy);
   const estimatedBandwidth =
     normalizeResourceAmount(review?.resources.approval?.estimatedBandwidth) +
     normalizeResourceAmount(review?.resources.swap?.estimatedBandwidth);
-  const totalAvailableEnergy = Math.max(approvalAvailableEnergy, swapAvailableEnergy);
-  const totalAvailableBandwidth = Math.max(approvalAvailableBandwidth, swapAvailableBandwidth);
   const resourceEnergyShortfall =
     normalizeResourceAmount(review?.resources.approval?.energyShortfall) +
     normalizeResourceAmount(review?.resources.swap?.energyShortfall);
   const resourceBandwidthShortfall =
     normalizeResourceAmount(review?.resources.approval?.bandwidthShortfall) +
     normalizeResourceAmount(review?.resources.swap?.bandwidthShortfall);
-  const hasResourceShortfall = resourceEnergyShortfall > 0 || resourceBandwidthShortfall > 0;
-  const canRentResources = estimatedEnergy > 0 || estimatedBandwidth > 0;
+  const canRentResources = resourceEnergyShortfall > 0 || resourceBandwidthShortfall > 0;
   const approvalProcessing = !passcodeOpen && (submitting || energyRenting);
 
   const load = useCallback(async () => {
@@ -276,8 +265,8 @@ export default function SwapConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'swap',
       wallet: review.wallet.address,
-      requiredEnergy: resourceEnergyShortfall || estimatedEnergy,
-      requiredBandwidth: resourceBandwidthShortfall || estimatedBandwidth,
+      requiredEnergy: resourceEnergyShortfall,
+      requiredBandwidth: resourceBandwidthShortfall,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {
@@ -348,6 +337,7 @@ export default function SwapConfirmScreen() {
       setApprovalStatusMessage(t('Submitting your swap to the network...'));
 
       const result = await executeSwap({
+        feeApproval: operationFee.approved.current ?? undefined,
         route: review.route,
         amountIn: review.amountIn,
         slippage: review.slippage,
@@ -366,6 +356,7 @@ export default function SwapConfirmScreen() {
         },
       });
 
+      await completeEnergyRental('swap', review.wallet.address);
       const timestamp = Date.now();
       const explorerUrl = buildTronscanTxUrl(result.txid);
       const sourceAmountRaw = decimalToRaw(review.amountIn, review.inputToken.decimals);
@@ -460,7 +451,7 @@ export default function SwapConfirmScreen() {
       setApprovalStatusTitle('');
       setApprovalStatusMessage('');
     }
-  }, [notice, review, router, submitting, t, triggerWalletDataRefresh]);
+  }, [operationFee.approved, notice, review, router, submitting, t, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -594,14 +585,12 @@ export default function SwapConfirmScreen() {
   }, [canUseBiometrics, handleBiometricApproval]);
 
   const handleApprove = useCallback(async () => {
+    if (!operationFee.plan) return;
+    operationFee.approved.current = operationFee.plan;
     if (!review || submitting) return;
     openApprovalAuth('swap');
-  }, [openApprovalAuth, review, submitting]);
+  }, [operationFee.plan, operationFee.approved, openApprovalAuth, review, submitting]);
 
-  const handleRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || submitting || energyRenting) return;
-    openApprovalAuth('rent');
-  }, [energyQuote, energyRenting, openApprovalAuth, review, submitting]);
 
   if (loading && !review) {
     return <ScreenLoadingState label={t('Loading swap confirmation...')} />;
@@ -703,7 +692,7 @@ export default function SwapConfirmScreen() {
                   (submitting || review.wallet.kind === 'watch-only') && styles.primaryButtonDisabled,
                 ]}
                 onPress={() => void handleApprove()}
-                disabled={submitting || review.wallet.kind === 'watch-only'}
+                disabled={submitting || !operationFee.plan || review.wallet.kind === 'watch-only'}
               >
                 {submitting ? (
                   <ActivityIndicator color={colors.white} />
@@ -718,17 +707,6 @@ export default function SwapConfirmScreen() {
                   </Text>
                 )}
               </TouchableOpacity>
-
-              <EnergyResaleCard
-                quote={energyQuote}
-                loading={energyQuoteLoading}
-                processing={energyRenting}
-                disabled={submitting}
-                showUnavailable={canRentResources}
-                actionLabel={t('SWAP')}
-                estimatedBurnSun={review.resources.estimatedBurnSun}
-                onRent={() => void handleRentEnergy()}
-              />
 
               <View style={styles.sectionBlock}>
                 <Text style={styles.sectionEyebrow}>{t('SWAP REVIEW')}</Text>
@@ -781,39 +759,13 @@ export default function SwapConfirmScreen() {
                   </View>
 
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{t('Estimated Burn')}</Text>
+                    <Text style={styles.detailLabel}>{t('Transaction fee')}</Text>
                     <Text style={styles.detailValueAccent}>
-                      {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
-                    </Text>
-                  </View>
-
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{t('Fee Cap')}</Text>
-                    <Text style={styles.detailValue}>
-                      {formatTrxFromSunAmount(
-                        Number(review.resources.swap?.recommendedFeeLimitSun || 0) +
-                          Number(review.resources.approval?.recommendedFeeLimitSun || 0)
-                      )}{' '}
-                      TRX
+                      {feeText}
                     </Text>
                   </View>
                 </View>
               </View>
-
-              <ConfirmNetworkLoadCard
-                estimatedEnergy={estimatedEnergy}
-                estimatedBandwidth={estimatedBandwidth}
-                availableEnergy={totalAvailableEnergy}
-                availableBandwidth={totalAvailableBandwidth}
-                energyShortfall={resourceEnergyShortfall}
-                bandwidthShortfall={resourceBandwidthShortfall}
-                message={
-                  hasResourceShortfall
-                    ? t('You are short on resources. The burn estimate above already includes this gap.')
-                    : t('You have enough resources for this action. Extra burn is unlikely.')
-                  }
-                messageRisk={hasResourceShortfall}
-              />
 
               {review.routeChanged ? (
                 <View style={styles.noticeCard}>

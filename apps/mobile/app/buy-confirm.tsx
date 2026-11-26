@@ -1,3 +1,5 @@
+import { formatOperationSun } from '../src/services/wallet/operation-fee';
+import { useOperationFee } from '../src/services/wallet/use-operation-fee';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,8 +20,6 @@ import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
 import ApprovalAuthModal from '../src/ui/approval-auth-modal';
-import EnergyResaleCard from '../src/ui/energy-resale-card';
-import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import { useNavigationInsets } from '../src/ui/navigation';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
 import useChromeLoading from '../src/ui/use-chrome-loading';
@@ -49,11 +49,11 @@ import { waitForBuyerAmbassadorBinding } from '../src/services/ambassador';
 import {
   getEnergyResaleQuote,
   rentEnergyForPurpose,
+  completeEnergyRental,
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
   formatTrxFromSunAmount,
-  getAvailableResource,
 } from '../src/services/wallet/resources';
 
 function resolveParam(value: string | string[] | undefined) {
@@ -159,6 +159,11 @@ function AndroidBuyConfirmScreen() {
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
+  const operationFee = useOperationFee({ wallet: review?.wallet.address, purpose: 'direct_buy',
+    burnSun: review?.resources.estimatedBurnSun, resources: review?.resources, quote: energyQuote, loading: energyQuoteLoading });
+  const feeText = operationFee.plan
+    ? `${formatOperationSun(operationFee.plan.feeSun)} TRX (${t('no more than {{amount}} TRX', { amount: formatOperationSun(operationFee.plan.maxFeeSun) })})`
+    : t('Calculating...');
   const [energyRenting, setEnergyRenting] = useState(false);
   const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
   const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
@@ -167,17 +172,9 @@ function AndroidBuyConfirmScreen() {
   const burnWarningShownRef = useRef(false);
   useChromeLoading(loading || refreshing);
 
-  const energyAvailable = review ? getAvailableResource(review.resources.available, 'energy') : 0;
-  const bandwidthAvailable = review
-    ? getAvailableResource(review.resources.available, 'bandwidth')
-    : 0;
   const lockReleaseParts = review ? formatLockReleaseParts(review.lockReleaseAt) : null;
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
   const canRentResources = Boolean(
-    review &&
-      (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
-  );
-  const hasResourceShortfall = Boolean(
     review &&
       (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
@@ -314,9 +311,9 @@ function AndroidBuyConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'direct_buy',
       wallet: review.wallet.address,
-      requiredEnergy: review.resources.energyShortfall || review.resources.estimatedEnergy,
+      requiredEnergy: review.resources.energyShortfall,
       requiredBandwidth:
-        review.resources.bandwidthShortfall || review.resources.estimatedBandwidth,
+        review.resources.bandwidthShortfall,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {
@@ -379,6 +376,7 @@ function AndroidBuyConfirmScreen() {
       setApprovalStatusMessage(t('Submitting your direct buy to the network...'));
 
       const nextReceipt = await executeDirectBuy({
+        feeApproval: operationFee.approved.current ?? undefined,
         trxAmount: review.amountTrx,
         contractAddress: review.contractAddress,
         feeLimitSun: review.resources.recommendedFeeLimitSun,
@@ -427,6 +425,7 @@ function AndroidBuyConfirmScreen() {
       }
 
       await clearDirectBuyDraft();
+      await completeEnergyRental('direct_buy', review.wallet.address);
       await clearWalletRuntimeCaches(review.wallet.address);
       triggerWalletDataRefresh();
       preserveNoticeOnExitRef.current = true;
@@ -443,7 +442,7 @@ function AndroidBuyConfirmScreen() {
       setApprovalStatusTitle('');
       setApprovalStatusMessage('');
     }
-  }, [notice, review, submitting, t, triggerWalletDataRefresh]);
+  }, [operationFee.approved, notice, review, submitting, t, triggerWalletDataRefresh]);
 
   const closeApprovalAuth = useCallback(() => {
     setPasscodeOpen(false);
@@ -516,6 +515,8 @@ function AndroidBuyConfirmScreen() {
   }, [canUseBiometrics, handleBiometricApproval]);
 
   const handleApprove = useCallback(async () => {
+    if (!operationFee.plan) return;
+    operationFee.approved.current = operationFee.plan;
     if (!review || submitting) return;
     if (!review.trxCoverage.canCoverBurn) {
       const message = t(
@@ -530,13 +531,8 @@ function AndroidBuyConfirmScreen() {
     }
 
     openApprovalAuth('buy');
-  }, [notice, openApprovalAuth, review, submitting, t]);
+  }, [operationFee.plan, operationFee.approved, notice, openApprovalAuth, review, submitting, t]);
 
-  const handleRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || submitting || energyRenting) return;
-
-    openApprovalAuth('rent');
-  }, [energyQuote, energyRenting, openApprovalAuth, review, submitting]);
 
   const handlePasscodeDigit = useCallback((digit: string) => {
     setPasscodeDigits((current) => {
@@ -736,11 +732,10 @@ function AndroidBuyConfirmScreen() {
                     </View>
 
                     <View style={styles.heroMetricCard}>
-                      <Text style={styles.heroMetricLabel}>{t('BURN EST.')}</Text>
-                      <Text style={styles.heroMetricValue}>
-                        {formatCompactHeroAmount(review.resources.estimatedBurnSun / 1_000_000)}
+                      <Text style={styles.heroMetricLabel}>{t('Transaction fee')}</Text>
+                      <Text style={[styles.heroMetricValue, { fontSize: 12, lineHeight: 18, flexShrink: 1 }]}>
+                        {feeText}
                       </Text>
-                      <Text style={styles.heroMetricToken}>TRX</Text>
                     </View>
 
                     <View style={styles.heroMetricCard}>
@@ -760,7 +755,7 @@ function AndroidBuyConfirmScreen() {
                     styles.heroPrimaryButton,
                     submitting ? styles.primaryButtonDisabled : null,
                   ]}
-                  disabled={submitting}
+                  disabled={submitting || !operationFee.plan}
                   onPress={() => void handleApprove()}
                 >
                   {submitting ? (
@@ -776,17 +771,6 @@ function AndroidBuyConfirmScreen() {
                     </Text>
                   )}
                 </TouchableOpacity>
-
-                <EnergyResaleCard
-                  quote={energyQuote}
-                  loading={energyQuoteLoading}
-                  processing={energyRenting}
-                  disabled={submitting}
-                  showUnavailable={canRentResources}
-                  actionLabel={t('BUY')}
-                  estimatedBurnSun={review.resources.estimatedBurnSun}
-                  onRent={() => void handleRentEnergy()}
-                />
               </View>
 
               <View style={styles.sectionBlock}>
@@ -815,15 +799,9 @@ function AndroidBuyConfirmScreen() {
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{t('Estimated Burn')}</Text>
+                    <Text style={styles.detailLabel}>{t('Transaction fee')}</Text>
                     <Text style={styles.detailValueAccent}>
-                      {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
-                    </Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>{t('Fee Limit')}</Text>
-                    <Text style={styles.detailValue}>
-                      {formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX
+                      {feeText}
                     </Text>
                   </View>
                   <View style={styles.detailRow}>
@@ -832,23 +810,6 @@ function AndroidBuyConfirmScreen() {
                   </View>
                 </View>
               </View>
-
-              <ConfirmNetworkLoadCard
-                estimatedEnergy={review.resources.estimatedEnergy}
-                estimatedBandwidth={review.resources.estimatedBandwidth}
-                availableEnergy={energyAvailable}
-                availableBandwidth={bandwidthAvailable}
-                energyShortfall={review.resources.energyShortfall}
-                bandwidthShortfall={review.resources.bandwidthShortfall}
-                message={
-                  !review.trxCoverage.canCoverBurn
-                    ? t('Not enough TRX to cover the buy and the estimated burn.')
-                    : hasResourceShortfall
-                      ? t('You are short on resources. The burn estimate above already includes this gap.')
-                      : t('You have enough resources for this action. Extra burn is unlikely.')
-                  }
-                messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
-              />
 
               {errorText ? (
                 <View style={styles.errorCard}>

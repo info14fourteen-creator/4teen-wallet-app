@@ -23,6 +23,8 @@ import {
 } from './wallet/storage';
 import { formatDisplayCurrency } from '../ui/currency-format';
 import { getCachedLanguage, getLanguageLocaleTag, translateNow } from '../i18n';
+import { executeContractOperation } from './wallet/contract-operation';
+import type { OperationFeeApproval } from './wallet/operation-fee';
 
 const SUN = 1_000_000;
 const DEFAULT_DECIMALS = 6;
@@ -33,7 +35,6 @@ const DEFAULT_PRICE_UPDATE_INTERVAL = 90 * 24 * 60 * 60;
 const DEFAULT_LOCK_DURATION = 14 * 24 * 60 * 60;
 const DEFAULT_ANNUAL_GROWTH_RATE = 1475;
 const DEFAULT_DIRECT_BUY_FEE_LIMIT_SUN = 120_000_000;
-const DEFAULT_DIRECT_BUY_EXECUTION_FEE_LIMIT_SUN = 120_000_000;
 const DEFAULT_DIRECT_BUY_ESTIMATED_ENERGY = 20_000;
 const DEFAULT_DIRECT_BUY_ESTIMATED_BANDWIDTH = 420;
 
@@ -324,27 +325,6 @@ function buildContractAbi() {
   ];
 }
 
-function extractTxid(result: unknown) {
-  if (!result) return '';
-  if (typeof result === 'string') return result;
-
-  const candidate = result as {
-    txid?: string;
-    txID?: string;
-    transaction?: string | { txID?: string };
-    receipt?: { txID?: string };
-    id?: string;
-  };
-
-  if (typeof candidate.txid === 'string') return candidate.txid;
-  if (typeof candidate.txID === 'string') return candidate.txID;
-  if (typeof candidate.transaction === 'string') return candidate.transaction;
-  if (typeof candidate.transaction?.txID === 'string') return candidate.transaction.txID;
-  if (typeof candidate.receipt?.txID === 'string') return candidate.receipt.txID;
-  if (typeof candidate.id === 'string') return candidate.id;
-
-  return '';
-}
 
 async function getSigningWalletContext() {
   const initialWallet = await getActiveWallet();
@@ -789,6 +769,7 @@ export async function executeDirectBuy(input: {
   trxAmount: string | number;
   contractAddress?: string;
   feeLimitSun?: number;
+  feeApproval?: OperationFeeApproval;
 }): Promise<DirectBuyReceipt> {
   const amountTrx =
     typeof input.trxAmount === 'number'
@@ -816,16 +797,9 @@ export async function executeDirectBuy(input: {
   }
 
   const tronWeb = createTronWeb(privateKey);
-  const contract = await getContract(contractAddress, tronWeb);
-  const result = await contract.buyTokens().send({
-    callValue,
-    feeLimit:
-      typeof input.feeLimitSun === 'number' && Number.isFinite(input.feeLimitSun)
-        ? Math.max(1_000_000, Math.floor(Math.max(input.feeLimitSun, DEFAULT_DIRECT_BUY_EXECUTION_FEE_LIMIT_SUN)))
-        : DEFAULT_DIRECT_BUY_EXECUTION_FEE_LIMIT_SUN,
-    shouldPollResponse: false,
-  });
-  const txId = extractTxid(result);
+  const txId = await executeContractOperation({ tronWeb, privateKey, wallet: wallet.address,
+    approval: input.feeApproval, identity: JSON.stringify(['buy', contractAddress, callValue]),
+    contractAddress, functionSelector: 'buyTokens()', callValue });
 
   if (!txId) {
     throw new Error(translateNow('Transaction sent but txid was not returned.'));

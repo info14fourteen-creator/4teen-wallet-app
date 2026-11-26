@@ -1,3 +1,5 @@
+import { formatOperationSun } from '../src/services/wallet/operation-fee';
+import { useOperationFee } from '../src/services/wallet/use-operation-fee';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,8 +19,6 @@ import ApprovalAuthModal from '../src/ui/approval-auth-modal';
 import ScreenBrow from '../src/ui/screen-brow';
 import ScreenLoadingOverlay from '../src/ui/screen-loading-overlay';
 import ScreenLoadingState from '../src/ui/screen-loading-state';
-import EnergyResaleCard from '../src/ui/energy-resale-card';
-import ConfirmNetworkLoadCard from '../src/ui/confirm-network-load-card';
 import useChromeLoading from '../src/ui/use-chrome-loading';
 import { goBackOrReplace } from '../src/ui/safe-back';
 import { useBottomInset } from '../src/ui/use-bottom-inset';
@@ -38,11 +38,11 @@ import { useWalletSession } from '../src/wallet/wallet-session';
 import {
   getEnergyResaleQuote,
   rentEnergyForPurpose,
+  completeEnergyRental,
   type EnergyResaleQuote,
 } from '../src/services/energy-resale';
 import {
   formatTrxFromSunAmount,
-  getAvailableResource,
 } from '../src/services/wallet/resources';
 
 function shortAddress(address: string) {
@@ -73,6 +73,11 @@ export default function AmbassadorWithdrawConfirmScreen() {
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [energyQuote, setEnergyQuote] = useState<EnergyResaleQuote | null>(null);
   const [energyQuoteLoading, setEnergyQuoteLoading] = useState(false);
+  const operationFee = useOperationFee({ wallet: review?.wallet.address, purpose: 'ambassador_withdraw',
+    burnSun: review?.resources.estimatedBurnSun, resources: review?.resources, quote: energyQuote, loading: energyQuoteLoading });
+  const feeText = operationFee.plan
+    ? `${formatOperationSun(operationFee.plan.feeSun)} TRX (${t('no more than {{amount}} TRX', { amount: formatOperationSun(operationFee.plan.maxFeeSun) })})`
+    : t('Calculating...');
   const [energyRenting, setEnergyRenting] = useState(false);
   const [approvalStatusTitle, setApprovalStatusTitle] = useState('');
   const [approvalStatusMessage, setApprovalStatusMessage] = useState('');
@@ -83,21 +88,17 @@ export default function AmbassadorWithdrawConfirmScreen() {
 
   useChromeLoading(loading || refreshing);
 
-  const energyAvailable = review ? getAvailableResource(review.resources.available, 'energy') : 0;
-  const bandwidthAvailable = review
-    ? getAvailableResource(review.resources.available, 'bandwidth')
-    : 0;
   const hasResourceShortfall = Boolean(
     review &&
       (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
   const canRentResources = Boolean(
     review &&
-      (review.resources.estimatedEnergy > 0 || review.resources.estimatedBandwidth > 0)
+      (review.resources.energyShortfall > 0 || review.resources.bandwidthShortfall > 0)
   );
   const hasTrxForBurn = Boolean(review?.trxCoverage.canCoverBurn);
   const approvalProcessing = !passcodeOpen && (submitting || energyRenting);
-  const isApproveDisabled = submitting || !review || !hasTrxForBurn;
+  const isApproveDisabled = !operationFee.plan || submitting || !review || !hasTrxForBurn;
 
   const load = useCallback(async () => {
     try {
@@ -203,9 +204,9 @@ export default function AmbassadorWithdrawConfirmScreen() {
     getEnergyResaleQuote({
       purpose: 'ambassador_withdraw',
       wallet: review.wallet.address,
-      requiredEnergy: review.resources.energyShortfall || review.resources.estimatedEnergy,
+      requiredEnergy: review.resources.energyShortfall,
       requiredBandwidth:
-        review.resources.bandwidthShortfall || review.resources.estimatedBandwidth,
+        review.resources.bandwidthShortfall,
     }).then((quote) => {
       if (!cancelled) setEnergyQuote(quote);
     }).finally(() => {
@@ -268,7 +269,8 @@ export default function AmbassadorWithdrawConfirmScreen() {
       setSubmitting(true);
       setApprovalStatusTitle(t('Sending withdrawal'));
       setApprovalStatusMessage(t('Submitting withdrawal to the network...'));
-      const receipt = await withdrawAmbassadorRewards();
+      const receipt = await withdrawAmbassadorRewards(operationFee.approved.current ?? undefined);
+      await completeEnergyRental('ambassador_withdraw', review.wallet.address);
 
       setPasscodeOpen(false);
       setPasscodeEntryOpen(false);
@@ -291,7 +293,7 @@ export default function AmbassadorWithdrawConfirmScreen() {
       setApprovalStatusTitle('');
       setApprovalStatusMessage('');
     }
-  }, [notice, review, router, submitting, t, triggerWalletDataRefresh]);
+  }, [operationFee.approved, notice, review, router, submitting, t, triggerWalletDataRefresh]);
 
   const handlePasscodeSubmit = useCallback(async () => {
     if (submitting || energyRenting || passcodeDigits.length !== 6) return;
@@ -426,15 +428,12 @@ export default function AmbassadorWithdrawConfirmScreen() {
   }, [canUseBiometrics, handleBiometricApproval]);
 
   const handleApprove = useCallback(async () => {
+    if (!operationFee.plan) return;
+    operationFee.approved.current = operationFee.plan;
     if (!review || submitting || !review.trxCoverage.canCoverBurn) return;
     openApprovalAuth('withdraw');
-  }, [openApprovalAuth, review, submitting]);
+  }, [operationFee.plan, operationFee.approved, openApprovalAuth, review, submitting]);
 
-  const handleRentEnergy = useCallback(async () => {
-    if (!review || !energyQuote || submitting || energyRenting) return;
-
-    openApprovalAuth('rent');
-  }, [energyQuote, energyRenting, openApprovalAuth, review, submitting]);
 
   if (loading && !review) {
     return <ScreenLoadingState label={t('Building ambassador withdrawal confirmation')} />;
@@ -501,9 +500,9 @@ export default function AmbassadorWithdrawConfirmScreen() {
                 </View>
 
                 <View style={styles.heroMetaRow}>
-                  <Text style={styles.heroMetaLabel}>{t('Estimated burn')}</Text>
+                  <Text style={styles.heroMetaLabel}>{t('Transaction fee')}</Text>
                   <Text style={[styles.heroMetaValue, hasResourceShortfall ? styles.heroMetaValueRisk : null]}>
-                    {formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX
+                    {feeText}
                   </Text>
                 </View>
               </View>
@@ -528,45 +527,16 @@ export default function AmbassadorWithdrawConfirmScreen() {
                 )}
               </TouchableOpacity>
 
-              <EnergyResaleCard
-                quote={energyQuote}
-                loading={energyQuoteLoading}
-                processing={energyRenting}
-                disabled={submitting}
-                showUnavailable={canRentResources}
-                actionLabel={t('WITHDRAW')}
-                estimatedBurnSun={review.resources.estimatedBurnSun}
-                onRent={() => void handleRentEnergy()}
-              />
-
               <View style={styles.sectionBlock}>
                 <Text style={styles.sectionEyebrow}>{t('WITHDRAW REVIEW')}</Text>
                 <View style={styles.detailCard}>
                   <DetailRow label={t('Wallet')} value={review.wallet.name} first />
                   <DetailRow label={t('Controller')} value={shortAddress(review.controllerAddress)} />
                   <DetailRow label={t('Claimable')} value={`${formatTrxFromSun(review.claimableRewardsSun)} TRX`} accent />
-                  <DetailRow label={t('Estimated Burn')} value={`${formatTrxFromSunAmount(review.resources.estimatedBurnSun)} TRX`} accent={hasResourceShortfall} />
-                  <DetailRow label={t('Fee Cap')} value={`${formatTrxFromSunAmount(review.resources.recommendedFeeLimitSun)} TRX`} />
-                  <DetailRow label={t('TRX Available')} value={review.trxCoverage.trxBalanceDisplay} />
+                  <DetailRow label={t('Transaction fee')} value={`${feeText}`} accent={hasResourceShortfall} />
+                                    <DetailRow label={t('TRX Available')} value={review.trxCoverage.trxBalanceDisplay} />
                 </View>
               </View>
-
-              <ConfirmNetworkLoadCard
-                estimatedEnergy={review.resources.estimatedEnergy}
-                estimatedBandwidth={review.resources.estimatedBandwidth}
-                availableEnergy={energyAvailable}
-                availableBandwidth={bandwidthAvailable}
-                energyShortfall={review.resources.energyShortfall}
-                bandwidthShortfall={review.resources.bandwidthShortfall}
-                message={
-                  !review.trxCoverage.canCoverBurn
-                    ? t('Not enough TRX to cover the estimated burn.')
-                    : hasResourceShortfall
-                      ? t('You are short on resources. The burn estimate above already includes this gap.')
-                      : t('You have enough resources for this action. Extra burn is unlikely.')
-                }
-                messageRisk={!review.trxCoverage.canCoverBurn || hasResourceShortfall}
-              />
 
               <View style={styles.noticeCard}>
                 <Text style={styles.noticeCardText}>
@@ -714,6 +684,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Sora_600SemiBold',
   },
   heroMetaValue: {
+    flexShrink: 1,
+    textAlign: 'right',
     color: colors.white,
     fontSize: 14,
     lineHeight: 18,

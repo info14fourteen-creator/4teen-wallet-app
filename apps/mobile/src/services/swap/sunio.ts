@@ -29,6 +29,9 @@ import {
 } from '../wallet/resources';
 import { translateNow } from '../../i18n';
 import { SUNIO_SMART_ROUTER_ADDRESS } from './disclosure';
+import { executeContractOperation } from '../wallet/contract-operation';
+import { getRecordedTransfer } from '../wallet/recorded-transfer';
+import type { OperationFeeApproval } from '../wallet/operation-fee';
 
 const TRX_CONTRACT = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 const USDT_LOGO = 'https://s2.coinmarketcap.com/static/img/coins/64x64/825.png';
@@ -36,8 +39,6 @@ const ROUTER_URL = 'https://rot.endjgfsv.link/swap/routerUniversal';
 
 const SMART_ROUTER_ADDRESS = SUNIO_SMART_ROUTER_ADDRESS;
 const DEFAULT_FEE_LIMIT_SUN = 180_000_000;
-const DEFAULT_APPROVAL_EXECUTION_FEE_LIMIT_SUN = 180_000_000;
-const DEFAULT_SWAP_EXECUTION_FEE_LIMIT_SUN = 350_000_000;
 const DEFAULT_SLIPPAGE_BPS = 300;
 const DEFAULT_DEADLINE_SECONDS = 60 * 20;
 const TRON_DERIVATION_PATH = "m/44'/195'/0'/0/0";
@@ -81,31 +82,6 @@ const TRC20_ABI = [
   },
 ];
 
-const SMART_ROUTER_ABI = [
-  {
-    inputs: [
-      { internalType: 'address[]', name: 'path', type: 'address[]' },
-      { internalType: 'string[]', name: 'poolVersion', type: 'string[]' },
-      { internalType: 'uint256[]', name: 'versionLen', type: 'uint256[]' },
-      { internalType: 'uint24[]', name: 'fees', type: 'uint24[]' },
-      {
-        components: [
-          { internalType: 'uint256', name: 'amountIn', type: 'uint256' },
-          { internalType: 'uint256', name: 'amountOutMin', type: 'uint256' },
-          { internalType: 'address', name: 'to', type: 'address' },
-          { internalType: 'uint256', name: 'deadline', type: 'uint256' },
-        ],
-        internalType: 'struct ISmartExchangeRouter.SwapData',
-        name: 'data',
-        type: 'tuple',
-      },
-    ],
-    name: 'swapExactInput',
-    outputs: [{ internalType: 'uint256[]', name: 'amountsOut', type: 'uint256[]' }],
-    stateMutability: 'payable',
-    type: 'function',
-  },
-];
 
 export type SwapTargetToken = 'TRX' | 'USDT';
 
@@ -1139,7 +1115,10 @@ async function ensureApproval(
   owner: string,
   token: SwapTokenMeta,
   amountIn: string,
-  feeLimitSun: number
+  feeLimitSun: number,
+  privateKey: string,
+  feeApproval: OperationFeeApproval | undefined,
+  identity: string
 ) {
   if (isNativeSwapToken(token)) {
     return null;
@@ -1147,24 +1126,15 @@ async function ensureApproval(
 
   const allowance = await checkAllowance(tronWeb, owner, token, amountIn);
 
-  if (allowance.hasEnoughAllowance) {
+  const recorded = await getRecordedTransfer(`operation:${owner}:swap:approval`);
+  if (allowance.hasEnoughAllowance && !recorded) {
     return null;
   }
 
-  const contract = await tronWeb.contract(TRC20_ABI, token.address);
-  const txid = await contract.approve(SMART_ROUTER_ADDRESS, MAX_UINT256).send({
-    feeLimit: Math.max(
-      1_000_000,
-      Math.floor(
-        Math.max(
-          feeLimitSun || DEFAULT_FEE_LIMIT_SUN,
-          DEFAULT_APPROVAL_EXECUTION_FEE_LIMIT_SUN
-        )
-      )
-    ),
-    callValue: 0,
-    shouldPollResponse: false,
-  });
+  const txid = await executeContractOperation({ tronWeb, privateKey, wallet: owner,
+    approval: feeApproval, identity, stage: 'approval', contractAddress: token.address,
+    functionSelector: 'approve(address,uint256)',
+    parameters: [{ type: 'address', value: SMART_ROUTER_ADDRESS }, { type: 'uint256', value: MAX_UINT256 }] });
 
   return String(txid || '');
 }
@@ -1177,12 +1147,14 @@ export async function executeSwap(input: {
   walletId?: string;
   feeLimitSun?: number;
   approvalFeeLimitSun?: number;
+  feeApproval?: OperationFeeApproval;
   onProgress?: (progress: SwapExecutionProgress) => void;
 }): Promise<ExecuteSwapResult> {
   const sourceToken = normalizeSwapTokenMeta(input.sourceToken);
   assertSwapAmountWithinSpendableBalance(sourceToken, input.amountIn);
   const { wallet, privateKey } = await getSigningContext(input.walletId);
   const owner = wallet.address;
+  const operationIdentity = JSON.stringify(['swap', owner, sourceToken.address, input.amountIn, input.slippage, input.route]);
   const tronWeb = createTronWeb(privateKey);
   prepareTronWebForSigning(tronWeb, owner);
 
@@ -1206,7 +1178,8 @@ export async function executeSwap(input: {
       owner,
       sourceToken,
       input.amountIn,
-      input.approvalFeeLimitSun || input.feeLimitSun || DEFAULT_FEE_LIMIT_SUN
+      input.approvalFeeLimitSun || input.feeLimitSun || DEFAULT_FEE_LIMIT_SUN,
+      privateKey, input.feeApproval, operationIdentity
     );
 
     if (approvalTxid) {
@@ -1235,33 +1208,18 @@ export async function executeSwap(input: {
     const expectedOutRaw = normalizeBigIntLike(input.route.expectedOutRaw);
     const amountOutMinRaw = ((expectedOutRaw * (10_000n - slippageBps)) / 10_000n).toString();
     const deadline = String(Math.floor(Date.now() / 1000) + DEFAULT_DEADLINE_SECONDS);
-    const swapData = [amountInRaw, amountOutMinRaw, owner, deadline];
 
     report({
       step: 'swap-submitting',
       message: 'Sending swap transaction...',
     });
 
-    const router = await tronWeb.contract(SMART_ROUTER_ABI, SMART_ROUTER_ADDRESS);
-    const txid = await router.swapExactInput(
-      input.route.path,
-      input.route.poolVersion,
-      input.route.versionLen.map((value: number) => String(value)),
-      input.route.fees.map((value: number) => Number(value)),
-      swapData
-    ).send({
-      feeLimit: Math.max(
-        1_000_000,
-        Math.floor(
-          Math.max(
-            input.feeLimitSun || DEFAULT_FEE_LIMIT_SUN,
-            DEFAULT_SWAP_EXECUTION_FEE_LIMIT_SUN
-          )
-        )
-      ),
-      callValue: isNativeSwapToken(sourceToken) ? Number(amountInRaw) : 0,
-      shouldPollResponse: false,
-    });
+    const txid = await executeContractOperation({ tronWeb, privateKey, wallet: owner,
+      approval: input.feeApproval, identity: operationIdentity, stage: 'swap',
+      contractAddress: SMART_ROUTER_ADDRESS,
+      functionSelector: 'swapExactInput(address[],string[],uint256[],uint24[],(uint256,uint256,address,uint256))',
+      parameters: buildSwapFunctionParameters({ route: input.route, owner, amountInRaw, amountOutMinRaw, deadline }),
+      callValue: isNativeSwapToken(sourceToken) ? Number(amountInRaw) : 0 });
 
     const normalizedTxid = String(txid || '');
 

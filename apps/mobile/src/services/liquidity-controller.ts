@@ -19,13 +19,14 @@ import {
   normalizeResourceAmount,
   type ContractCallResourceEstimate,
 } from './wallet/resources';
+import { executeContractOperation } from './wallet/contract-operation';
+import type { OperationFeeApproval } from './wallet/operation-fee';
 
 const TRON_DERIVATION_PATH = "m/44'/195'/0'/0/0";
 const SUN = 1_000_000;
 const LIQUIDITY_EVENTS_LIMIT = 10;
 const LIQUIDITY_CACHE_TTL_MS = 60 * 1000;
 const DEFAULT_EXECUTE_FEE_LIMIT_SUN = 150_000_000;
-const DEFAULT_EXECUTION_FEE_LIMIT_FLOOR_SUN = 220_000_000;
 const DEFAULT_EXECUTE_ESTIMATED_ENERGY = 220_000;
 const DEFAULT_EXECUTE_ESTIMATED_BANDWIDTH = 650;
 
@@ -47,14 +48,6 @@ export const LIQUIDITY_INFO_TITLE = 'How liquidity routing works';
 export const LIQUIDITY_INFO_TEXT =
   'Direct 4TEEN buys send 90% of purchase TRX into the FourteenLiquidityController. That controller holds the liquidity-side TRX and enforces the release rules on-chain.\n\nLiquidity can execute once per UTC day when the controller balance is at least 100 TRX. The released amount is 6.43% of the controller balance, split 50/50 between the JustMoney executor and the Sun.io V3 executor.\n\nThe LiquidityBootstrapper prepares executor token balances from FourteenVault before calling the controller. Automation may trigger the flow, but the schedule, threshold, percentage, and split are enforced by contracts.';
 
-type LiquidityContract = {
-  bootstrapAndExecute: () => {
-    send: (options: {
-      feeLimit?: number;
-      shouldPollResponse?: boolean;
-    }) => Promise<unknown>;
-  };
-};
 
 type LiquidityTargetContract = {
   targetA: () => {
@@ -145,19 +138,6 @@ function createTronWeb(privateKey?: string, address?: string) {
   return tronWeb;
 }
 
-function buildExecutorAbi() {
-  return [
-    {
-      constant: false,
-      inputs: [],
-      name: 'bootstrapAndExecute',
-      outputs: [],
-      payable: false,
-      stateMutability: 'nonpayable',
-      type: 'function',
-    },
-  ];
-}
 
 function buildControllerTargetAbi() {
   return [
@@ -220,27 +200,6 @@ function normalizeLiquidityAddress(tronWeb: TronWeb, value: unknown) {
   return '';
 }
 
-function extractTxId(result: unknown) {
-  if (!result) return '';
-  if (typeof result === 'string') return result;
-
-  const candidate = result as {
-    txid?: string;
-    txID?: string;
-    transaction?: string | { txID?: string };
-    receipt?: { txID?: string };
-    id?: string;
-  };
-
-  if (typeof candidate.txid === 'string') return candidate.txid;
-  if (typeof candidate.txID === 'string') return candidate.txID;
-  if (typeof candidate.transaction === 'string') return candidate.transaction;
-  if (typeof candidate.transaction?.txID === 'string') return candidate.transaction.txID;
-  if (typeof candidate.receipt?.txID === 'string') return candidate.receipt.txID;
-  if (typeof candidate.id === 'string') return candidate.id;
-
-  return '';
-}
 
 function formatTrxBalanceDisplay(valueSun: number) {
   const trx = Math.max(0, Number(valueSun || 0)) / SUN;
@@ -506,22 +465,13 @@ async function getSigningWalletContext() {
 
 export async function executeLiquidityController(options?: {
   feeLimitSun?: number;
+  feeApproval?: OperationFeeApproval;
 }): Promise<LiquidityExecutionReceipt> {
   const { wallet, privateKey } = await getSigningWalletContext();
   const tronWeb = createTronWeb(privateKey, wallet.address);
-  const contract = (await tronWeb.contract(
-    buildExecutorAbi(),
-    LIQUIDITY_BOOTSTRAPPER_ADDRESS
-  )) as unknown as LiquidityContract;
-
-  const result = await contract.bootstrapAndExecute().send({
-    feeLimit:
-      typeof options?.feeLimitSun === 'number' && Number.isFinite(options.feeLimitSun)
-        ? Math.max(1_000_000, Math.floor(Math.max(options.feeLimitSun, DEFAULT_EXECUTION_FEE_LIMIT_FLOOR_SUN)))
-        : DEFAULT_EXECUTION_FEE_LIMIT_FLOOR_SUN,
-    shouldPollResponse: false,
-  });
-  const txId = extractTxId(result);
+  const txId = await executeContractOperation({ tronWeb, privateKey, wallet: wallet.address,
+    approval: options?.feeApproval, identity: JSON.stringify(['liquidity', LIQUIDITY_BOOTSTRAPPER_ADDRESS]),
+    contractAddress: LIQUIDITY_BOOTSTRAPPER_ADDRESS, functionSelector: 'bootstrapAndExecute()' });
 
   if (!txId) {
     throw new Error(translateNow('Transaction sent but txid was not returned.'));
