@@ -1,1 +1,1 @@
-export { default } from '../src/features/native-exchange/unavailable-screen';
+export { default } from './ambassador-withdraw-confirm.tsx';

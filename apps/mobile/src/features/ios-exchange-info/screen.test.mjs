@@ -13,11 +13,27 @@ test('iOS Buy and Swap show live read-only records, not disabled placeholders', 
   assert.doesNotMatch(screen, /executeDirectBuy|executeSwap|signTransaction|just\.money|sun\.io/);
 });
 
-test('iOS direct Buy confirmation cannot reach the signing flow', () => {
+test('iOS direct Buy reaches the shared confirmation flow', () => {
   const buy = read('../../../app/buy.tsx');
   const confirm = read('../../../app/buy-confirm.tsx');
-  assert.match(buy, /Platform\.OS === 'ios' \? <IOSExchangeInfoScreen mode="buy"/);
-  assert.match(confirm, /Platform\.OS === 'ios' \? <Redirect href="\/buy"/);
+  const iosBuy = read('../../../app/buy.ios.tsx');
+  const iosConfirm = read('../../../app/buy-confirm.ios.tsx');
+  const iosEntry = read('../../../app/buy-4teen.ios.tsx');
+  assert.match(iosBuy, /export \{ default \} from '\.\/buy\.tsx'/);
+  assert.match(iosConfirm, /export \{ default \} from '\.\/buy-confirm\.tsx'/);
+  assert.match(iosEntry, /Redirect href="\/buy"/);
+  assert.match(buy, /return <AndroidBuyScreen \/>/);
+  assert.match(confirm, /return <AndroidBuyConfirmScreen \/>/);
+  assert.match(confirm, /executeDirectBuy/);
+});
+
+test('iOS Ambassador and Airdrop use the shared interactive flows', () => {
+  for (const name of ['ambassador-program', 'ambassador-confirm', 'ambassador-withdraw-confirm', 'airdrop']) {
+    assert.match(read(`../../../app/${name}.ios.tsx`), new RegExp(`export \\{ default \\} from '\\.\\/${name}\\.tsx'`));
+  }
+  assert.match(read('../../../app/airdrop.tsx'), /startTelegramAirdropFlow/);
+  assert.match(read('../../../app/ambassador-confirm.tsx'), /registerAmbassadorWithOptions/);
+  assert.match(read('../../../app/ambassador-withdraw-confirm.tsx'), /withdrawAmbassadorRewards/);
 });
 
 test('read-only page copy exists for every supported language', () => {

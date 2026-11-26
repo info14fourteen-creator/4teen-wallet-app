@@ -1,7 +1,7 @@
 export const APP_VERSION = {
   major: 1,
   minor: 0,
-  patch: 10,
+  patch: 11,
   channel: 'release',
   iteration: 1,
 };

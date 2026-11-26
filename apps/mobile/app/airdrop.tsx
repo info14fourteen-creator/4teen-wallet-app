@@ -114,7 +114,8 @@ function formatCardAmount(value: string) {
 function buildTelegramCard(
   wallet: WalletMeta | null,
   overview: TelegramAirdropOverview | null,
-  onChain: AirdropVaultOnChainSnapshot | null
+  onChain: AirdropVaultOnChainSnapshot | null,
+  overviewUnavailable: boolean
 ): SocialCardItem {
   const telegramClaim = onChain?.platforms.telegram ?? null;
 
@@ -160,6 +161,20 @@ function buildTelegramCard(
       actionable: true,
       explorerUrl: telegramClaim.explorerUrl,
       socialUrl: AIRDROP_SOCIAL_URLS.telegram,
+      Icon: TelegramIcon,
+    };
+  }
+
+  if (overviewUnavailable) {
+    return {
+      key: 'telegram',
+      title: translateNow('Telegram'),
+      status: translateNow('UNAVAILABLE'),
+      amount: '0',
+      when: translateNow('Status could not be loaded'),
+      tone: 'orange',
+      actionLabel: translateNow('RETRY'),
+      actionable: true,
       Icon: TelegramIcon,
     };
   }
@@ -259,7 +274,8 @@ function buildTelegramCard(
 function buildSocialCards(
   wallet: WalletMeta | null,
   overview: TelegramAirdropOverview | null,
-  onChain: AirdropVaultOnChainSnapshot | null
+  onChain: AirdropVaultOnChainSnapshot | null,
+  overviewUnavailable: boolean
 ): SocialCardItem[] {
   const buildStaticPlatformCard = (
     key: 'instagram' | 'x' | 'facebook' | 'youtube',
@@ -301,7 +317,7 @@ function buildSocialCards(
   const cards = [
     buildStaticPlatformCard('instagram', 'Instagram', InstagramIcon),
     buildStaticPlatformCard('x', 'X', XIcon),
-    buildTelegramCard(wallet, overview, onChain),
+    buildTelegramCard(wallet, overview, onChain, overviewUnavailable),
     buildStaticPlatformCard('facebook', 'Facebook', FacebookIcon),
     buildStaticPlatformCard('youtube', 'YouTube', YoutubeIcon),
   ];
@@ -325,6 +341,7 @@ export default function AirdropScreen() {
   const { setPendingWalletSelectionId } = useWalletSession();
   const [wallet, setWallet] = useState<WalletMeta | null>(null);
   const [overview, setOverview] = useState<TelegramAirdropOverview | null>(null);
+  const [overviewUnavailable, setOverviewUnavailable] = useState(false);
   const [onChain, setOnChain] = useState<AirdropVaultOnChainSnapshot | null>(null);
   const [walletChoices, setWalletChoices] = useState<WalletSwitcherItem[]>([]);
   const [walletOptionsOpen, setWalletOptionsOpen] = useState(false);
@@ -375,6 +392,7 @@ export default function AirdropScreen() {
 
       setWallet(resolvedWallet);
       setOverview(snapshot.overview);
+      setOverviewUnavailable(snapshot.overviewUnavailable);
       setOnChain((current) =>
         current && current.walletAddress === resolvedWallet?.address ? current : null
       );
@@ -414,7 +432,6 @@ export default function AirdropScreen() {
       console.warn(error);
 
       if (loadRequestIdRef.current === requestId) {
-        setOverview(null);
         setOnChain(null);
       }
 
@@ -535,7 +552,10 @@ export default function AirdropScreen() {
     }
   }, [load, notice, router, t, wallet]);
 
-  const socialCards = useMemo(() => buildSocialCards(wallet, overview, onChain), [onChain, overview, wallet]);
+  const socialCards = useMemo(
+    () => buildSocialCards(wallet, overview, onChain, overviewUnavailable),
+    [onChain, overview, overviewUnavailable, wallet]
+  );
   const canOpenTelegram = Boolean(wallet && wallet.kind !== 'watch-only');
   const selectedWalletOption = useMemo(
     () => walletChoices.find((item) => item.id === wallet?.id) ?? null,
@@ -624,7 +644,11 @@ export default function AirdropScreen() {
             canOpenTelegram={canOpenTelegram}
             launching={launching}
             onTelegramPress={() => {
-              void openTelegram();
+              if (overviewUnavailable) {
+                void load(true);
+              } else {
+                void openTelegram();
+              }
             }}
             onWalletPress={() => {
               router.push('/wallets');

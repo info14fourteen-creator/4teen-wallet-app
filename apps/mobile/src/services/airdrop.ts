@@ -811,13 +811,23 @@ export async function getActiveWalletTelegramAirdropOverview() {
     return {
       wallet: null,
       overview: null,
+      overviewUnavailable: false,
     };
   }
 
-  return {
-    wallet,
-    overview: await getTelegramAirdropOverview(wallet.address),
-  };
+  try {
+    return {
+      wallet,
+      overview: await getTelegramAirdropOverview(wallet.address),
+      overviewUnavailable: false,
+    };
+  } catch {
+    return {
+      wallet,
+      overview: null,
+      overviewUnavailable: true,
+    };
+  }
 }
 
 export async function getActiveWalletAirdropSnapshot(
