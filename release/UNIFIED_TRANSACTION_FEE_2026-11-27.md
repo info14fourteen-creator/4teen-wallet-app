@@ -50,8 +50,18 @@ refunds and guaranteed execution after an ambiguous paid order are not claimed.
   a visual device test.
 - No real transfer, provider purchase, or background-funding activation is
   performed for this candidate. Production recovery controls are not changed.
-- Phone installation remains separate; this candidate is not installed over
-  the restored original 1.0.11 (30) binary.
+- On 27 November, installed the current-source Release build as 1.0.11 (32)
+  over the restored 1.0.11 (30), without uninstalling. Bundle identifier and
+  signing team remain `me.fourteen.wallet` and `6F69J57R99`.
+- Device app inventory confirms version 1.0.11 (32), and launch succeeded.
+  Before/after comparison matched all 43 local storage entries, including the
+  same three wallets and active-wallet selection. Keychain secrets were not
+  read or exported. This is not a test of signing access.
+- Current iOS source tests: 226 passed. Both source commits were pushed to
+  `origin/codex/ios-account-deletion` (`9dc1743`, `0b970d4`). Unrelated older
+  storefront metadata and screenshots were not included.
+- Visual inspection reached the wallet passcode screen. The fee screens still
+  require wallet unlock; no authorization or transfer was attempted.
 - Before financial activation: provider Energy and Bandwidth delivery, actual
   on-chain costs, failure recovery, and the final confirmation layout require
   the separately authorized end-to-end/device acceptance test.
