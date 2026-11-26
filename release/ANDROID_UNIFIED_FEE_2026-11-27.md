@@ -21,7 +21,22 @@ EAS internal APK candidate: 1.0.11 (25), build
 `ffcdb13c-23c0-4ef7-82c4-9160bc5375a9`, profile `device-qa` using existing remote
 signing credentials. This is not a Google Play submission or publication.
 
-There is no physical Android phone available. Emulator visual checks and final
-APK status are recorded separately when completed. Never uninstall an existing
-wallet to work around a signing mismatch. No real financial tests or background
-provider funding are authorized for this candidate.
+The EAS build finished successfully. APK package/version read-back confirms
+`me.fourteen.wallet`, 1.0.11, versionCode 25. Original APK SHA-256:
+`c6c68155b867087219c8746eb6805db238161af806a0992e2893ea727b9ece43`.
+Its signing certificate SHA-256 is
+`d9929604944e2abb7b12e2d417ad85edfab08961cc6a75d3088c09bdc69e9524`.
+
+There is no physical Android phone available. A separate emulator-only copy
+was re-signed with the existing emulator debug certificate (SHA-256
+`fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`),
+then installed with `adb install -r`. No uninstall or data reset was performed.
+The original release-signed APK was not modified. Emulator package inventory
+confirms version 25 and the app launches to the existing wallet passcode gate.
+Before the update the emulator had one watch-only wallet; its metadata was
+captured locally, not committed. Post-unlock wallet/fee-screen verification is
+still pending because the existing passcode is not available to the agent.
+
+No real financial tests, Google Play submissions, or background provider-funding
+changes were performed. Never distribute the debug-signed emulator copy or
+uninstall an existing wallet to work around a signing mismatch.
